@@ -162,6 +162,20 @@
     return false;
   };
 
+  // An own tile at a comfortable rail distance from the given one.
+  AI.prototype.tileNear = function (tile) {
+    const g = this.g, p = this.p, W = g.W, H = g.H, r = g.rng, d = g.R.structDist;
+    const cx = tile % W, cy = (tile / W) | 0;
+    for (let i = 0; i < 30; i++) {
+      const a = r.next() * 6.2832, k = d * (1.3 + r.next() * 2);
+      const x = Math.round(cx + Math.cos(a) * k), y = Math.round(cy + Math.sin(a) * k);
+      if (x < 0 || y < 0 || x >= W || y >= H) continue;
+      const t = y * W + x;
+      if (g.owner[t] === p.id && !p.border.has(t) && !g.structNear(t, d)) return t;
+    }
+    return -1;
+  };
+
   // ---------- building ----------
   AI.prototype.construct = function () {
     const g = this.g, p = this.p, r = g.rng, c = p.cnt, d = g.opts.difficulty;
@@ -173,6 +187,11 @@
     if (c[UT.CITY] < [2, 4, 8, 12][d] && can(UT.CITY)) {
       const t = this.tileOf(p, true);
       if (t >= 0 && g.build(p, UT.CITY, t)) return;
+    }
+    if (c[UT.CITY] >= 1 && c[UT.FACTORY] < [1, 2, 3, 4][d] && c[UT.FACTORY] <= c[UT.CITY] && can(UT.FACTORY, 1.3)) {
+      const cities = p.units.filter(function (u) { return u.built && G.isStation(u.type); });
+      const t = cities.length ? this.tileNear(r.pick(cities).tile) : -1;
+      if (t >= 0 && g.build(p, UT.FACTORY, t)) return;
     }
     if (c[UT.PORT] >= 1 && c[UT.WARSHIP] < Math.min(3, c[UT.PORT]) && can(UT.WARSHIP, 1.5) && r.chance(3)) {
       const ports = p.units.filter(function (u) { return u.type === UT.PORT && u.built; });
@@ -241,7 +260,7 @@
     if (type < 0) return;
     const rad = type === UT.HYDRO ? g.R.hydroOut : g.R.atomOut;
     const cands = [];
-    for (const u of q.units) if (u.type <= UT.SAM) cands.push(u.tile);
+    for (const u of q.units) if (u.type <= UT.FACTORY) cands.push(u.tile);
     for (let i = 0; i < 8; i++) { const t = this.tileOf(q, false); if (t >= 0) cands.push(t); }
     let best = -1, bs = -1;
     for (const t of cands) {
@@ -249,7 +268,7 @@
       const x = t % W, y = (t / W) | 0;
       let s = r.next();
       for (const u of q.units) {
-        if (u.type > UT.SAM) continue;
+        if (u.type > UT.FACTORY) continue;
         if ((u.x - x) * (u.x - x) + (u.y - y) * (u.y - y) <= rad * rad) s += 1;
       }
       if (s > bs) { bs = s; best = t; }

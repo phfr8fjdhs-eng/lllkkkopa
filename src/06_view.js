@@ -11,6 +11,7 @@
     port: 'M12 2.5a2.5 2.5 0 1 0 0 5a2.5 2.5 0 0 0 0-5zM11 7.5h2V20h-2zM8 9.5h8v2H8zM5 13h2.2c0 3.3 2 5.8 4.8 5.8s4.8-2.5 4.8-5.8H19c0 4.5-3 8-7 8s-7-3.5-7-8z',
     silo: 'M12 2c2.6 2.2 4 5.4 4 9v6H8v-6c0-3.6 1.4-6.8 4-9zM6 15l2-2v6H6zM18 15l-2-2v6h2zM10 18h4v4h-4z',
     sam: 'M12 3a9 9 0 1 0 0 18a9 9 0 0 0 0-18zM12 5.2a6.8 6.8 0 1 1 0 13.6a6.8 6.8 0 0 1 0-13.6zM12 9.5a2.5 2.5 0 1 0 0 5a2.5 2.5 0 0 0 0-5zM11 1v5h2V1zM11 18v5h2v-5zM1 11v2h5v-2zM18 11v2h5v-2z',
+    factory: 'M3 21V9l5 3.5V9l5 3.5V4h3.5v8.5H21V21zM6 15.5v2.5h2.5v-2.5zM11 15.5v2.5h2.5v-2.5zM16 15.5v2.5h2.5v-2.5z',
     warship: 'M2 14h20l-2.5 6h-15zM7 13V9h4V6h3v3h3v4z',
     boat: 'M3 14h18l-3 6H6zM11 3h1.6v10H11zM13.4 4l5.6 8h-5.6z',
     atom: 'M12 2l2 3h-4zM9.5 5h5v2.5c2.6 1 4.5 3.6 4.5 6.6c0 3.9-3.1 7-7 7s-7-3.1-7-7c0-3 1.9-5.6 4.5-6.6z',
@@ -28,7 +29,7 @@
     troops: 'M12 3a4 4 0 1 0 0 8a4 4 0 0 0 0-8zM4 21c0-4.4 3.6-8 8-8s8 3.6 8 8z',
     gold: 'M12 3a9 9 0 1 0 0 18a9 9 0 0 0 0-18zM12 6.5a5.5 5.5 0 1 1 0 11a5.5 5.5 0 0 1 0-11z'
   };
-  const STRUCT_ICON = ['city', 'defense', 'port', 'silo', 'sam'];
+  const STRUCT_ICON = ['city', 'defense', 'port', 'silo', 'sam', 'factory'];
   const paths = {};
   function glyph(ctx, name, x, y, s) {
     const p = paths[name] || (paths[name] = new Path2D(ICON[name]));
@@ -257,11 +258,37 @@
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     const g = this.game;
     if (!g) return;
+    this.drawRails(ctx, g, z, ox, oy);
     this.drawStructures(ctx, g, z, ox, oy);
     this.drawUnits(ctx, g, z, ox, oy, alpha);
     this.drawFx(ctx, g, z, ox, oy, now);
     this.drawNames(ctx, g, z, ox, oy);
     this.drawMarks(ctx, g, z, ox, oy, now);
+  };
+
+  View.prototype.drawRails = function (ctx, g, z, ox, oy) {
+    const rails = g.rails;
+    if (!rails.length) return;
+    const W = g.W, x0 = -ox / z, y0 = -oy / z, x1 = (this.cw - ox) / z, y1 = (this.ch - oy) / z;
+    const step = Math.max(1, Math.round(2.5 / z));
+    ctx.beginPath();
+    for (const e of rails) {
+      if (e.x1 < x0 || e.x0 > x1 || e.y1 < y0 || e.y0 > y1) continue;
+      const p = e.path, n = p.length;
+      for (let i = 0; i < n; i += step) {
+        const j = i + step >= n ? n - 1 : i, t = p[j];
+        const x = (t % W + 0.5) * z + ox, y = (((t / W) | 0) + 0.5) * z + oy;
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        if (j === n - 1) break;
+      }
+    }
+    ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    ctx.lineWidth = within(z * 0.55, 1.6, 5); ctx.strokeStyle = 'rgba(16,22,29,.78)'; ctx.stroke();
+    if (z >= 2) {
+      ctx.setLineDash([within(z * 0.5, 2, 5), within(z * 0.9, 3, 8)]);
+      ctx.lineWidth = within(z * 0.22, 0.8, 2); ctx.strokeStyle = 'rgba(236,240,245,.8)'; ctx.stroke();
+      ctx.setLineDash([]);
+    }
   };
 
   View.prototype.drawStructures = function (ctx, g, z, ox, oy) {
@@ -296,7 +323,7 @@
     const ws = within(4 + z * 2.2, 7, 17), bs = within(3 + z * 1.6, 5, 12);
     for (let i = 0; i < us.length; i++) {
       const u = us[i], ty = u.type;
-      if (!u.active || ty <= UT.SAM) continue;
+      if (!u.active || ty <= UT.FACTORY) continue;
       if (ty >= UT.ATOM) { this.drawMissile(ctx, g, u, z, ox, oy, alpha); continue; }
       const x = (u.px + (u.x - u.px) * alpha + 0.5) * z + ox, y = (u.py + (u.y - u.py) * alpha + 0.5) * z + oy;
       if (x < -20 || y < -20 || x > cw + 20 || y > ch + 20) continue;
@@ -318,6 +345,11 @@
         ctx.closePath();
         ctx.fillStyle = p.css; ctx.fill();
         ctx.lineWidth = 1.5; ctx.strokeStyle = '#fff'; ctx.stroke();
+      } else if (ty === UT.TRAIN) {
+        const h = within(bs * 0.5, 2.6, 6);
+        ctx.fillStyle = p.css; ctx.fillRect(x - h, y - h * 0.7, h * 2, h * 1.4);
+        ctx.lineWidth = 1.2; ctx.strokeStyle = '#10161d'; ctx.strokeRect(x - h, y - h * 0.7, h * 2, h * 1.4);
+        ctx.fillStyle = '#fff'; ctx.fillRect(x - h * 0.45, y - h * 0.3, h * 0.9, h * 0.6);
       } else if (ty === UT.TRADE) {
         const h = bs * 0.42;
         ctx.fillStyle = u.captured ? '#f4b740' : '#fff';
@@ -365,7 +397,7 @@
     const list = this.fxList;
     for (let i = list.length - 1; i >= 0; i--) {
       const f = list[i], dur = f.k === 'boom' ? 1100 : 420, k = (now - f.t0) / dur;
-      if (k >= 1) { list.splice(i, 1); continue; }
+      if (k >= 1 || (f.k === 'coin' && !f.mine)) { list.splice(i, 1); continue; }
       const x = (f.x + 0.5) * z + ox, y = (f.y + 0.5) * z + oy, e = k * (2 - k);
       if (f.k === 'boom') {
         const r = Math.max(6, f.r * z) * (0.3 + 0.7 * e);
@@ -375,6 +407,9 @@
         ctx.fillStyle = 'rgba(255,250,225,' + ((1 - k) * (1 - k)).toFixed(3) + ')'; ctx.fill();
         ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832);
         ctx.strokeStyle = 'rgba(255,255,255,' + (0.8 * (1 - k)).toFixed(3) + ')'; ctx.lineWidth = 2; ctx.stroke();
+      } else if (f.k === 'coin') {
+        ctx.beginPath(); ctx.arc(x, y - 10 * e, 2 + 5 * e, 0, 6.2832);
+        ctx.strokeStyle = 'rgba(244,183,64,' + (1 - k).toFixed(3) + ')'; ctx.lineWidth = 2; ctx.stroke();
       } else {
         ctx.beginPath(); ctx.arc(x, y, 3 + 13 * e, 0, 6.2832);
         ctx.strokeStyle = 'rgba(255,255,255,' + (1 - k).toFixed(3) + ')'; ctx.lineWidth = 2; ctx.stroke();

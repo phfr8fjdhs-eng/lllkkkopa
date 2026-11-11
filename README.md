@@ -4,4 +4,4 @@ Bauen: `python3 tools/build.py` -> build/index.html (einzelne Datei, im Browser 
 Karten neu erzeugen: `python3 tools/build_maps.py geo build`.
 
 ## Tests
-`node test/sim.js` (Simulation), `node test/all.js` (alle Karten), `node test/play.js [desktop]` (Browser-Durchlauf mit Screenshots, braucht Playwright + Chrome).
+`node test/rail.js` (Fabriken und Gleise im Browser), `node test/sim.js` (Simulation), `node test/all.js` (alle Karten), `node test/play.js [desktop]` (Browser-Durchlauf mit Screenshots, braucht Playwright + Chrome).

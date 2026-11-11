@@ -2,7 +2,7 @@
 const path = require('path');
 process.argv.splice(2, 0);
 const src = path.join(__dirname, '..', 'src');
-for (const f of ['00_util.js', '01_map.js', '02_path.js', '03_game.js', '04_units.js', '05_ai.js']) require(path.join(src, f));
+for (const f of ['00_util.js', '01_map.js', '02_path.js', '03_game.js', '04_units.js', '04b_rail.js', '05_ai.js']) require(path.join(src, f));
 const G = globalThis.G;
 const stat = {};
 function wrap(obj, name) {

@@ -3,11 +3,11 @@
   const within = G.within, fmt = G.fmt;
   const PT = G.PT = { HUMAN: 0, NATION: 1, BOT: 2 };
   const UT = G.UT = {
-    CITY: 0, DEFENSE: 1, PORT: 2, SILO: 3, SAM: 4, WARSHIP: 5, TRANSPORT: 6, TRADE: 7,
-    SHELL: 8, SAMM: 9, ATOM: 10, HYDRO: 11, MIRV: 12, WARHEAD: 13
+    CITY: 0, DEFENSE: 1, PORT: 2, SILO: 3, SAM: 4, FACTORY: 5, WARSHIP: 6, TRANSPORT: 7, TRADE: 8,
+    TRAIN: 9, SHELL: 10, SAMM: 11, ATOM: 12, HYDRO: 13, MIRV: 14, WARHEAD: 15
   };
-  G.UNAME = ['Stadt', 'Verteidigungsposten', 'Hafen', 'Raketensilo', 'Flugabwehr', 'Kriegsschiff', 'Boot',
-    'Handelsschiff', 'Granate', 'Abwehrrakete', 'Atombombe', 'Wasserstoffbombe', 'MIRV', 'Sprengkopf'];
+  G.UNAME = ['Stadt', 'Verteidigungs\u00ADposten', 'Hafen', 'Raketensilo', 'Flugabwehr', 'Fabrik', 'Kriegsschiff', 'Boot',
+    'Handelsschiff', 'Zug', 'Granate', 'Abwehrrakete', 'Atombombe', 'Wasserstoff\u00ADbombe', 'MIRV', 'Sprengkopf'];
   G.DIFF_NAMES = ['Leicht', 'Mittel', 'Schwer', 'Unmöglich'];
 
   const NATION_START = [2500, 5000, 20000, 50000];
@@ -44,6 +44,7 @@
     this.attacks = []; this.attackSeq = 0;
     this.units = []; this.nukes = []; this.structAt = new Map(); this.uid = 0;
     this.portList = null; this.tradeCount = 0;
+    this.rails = []; this.railKeys = new Map(); this.railAdj = new Map(); this.railDirty = false; this.railAt = 0; this.railBad = new Set();
     this.requests = []; this.events = []; this.fx = [];
     this.human = null; this.winner = null; this.names = new Set();
     this.dirty = new Int32Array(N); this.dirtyN = 0; this.dirtyFlag = new Uint8Array(N);
@@ -59,7 +60,7 @@
       mirvRange: Math.round(1500 * S), mirvCount: Math.max(12, Math.round(350 * S * S)),
       botDist: Math.max(10, Math.round(30 * S)), boatBox: Math.round(150 * S),
       tnSearch: Math.max(60, Math.round(200 * S)), portSearch: Math.max(14, Math.round(40 * S)),
-      nukeSpeed: Math.max(2.5, 6 * S)
+      nukeSpeed: Math.max(2.5, 6 * S), rail: Math.max(30, Math.round(110 * S))
     };
   }
 
@@ -77,7 +78,7 @@
       id: id, name: info.name, type: info.type, strength: info.strength || 1, flag: info.flag || '',
       troops: 0, gold: 0, tiles: 0, border: new Set(), alive: false, spawned: false, spawnTile: -1,
       x0: this.W, y0: this.H, x1: -1, y1: -1,
-      units: [], cnt: new Int32Array(14), cityLv: 0, dposts: [], boats: 0,
+      units: [], cnt: new Int32Array(16), cityLv: 0, dposts: [], boats: 0,
       out: [], inc: [], allies: new Map(), embargo: new Set(), reqCd: new Map(),
       rel: info.type === PT.NATION ? new Map() : null,
       traitorUntil: -1, betrayals: 0, lastChange: 0, lastCluster: 0, ai: null,
@@ -759,6 +760,7 @@
     this.reap();
 
     this.pathStep();
+    this.tickRail();
     const us = this.units;
     for (let i = 0; i < us.length; i++) if (us[i].active) this.tickUnit(us[i]);
     if (T % 10 === 0) {

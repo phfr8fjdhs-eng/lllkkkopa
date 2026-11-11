@@ -131,7 +131,7 @@ input[type=range] { width: 100%; height: 30px; margin: 0; accent-color: var(--ac
   display: flex; flex-direction: column; align-items: center; gap: 3px; min-height: 108px; padding: 10px 5px 8px; text-align: center;
   background: rgba(255, 255, 255, 0.06); border: 1px solid var(--line); border-radius: 11px;
 }
-.item b { font: 600 14.5px/1.1 var(--display); letter-spacing: .01em; overflow-wrap: anywhere; }
+.item b { font: 600 14.5px/1.1 var(--display); letter-spacing: .01em; hyphens: manual; overflow-wrap: break-word; }
 .item em { font: 700 15px var(--display); font-style: normal; color: var(--accent); }
 .item small { font-size: 11px; line-height: 1.2; color: var(--muted); }
 .item:disabled { opacity: .5; }
@@ -578,11 +578,11 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
   const within = G.within, fmt = G.fmt;
   const PT = G.PT = { HUMAN: 0, NATION: 1, BOT: 2 };
   const UT = G.UT = {
-    CITY: 0, DEFENSE: 1, PORT: 2, SILO: 3, SAM: 4, WARSHIP: 5, TRANSPORT: 6, TRADE: 7,
-    SHELL: 8, SAMM: 9, ATOM: 10, HYDRO: 11, MIRV: 12, WARHEAD: 13
+    CITY: 0, DEFENSE: 1, PORT: 2, SILO: 3, SAM: 4, FACTORY: 5, WARSHIP: 6, TRANSPORT: 7, TRADE: 8,
+    TRAIN: 9, SHELL: 10, SAMM: 11, ATOM: 12, HYDRO: 13, MIRV: 14, WARHEAD: 15
   };
-  G.UNAME = ['Stadt', 'Verteidigungsposten', 'Hafen', 'Raketensilo', 'Flugabwehr', 'Kriegsschiff', 'Boot',
-    'Handelsschiff', 'Granate', 'Abwehrrakete', 'Atombombe', 'Wasserstoffbombe', 'MIRV', 'Sprengkopf'];
+  G.UNAME = ['Stadt', 'Verteidigungs\u00ADposten', 'Hafen', 'Raketensilo', 'Flugabwehr', 'Fabrik', 'Kriegsschiff', 'Boot',
+    'Handelsschiff', 'Zug', 'Granate', 'Abwehrrakete', 'Atombombe', 'Wasserstoff\u00ADbombe', 'MIRV', 'Sprengkopf'];
   G.DIFF_NAMES = ['Leicht', 'Mittel', 'Schwer', 'Unmöglich'];
 
   const NATION_START = [2500, 5000, 20000, 50000];
@@ -619,6 +619,7 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
     this.attacks = []; this.attackSeq = 0;
     this.units = []; this.nukes = []; this.structAt = new Map(); this.uid = 0;
     this.portList = null; this.tradeCount = 0;
+    this.rails = []; this.railKeys = new Map(); this.railAdj = new Map(); this.railDirty = false; this.railAt = 0; this.railBad = new Set();
     this.requests = []; this.events = []; this.fx = [];
     this.human = null; this.winner = null; this.names = new Set();
     this.dirty = new Int32Array(N); this.dirtyN = 0; this.dirtyFlag = new Uint8Array(N);
@@ -634,7 +635,7 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
       mirvRange: Math.round(1500 * S), mirvCount: Math.max(12, Math.round(350 * S * S)),
       botDist: Math.max(10, Math.round(30 * S)), boatBox: Math.round(150 * S),
       tnSearch: Math.max(60, Math.round(200 * S)), portSearch: Math.max(14, Math.round(40 * S)),
-      nukeSpeed: Math.max(2.5, 6 * S)
+      nukeSpeed: Math.max(2.5, 6 * S), rail: Math.max(30, Math.round(110 * S))
     };
   }
 
@@ -652,7 +653,7 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
       id: id, name: info.name, type: info.type, strength: info.strength || 1, flag: info.flag || '',
       troops: 0, gold: 0, tiles: 0, border: new Set(), alive: false, spawned: false, spawnTile: -1,
       x0: this.W, y0: this.H, x1: -1, y1: -1,
-      units: [], cnt: new Int32Array(14), cityLv: 0, dposts: [], boats: 0,
+      units: [], cnt: new Int32Array(16), cityLv: 0, dposts: [], boats: 0,
       out: [], inc: [], allies: new Map(), embargo: new Set(), reqCd: new Map(),
       rel: info.type === PT.NATION ? new Map() : null,
       traitorUntil: -1, betrayals: 0, lastChange: 0, lastCluster: 0, ai: null,
@@ -1334,6 +1335,7 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
     this.reap();
 
     this.pathStep();
+    this.tickRail();
     const us = this.units;
     for (let i = 0; i < us.length; i++) if (us[i].active) this.tickUnit(us[i]);
     if (T % 10 === 0) {
@@ -1412,14 +1414,14 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
 (function (G) {
   'use strict';
   const Game = G.Game, UT = G.UT, PT = G.PT, fmt = G.fmt;
-  const BUILD_TICKS = [20, 50, 20, 100, 300];   // city, defence post, port, silo, air defence
+  const BUILD_TICKS = [20, 50, 20, 100, 300, 20];   // city, defence post, port, silo, air defence, factory
   G.BUILD_TICKS = BUILD_TICKS;
 
   Game.prototype.cost = function (p, type) {
     if (p.type === PT.HUMAN && this.opts.infiniteGold) return 0;
     const c = p.cnt[type];
     switch (type) {
-      case UT.CITY: case UT.PORT: return Math.min(1e6, Math.pow(2, c) * 125000);
+      case UT.CITY: case UT.PORT: case UT.FACTORY: return Math.min(1e6, Math.pow(2, c) * 125000);
       case UT.DEFENSE: return Math.min(250000, (c + 1) * 50000);
       case UT.SILO: return 1e6;
       case UT.SAM: return Math.min(3e6, (c + 1) * 1.5e6);
@@ -1439,7 +1441,7 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
   Game.prototype.setPos = function (u, tile) { u.tile = tile; u.x = tile % this.W; u.y = (tile / this.W) | 0; };
   Game.prototype.addUnit = function (u) {
     this.units.push(u); u.owner.units.push(u); u.owner.cnt[u.type] += u.level;
-    if (u.type <= UT.SAM) this.structAt.set(u.tile, u);
+    if (u.type <= UT.FACTORY) this.structAt.set(u.tile, u);
     else if (u.type === UT.TRANSPORT) u.owner.boats++;
     else if (u.type === UT.TRADE) this.tradeCount++;
     else if (u.type >= UT.ATOM) this.nukes.push(u);
@@ -1451,12 +1453,13 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
     const o = u.owner, i = o.units.indexOf(u);
     if (i >= 0) o.units.splice(i, 1);
     o.cnt[u.type] -= u.level;
-    if (u.type <= UT.SAM) {
+    if (u.type <= UT.FACTORY) {
       this.structAt.delete(u.tile);
       if (u.built) {
         if (u.type === UT.CITY) o.cityLv -= u.level;
         else if (u.type === UT.DEFENSE) { this.refreshPosts(o); this.dirtyDisc(u.tile); }
         else if (u.type === UT.PORT) this.portList = null;
+        if (G.isStation(u.type)) this.railDirty = true;
       }
     } else if (u.type === UT.TRANSPORT) o.boats--;
     else if (u.type === UT.TRADE) this.tradeCount--;
@@ -1492,7 +1495,9 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
     if (u.type === UT.CITY) p.cityLv += u.level;
     else if (u.type === UT.DEFENSE) { this.refreshPosts(p); this.dirtyDisc(u.tile); }
     else if (u.type === UT.PORT) this.portList = null;
+    else if (u.type === UT.FACTORY) u.nextTrain = this.ticks + 50;
     else u.ready = [0];
+    if (G.isStation(u.type)) this.railDirty = true;
   };
   Game.prototype.structNear = function (t, d) {
     const W = this.W, x = t % W, y = (t / W) | 0, d2 = d * d;
@@ -1582,7 +1587,7 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
     const res = { ok: false, why: '', cost: this.cost(p, type), tile: tile, port: null, silo: null };
     const map = this.map, W = this.W;
     if (!p.alive || this.phase !== 'play') { res.why = 'Nicht möglich'; return res; }
-    if (type <= UT.SAM) {
+    if (type <= UT.FACTORY) {
       if (this.owner[tile] !== p.id) { res.why = 'Nur auf eigenem Gebiet'; return res; }
       if (type === UT.PORT) {
         const t = this.portSite(p, tile);
@@ -1623,7 +1628,7 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
     if (!c.ok) return null;
     p.gold -= c.cost;
     let u;
-    if (type <= UT.SAM) {
+    if (type <= UT.FACTORY) {
       u = this.newUnit(type, p, c.tile);
       u.built = false; u.buildStart = this.ticks;
       u.buildEnd = this.ticks + (this.opts.instantBuild ? 0 : BUILD_TICKS[type]);
@@ -2084,7 +2089,7 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
 
   Game.prototype.tickUnit = function (u) {
     const ty = u.type;
-    if (ty <= UT.SAM) {
+    if (ty <= UT.FACTORY) {
       if (!u.built) { if (this.ticks >= u.buildEnd) this.finishBuild(u); return; }
       if (ty === UT.PORT) this.tickPort(u);
       else if (ty === UT.SAM) this.tickSam(u);
@@ -2093,10 +2098,157 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
     u.px = u.x; u.py = u.y;
     if (ty === UT.TRADE) this.tickTrade(u);
     else if (ty === UT.TRANSPORT) this.tickTransport(u);
+    else if (ty === UT.TRAIN) this.tickTrain(u);
     else if (ty === UT.WARSHIP) this.tickWarship(u);
     else if (ty === UT.SHELL) this.tickShell(u);
     else if (ty === UT.SAMM) this.tickSamMissile(u);
     else this.tickNuke(u);
+  };
+})(globalThis.G = globalThis.G || {});
+
+(function (G) {
+  'use strict';
+  // Factories, railways and trains. A factory links itself to nearby cities, ports and factories
+  // with tracks laid over land; trains run along them and pay gold at every station they reach.
+  const Game = G.Game, UT = G.UT;
+  const TRAIN_OWN = 10000, TRAIN_FOREIGN = 25000, TRAIN_EVERY = 200, LINKS = 4;
+
+  G.isStation = function (t) { return t === UT.CITY || t === UT.PORT || t === UT.FACTORY; };
+
+  // Shortest land route between two tiles, searched inside a box around them. Returns tiles from a to b.
+  Game.prototype.railPath = function (a, b) {
+    const W = this.W, H = this.H, land = this.map.land, pad = 14;
+    const ax = a % W, ay = (a / W) | 0, bx = b % W, by = (b / W) | 0;
+    const x0 = Math.max(0, Math.min(ax, bx) - pad), x1 = Math.min(W - 1, Math.max(ax, bx) + pad);
+    const y0 = Math.max(0, Math.min(ay, by) - pad), y1 = Math.min(H - 1, Math.max(ay, by) + pad);
+    const w = x1 - x0 + 1, h = y1 - y0 + 1, n = w * h;
+    const prev = new Int32Array(n).fill(-2), q = new Int32Array(n);
+    const start = (by - y0) * w + (bx - x0), goal = (ay - y0) * w + (ax - x0);
+    let qh = 0, qt = 0;
+    q[qt++] = start; prev[start] = -1;
+    while (qh < qt && prev[goal] === -2) {
+      const c = q[qh++], cx = c % w, cy = (c / w) | 0;
+      for (let k = 0; k < 8; k++) {
+        const dx = k === 0 ? 1 : k === 1 ? -1 : k < 4 ? 0 : (k & 1 ? 1 : -1);
+        const dy = k === 2 ? 1 : k === 3 ? -1 : k < 4 ? 0 : (k < 6 ? 1 : -1);
+        const nx = cx + dx, ny = cy + dy;
+        if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
+        const m = ny * w + nx;
+        if (prev[m] !== -2 || !land[(ny + y0) * W + nx + x0]) continue;
+        if (dx && dy && !land[(cy + y0) * W + nx + x0] && !land[(ny + y0) * W + cx + x0]) continue;
+        prev[m] = c; q[qt++] = m;
+      }
+    }
+    if (prev[goal] === -2) return null;
+    const out = [];
+    for (let c = goal; c !== -1; c = prev[c]) out.push(((c / w | 0) + y0) * W + (c % w) + x0);
+    return Int32Array.from(out);
+  };
+
+  // Bring the network in line with the stations that exist now. Works in small steps so a big map never stalls.
+  Game.prototype.rebuildRails = function () {
+    const W = this.W, range2 = this.R.rail * this.R.rail;
+    const keep = [];
+    for (const e of this.rails) {
+      if (e.a.active && e.b.active && e.a.built && e.b.built) keep.push(e);
+      else this.railKeys.delete(e.key);
+    }
+    this.rails = keep;
+    const stations = [], factories = [];
+    for (const u of this.structAt.values()) {
+      if (!u.built || !G.isStation(u.type)) continue;
+      stations.push(u);
+      if (u.type === UT.FACTORY) factories.push(u);
+    }
+    let budget = 6, more = false;
+    for (const f of factories) {
+      const near = [];
+      for (const s of stations) {
+        if (s === f) continue;
+        const d = (s.x - f.x) * (s.x - f.x) + (s.y - f.y) * (s.y - f.y);
+        if (d <= range2) near.push({ s: s, d: d });
+      }
+      near.sort(function (m, n) { return m.d - n.d || m.s.id - n.s.id; });
+      for (let i = 0; i < near.length && i < LINKS; i++) {
+        const s = near[i].s, key = Math.min(f.id, s.id) + '_' + Math.max(f.id, s.id);
+        if (this.railKeys.has(key) || this.railBad.has(key)) continue;
+        if (budget <= 0) { more = true; break; }
+        budget--;
+        const path = this.railPath(f.tile, s.tile);
+        if (!path) { this.railBad.add(key); continue; }
+        let x0 = W, x1 = 0, y0 = this.H, y1 = 0;
+        for (let j = 0; j < path.length; j++) {
+          const x = path[j] % W, y = (path[j] / W) | 0;
+          if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+        }
+        const e = { key: key, a: f, b: s, path: path, x0: x0, x1: x1, y0: y0, y1: y1 };
+        this.rails.push(e); this.railKeys.set(key, e);
+      }
+    }
+    const adj = new Map();
+    for (const e of this.rails) {
+      if (!adj.has(e.a.id)) adj.set(e.a.id, []);
+      if (!adj.has(e.b.id)) adj.set(e.b.id, []);
+      adj.get(e.a.id).push(e); adj.get(e.b.id).push(e);
+    }
+    this.railAdj = adj;
+    this.railDirty = more;
+    this.railAt = this.ticks + (more ? 2 : 10);
+  };
+
+  // Pick a track leaving this station that the train's owner may use.
+  Game.prototype.railNext = function (p, st, not) {
+    const list = this.railAdj.get(st.id);
+    if (!list) return null;
+    const ok = [];
+    for (const e of list) {
+      if (e === not) continue;
+      const o = (e.a === st ? e.b : e.a).owner;
+      if (o === p || (o.alive && this.canTrade(p, o))) ok.push(e);
+    }
+    return ok.length ? ok[this.rng.int(0, ok.length)] : null;
+  };
+
+  Game.prototype.tickRail = function () {
+    if (this.railDirty && this.ticks >= this.railAt) this.rebuildRails();
+    if (this.ticks % 10) return;
+    for (const u of this.structAt.values()) {
+      if (u.type !== UT.FACTORY || !u.built || this.ticks < u.nextTrain) continue;
+      const p = u.owner;
+      if (!p.alive) continue;
+      u.nextTrain = this.ticks + TRAIN_EVERY + this.rng.int(0, 60);
+      if (p.cnt[UT.TRAIN] >= 2 * p.cnt[UT.FACTORY] + 1) continue;
+      const e = this.railNext(p, u, null);
+      if (!e) continue;
+      const t = this.newUnit(UT.TRAIN, p, u.tile);
+      t.edge = e; t.fwd = e.a === u; t.pi = t.fwd ? 0 : e.path.length - 1; t.hops = 3;
+      this.addUnit(t);
+    }
+  };
+
+  Game.prototype.tickTrain = function (u) {
+    const e = u.edge, p = u.owner;
+    if (!e.a.active || !e.b.active || !p.alive) { this.removeUnit(u); return; }
+    const end = u.fwd ? e.path.length - 1 : 0;
+    if (u.pi !== end) {
+      u.pi += u.fwd ? 1 : -1;
+      this.setPos(u, e.path[u.pi]);
+      const o = this.owner[u.tile];
+      if (o && o !== p.id && !this.canTrade(p, this.players[o])) this.removeUnit(u);   // rolled into hostile land
+      return;
+    }
+    const st = u.fwd ? e.b : e.a, q = st.owner, h = this.human;
+    if (q === p) p.gold += TRAIN_OWN;
+    else if (q.alive && this.canTrade(p, q)) {
+      p.gold += TRAIN_FOREIGN; q.gold += TRAIN_FOREIGN;
+      if (h && (p === h || q === h)) h.tradeGold += TRAIN_FOREIGN;
+    } else { this.removeUnit(u); return; }
+    if (h && p === h) h.trainGold = (h.trainGold || 0) + (q === p ? TRAIN_OWN : TRAIN_FOREIGN);
+    this.fx.push({ k: 'coin', x: st.x, y: st.y, t: this.ticks, mine: p === h || q === h });
+    if (this.fx.length > 300) this.fx.splice(0, 150);
+    const nx = --u.hops > 0 ? this.railNext(p, st, e) : null;
+    if (!nx) { this.removeUnit(u); return; }
+    u.edge = nx; u.fwd = nx.a === st; u.pi = u.fwd ? 0 : nx.path.length - 1;
   };
 })(globalThis.G = globalThis.G || {});
 
@@ -2264,6 +2416,20 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
     return false;
   };
 
+  // An own tile at a comfortable rail distance from the given one.
+  AI.prototype.tileNear = function (tile) {
+    const g = this.g, p = this.p, W = g.W, H = g.H, r = g.rng, d = g.R.structDist;
+    const cx = tile % W, cy = (tile / W) | 0;
+    for (let i = 0; i < 30; i++) {
+      const a = r.next() * 6.2832, k = d * (1.3 + r.next() * 2);
+      const x = Math.round(cx + Math.cos(a) * k), y = Math.round(cy + Math.sin(a) * k);
+      if (x < 0 || y < 0 || x >= W || y >= H) continue;
+      const t = y * W + x;
+      if (g.owner[t] === p.id && !p.border.has(t) && !g.structNear(t, d)) return t;
+    }
+    return -1;
+  };
+
   // ---------- building ----------
   AI.prototype.construct = function () {
     const g = this.g, p = this.p, r = g.rng, c = p.cnt, d = g.opts.difficulty;
@@ -2275,6 +2441,11 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
     if (c[UT.CITY] < [2, 4, 8, 12][d] && can(UT.CITY)) {
       const t = this.tileOf(p, true);
       if (t >= 0 && g.build(p, UT.CITY, t)) return;
+    }
+    if (c[UT.CITY] >= 1 && c[UT.FACTORY] < [1, 2, 3, 4][d] && c[UT.FACTORY] <= c[UT.CITY] && can(UT.FACTORY, 1.3)) {
+      const cities = p.units.filter(function (u) { return u.built && G.isStation(u.type); });
+      const t = cities.length ? this.tileNear(r.pick(cities).tile) : -1;
+      if (t >= 0 && g.build(p, UT.FACTORY, t)) return;
     }
     if (c[UT.PORT] >= 1 && c[UT.WARSHIP] < Math.min(3, c[UT.PORT]) && can(UT.WARSHIP, 1.5) && r.chance(3)) {
       const ports = p.units.filter(function (u) { return u.type === UT.PORT && u.built; });
@@ -2343,7 +2514,7 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
     if (type < 0) return;
     const rad = type === UT.HYDRO ? g.R.hydroOut : g.R.atomOut;
     const cands = [];
-    for (const u of q.units) if (u.type <= UT.SAM) cands.push(u.tile);
+    for (const u of q.units) if (u.type <= UT.FACTORY) cands.push(u.tile);
     for (let i = 0; i < 8; i++) { const t = this.tileOf(q, false); if (t >= 0) cands.push(t); }
     let best = -1, bs = -1;
     for (const t of cands) {
@@ -2351,7 +2522,7 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
       const x = t % W, y = (t / W) | 0;
       let s = r.next();
       for (const u of q.units) {
-        if (u.type > UT.SAM) continue;
+        if (u.type > UT.FACTORY) continue;
         if ((u.x - x) * (u.x - x) + (u.y - y) * (u.y - y) <= rad * rad) s += 1;
       }
       if (s > bs) { bs = s; best = t; }
@@ -2420,6 +2591,7 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
     port: 'M12 2.5a2.5 2.5 0 1 0 0 5a2.5 2.5 0 0 0 0-5zM11 7.5h2V20h-2zM8 9.5h8v2H8zM5 13h2.2c0 3.3 2 5.8 4.8 5.8s4.8-2.5 4.8-5.8H19c0 4.5-3 8-7 8s-7-3.5-7-8z',
     silo: 'M12 2c2.6 2.2 4 5.4 4 9v6H8v-6c0-3.6 1.4-6.8 4-9zM6 15l2-2v6H6zM18 15l-2-2v6h2zM10 18h4v4h-4z',
     sam: 'M12 3a9 9 0 1 0 0 18a9 9 0 0 0 0-18zM12 5.2a6.8 6.8 0 1 1 0 13.6a6.8 6.8 0 0 1 0-13.6zM12 9.5a2.5 2.5 0 1 0 0 5a2.5 2.5 0 0 0 0-5zM11 1v5h2V1zM11 18v5h2v-5zM1 11v2h5v-2zM18 11v2h5v-2z',
+    factory: 'M3 21V9l5 3.5V9l5 3.5V4h3.5v8.5H21V21zM6 15.5v2.5h2.5v-2.5zM11 15.5v2.5h2.5v-2.5zM16 15.5v2.5h2.5v-2.5z',
     warship: 'M2 14h20l-2.5 6h-15zM7 13V9h4V6h3v3h3v4z',
     boat: 'M3 14h18l-3 6H6zM11 3h1.6v10H11zM13.4 4l5.6 8h-5.6z',
     atom: 'M12 2l2 3h-4zM9.5 5h5v2.5c2.6 1 4.5 3.6 4.5 6.6c0 3.9-3.1 7-7 7s-7-3.1-7-7c0-3 1.9-5.6 4.5-6.6z',
@@ -2437,7 +2609,7 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
     troops: 'M12 3a4 4 0 1 0 0 8a4 4 0 0 0 0-8zM4 21c0-4.4 3.6-8 8-8s8 3.6 8 8z',
     gold: 'M12 3a9 9 0 1 0 0 18a9 9 0 0 0 0-18zM12 6.5a5.5 5.5 0 1 1 0 11a5.5 5.5 0 0 1 0-11z'
   };
-  const STRUCT_ICON = ['city', 'defense', 'port', 'silo', 'sam'];
+  const STRUCT_ICON = ['city', 'defense', 'port', 'silo', 'sam', 'factory'];
   const paths = {};
   function glyph(ctx, name, x, y, s) {
     const p = paths[name] || (paths[name] = new Path2D(ICON[name]));
@@ -2666,11 +2838,37 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     const g = this.game;
     if (!g) return;
+    this.drawRails(ctx, g, z, ox, oy);
     this.drawStructures(ctx, g, z, ox, oy);
     this.drawUnits(ctx, g, z, ox, oy, alpha);
     this.drawFx(ctx, g, z, ox, oy, now);
     this.drawNames(ctx, g, z, ox, oy);
     this.drawMarks(ctx, g, z, ox, oy, now);
+  };
+
+  View.prototype.drawRails = function (ctx, g, z, ox, oy) {
+    const rails = g.rails;
+    if (!rails.length) return;
+    const W = g.W, x0 = -ox / z, y0 = -oy / z, x1 = (this.cw - ox) / z, y1 = (this.ch - oy) / z;
+    const step = Math.max(1, Math.round(2.5 / z));
+    ctx.beginPath();
+    for (const e of rails) {
+      if (e.x1 < x0 || e.x0 > x1 || e.y1 < y0 || e.y0 > y1) continue;
+      const p = e.path, n = p.length;
+      for (let i = 0; i < n; i += step) {
+        const j = i + step >= n ? n - 1 : i, t = p[j];
+        const x = (t % W + 0.5) * z + ox, y = (((t / W) | 0) + 0.5) * z + oy;
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        if (j === n - 1) break;
+      }
+    }
+    ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    ctx.lineWidth = within(z * 0.55, 1.6, 5); ctx.strokeStyle = 'rgba(16,22,29,.78)'; ctx.stroke();
+    if (z >= 2) {
+      ctx.setLineDash([within(z * 0.5, 2, 5), within(z * 0.9, 3, 8)]);
+      ctx.lineWidth = within(z * 0.22, 0.8, 2); ctx.strokeStyle = 'rgba(236,240,245,.8)'; ctx.stroke();
+      ctx.setLineDash([]);
+    }
   };
 
   View.prototype.drawStructures = function (ctx, g, z, ox, oy) {
@@ -2705,7 +2903,7 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
     const ws = within(4 + z * 2.2, 7, 17), bs = within(3 + z * 1.6, 5, 12);
     for (let i = 0; i < us.length; i++) {
       const u = us[i], ty = u.type;
-      if (!u.active || ty <= UT.SAM) continue;
+      if (!u.active || ty <= UT.FACTORY) continue;
       if (ty >= UT.ATOM) { this.drawMissile(ctx, g, u, z, ox, oy, alpha); continue; }
       const x = (u.px + (u.x - u.px) * alpha + 0.5) * z + ox, y = (u.py + (u.y - u.py) * alpha + 0.5) * z + oy;
       if (x < -20 || y < -20 || x > cw + 20 || y > ch + 20) continue;
@@ -2727,6 +2925,11 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
         ctx.closePath();
         ctx.fillStyle = p.css; ctx.fill();
         ctx.lineWidth = 1.5; ctx.strokeStyle = '#fff'; ctx.stroke();
+      } else if (ty === UT.TRAIN) {
+        const h = within(bs * 0.5, 2.6, 6);
+        ctx.fillStyle = p.css; ctx.fillRect(x - h, y - h * 0.7, h * 2, h * 1.4);
+        ctx.lineWidth = 1.2; ctx.strokeStyle = '#10161d'; ctx.strokeRect(x - h, y - h * 0.7, h * 2, h * 1.4);
+        ctx.fillStyle = '#fff'; ctx.fillRect(x - h * 0.45, y - h * 0.3, h * 0.9, h * 0.6);
       } else if (ty === UT.TRADE) {
         const h = bs * 0.42;
         ctx.fillStyle = u.captured ? '#f4b740' : '#fff';
@@ -2774,7 +2977,7 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
     const list = this.fxList;
     for (let i = list.length - 1; i >= 0; i--) {
       const f = list[i], dur = f.k === 'boom' ? 1100 : 420, k = (now - f.t0) / dur;
-      if (k >= 1) { list.splice(i, 1); continue; }
+      if (k >= 1 || (f.k === 'coin' && !f.mine)) { list.splice(i, 1); continue; }
       const x = (f.x + 0.5) * z + ox, y = (f.y + 0.5) * z + oy, e = k * (2 - k);
       if (f.k === 'boom') {
         const r = Math.max(6, f.r * z) * (0.3 + 0.7 * e);
@@ -2784,6 +2987,9 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
         ctx.fillStyle = 'rgba(255,250,225,' + ((1 - k) * (1 - k)).toFixed(3) + ')'; ctx.fill();
         ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832);
         ctx.strokeStyle = 'rgba(255,255,255,' + (0.8 * (1 - k)).toFixed(3) + ')'; ctx.lineWidth = 2; ctx.stroke();
+      } else if (f.k === 'coin') {
+        ctx.beginPath(); ctx.arc(x, y - 10 * e, 2 + 5 * e, 0, 6.2832);
+        ctx.strokeStyle = 'rgba(244,183,64,' + (1 - k).toFixed(3) + ')'; ctx.lineWidth = 2; ctx.stroke();
       } else {
         ctx.beginPath(); ctx.arc(x, y, 3 + 13 * e, 0, 6.2832);
         ctx.strokeStyle = 'rgba(255,255,255,' + (1 - k).toFixed(3) + ')'; ctx.lineWidth = 2; ctx.stroke();
@@ -2863,6 +3069,7 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
   const BUILD = [
     { t: UT.CITY, icon: 'city', note: 'Truppen-Limit +25K' },
     { t: UT.PORT, icon: 'port', note: 'Handel und Kriegsschiffe' },
+    { t: UT.FACTORY, icon: 'factory', note: 'Gleise und Züge bringen Gold' },
     { t: UT.DEFENSE, icon: 'defense', note: 'Grenze fünfmal zäher' },
     { t: UT.SILO, icon: 'silo', note: 'Startet Bomben' },
     { t: UT.SAM, icon: 'sam', note: 'Fängt Bomben ab' },
@@ -3010,7 +3217,8 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
       '<li><b>Start:</b> Tippe auf freies Land und wähle so deinen Startpunkt.</li>' +
       '<li><b>Ausbreiten:</b> Tippe auf Land neben deinem Gebiet und dann auf <b>Angriff</b>. Der Regler unten legt fest, wie viele Truppen du schickst.</li>' +
       '<li><b>Truppen:</b> Sie wachsen von selbst, am schnellsten bei gut 40 % des Limits. Mehr Land und Städte heben das Limit.</li>' +
-      '<li><b>Gold:</b> Kommt laufend dazu, ausserdem durch Handel und Eroberungen. Damit baust du Städte, Häfen, Verteidigung und Raketen.</li>' +
+      '<li><b>Gold:</b> Kommt laufend dazu, ausserdem durch Handel und Eroberungen. Damit baust du Städte, Häfen, Fabriken, Verteidigung und Raketen.</li>' +
+      '<li><b>Fabriken:</b> Eine Fabrik verbindet sich per Gleis mit Städten, Häfen und Fabriken in der Nähe. Jeder Zug bringt an jedem Bahnhof Gold, bei Handelspartnern sogar mehr.</li>' +
       '<li><b>Übers Wasser:</b> Tippe auf ein fremdes Ufer und schicke ein <b>Boot</b>. Höchstens drei sind gleichzeitig unterwegs.</li>' +
       '<li><b>Allianzen:</b> Verbündete greifen sich zehn Minuten lang nicht an. Wer eine Allianz bricht, ist 30 Sekunden lang leichter zu erobern.</li>' +
       '<li><b>Einkreisen:</b> Wer ganz von einem Gegner umschlossen ist, wird sofort übernommen.</li>' +
@@ -3221,8 +3429,8 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
     } else kind = 'Bot';
     let s = '<div class="who"><span class="dot big" style="background:' + p.css + '"></span><div><h2>' + (p.flag ? G.flagOf(p.flag) + ' ' : '') + esc(p.name) + '</h2><p>' + kind + '</p></div></div>';
     s += '<div class="facts">' + fact('Truppen', fmtT(p.troops)) + fact('Gold', me && game.opts.infiniteGold ? '∞' : fmt(p.gold)) + fact('Gebiet', (p.tiles / den * 100).toFixed(1) + ' %') + '</div>';
-    s += '<div class="facts six">' + fact('Städte', p.cnt[UT.CITY]) + fact('Häfen', p.cnt[UT.PORT]) + fact('Posten', p.cnt[UT.DEFENSE]) +
-      fact('Silos', p.cnt[UT.SILO]) + fact('Abwehr', p.cnt[UT.SAM]) + fact('Schiffe', p.cnt[UT.WARSHIP]) + '</div>';
+    s += '<div class="facts six">' + fact('Städte', p.cnt[UT.CITY]) + fact('Häfen', p.cnt[UT.PORT]) + fact('Fabriken', p.cnt[UT.FACTORY]) +
+      fact('Posten', p.cnt[UT.DEFENSE]) + fact('Silos', p.cnt[UT.SILO]) + fact('Abwehr', p.cnt[UT.SAM]) + '</div>';
     const notes = [];
     if (al) notes.push('Verbündet, noch ' + clock((al.end - T) / 10));
     if (p.traitorUntil > T) notes.push('Verräter, noch ' + Math.ceil((p.traitorUntil - T) / 10) + ' s leichter zu erobern');

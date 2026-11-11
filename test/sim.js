@@ -1,7 +1,7 @@
 // Headless run of the simulation to check rules, invariants and speed.
 const fs = require('fs'), path = require('path');
 const src = path.join(__dirname, '..', 'src');
-for (const f of ['00_util.js', '01_map.js', '02_path.js', '03_game.js', '04_units.js', '05_ai.js']) require(path.join(src, f));
+for (const f of ['00_util.js', '01_map.js', '02_path.js', '03_game.js', '04_units.js', '04b_rail.js', '05_ai.js']) require(path.join(src, f));
 const G = globalThis.G;
 const sharp = require('/opt/npm-tools/node_modules/sharp');
 
@@ -35,8 +35,8 @@ function check(g) {
     }
     if (p.alive && b !== p.border.size) throw new Error('border size ' + b + ' vs ' + p.border.size + ' ' + p.name);
     for (const u of p.units) { if (!u.active) throw new Error('inactive unit listed'); if (u.owner !== p) throw new Error('unit owner'); }
-    const c = new Int32Array(14); for (const u of p.units) c[u.type] += u.level;
-    for (let k = 0; k < 14; k++) if (c[k] !== p.cnt[k]) throw new Error('unit count ' + k + ' ' + p.name + ' ' + c[k] + ' vs ' + p.cnt[k]);
+    const c = new Int32Array(16); for (const u of p.units) c[u.type] += u.level;
+    for (let k = 0; k < 16; k++) if (c[k] !== p.cnt[k]) throw new Error('unit count ' + k + ' ' + p.name + ' ' + c[k] + ' vs ' + p.cnt[k]);
   }
   for (const [t, u] of g.structAt) { if (!u.active) throw new Error('dead struct'); if (g.owner[t] !== u.owner.id) throw new Error('struct on foreign tile ' + G.UNAME[u.type] + ' ' + u.owner.name + ' built=' + u.built); }
 }
@@ -62,7 +62,7 @@ function check(g) {
       const owned = alive.reduce((s, p) => s + p.tiles, 0);
       const cnt = (t) => g.units.filter((u) => u.active && u.type === t).length;
       console.log(`t=${i + 1} alive=${alive.length} owned=${(owned / map.landTiles * 100).toFixed(0)}% attacks=${g.attacks.filter((a) => a.active).length} ` +
-        `units city/port/silo/sam/def=${cnt(0)}/${cnt(2)}/${cnt(3)}/${cnt(4)}/${cnt(1)} war=${cnt(5)} boats=${cnt(6)} trade=${cnt(7)} nukes=${g.nukes.filter((u) => u.active).length} fallout=${g.falloutCount} ` +
+        `units city/port/silo/sam/def=${cnt(0)}/${cnt(2)}/${cnt(3)}/${cnt(4)}/${cnt(1)} fab=${cnt(G.UT.FACTORY)} rails=${g.rails.length} trains=${cnt(G.UT.TRAIN)} war=${cnt(G.UT.WARSHIP)} boats=${cnt(G.UT.TRANSPORT)} trade=${cnt(G.UT.TRADE)} nukes=${g.nukes.filter((u) => u.active).length} fallout=${g.falloutCount} ` +
         `allies=${alive.reduce((s, p) => s + p.allies.size, 0) / 2} pathQ=${g.pathQ.length} top=${alive.slice(0, 3).map((p) => p.name + ':' + (p.tiles / map.landTiles * 100).toFixed(1) + '%/' + G.fmtTroops(p.troops) + '/' + G.fmt(p.gold)).join(', ')} avg=${(total / (i + 1)).toFixed(2)}ms worst=${worst.toFixed(1)}ms`);
       worst = 0;
       if (g.winner) { console.log('WINNER', g.winner.name, 'at tick', g.ticks); break; }

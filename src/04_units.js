@@ -1,14 +1,14 @@
 (function (G) {
   'use strict';
   const Game = G.Game, UT = G.UT, PT = G.PT, fmt = G.fmt;
-  const BUILD_TICKS = [20, 50, 20, 100, 300];   // city, defence post, port, silo, air defence
+  const BUILD_TICKS = [20, 50, 20, 100, 300, 20];   // city, defence post, port, silo, air defence, factory
   G.BUILD_TICKS = BUILD_TICKS;
 
   Game.prototype.cost = function (p, type) {
     if (p.type === PT.HUMAN && this.opts.infiniteGold) return 0;
     const c = p.cnt[type];
     switch (type) {
-      case UT.CITY: case UT.PORT: return Math.min(1e6, Math.pow(2, c) * 125000);
+      case UT.CITY: case UT.PORT: case UT.FACTORY: return Math.min(1e6, Math.pow(2, c) * 125000);
       case UT.DEFENSE: return Math.min(250000, (c + 1) * 50000);
       case UT.SILO: return 1e6;
       case UT.SAM: return Math.min(3e6, (c + 1) * 1.5e6);
@@ -28,7 +28,7 @@
   Game.prototype.setPos = function (u, tile) { u.tile = tile; u.x = tile % this.W; u.y = (tile / this.W) | 0; };
   Game.prototype.addUnit = function (u) {
     this.units.push(u); u.owner.units.push(u); u.owner.cnt[u.type] += u.level;
-    if (u.type <= UT.SAM) this.structAt.set(u.tile, u);
+    if (u.type <= UT.FACTORY) this.structAt.set(u.tile, u);
     else if (u.type === UT.TRANSPORT) u.owner.boats++;
     else if (u.type === UT.TRADE) this.tradeCount++;
     else if (u.type >= UT.ATOM) this.nukes.push(u);
@@ -40,12 +40,13 @@
     const o = u.owner, i = o.units.indexOf(u);
     if (i >= 0) o.units.splice(i, 1);
     o.cnt[u.type] -= u.level;
-    if (u.type <= UT.SAM) {
+    if (u.type <= UT.FACTORY) {
       this.structAt.delete(u.tile);
       if (u.built) {
         if (u.type === UT.CITY) o.cityLv -= u.level;
         else if (u.type === UT.DEFENSE) { this.refreshPosts(o); this.dirtyDisc(u.tile); }
         else if (u.type === UT.PORT) this.portList = null;
+        if (G.isStation(u.type)) this.railDirty = true;
       }
     } else if (u.type === UT.TRANSPORT) o.boats--;
     else if (u.type === UT.TRADE) this.tradeCount--;
@@ -81,7 +82,9 @@
     if (u.type === UT.CITY) p.cityLv += u.level;
     else if (u.type === UT.DEFENSE) { this.refreshPosts(p); this.dirtyDisc(u.tile); }
     else if (u.type === UT.PORT) this.portList = null;
+    else if (u.type === UT.FACTORY) u.nextTrain = this.ticks + 50;
     else u.ready = [0];
+    if (G.isStation(u.type)) this.railDirty = true;
   };
   Game.prototype.structNear = function (t, d) {
     const W = this.W, x = t % W, y = (t / W) | 0, d2 = d * d;
@@ -171,7 +174,7 @@
     const res = { ok: false, why: '', cost: this.cost(p, type), tile: tile, port: null, silo: null };
     const map = this.map, W = this.W;
     if (!p.alive || this.phase !== 'play') { res.why = 'Nicht möglich'; return res; }
-    if (type <= UT.SAM) {
+    if (type <= UT.FACTORY) {
       if (this.owner[tile] !== p.id) { res.why = 'Nur auf eigenem Gebiet'; return res; }
       if (type === UT.PORT) {
         const t = this.portSite(p, tile);
@@ -212,7 +215,7 @@
     if (!c.ok) return null;
     p.gold -= c.cost;
     let u;
-    if (type <= UT.SAM) {
+    if (type <= UT.FACTORY) {
       u = this.newUnit(type, p, c.tile);
       u.built = false; u.buildStart = this.ticks;
       u.buildEnd = this.ticks + (this.opts.instantBuild ? 0 : BUILD_TICKS[type]);
@@ -673,7 +676,7 @@
 
   Game.prototype.tickUnit = function (u) {
     const ty = u.type;
-    if (ty <= UT.SAM) {
+    if (ty <= UT.FACTORY) {
       if (!u.built) { if (this.ticks >= u.buildEnd) this.finishBuild(u); return; }
       if (ty === UT.PORT) this.tickPort(u);
       else if (ty === UT.SAM) this.tickSam(u);
@@ -682,6 +685,7 @@
     u.px = u.x; u.py = u.y;
     if (ty === UT.TRADE) this.tickTrade(u);
     else if (ty === UT.TRANSPORT) this.tickTransport(u);
+    else if (ty === UT.TRAIN) this.tickTrain(u);
     else if (ty === UT.WARSHIP) this.tickWarship(u);
     else if (ty === UT.SHELL) this.tickShell(u);
     else if (ty === UT.SAMM) this.tickSamMissile(u);

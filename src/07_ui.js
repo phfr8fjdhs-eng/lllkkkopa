@@ -15,6 +15,7 @@
   const BUILD = [
     { t: UT.CITY, icon: 'city', note: 'Truppen-Limit +25K' },
     { t: UT.PORT, icon: 'port', note: 'Handel und Kriegsschiffe' },
+    { t: UT.FACTORY, icon: 'factory', note: 'Gleise und Züge bringen Gold' },
     { t: UT.DEFENSE, icon: 'defense', note: 'Grenze fünfmal zäher' },
     { t: UT.SILO, icon: 'silo', note: 'Startet Bomben' },
     { t: UT.SAM, icon: 'sam', note: 'Fängt Bomben ab' },
@@ -162,7 +163,8 @@
       '<li><b>Start:</b> Tippe auf freies Land und wähle so deinen Startpunkt.</li>' +
       '<li><b>Ausbreiten:</b> Tippe auf Land neben deinem Gebiet und dann auf <b>Angriff</b>. Der Regler unten legt fest, wie viele Truppen du schickst.</li>' +
       '<li><b>Truppen:</b> Sie wachsen von selbst, am schnellsten bei gut 40 % des Limits. Mehr Land und Städte heben das Limit.</li>' +
-      '<li><b>Gold:</b> Kommt laufend dazu, ausserdem durch Handel und Eroberungen. Damit baust du Städte, Häfen, Verteidigung und Raketen.</li>' +
+      '<li><b>Gold:</b> Kommt laufend dazu, ausserdem durch Handel und Eroberungen. Damit baust du Städte, Häfen, Fabriken, Verteidigung und Raketen.</li>' +
+      '<li><b>Fabriken:</b> Eine Fabrik verbindet sich per Gleis mit Städten, Häfen und Fabriken in der Nähe. Jeder Zug bringt an jedem Bahnhof Gold, bei Handelspartnern sogar mehr.</li>' +
       '<li><b>Übers Wasser:</b> Tippe auf ein fremdes Ufer und schicke ein <b>Boot</b>. Höchstens drei sind gleichzeitig unterwegs.</li>' +
       '<li><b>Allianzen:</b> Verbündete greifen sich zehn Minuten lang nicht an. Wer eine Allianz bricht, ist 30 Sekunden lang leichter zu erobern.</li>' +
       '<li><b>Einkreisen:</b> Wer ganz von einem Gegner umschlossen ist, wird sofort übernommen.</li>' +
@@ -373,8 +375,8 @@
     } else kind = 'Bot';
     let s = '<div class="who"><span class="dot big" style="background:' + p.css + '"></span><div><h2>' + (p.flag ? G.flagOf(p.flag) + ' ' : '') + esc(p.name) + '</h2><p>' + kind + '</p></div></div>';
     s += '<div class="facts">' + fact('Truppen', fmtT(p.troops)) + fact('Gold', me && game.opts.infiniteGold ? '∞' : fmt(p.gold)) + fact('Gebiet', (p.tiles / den * 100).toFixed(1) + ' %') + '</div>';
-    s += '<div class="facts six">' + fact('Städte', p.cnt[UT.CITY]) + fact('Häfen', p.cnt[UT.PORT]) + fact('Posten', p.cnt[UT.DEFENSE]) +
-      fact('Silos', p.cnt[UT.SILO]) + fact('Abwehr', p.cnt[UT.SAM]) + fact('Schiffe', p.cnt[UT.WARSHIP]) + '</div>';
+    s += '<div class="facts six">' + fact('Städte', p.cnt[UT.CITY]) + fact('Häfen', p.cnt[UT.PORT]) + fact('Fabriken', p.cnt[UT.FACTORY]) +
+      fact('Posten', p.cnt[UT.DEFENSE]) + fact('Silos', p.cnt[UT.SILO]) + fact('Abwehr', p.cnt[UT.SAM]) + '</div>';
     const notes = [];
     if (al) notes.push('Verbündet, noch ' + clock((al.end - T) / 10));
     if (p.traitorUntil > T) notes.push('Verräter, noch ' + Math.ceil((p.traitorUntil - T) / 10) + ' s leichter zu erobern');
