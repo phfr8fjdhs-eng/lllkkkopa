@@ -12,18 +12,20 @@
   }
 
   const COLORS = [[226, 68, 60], [42, 122, 226], [241, 160, 36], [150, 84, 214], [28, 170, 150], [232, 86, 160]];
+  // The number keys 1 to 0 build these, in this order, at the mouse pointer.
   const BUILD = [
-    { t: UT.CITY, icon: 'city', note: 'Truppen-Limit +25K' },
-    { t: UT.PORT, icon: 'port', note: 'Handel und Kriegsschiffe' },
-    { t: UT.FACTORY, icon: 'factory', note: 'Gleise und Züge bringen Gold' },
-    { t: UT.DEFENSE, icon: 'defense', note: 'Grenze fünfmal zäher' },
-    { t: UT.SILO, icon: 'silo', note: 'Startet Bomben' },
-    { t: UT.SAM, icon: 'sam', note: 'Fängt Bomben ab' },
-    { t: UT.WARSHIP, icon: 'warship', note: 'Versenkt Boote, kapert Handel' },
-    { t: UT.ATOM, icon: 'atom', note: 'Kleiner Krater' },
-    { t: UT.HYDRO, icon: 'hydro', note: 'Riesiger Krater' },
-    { t: UT.MIRV, icon: 'mirv', note: 'Verwüstet ein ganzes Reich' }
+    { t: UT.CITY, icon: 'city', note: 'Truppen-Limit +25K', key: '1' },
+    { t: UT.PORT, icon: 'port', note: 'Handel und Kriegsschiffe', key: '2' },
+    { t: UT.FACTORY, icon: 'factory', note: 'Gleise und Züge bringen Gold', key: '3' },
+    { t: UT.DEFENSE, icon: 'defense', note: 'Grenze fünfmal zäher', key: '4' },
+    { t: UT.SILO, icon: 'silo', note: 'Startet Bomben', key: '5' },
+    { t: UT.SAM, icon: 'sam', note: 'Fängt Bomben ab', key: '6' },
+    { t: UT.WARSHIP, icon: 'warship', note: 'Nimmt fremde Schiffe ein', key: '7' },
+    { t: UT.ATOM, icon: 'atom', note: 'Kleiner Krater', key: '8' },
+    { t: UT.HYDRO, icon: 'hydro', note: 'Riesiger Krater', key: '9' },
+    { t: UT.MIRV, icon: 'mirv', note: 'Verwüstet ein ganzes Reich', key: '0' }
   ];
+  const snd = function (name, gap) { G.Audio.play(name, gap); };
   const TERRAIN = ['Ebene', 'Hochland', 'Gebirge'];
 
   let MAPS = [], maps = {}, game = null, view = null;
@@ -31,14 +33,17 @@
   let sel = null, radialAt = 0, modalKind = '', infoId = 0, lbOpen = false, lbAt = -99, liveAt = -99, tradeAt = 0;
   let toastTimer = 0, endShown = false, botsTouched = false;
   const chips = new Map(), asks = new Map();
-  const cfg = { name: 'Spieler', color: 0, map: 'welt', diff: 1, bots: -1, nations: true, instant: false, gold: false, troops: false, tap: false };
+  const cfg = { name: 'Spieler', color: 0, map: 'welt', diff: 1, bots: -1, nations: true, instant: false, gold: false, troops: false, tap: false, music: true, sfx: true };
+  let hoverX = -1, hoverY = -1;
+  const special = function (id) { return G.SPECIAL_MAPS.find(function (m) { return m.id === id; }); };
 
   function loadCfg() {
     try {
       const s = JSON.parse(localStorage.getItem('grenzland.v1') || '{}');
       for (const k in cfg) if (typeof s[k] === typeof cfg[k]) cfg[k] = s[k];
     } catch (e) { /* storage may be unavailable */ }
-    if (cfg.map !== 'zufall' && !MAPS.some(function (m) { return m.id === cfg.map; })) cfg.map = 'welt';
+    if (cfg.map !== 'zufall' && !special(cfg.map) && !MAPS.some(function (m) { return m.id === cfg.map; })) cfg.map = 'welt';
+    G.Audio.on.music = cfg.music; G.Audio.on.sfx = cfg.sfx;
     botsTouched = cfg.bots >= 0;
   }
   function saveCfg() {
@@ -52,6 +57,12 @@
       const seed = (Math.random() * 2e9) | 0;
       maps.zufall = G.buildMap(960, 600, G.randomClassMap(960, 600, seed), seed, { id: 'zufall', name: 'Zufallskarte', nations: [] });
       return Promise.resolve(maps.zufall);
+    }
+    if (special(id)) {
+      // built on the next frame, so the tap on the card shows at once
+      return new Promise(function (resolve) {
+        setTimeout(function () { maps[id] = maps[id] || G.specialMap(special(id)); resolve(maps[id]); }, 30);
+      });
     }
     const def = MAPS.find(function (m) { return m.id === id; });
     return new Promise(function (resolve, reject) {
@@ -117,7 +128,9 @@
 
   // ---------- start screen ----------
   function showStart() {
-    const list = MAPS.map(function (m) { return { id: m.id, name: m.name }; }).concat([{ id: 'zufall', name: 'Zufallskarte' }]);
+    const mapCard = function (id, name, note) {
+      return '<button type="button" class="mapc" data-id="' + id + '" aria-pressed="' + (id === cfg.map) + '"><canvas width="132" height="84" data-thumb="' + id + '"></canvas><b>' + esc(name) + '</b><small>' + esc(note) + '</small></button>';
+    };
     const check = function (id, label, on) {
       return '<label class="check" for="' + id + '"><input id="' + id + '" type="checkbox"' + (on ? ' checked' : '') + '>' + label + '</label>';
     };
@@ -126,9 +139,11 @@
     h += '<div class="field"><div class="lab">Farbe</div><div class="swatches" id="fColor">' + COLORS.map(function (c, i) {
       return '<button type="button" class="sw" data-i="' + i + '" aria-label="Farbe ' + (i + 1) + '" aria-pressed="' + (i === cfg.color) + '" style="background:rgb(' + c.join(',') + ')"></button>';
     }).join('') + '</div></div>';
-    h += '<div class="field"><div class="lab">Karte</div><div class="chips" id="fMap">' + list.map(function (m) {
-      return '<button type="button" class="chipb" data-id="' + m.id + '" aria-pressed="' + (m.id === cfg.map) + '">' + esc(m.name) + '</button>';
-    }).join('') + '</div></div>';
+    h += '<div class="field" id="fMap"><div class="lab">Karte · Erde</div><div class="maprow">' + MAPS.map(function (m) {
+      return mapCard(m.id, m.name, m.nations.length + ' Nationen');
+    }).join('') + '</div><div class="lab lab2">Spezialkarten</div><div class="maprow">' + G.SPECIAL_MAPS.map(function (m) {
+      return mapCard(m.id, m.name, m.note);
+    }).join('') + mapCard('zufall', 'Zufall', 'Jedes Mal eine neue Welt') + '</div></div>';
     h += '<div class="field"><div class="lab">Schwierigkeit</div><div class="seg" id="fDiff">' + G.DIFF_NAMES.map(function (n, i) {
       return '<button type="button" data-i="' + i + '" aria-pressed="' + (i === cfg.diff) + '">' + n + '</button>';
     }).join('') + '</div></div>';
@@ -143,12 +158,16 @@
       if (b) { cfg.color = +b.dataset.i; press(this, b); }
     });
     $('fMap').addEventListener('click', function (e) {
-      const b = e.target.closest('.chipb');
+      const b = e.target.closest('.mapc');
       if (!b) return;
       if (b.dataset.id === 'zufall') delete maps.zufall;
-      cfg.map = b.dataset.id; press(this, b);
+      cfg.map = b.dataset.id;
+      for (const c of this.querySelectorAll('.mapc')) c.setAttribute('aria-pressed', c === b ? 'true' : 'false');
       previewMap(cfg.map);
     });
+    drawThumbs();
+    const cur = $('fMap').querySelector('.mapc[aria-pressed=true]');
+    if (cur && cur.scrollIntoView) cur.scrollIntoView({ block: 'nearest', inline: 'center' });
     $('fDiff').addEventListener('click', function (e) {
       const b = e.target.closest('button');
       if (b) { cfg.diff = +b.dataset.i; press(this, b); }
@@ -156,6 +175,49 @@
     $('fBots').addEventListener('input', function () { botsTouched = true; cfg.bots = +this.value; $('fBotsVal').textContent = this.value; });
     $('fStart').addEventListener('click', startGame);
     $('fHelp').addEventListener('click', function () { showHelp(true); });
+  }
+
+  // Small pictures of every map for the picker.
+  const THUMB = [[38, 88, 140], [150, 200, 116], [196, 184, 138], [228, 230, 236]];
+  function paintThumb(cv, cls, w, h) {
+    const x = cv.getContext('2d'), tmp = document.createElement('canvas');
+    tmp.width = w; tmp.height = h;
+    const tx = tmp.getContext('2d'), img = tx.createImageData(w, h), d = img.data;
+    for (let i = 0; i < w * h; i++) {
+      const c = THUMB[cls[i]];
+      d[i * 4] = c[0]; d[i * 4 + 1] = c[1]; d[i * 4 + 2] = c[2]; d[i * 4 + 3] = 255;
+    }
+    tx.putImageData(img, 0, 0);
+    x.fillStyle = 'rgb(38,88,140)'; x.fillRect(0, 0, cv.width, cv.height);
+    const k = Math.min(cv.width / w, cv.height / h);
+    x.imageSmoothingEnabled = true;
+    x.drawImage(tmp, (cv.width - w * k) / 2, (cv.height - h * k) / 2, w * k, h * k);
+  }
+  function drawThumbs() {
+    for (const cv of document.querySelectorAll('canvas[data-thumb]')) {
+      const id = cv.dataset.thumb, sp = special(id);
+      if (id === 'zufall') {
+        const x = cv.getContext('2d');
+        x.fillStyle = 'rgb(38,88,140)'; x.fillRect(0, 0, cv.width, cv.height);
+        x.fillStyle = '#f4b740'; x.font = '700 54px ' + getComputedStyle(document.body).fontFamily;
+        x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('?', cv.width / 2, cv.height / 2 + 3);
+      } else if (sp) {
+        const w = Math.round(sp.w / 6), h = Math.round(sp.h / 6);
+        paintThumb(cv, G.randomClassMap(w, h, sp.seed, sp.kind, sp.w), w, h);
+      } else {
+        const def = MAPS.find(function (m) { return m.id === id; }), img = new Image();
+        img.onload = function () {
+          const w = Math.round(def.w / 6), h = Math.round(def.h / 6), c = document.createElement('canvas');
+          c.width = w; c.height = h;
+          const x = c.getContext('2d', { willReadFrequently: true });
+          x.drawImage(img, 0, 0, w, h);
+          const d = x.getImageData(0, 0, w, h).data, cls = new Uint8Array(w * h);
+          for (let i = 0; i < cls.length; i++) cls[i] = Math.round(d[i * 4] / 85);
+          paintThumb(cv, cls, w, h);
+        };
+        img.src = 'data:image/png;base64,' + def.png;
+      }
+    }
   }
 
   function helpHtml() {
@@ -169,8 +231,16 @@
       '<li><b>Allianzen:</b> Verbündete greifen sich zehn Minuten lang nicht an. Wer eine Allianz bricht, ist 30 Sekunden lang leichter zu erobern.</li>' +
       '<li><b>Einkreisen:</b> Wer ganz von einem Gegner umschlossen ist, wird sofort übernommen.</li>' +
       '<li><b>Sieg:</b> Wer 80 % des Landes hält, gewinnt.</li>' +
+      '<li><b>Schiffe:</b> Handelsschiffe fahren Gold von Hafen zu Hafen, beide Häfen verdienen daran. Ein <b>Kriegsschiff</b> nimmt fremde Schiffe ein, mit deren Besitzer du keine Allianz hast: Handelsschiffe samt Gold, Boote samt der Hälfte der Truppen, und besiegte Kriegsschiffe wechseln die Seite.</li>' +
+      '<li><b>Züge:</b> Pro Bahnhof gibt es 10K Gold, bei Handelspartnern 25K für beide, bei Verbündeten 50K für beide.</li>' +
       '<li><b>Karte:</b> Ziehen verschiebt, zwei Finger oder das Mausrad zoomen. Mit der Maus greift ein Linksklick direkt an, der Rechtsklick öffnet das Menü.</li>' +
-      '</ul>';
+      '</ul><h2 class="h3">Tastenkürzel</h2><div class="keys">' +
+      BUILD.map(function (b) { return '<span><kbd>' + b.key + '</kbd>' + G.UNAME[b.t].replace('\u00AD', '') + '</span>'; }).join('') +
+      '<span><kbd>B</kbd>Baumenü</span><span><kbd>U</kbd>Ausbauen</span><span><kbd>F</kbd>Angreifen</span><span><kbd>G</kbd>Boot schicken</span>' +
+      '<span><kbd>V</kbd>Kriegsschiff hierher</span><span><kbd>R</kbd>Allianz anfragen</span><span><kbd>Q</kbd><kbd>E</kbd>Truppenanteil</span>' +
+      '<span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>Karte schieben</span><span><kbd>+</kbd><kbd>−</kbd>Zoom</span><span><kbd>C</kbd>Zum eigenen Gebiet</span>' +
+      '<span><kbd>T</kbd>Tempo</span><span><kbd>M</kbd>Ton an/aus</span><span><kbd>Leertaste</kbd>Pause</span><span><kbd>Esc</kbd>Schliessen</span>' +
+      '</div><p>Bauen und Befehle gelten für die Stelle unter dem Mauszeiger.</p>';
   }
   function showHelp(fromStart) {
     openModal(helpHtml() + '<button class="btn" data-act="' + (fromStart ? 'start' : 'resume') + '" type="button">' + (fromStart ? 'Zurück' : 'Weiterspielen') + '</button>', fromStart ? 'starthelp' : 'help');
@@ -240,9 +310,10 @@
     if (!ev.length) return;
     for (let i = 0; i < ev.length; i++) {
       const e = ev[i];
-      if (e.k === 'msg') addMsg(e.text, e.cls);
+      if (e.k === 'msg') { addMsg(e.text, e.cls); if (e.cls === 'bad') snd('bad', 0.6); else if (e.cls === 'warn') snd('warn', 0.6); else if (e.cls === 'good') snd(/Allianz/.test(e.text) ? 'ally' : 'good', 0.4); }
       else if (e.k === 'allyReq') {
         const from = game.players[e.from], id = e.id;
+        snd('ally');
         addAsk('q' + id, from.name + ' bietet dir eine Allianz an', 'Annehmen', 'Ablehnen',
           function () { game.answerRequest(id, true); }, function () { game.answerRequest(id, false); });
       } else if (e.k === 'renew') {
@@ -254,6 +325,7 @@
         const W = game.W;
         view.flyTo(h.spawnTile % W, (h.spawnTile / W) | 0, within(Math.min(view.cw, view.ch) / 70, 2.2, 6));
         addMsg('Los geht es. Breite dich aus, bevor es andere tun.', 'good');
+        snd('start');
       } else if (e.k === 'defeat') showEnd('defeat', null);
       else if (e.k === 'win') showEnd(game.players[e.id] === h ? 'win' : 'other', game.players[e.id]);
     }
@@ -348,6 +420,7 @@
     if (kind === 'other' && endShown === 'defeat' && !$('modal').hidden) { /* replace the defeat card */ }
     else if (endShown && kind !== 'other') return;
     endShown = kind;
+    snd(kind === 'win' ? 'win' : 'lose');
     closeRadial(); $('sheet').hidden = true;
     const h = game.human, den = Math.max(1, game.map.landTiles - game.falloutCount);
     let s;
@@ -407,9 +480,21 @@
     openModal('<h2>Pause</h2><p>' + esc(game.map.name) + ' · ' + G.DIFF_NAMES[game.opts.difficulty] + '</p>' +
       '<button class="btn" data-act="resume" type="button">Weiterspielen</button>' +
       '<button class="btn ghost" data-act="help" type="button">So wird gespielt</button>' +
-      '<label class="check wide" for="mTap"><input id="mTap" type="checkbox"' + (cfg.tap ? ' checked' : '') + '>Tippen greift direkt an, ohne Menü</label>' +
+      '<label class="check wide" for="mMusic"><input id="mMusic" type="checkbox"' + (cfg.music ? ' checked' : '') + '>Musik</label>' +
+      '<label class="check" for="mSfx"><input id="mSfx" type="checkbox"' + (cfg.sfx ? ' checked' : '') + '>Töne bei Aktionen</label>' +
+      '<label class="check" for="mTap"><input id="mTap" type="checkbox"' + (cfg.tap ? ' checked' : '') + '>Tippen greift direkt an, ohne Menü</label>' +
       '<button class="btn ghost" data-act="quit" type="button">Spiel beenden</button>', 'menu');
     $('mTap').addEventListener('change', function () { cfg.tap = this.checked; saveCfg(); });
+    $('mMusic').addEventListener('change', function () { setSound('music', this.checked); });
+    $('mSfx').addEventListener('change', function () { setSound('sfx', this.checked); });
+  }
+  function setSound(kind, v) {
+    cfg[kind] = v; saveCfg();
+    G.Audio.set(kind, v);
+    const any = cfg.music || cfg.sfx;
+    $('bSound').innerHTML = svg(any ? 'sound' : 'mute', 18);
+    $('bSound').setAttribute('aria-label', any ? 'Ton aus' : 'Ton an');
+    $('bSound').setAttribute('aria-pressed', any ? 'true' : 'false');
   }
 
   function onModalAct(act) {
@@ -474,10 +559,10 @@
     const a = sel, h = game.human;
     if (which === 'C') {
       const mode = $('rC').dataset.mode;
-      if (mode === 'attack') { if (!game.attack(h, a.tid, h.troops * ratio, -1)) toast('Zu wenig Truppen'); }
+      if (mode === 'attack') { if (game.attack(h, a.tid, h.troops * ratio, -1)) snd('attack'); else { toast('Zu wenig Truppen'); snd('deny'); } }
       else if (mode === 'boat') sendBoat(a);
-      else if (mode === 'ship') toast(game.moveWarship(h, a.tile) ? 'Kriegsschiff nimmt Kurs' : 'Kein Schiff kann dorthin');
-      else toast(a.why || 'Hier nicht möglich');
+      else if (mode === 'ship') moveShip(a.tile);
+      else { toast(a.why || 'Hier nicht möglich'); snd('deny'); }
     } else if (which === 'E') sendBoat(a);
     else if (which === 'N') { closeRadial(); openBuild(a.tile); return; }
     else if (which === 'S') {
@@ -487,13 +572,24 @@
     } else if (which === 'W') {
       const q = a.target;
       if (h.allies.has(q.id)) { infoId = q.id; onModalAct('break'); }
-      else toast(game.requestAlliance(h, q) ? 'Anfrage an ' + q.name + ' gesendet' : 'Gerade nicht möglich');
+      else askAlliance(q);
     }
     closeRadial();
   }
+  function askAlliance(q) {
+    const ok = game.requestAlliance(game.human, q);
+    toast(ok ? 'Anfrage an ' + q.name + ' gesendet' : 'Gerade nicht möglich');
+    snd(ok ? 'ui' : 'deny');
+  }
   function sendBoat(a) {
-    const h = game.human;
-    toast(game.sendBoat(h, a.boat, h.troops * ratio) ? 'Boot läuft aus' : 'Boot kann nicht auslaufen');
+    const h = game.human, ok = game.sendBoat(h, a.boat, h.troops * ratio);
+    toast(ok ? 'Boot läuft aus' : 'Boot kann nicht auslaufen');
+    snd(ok ? 'boat' : 'deny');
+  }
+  function moveShip(tile) {
+    const ok = game.moveWarship(game.human, tile);
+    toast(ok ? 'Kriegsschiff nimmt Kurs' : 'Kein Schiff kann dorthin');
+    snd(ok ? 'ship' : 'deny');
   }
 
   // ---------- build menu ----------
@@ -510,28 +606,37 @@
     }
     for (const b of BUILD) {
       const c = game.buildCheck(h, b.t, tile);
-      html += '<button class="item" type="button" data-t="' + b.t + '"' + (c.ok ? '' : ' disabled') + '>' + svg(b.icon, 26) + '<b>' + G.UNAME[b.t] + '</b><em>' +
+      html += '<button class="item" type="button" data-t="' + b.t + '"' + (c.ok ? '' : ' disabled') + '><kbd>' + b.key + '</kbd>' + svg(b.icon, 26) + '<b>' + G.UNAME[b.t] + '</b><em>' +
         (c.cost ? fmt(c.cost) : 'gratis') + '</em><small>' + (c.ok ? b.note : esc(c.why)) + '</small></button>';
     }
     $('sheetBody').innerHTML = html;
     $('sheet').hidden = false;
     view.mark = tile;
+    snd('open');
+  }
+  // Build or launch at a tile and say what happened. Used by the menu and by the number keys.
+  function doBuild(t, tile) {
+    const h = game.human, c = game.buildCheck(h, t, tile);
+    if (!c.ok) { toast(G.UNAME[t].replace('\u00AD', '') + ': ' + c.why); snd('deny'); return false; }
+    const u = game.build(h, t, tile);
+    if (!u) { toast('Nicht möglich'); snd('deny'); return false; }
+    if (t >= UT.ATOM) toast(G.UNAME[t].replace('\u00AD', '') + ' gestartet');
+    else if (t === UT.WARSHIP) { toast('Kriegsschiff läuft aus'); snd('ship'); }
+    else { toast(G.UNAME[t].replace('\u00AD', '') + (game.opts.instantBuild ? ' gebaut' : ' wird gebaut')); snd('build'); }
+    return true;
+  }
+  function doUpgrade(tile) {
+    const h = game.human, u = game.owner[tile] === h.id ? game.structNear(tile, 4) : null;
+    const ok = !!u && game.upgrade(h, u);
+    toast(ok ? G.UNAME[u.type].replace('\u00AD', '') + ' ausgebaut auf Stufe ' + u.level : 'Ausbau nicht möglich');
+    snd(ok ? 'upgrade' : 'deny');
   }
   function closeBuild() { $('sheet').hidden = true; if (view) view.mark = -1; }
   function onBuild(e) {
     const b = e.target.closest('.item');
     if (!b || b.disabled) return;
-    const h = game.human;
-    if (b.dataset.up) {
-      const u = game.structNear(buildTile, 4);
-      toast(u && game.upgrade(h, u) ? G.UNAME[u.type] + ' ausgebaut' : 'Ausbau nicht möglich');
-    } else {
-      const t = +b.dataset.t, u = game.build(h, t, buildTile);
-      if (!u) toast('Nicht möglich');
-      else if (t >= UT.ATOM) toast(G.UNAME[t] + ' gestartet');
-      else if (t === UT.WARSHIP) toast('Kriegsschiff läuft aus');
-      else toast(G.UNAME[t] + (game.opts.instantBuild ? ' gebaut' : ' wird gebaut'));
-    }
+    if (b.dataset.up) doUpgrade(buildTile);
+    else doBuild(+b.dataset.t, buildTile);
     closeBuild();
   }
 
@@ -543,14 +648,15 @@
     const h = game.human;
     if (game.phase === 'spawn') {
       if (!game.canSpawnAt(tile) && game.owner[tile] !== h.id) { toast(game.map.land[tile] ? 'Hier ist schon jemand' : 'Wähle Land, kein Wasser'); return; }
-      if (game.spawn(h, tile)) { view.flush(); view.placeName(h); hudTick(); }
+      if (game.spawn(h, tile)) { view.flush(); view.placeName(h); hudTick(); snd('tap'); }
       return;
     }
     if (direct && h.alive && game.owner[tile] !== h.id && game.map.land[tile]) {
-      const why = game.strike(h, tile, ratio);
-      if (why) toast(why);
+      const boats = h.boats, why = game.strike(h, tile, ratio);
+      if (why) { toast(why); snd('deny'); } else snd(h.boats > boats ? 'boat' : 'attack');
       return;
     }
+    snd('tap');
     openRadial(tile, sx, sy);
   }
 
@@ -561,6 +667,12 @@
       const a = Array.from(ptr.values());
       return { x: (a[0].x + a[1].x) / 2, y: (a[0].y + a[1].y) / 2, d: Math.max(1, Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y)) };
     };
+    document.addEventListener('pointerdown', function () { G.Audio.resume(); }, true);
+    document.addEventListener('keydown', function () { G.Audio.resume(); }, true);
+    document.addEventListener('click', function (e) {
+      const b = e.target.closest && e.target.closest('button');
+      if (b && !b.disabled && !b.closest('#radial') && !b.closest('#sheetBody')) snd('ui');
+    }, true);
     cv.addEventListener('pointerdown', function (e) {
       if (e.pointerType === 'mouse' && e.button !== 0) return;
       closeRadial();
@@ -571,6 +683,7 @@
       view.fly = null;
     });
     cv.addEventListener('pointermove', function (e) {
+      if (e.pointerType === 'mouse') { const r = cv.getBoundingClientRect(); hoverX = e.clientX - r.left; hoverY = e.clientY - r.top; }
       const p = ptr.get(e.pointerId);
       if (!p) return;
       if (ptr.size === 1) {
@@ -608,14 +721,49 @@
       view.zoomAt(e.clientX - r.left, e.clientY - r.top, Math.exp(-e.deltaY * 0.0016));
     }, { passive: false });
     window.addEventListener('resize', function () { view.resize(); });
-    document.addEventListener('visibilitychange', function () { last = performance.now(); });
+    document.addEventListener('visibilitychange', function () { last = performance.now(); G.Audio.hush(document.hidden); });
+    const held = new Set();
+    document.addEventListener('keyup', function (e) { held.delete(e.key.toLowerCase()); });
+    window.addEventListener('blur', function () { held.clear(); });
+    G.heldKeys = held;
     document.addEventListener('keydown', function (e) {
-      if (e.target && e.target.tagName === 'INPUT') return;
-      if (e.key === 'Escape') {
+      if (e.target && e.target.tagName === 'INPUT' && e.target.type === 'text') return;
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      const k = e.key.toLowerCase();
+      if (k === 'escape') {
         if (!$('radial').hidden) closeRadial();
         else if (!$('sheet').hidden) closeBuild();
         else if (!$('modal').hidden && modalKind !== 'start' && modalKind !== 'starthelp') closeModal();
-      } else if (e.key === ' ' && game && $('modal').hidden) { e.preventDefault(); setPaused(!paused); }
+        return;
+      }
+      if (k === 'm') { const v = !(cfg.music || cfg.sfx); setSound('music', v); setSound('sfx', v); toast(v ? 'Ton an' : 'Ton aus'); return; }
+      if (!game || !$('modal').hidden) return;
+      if (k === ' ') { e.preventDefault(); setPaused(!paused); return; }
+      if ('wasd'.indexOf(k) >= 0 && k.length === 1 || k.indexOf('arrow') === 0) { held.add(k); e.preventDefault(); return; }
+      if (k === '+' || k === '=') { view.zoomAt(view.cw / 2, view.ch / 2, 1.25); return; }
+      if (k === '-' || k === '_') { view.zoomAt(view.cw / 2, view.ch / 2, 0.8); return; }
+      if (k === 'q') { setRatio(ratio * 100 - 5); return; }
+      if (k === 'e') { setRatio(ratio * 100 + 5); return; }
+      if (k === 'c' || k === 'h') { $('bHome').click(); return; }
+      if (k === 't') { $('bSpeed').click(); return; }
+      if (e.repeat || game.phase !== 'play' || !game.human.alive) return;
+      // everything below acts on the build menu's tile, or else on the tile under the mouse pointer
+      const open = !$('sheet').hidden;
+      const tile = open ? buildTile : (hoverX >= 0 ? view.tileAt(hoverX, hoverY) : -1);
+      const item = BUILD.find(function (b) { return b.key === k; });
+      if (tile < 0) { if (item || 'bufgvr'.indexOf(k) >= 0) toast('Zeige mit der Maus auf die Karte'); return; }
+      const h = game.human;
+      if (item) { doBuild(item.t, tile); if (open) closeBuild(); return; }
+      if (k === 'b') { if (open) closeBuild(); else { closeRadial(); openBuild(tile); } return; }
+      if (k === 'u') { doUpgrade(tile); if (open) closeBuild(); return; }
+      if (open) return;
+      const a = game.actionsAt(h, tile);
+      if (k === 'f') {
+        const boats = h.boats, why = game.strike(h, tile, ratio);
+        if (why) { toast(why); snd('deny'); } else snd(h.boats > boats ? 'boat' : 'attack');
+      } else if (k === 'g') { if (a.boat) sendBoat(a); else { toast(a.why || 'Kein Boot möglich'); snd('deny'); } }
+      else if (k === 'v') moveShip(tile);
+      else if (k === 'r') { if (a.target) askAlliance(a.target); else { toast('Zeige auf einen anderen Spieler'); snd('deny'); } }
     });
 
     $('rC').addEventListener('click', function () { radialAct('C'); });
@@ -643,6 +791,7 @@
       else if (h.spawnTile >= 0) view.flyTo(h.spawnTile % game.W, (h.spawnTile / game.W) | 0, 4);
     });
     $('bMenu').addEventListener('click', showMenu);
+    $('bSound').addEventListener('click', function () { const v = !(cfg.music || cfg.sfx); setSound('music', v); setSound('sfx', v); });
     $('lbHead').addEventListener('click', function () {
       lbOpen = !lbOpen;
       this.setAttribute('aria-expanded', lbOpen ? 'true' : 'false');
@@ -675,8 +824,22 @@
       if (n) { view.flush(); view.placeNames(); pump(); if (game) hudTick(); }
       alpha = acc / 100;
     }
+    const held = G.heldKeys;
+    if (held && held.size && game && $('modal').hidden) {
+      const d = dt * 0.75;
+      view.pan(((held.has('a') || held.has('arrowleft') ? 1 : 0) - (held.has('d') || held.has('arrowright') ? 1 : 0)) * d,
+        ((held.has('w') || held.has('arrowup') ? 1 : 0) - (held.has('s') || held.has('arrowdown') ? 1 : 0)) * d);
+    }
     view.draw(alpha, now);
   }
+  // Sounds for things that happen on the map.
+  G.onFx = function (f, seen) {
+    if (f.k === 'boom') { if (f.big) snd('hydro', 0.3); else if (seen || !f.head) snd(f.head ? 'head' : 'boom', 0.12); }
+    else if (f.k === 'coin') { if (f.mine) snd(f.amt && f.amt % 5000 === 0 ? 'train' : 'coin', 0.25); }
+    else if (f.k === 'flag') { if (seen) snd('flag', 0.2); }
+    else if (f.k === 'launch') { if (f.mine || seen) snd('launch', 0.3); }
+    else if (seen) snd('pop', 0.15);
+  };
 
   G.boot = function (defs) {
     MAPS = defs;
@@ -693,6 +856,8 @@
     $('sheetClose').innerHTML = svg('close', 16);
     bind();
     loadCfg();
+    $('bSound').innerHTML = svg(cfg.music || cfg.sfx ? 'sound' : 'mute', 18);
+    $('bSound').setAttribute('aria-pressed', cfg.music || cfg.sfx ? 'true' : 'false');
     setRatio(20);
     showStart();
     previewMap(cfg.map);

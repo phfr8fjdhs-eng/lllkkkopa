@@ -154,6 +154,29 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
 .sw { width: 28px; height: 28px; padding: 0; border-radius: 50%; border: 2px solid rgba(0, 0, 0, 0.25); }
 .sw[aria-pressed=true] { border-color: #fff; box-shadow: 0 0 0 2px var(--panel-solid), 0 0 0 4px #fff; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+/* map picker: two rows of cards that scroll sideways */
+.lab2 { margin-top: 10px; }
+.maprow { display: flex; gap: 8px; margin: 0 -16px; padding: 2px 16px 6px; overflow-x: auto; scroll-snap-type: x proximity; scrollbar-width: thin; }
+.mapc {
+  flex: none; width: 112px; padding: 0 0 6px; text-align: left; scroll-snap-align: center; overflow: hidden;
+  background: rgba(255, 255, 255, 0.06); border: 2px solid var(--line); border-radius: 10px;
+}
+.mapc canvas { display: block; width: 100%; height: auto; aspect-ratio: 132 / 84; }
+.mapc b { display: block; padding: 5px 7px 0; font: 600 15px/1.1 var(--display); }
+.mapc small { display: block; padding: 1px 7px 0; font-size: 11px; line-height: 1.2; color: var(--muted); }
+.mapc[aria-pressed=true] { border-color: var(--accent); background: rgba(244, 183, 64, 0.14); }
+.mapc[aria-pressed=true] b { color: var(--accent); }
+kbd {
+  display: inline-block; min-width: 20px; padding: 1px 5px; font: 600 12px var(--display); text-align: center; color: var(--ink);
+  background: rgba(255, 255, 255, 0.1); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 5px;
+}
+.item { position: relative; }
+.item > kbd { position: absolute; left: 5px; top: 5px; display: none; }
+.card .h3 { margin-top: 16px; font-size: 20px; }
+.keys { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 10px; margin-top: 8px; font-size: 13px; }
+.keys span { display: flex; align-items: center; gap: 4px; }
+.keys kbd:last-of-type { margin-right: 4px; }
+@media (hover: hover) and (pointer: fine) { .item > kbd { display: block; } }
 .chipb { padding: 6px 11px; font-size: 14px; background: rgba(255, 255, 255, 0.07); border: 1px solid var(--line); border-radius: 999px; }
 .chipb[aria-pressed=true] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
 .seg { display: grid; grid-template-columns: repeat(4, 1fr); border: 1px solid var(--line); border-radius: 9px; overflow: hidden; }
@@ -163,6 +186,7 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
 .checks { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px; }
 .check { display: flex; align-items: center; gap: 8px; min-height: 30px; font-size: 14px; }
 .check.wide { margin-top: 12px; }
+#bSound[aria-pressed=false] { color: var(--muted); }
 .check input { width: 18px; height: 18px; margin: 0; flex: none; accent-color: var(--accent); }
 .btn { display: block; width: 100%; margin-top: 14px; padding: 12px; font: 700 20px var(--display); letter-spacing: .03em; color: var(--accent-ink); background: var(--accent); border: 0; border-radius: 10px; }
 .btn.ghost { margin-top: 8px; padding: 10px; font-size: 16px; font-weight: 600; color: var(--ink); background: rgba(255, 255, 255, 0.08); border: 1px solid var(--line); }
@@ -210,6 +234,7 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
       <button id="bPause" class="tb" type="button" aria-label="Pause"></button>
       <button id="bSpeed" class="tb" type="button" aria-label="Tempo">1×</button>
       <button id="bHome" class="tb" type="button" aria-label="Zu meinem Gebiet"></button>
+      <button id="bSound" class="tb" type="button" aria-label="Ton aus" aria-pressed="true"></button>
       <button id="bMenu" class="tb" type="button" aria-label="Menü"></button>
     </div>
     <div id="spawnBar" class="panel">

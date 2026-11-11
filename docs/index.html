@@ -154,6 +154,29 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
 .sw { width: 28px; height: 28px; padding: 0; border-radius: 50%; border: 2px solid rgba(0, 0, 0, 0.25); }
 .sw[aria-pressed=true] { border-color: #fff; box-shadow: 0 0 0 2px var(--panel-solid), 0 0 0 4px #fff; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+/* map picker: two rows of cards that scroll sideways */
+.lab2 { margin-top: 10px; }
+.maprow { display: flex; gap: 8px; margin: 0 -16px; padding: 2px 16px 6px; overflow-x: auto; scroll-snap-type: x proximity; scrollbar-width: thin; }
+.mapc {
+  flex: none; width: 112px; padding: 0 0 6px; text-align: left; scroll-snap-align: center; overflow: hidden;
+  background: rgba(255, 255, 255, 0.06); border: 2px solid var(--line); border-radius: 10px;
+}
+.mapc canvas { display: block; width: 100%; height: auto; aspect-ratio: 132 / 84; }
+.mapc b { display: block; padding: 5px 7px 0; font: 600 15px/1.1 var(--display); }
+.mapc small { display: block; padding: 1px 7px 0; font-size: 11px; line-height: 1.2; color: var(--muted); }
+.mapc[aria-pressed=true] { border-color: var(--accent); background: rgba(244, 183, 64, 0.14); }
+.mapc[aria-pressed=true] b { color: var(--accent); }
+kbd {
+  display: inline-block; min-width: 20px; padding: 1px 5px; font: 600 12px var(--display); text-align: center; color: var(--ink);
+  background: rgba(255, 255, 255, 0.1); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 5px;
+}
+.item { position: relative; }
+.item > kbd { position: absolute; left: 5px; top: 5px; display: none; }
+.card .h3 { margin-top: 16px; font-size: 20px; }
+.keys { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 10px; margin-top: 8px; font-size: 13px; }
+.keys span { display: flex; align-items: center; gap: 4px; }
+.keys kbd:last-of-type { margin-right: 4px; }
+@media (hover: hover) and (pointer: fine) { .item > kbd { display: block; } }
 .chipb { padding: 6px 11px; font-size: 14px; background: rgba(255, 255, 255, 0.07); border: 1px solid var(--line); border-radius: 999px; }
 .chipb[aria-pressed=true] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
 .seg { display: grid; grid-template-columns: repeat(4, 1fr); border: 1px solid var(--line); border-radius: 9px; overflow: hidden; }
@@ -163,6 +186,7 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
 .checks { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px; }
 .check { display: flex; align-items: center; gap: 8px; min-height: 30px; font-size: 14px; }
 .check.wide { margin-top: 12px; }
+#bSound[aria-pressed=false] { color: var(--muted); }
 .check input { width: 18px; height: 18px; margin: 0; flex: none; accent-color: var(--accent); }
 .btn { display: block; width: 100%; margin-top: 14px; padding: 12px; font: 700 20px var(--display); letter-spacing: .03em; color: var(--accent-ink); background: var(--accent); border: 0; border-radius: 10px; }
 .btn.ghost { margin-top: 8px; padding: 10px; font-size: 16px; font-weight: 600; color: var(--ink); background: rgba(255, 255, 255, 0.08); border: 1px solid var(--line); }
@@ -210,6 +234,7 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
       <button id="bPause" class="tb" type="button" aria-label="Pause"></button>
       <button id="bSpeed" class="tb" type="button" aria-label="Tempo">1×</button>
       <button id="bHome" class="tb" type="button" aria-label="Zu meinem Gebiet"></button>
+      <button id="bSound" class="tb" type="button" aria-label="Ton aus" aria-pressed="true"></button>
       <button id="bMenu" class="tb" type="button" aria-label="Menü"></button>
     </div>
     <div id="spawnBar" class="panel">
@@ -391,28 +416,58 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
     }
   }
 
-  // Invented continents for the random map.
-  G.randomClassMap = function (W, H, seed) {
+  // Invented maps. `kind` picks the overall shape; the default is a scatter of continents.
+  // `ref` is the width the features are sized for, so a small preview shows the same world.
+  const SHAPES = {
+    zufall: { share: 0.4, freq: 4.6 },
+    inseln: { share: 0.24, freq: 17 },
+    pangaea: { share: 0.5, freq: 4.2 },
+    ring: { share: 0.36, freq: 5.5 },
+    duell: { share: 0.37, freq: 5 },
+    seen: { share: 0.74, freq: 9 }
+  };
+  G.randomClassMap = function (W, H, seed, kind, ref) {
     const N = W * H, cls = new Uint8Array(N), e = new Float32Array(N);
-    const fbm = makeNoise(seed ^ 0x51ed27), sc = W / 4.6;
+    const sh = SHAPES[kind] || SHAPES.zufall, k = (ref || W) / W;
+    const fbm = makeNoise(seed ^ 0x51ed27), sc = W / sh.freq;
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-      const nx = Math.abs(x / W - 0.5) * 2, ny = Math.abs(y / H - 0.5) * 2;
-      const edge = Math.max(nx, ny);
-      e[y * W + x] = fbm(x / sc, y / sc, 5) - Math.max(0, edge - 0.74) * 1.7;
+      const u = x / W, v = y / H;
+      const nx = Math.abs(u - 0.5) * 2, ny = Math.abs(v - 0.5) * 2;
+      const edge = Math.max(nx, ny), n = fbm(x / sc, y / sc, 5);
+      let h;
+      if (kind === 'pangaea') h = n * 0.5 + 0.62 * (1 - Math.hypot(nx, ny));
+      else if (kind === 'ring') h = n * 0.45 + 0.7 * (1 - Math.abs(Math.hypot(nx, ny * 0.92) - 0.6) * 3.4);
+      else if (kind === 'duell') {
+        const dl = Math.hypot((u - 0.25) / 0.2, (v - 0.5) / 0.4), dr = Math.hypot((u - 0.75) / 0.2, (v - 0.5) / 0.4);
+        h = n * 0.5 + 0.55 * (1 - Math.min(dl, dr));
+      } else if (kind === 'seen') h = n - Math.max(0, edge - 0.86) * 3;
+      else h = n - Math.max(0, edge - 0.74) * 1.7;
+      e[y * W + x] = h;
     }
     const sample = new Float32Array(Math.ceil(N / 7));
     for (let i = 0, j = 0; i < N && j < sample.length; i += 7, j++) sample[j] = e[i];
     sample.sort();
-    const thr = sample[Math.floor(sample.length * 0.6)];
+    const thr = sample[Math.floor(sample.length * (1 - sh.share))];
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
       const i = y * W + x;
       if (e[i] <= thr) continue;
-      const ridge = 1 - Math.abs(fbm(x / 60 + 900, y / 60 + 900, 4) * 2 - 1);
-      const plat = fbm(x / 90 + 400, y / 90 + 400, 3);
+      const ridge = 1 - Math.abs(fbm(x * k / 60 + 900, y * k / 60 + 900, 4) * 2 - 1);
+      const plat = fbm(x * k / 90 + 400, y * k / 90 + 400, 3);
       cls[i] = (ridge > 0.9 && e[i] > thr + 0.02) ? 3 : (plat > 0.6 ? 2 : 1);
     }
     cleanup(cls, W, H);
     return cls;
+  };
+  // Hand-picked invented worlds with a fixed seed, so each one is always the same map.
+  G.SPECIAL_MAPS = [
+    { id: 'inseln', kind: 'inseln', name: 'Inselreich', note: 'Viele Inseln, Seemacht zählt', w: 960, h: 600, seed: 7411 },
+    { id: 'pangaea', kind: 'pangaea', name: 'Pangäa', note: 'Ein einziger Riesenkontinent', w: 900, h: 620, seed: 2203 },
+    { id: 'ring', kind: 'ring', name: 'Ringwelt', note: 'Land im Kreis um ein Binnenmeer', w: 860, h: 800, seed: 5150 },
+    { id: 'duell', kind: 'duell', name: 'Zwei Welten', note: 'Zwei Kontinente, ein Meer dazwischen', w: 980, h: 560, seed: 9031 },
+    { id: 'seen', kind: 'seen', name: 'Seenplatte', note: 'Viel Land, überall Seen', w: 900, h: 600, seed: 1287 }
+  ];
+  G.specialMap = function (def) {
+    return G.buildMap(def.w, def.h, G.randomClassMap(def.w, def.h, def.seed, def.kind), def.seed, { id: def.id, name: def.name, nations: [] });
   };
 
   // Build the playable map from a class grid (0 water, 1 plain, 2 plateau, 3 mountain range).
@@ -1820,6 +1875,8 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
     if (u.pi < u.path.length - 1) { u.pi++; this.setPos(u, u.path[u.pi]); return; }
     const q = d.owner, h = this.human;
     p.gold += u.gold;
+    this.fx.push({ k: 'coin', x: d.x, y: d.y, t: this.ticks, mine: p === h || (q === h && !u.captured), amt: u.gold });
+    if (this.fx.length > 300) this.fx.splice(0, 150);
     if (u.captured) {
       if (p === h) this.say('Gekapertes Handelsschiff bringt ' + fmt(u.gold) + ' Gold', 'good');
     } else if (q !== p) {
@@ -1840,7 +1897,8 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
       const d = (v.x - ts.x) * (v.x - ts.x) + (v.y - ts.y) * (v.y - ts.y);
       if (d < bd) { bd = d; best = v; }
     }
-    if (np === h) this.say('Handelsschiff von ' + o.name + ' gekapert', 'good');
+    this.fx.push({ k: 'flag', x: ts.x, y: ts.y });
+    if (np === h) this.say('Handelsschiff von ' + o.name + ' gekapert (' + fmt(ts.gold) + ' Gold an Bord)', 'good');
     else if (o === h) this.say(np.name + ' hat ein Handelsschiff von dir gekapert', 'warn');
     if (!best) { np.gold += ts.gold; this.removeUnit(ts); return; }
     ts.dstPort = best; ts.path = null; ts.pi = 0;
@@ -1929,12 +1987,31 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
     const dx = tg.x - u.x, dy = tg.y - u.y, d = Math.hypot(dx, dy), sp = 4;
     if (d > sp) { u.x += dx / d * sp; u.y += dy / d * sp; return; }
     this.removeUnit(u);
-    const by = u.owner, h = this.human;
-    if (tg.type === UT.WARSHIP) { tg.hp -= 250; if (tg.hp > 0) return; }
-    this.removeUnit(tg);
+    const by = u.owner, h = this.human, was = tg.owner;
+    if (was === by || this.friendly(was, by)) return;
     this.fx.push({ k: 'pop', x: tg.x, y: tg.y });
-    if (tg.owner === h) this.say((tg.type === UT.TRANSPORT ? 'Dein Boot' : 'Dein Kriegsschiff') + ' wurde von ' + by.name + ' versenkt', 'bad');
-    else if (by === h) this.say((tg.type === UT.TRANSPORT ? 'Boot' : 'Kriegsschiff') + ' von ' + tg.owner.name + ' versenkt', 'good');
+    if (tg.type === UT.WARSHIP) {
+      tg.hp -= 250;
+      if (tg.hp > 0) return;
+      if (!by.alive || by.cnt[UT.WARSHIP] >= 8) { this.removeUnit(tg); return; }   // a full fleet sinks it instead
+      // a beaten warship strikes its colours and sails on for the victor
+      const i = was.units.indexOf(tg);
+      if (i >= 0) was.units.splice(i, 1);
+      was.cnt[UT.WARSHIP]--; by.cnt[UT.WARSHIP]++;
+      tg.owner = by; by.units.push(tg);
+      tg.hp = 400; tg.target = null; tg.patrol = tg.tile; tg.shotAt = this.ticks + 30;
+      this.fx.push({ k: 'flag', x: tg.x, y: tg.y });
+      if (was === h) this.say(by.name + ' hat dein Kriegsschiff eingenommen', 'bad');
+      else if (by === h) this.say('Kriegsschiff von ' + was.name + ' eingenommen', 'good');
+      return;
+    }
+    // a troop boat is boarded: half of the troops on it change sides
+    const got = by.alive ? tg.troops * 0.5 : 0;
+    by.troops += got;
+    this.removeUnit(tg);
+    this.fx.push({ k: 'flag', x: tg.x, y: tg.y });
+    if (was === h) this.say('Dein Boot wurde von ' + by.name + ' eingenommen', 'bad');
+    else if (by === h) this.say('Boot von ' + was.name + ' eingenommen, ' + G.fmtTroops(got) + ' Truppen übernommen', 'good');
   };
 
   // ---------- missiles ----------
@@ -1957,6 +2034,7 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
     u.dist = Math.max(1, Math.hypot(u.dx - u.sx, u.dy - u.sy));
     u.prog = 0; u.speed = this.R.nukeSpeed; u.tid = this.owner[tile]; u.sam = false; u.delay = 0;
     this.addUnit(u);
+    this.fx.push({ k: 'launch', x: u.x, y: u.y, mine: p === this.human });
     const h = this.human;
     if (type === UT.MIRV) {
       const q = this.players[u.tid];
@@ -2023,7 +2101,7 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
       if (!v.active || v.type >= UT.SHELL) continue;
       if ((v.x - cx) * (v.x - cx) + (v.y - cy) * (v.y - cy) <= out2) this.removeUnit(v);
     }
-    this.fx.push({ k: 'boom', x: cx, y: cy, r: rout });
+    this.fx.push({ k: 'boom', x: cx, y: cy, r: rout, big: type === UT.HYDRO, head: type === UT.WARHEAD });
     if (this.fx.length > 300) this.fx.splice(0, 150);
   };
   Game.prototype.splitMirv = function (u) {
@@ -2111,7 +2189,9 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
   // Factories, railways and trains. A factory links itself to nearby cities, ports and factories
   // with tracks laid over land; trains run along them and pay gold at every station they reach.
   const Game = G.Game, UT = G.UT;
-  const TRAIN_OWN = 10000, TRAIN_FOREIGN = 25000, TRAIN_EVERY = 200, LINKS = 4;
+  // Gold per station a train reaches: own station, a trade partner's, an ally's (as in OpenFront: 10K / 25K / 50K).
+  const TRAIN_OWN = 10000, TRAIN_FOREIGN = 25000, TRAIN_ALLY = 50000, TRAIN_EVERY = 200, LINKS = 4;
+  G.TRAIN_GOLD = [TRAIN_OWN, TRAIN_FOREIGN, TRAIN_ALLY];
 
   G.isStation = function (t) { return t === UT.CITY || t === UT.PORT || t === UT.FACTORY; };
 
@@ -2140,9 +2220,46 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
       }
     }
     if (prev[goal] === -2) return null;
-    const out = [];
-    for (let c = goal; c !== -1; c = prev[c]) out.push(((c / w | 0) + y0) * W + (c % w) + x0);
-    return Int32Array.from(out);
+    const raw = [];
+    for (let c = goal; c !== -1; c = prev[c]) raw.push(((c / w | 0) + y0) * W + (c % w) + x0);
+    return this.straighten(raw);
+  };
+
+  // Can a track run in a straight line between two tiles without touching water?
+  Game.prototype.landLine = function (a, b) {
+    const W = this.W, land = this.map.land;
+    const ax = a % W, ay = (a / W) | 0, bx = b % W, by = (b / W) | 0;
+    const n = Math.max(Math.abs(bx - ax), Math.abs(by - ay)) * 2;
+    for (let i = 1; i < n; i++) {
+      const x = ax + (bx - ax) * i / n, y = ay + (by - ay) * i / n;
+      if (!land[Math.round(y) * W + Math.round(x)]) return false;
+      if (!land[Math.floor(y) * W + Math.floor(x)] || !land[Math.ceil(y) * W + Math.ceil(x)]) return false;
+    }
+    return true;
+  };
+  // Replace the stair-stepped search result by a few long straight stretches.
+  // Returns the tiles to travel along; the corner tiles are kept in `.pts` for drawing.
+  Game.prototype.straighten = function (raw) {
+    const W = this.W, pts = [raw[0]];
+    let i = 0;
+    while (i < raw.length - 1) {
+      let j = Math.min(raw.length - 1, i + 60);
+      while (j > i + 1 && !this.landLine(raw[i], raw[j])) j = i + ((j - i) >> 1);
+      pts.push(raw[j]); i = j;
+    }
+    const out = [pts[0]];
+    for (let k = 1; k < pts.length; k++) {
+      const a = pts[k - 1], b = pts[k];
+      const ax = a % W, ay = (a / W) | 0, bx = b % W, by = (b / W) | 0;
+      const n = Math.max(Math.abs(bx - ax), Math.abs(by - ay));
+      for (let s = 1; s <= n; s++) {
+        const t = Math.round(ay + (by - ay) * s / n) * W + Math.round(ax + (bx - ax) * s / n);
+        if (t !== out[out.length - 1]) out.push(t);
+      }
+    }
+    const path = Int32Array.from(out);
+    path.pts = Int32Array.from(pts);
+    return path;
   };
 
   // Bring the network in line with the stations that exist now. Works in small steps so a big map never stalls.
@@ -2238,13 +2355,15 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
       return;
     }
     const st = u.fwd ? e.b : e.a, q = st.owner, h = this.human;
-    if (q === p) p.gold += TRAIN_OWN;
+    let pay = TRAIN_OWN;
+    if (q === p) p.gold += pay;
     else if (q.alive && this.canTrade(p, q)) {
-      p.gold += TRAIN_FOREIGN; q.gold += TRAIN_FOREIGN;
-      if (h && (p === h || q === h)) h.tradeGold += TRAIN_FOREIGN;
+      pay = p.allies.has(q.id) ? TRAIN_ALLY : TRAIN_FOREIGN;
+      p.gold += pay; q.gold += pay;
+      if (h && (p === h || q === h)) h.tradeGold += pay;
     } else { this.removeUnit(u); return; }
-    if (h && p === h) h.trainGold = (h.trainGold || 0) + (q === p ? TRAIN_OWN : TRAIN_FOREIGN);
-    this.fx.push({ k: 'coin', x: st.x, y: st.y, t: this.ticks, mine: p === h || q === h });
+    if (h && p === h) h.trainGold = (h.trainGold || 0) + pay;
+    this.fx.push({ k: 'coin', x: st.x, y: st.y, t: this.ticks, mine: p === h || q === h, amt: pay });
     if (this.fx.length > 300) this.fx.splice(0, 150);
     const nx = --u.hops > 0 ? this.railNext(p, st, e) : null;
     if (!nx) { this.removeUnit(u); return; }
@@ -2580,6 +2699,189 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
 
 (function (G) {
   'use strict';
+  // All sound is made in the browser: a slow generated soundtrack and short tones for actions.
+  // Nothing is loaded from a file. The sound starts with the first tap, as browsers require.
+  const A = G.Audio = { ctx: null, on: { music: true, sfx: true }, ready: false };
+  let ctx = null, master = null, musicBus = null, sfxBus = null, echo = null, noiseBuf = null;
+  let timer = 0, nextStep = 0, step = 0, seed = 12345;
+  const lastAt = {};
+
+  function rnd() { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; }
+  function hz(midi) { return 440 * Math.pow(2, (midi - 69) / 12); }
+
+  A.init = function () {
+    if (ctx || A.failed) return;
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) { A.failed = true; return; }
+    try {
+      ctx = A.ctx = new AC();
+      const comp = ctx.createDynamicsCompressor();
+      comp.threshold.value = -14; comp.ratio.value = 5; comp.attack.value = 0.004; comp.release.value = 0.2;
+      master = ctx.createGain(); master.gain.value = 0.9;
+      master.connect(comp); comp.connect(ctx.destination);
+      musicBus = ctx.createGain(); musicBus.gain.value = 0; musicBus.connect(master);
+      sfxBus = ctx.createGain(); sfxBus.gain.value = A.on.sfx ? 0.8 : 0; sfxBus.connect(master);
+      // a soft echo for the music
+      echo = ctx.createDelay(1); echo.delayTime.value = 0.36;
+      const fb = ctx.createGain(); fb.gain.value = 0.34;
+      const damp = ctx.createBiquadFilter(); damp.type = 'lowpass'; damp.frequency.value = 2200;
+      echo.connect(damp); damp.connect(fb); fb.connect(echo); damp.connect(musicBus);
+      const len = ctx.sampleRate;
+      noiseBuf = ctx.createBuffer(1, len, ctx.sampleRate);
+      const d = noiseBuf.getChannelData(0);
+      for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+      A.ready = true;
+      A.apply();
+    } catch (e) { A.failed = true; ctx = null; }
+  };
+  A.resume = function () {
+    A.init();
+    if (ctx && ctx.state === 'suspended') ctx.resume();
+  };
+  // Bring volume and soundtrack in line with the switches.
+  A.apply = function () {
+    if (!ctx) return;
+    const t = ctx.currentTime;
+    sfxBus.gain.setTargetAtTime(A.on.sfx ? 0.8 : 0, t, 0.05);
+    musicBus.gain.setTargetAtTime(A.on.music ? 0.5 : 0, t, 0.6);
+    if (A.on.music && !timer) { nextStep = t + 0.15; timer = setInterval(schedule, 120); }
+    else if (!A.on.music && timer) { clearInterval(timer); timer = 0; }
+  };
+  A.set = function (kind, v) { A.on[kind] = v; if (v) A.resume(); A.apply(); };
+  A.hush = function (v) {
+    if (!ctx) return;
+    if (v) ctx.suspend(); else if (A.on.music || A.on.sfx) ctx.resume();
+  };
+
+  // ---------- building blocks ----------
+  function tone(bus, type, f0, t, dur, vol, f1, attack) {
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = type; o.frequency.setValueAtTime(f0, t);
+    if (f1) o.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t + dur);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(vol, t + (attack || 0.006));
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(bus);
+    o.start(t); o.stop(t + dur + 0.05);
+    return g;
+  }
+  function noise(bus, t, dur, vol, type, f0, f1, q) {
+    const s = ctx.createBufferSource(), f = ctx.createBiquadFilter(), g = ctx.createGain();
+    s.buffer = noiseBuf; s.loop = true;
+    f.type = type; f.frequency.setValueAtTime(f0, t); f.Q.value = q || 0.7;
+    if (f1) f.frequency.exponentialRampToValueAtTime(f1, t + dur);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(vol, t + 0.008);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    s.connect(f); f.connect(g); g.connect(bus);
+    s.start(t, Math.random() * 0.5); s.stop(t + dur + 0.05);
+  }
+
+  // ---------- soundtrack: four-bar phrases in A minor, sixteen steps to the bar ----------
+  const CHORDS = [
+    [57, 60, 64, 67], [53, 57, 60, 64], [48, 52, 55, 59], [55, 59, 62, 65],     // Am7  Fmaj7  Cmaj7  G
+    [57, 60, 64, 67], [53, 57, 60, 64], [50, 53, 57, 60], [52, 56, 59, 62]          // Am7  Fmaj7  Dm7    E7
+  ];
+  const SCALE = [69, 72, 74, 76, 79, 81, 84];   // A minor pentatonic for the lead
+  const STEP = 60 / 92 / 4;
+  let lead = 3;
+  function schedule() {
+    if (!ctx || ctx.state !== 'running') return;
+    if (nextStep < ctx.currentTime - 0.5) nextStep = ctx.currentTime + 0.05;
+    while (nextStep < ctx.currentTime + 0.35) { playStep(step, nextStep); step++; nextStep += STEP; }
+  }
+  function playStep(n, t) {
+    const bar = Math.floor(n / 16), s = n % 16, ch = CHORDS[bar % 8], part = Math.floor(bar / 8) % 4;
+    const full = bar >= 4, drums = bar >= 8 && part !== 3;
+    if (s === 0) {
+      // pad: the chord held for the whole bar, two detuned voices each, opened slowly by a filter
+      const f = ctx.createBiquadFilter(), g = ctx.createGain(), len = STEP * 16;
+      f.type = 'lowpass'; f.frequency.setValueAtTime(500, t); f.frequency.linearRampToValueAtTime(1500, t + len * 0.5);
+      f.frequency.linearRampToValueAtTime(600, t + len); f.Q.value = 0.8;
+      g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.055, t + 0.5);
+      g.gain.setValueAtTime(0.055, t + len - 0.3); g.gain.linearRampToValueAtTime(0.0001, t + len + 0.5);
+      f.connect(g); g.connect(musicBus);
+      for (let i = 0; i < ch.length; i++) for (let d = -1; d <= 1; d += 2) {
+        const o = ctx.createOscillator();
+        o.type = 'sawtooth'; o.frequency.value = hz(ch[i]); o.detune.value = d * 7;
+        o.connect(f); o.start(t); o.stop(t + len + 0.6);
+      }
+    }
+    // bass on the root
+    if (s === 0 || s === 10 || (full && s === 6)) tone(musicBus, 'triangle', hz(ch[0] - 24), t, STEP * (s === 0 ? 5 : 2.5), 0.2, 0, 0.012);
+    // plucked broken chord with echo
+    if (full && s % 2 === 0) {
+      const order = [0, 2, 1, 3, 2, 3, 1, 2], note = ch[order[(s / 2) % 8]] + 12;
+      const g = tone(echo, 'triangle', hz(note), t, 0.32, part === 3 ? 0.035 : 0.06, 0, 0.004);
+      g.connect(musicBus);
+    }
+    // a sparse lead that wanders over the scale
+    if (bar >= 8 && part !== 0 && (s === 0 || s === 6 || s === 12 || (s === 14 && rnd() < 0.4)) && rnd() < 0.72) {
+      lead = G.within(lead + Math.round(rnd() * 4 - 2), 0, SCALE.length - 1);
+      const g = tone(echo, 'sine', hz(SCALE[lead]), t, STEP * 5, 0.07, 0, 0.03);
+      g.connect(musicBus);
+      tone(musicBus, 'sine', hz(SCALE[lead]) * 2, t, STEP * 2, 0.012, 0, 0.02);
+    }
+    if (drums) {
+      if (s === 0 || s === 8 || (s === 11 && bar % 2)) tone(musicBus, 'sine', 120, t, 0.22, 0.3, 42, 0.003);
+      if (s === 4 || s === 12) noise(musicBus, t, 0.14, 0.07, 'bandpass', 1900, 0, 0.9);
+      if (s % 2 === 0) noise(musicBus, t, 0.035, s % 4 === 2 ? 0.035 : 0.018, 'highpass', 7000);
+    }
+  }
+
+  // ---------- short tones ----------
+  const PENTA = [0, 3, 5, 7, 10, 12, 15, 17];
+  let tapN = 0;
+  const SFX = {
+    // every tap on the map lands on another note of the scale
+    tap: function (t) { tone(sfxBus, 'sine', hz(72 + PENTA[tapN++ % PENTA.length]), t, 0.11, 0.16); },
+    ui: function (t) { tone(sfxBus, 'triangle', 880, t, 0.06, 0.11); },
+    open: function (t) { tone(sfxBus, 'sine', 520, t, 0.1, 0.12, 780); },
+    close: function (t) { tone(sfxBus, 'sine', 620, t, 0.09, 0.09, 400); },
+    deny: function (t) { tone(sfxBus, 'square', 150, t, 0.13, 0.07, 110); },
+    attack: function (t) { noise(sfxBus, t, 0.18, 0.2, 'bandpass', 700, 2600, 1.2); tone(sfxBus, 'sawtooth', 196, t, 0.2, 0.1, 392); },
+    build: function (t) {
+      for (let i = 0; i < 2; i++) { tone(sfxBus, 'square', 210, t + i * 0.11, 0.05, 0.1, 120); noise(sfxBus, t + i * 0.11, 0.05, 0.16, 'highpass', 2500); }
+      tone(sfxBus, 'sine', 660, t + 0.24, 0.16, 0.1);
+    },
+    upgrade: function (t) { [0, 4, 7, 12].forEach(function (s, i) { tone(sfxBus, 'triangle', hz(72 + s), t + i * 0.055, 0.13, 0.11); }); },
+    boat: function (t) { tone(sfxBus, 'sawtooth', 110, t, 0.5, 0.1, 104, 0.06); tone(sfxBus, 'sawtooth', 165, t, 0.5, 0.06, 156, 0.06); },
+    ship: function (t) { tone(sfxBus, 'sine', 1320, t, 0.5, 0.1); tone(sfxBus, 'sine', 1320, t + 0.22, 0.6, 0.1); },
+    coin: function (t) { tone(sfxBus, 'sine', 1568, t, 0.07, 0.09); tone(sfxBus, 'sine', 2093, t + 0.06, 0.2, 0.09); },
+    train: function (t) { tone(sfxBus, 'square', 587, t, 0.16, 0.035, 0, 0.02); tone(sfxBus, 'square', 698, t, 0.16, 0.035, 0, 0.02); tone(sfxBus, 'sine', 1760, t + 0.1, 0.12, 0.06); },
+    good: function (t) { [0, 4, 7].forEach(function (s, i) { tone(sfxBus, 'sine', hz(76 + s), t + i * 0.07, 0.22, 0.1); }); },
+    ally: function (t) { [0, 7, 12, 16].forEach(function (s, i) { tone(sfxBus, 'triangle', hz(67 + s), t + i * 0.08, 0.3, 0.1); }); },
+    warn: function (t) { tone(sfxBus, 'square', 466, t, 0.12, 0.06); tone(sfxBus, 'square', 440, t + 0.14, 0.2, 0.06); },
+    bad: function (t) { tone(sfxBus, 'sawtooth', 220, t, 0.16, 0.08, 185); tone(sfxBus, 'sawtooth', 165, t + 0.15, 0.28, 0.08, 131); },
+    flag: function (t) { noise(sfxBus, t, 0.09, 0.12, 'highpass', 3000); tone(sfxBus, 'triangle', 523, t + 0.05, 0.1, 0.1); tone(sfxBus, 'triangle', 784, t + 0.14, 0.2, 0.1); },
+    pop: function (t) { noise(sfxBus, t, 0.16, 0.2, 'lowpass', 1400, 200); tone(sfxBus, 'sine', 160, t, 0.16, 0.2, 50); },
+    launch: function (t) { noise(sfxBus, t, 0.9, 0.16, 'bandpass', 300, 3200, 1.5); tone(sfxBus, 'sawtooth', 80, t, 0.9, 0.06, 320); },
+    boom: function (t) { noise(sfxBus, t, 1.1, 0.5, 'lowpass', 2200, 90); tone(sfxBus, 'sine', 95, t, 1, 0.5, 28); },
+    head: function (t) { noise(sfxBus, t, 0.4, 0.22, 'lowpass', 1500, 120); tone(sfxBus, 'sine', 110, t, 0.35, 0.22, 40); },
+    // hydrogen bomb: a sharp crack, then a long rolling low end
+    hydro: function (t) {
+      noise(sfxBus, t, 0.12, 0.6, 'highpass', 1800);
+      noise(sfxBus, t + 0.03, 3.2, 0.7, 'lowpass', 3000, 50);
+      tone(sfxBus, 'sine', 70, t, 3, 0.7, 20);
+      tone(sfxBus, 'triangle', 46, t + 0.15, 2.6, 0.35, 24, 0.2);
+      noise(sfxBus, t + 0.5, 2.6, 0.14, 'bandpass', 240, 90, 2);
+    },
+    start: function (t) { [57, 64, 69, 76].forEach(function (m, i) { tone(sfxBus, 'triangle', hz(m), t + i * 0.1, 0.5, 0.11); }); },
+    win: function (t) { [60, 64, 67, 72, 76, 79, 84].forEach(function (m, i) { tone(sfxBus, 'triangle', hz(m), t + i * 0.11, i === 6 ? 1.2 : 0.3, 0.13); }); },
+    lose: function (t) { [69, 65, 62, 57, 50].forEach(function (m, i) { tone(sfxBus, 'sawtooth', hz(m), t + i * 0.2, i === 4 ? 1.2 : 0.34, 0.07); }); }
+  };
+  A.names = Object.keys(SFX);
+  A.play = function (name, gap) {
+    if (!ctx || !A.on.sfx || ctx.state !== 'running' || !SFX[name]) return;
+    const now = ctx.currentTime;
+    if (now - (lastAt[name] || -9) < (gap || 0.05)) return;    // never stack the same sound on itself
+    lastAt[name] = now;
+    SFX[name](now + 0.005);
+  };
+})(globalThis.G = globalThis.G || {});
+
+(function (G) {
+  'use strict';
   const UT = G.UT, within = G.within;
   const SEA = '#1e4a7c';
   const FONT = '"Barlow Condensed", "Arial Narrow", "Roboto Condensed", sans-serif';
@@ -2607,7 +2909,10 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
     menu: 'M3 5h18v2.4H3zM3 10.8h18v2.4H3zM3 16.6h18V19H3z',
     home: 'M12 3l9 8h-2.5v9h-5v-6h-3v6h-5v-9H3z',
     troops: 'M12 3a4 4 0 1 0 0 8a4 4 0 0 0 0-8zM4 21c0-4.4 3.6-8 8-8s8 3.6 8 8z',
-    gold: 'M12 3a9 9 0 1 0 0 18a9 9 0 0 0 0-18zM12 6.5a5.5 5.5 0 1 1 0 11a5.5 5.5 0 0 1 0-11z'
+    gold: 'M12 3a9 9 0 1 0 0 18a9 9 0 0 0 0-18zM12 6.5a5.5 5.5 0 1 1 0 11a5.5 5.5 0 0 1 0-11z',
+    sound: 'M3 9h4l5-4.5v15L7 15H3zM14.5 8.2a5 5 0 0 1 0 7.6l-1.2-1.4a3.2 3.2 0 0 0 0-4.8zM17 5.4a8.8 8.8 0 0 1 0 13.2l-1.2-1.4a7 7 0 0 0 0-10.4z',
+    mute: 'M3 9h4l5-4.5v15L7 15H3zM14.3 9.3l1.4-1.4l2.3 2.3l2.3-2.3l1.4 1.4l-2.3 2.3l2.3 2.3l-1.4 1.4l-2.3-2.3l-2.3 2.3l-1.4-1.4l2.3-2.3z',
+    upgrade: 'M12 3l8 8h-5v9H9v-9H4z'
   };
   const STRUCT_ICON = ['city', 'defense', 'port', 'silo', 'sam', 'factory'];
   const paths = {};
@@ -2846,29 +3151,57 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
     this.drawMarks(ctx, g, z, ox, oy, now);
   };
 
+  // Railways: a gravel bed, sleepers and two rails once you are close enough; a plain line from far away.
   View.prototype.drawRails = function (ctx, g, z, ox, oy) {
     const rails = g.rails;
     if (!rails.length) return;
-    const W = g.W, x0 = -ox / z, y0 = -oy / z, x1 = (this.cw - ox) / z, y1 = (this.ch - oy) / z;
-    const step = Math.max(1, Math.round(2.5 / z));
+    const W = g.W, x0 = -ox / z - 2, y0 = -oy / z - 2, x1 = (this.cw - ox) / z + 2, y1 = (this.ch - oy) / z + 2;
+    const vis = [];
+    for (const e of rails) if (!(e.x1 < x0 || e.x0 > x1 || e.y1 < y0 || e.y0 > y1)) vis.push(e);
+    if (!vis.length) return;
+    const trace = function () {
+      ctx.beginPath();
+      for (const e of vis) {
+        const p = e.path.pts || e.path;
+        for (let i = 0; i < p.length; i++) {
+          const x = (p[i] % W + 0.5) * z + ox, y = (((p[i] / W) | 0) + 0.5) * z + oy;
+          if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y);
+        }
+      }
+    };
+    ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    trace();
+    if (z < 2.4) {
+      ctx.lineWidth = within(z * 0.8, 1.5, 2.6); ctx.strokeStyle = 'rgba(30,26,22,.8)'; ctx.stroke();
+      ctx.setLineDash([2, 3]);
+      ctx.lineWidth = within(z * 0.3, 0.7, 1.1); ctx.strokeStyle = 'rgba(240,236,226,.85)'; ctx.stroke();
+      ctx.setLineDash([]);
+      return;
+    }
+    ctx.lineWidth = z * 1.05; ctx.strokeStyle = 'rgba(40,34,28,.5)'; ctx.stroke();
+    ctx.lineWidth = z * 0.82; ctx.strokeStyle = '#8b8172'; ctx.stroke();
+    ctx.lineCap = 'butt';
+    ctx.setLineDash([z * 0.15, z * 0.33]);
+    ctx.lineWidth = z * 0.72; ctx.strokeStyle = '#4e3b28'; ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.lineCap = 'round';
+    const off = z * 0.2;
     ctx.beginPath();
-    for (const e of rails) {
-      if (e.x1 < x0 || e.x0 > x1 || e.y1 < y0 || e.y0 > y1) continue;
-      const p = e.path, n = p.length;
-      for (let i = 0; i < n; i += step) {
-        const j = i + step >= n ? n - 1 : i, t = p[j];
-        const x = (t % W + 0.5) * z + ox, y = (((t / W) | 0) + 0.5) * z + oy;
-        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-        if (j === n - 1) break;
+    for (const e of vis) {
+      const p = e.path.pts || e.path;
+      for (let side = -1; side <= 1; side += 2) {
+        let lx = 0, ly = 0;
+        for (let i = 0; i < p.length; i++) {
+          const x = (p[i] % W + 0.5) * z + ox, y = (((p[i] / W) | 0) + 0.5) * z + oy;
+          if (i) {
+            const dx = x - lx, dy = y - ly, d = Math.hypot(dx, dy) || 1, nx = -dy / d * off * side, ny = dx / d * off * side;
+            ctx.moveTo(lx + nx, ly + ny); ctx.lineTo(x + nx, y + ny);
+          }
+          lx = x; ly = y;
+        }
       }
     }
-    ctx.lineJoin = 'round'; ctx.lineCap = 'round';
-    ctx.lineWidth = within(z * 0.55, 1.6, 5); ctx.strokeStyle = 'rgba(16,22,29,.78)'; ctx.stroke();
-    if (z >= 2) {
-      ctx.setLineDash([within(z * 0.5, 2, 5), within(z * 0.9, 3, 8)]);
-      ctx.lineWidth = within(z * 0.22, 0.8, 2); ctx.strokeStyle = 'rgba(236,240,245,.8)'; ctx.stroke();
-      ctx.setLineDash([]);
-    }
+    ctx.lineWidth = Math.max(1, z * 0.1); ctx.strokeStyle = '#eef1f4'; ctx.stroke();
   };
 
   View.prototype.drawStructures = function (ctx, g, z, ox, oy) {
@@ -2898,48 +3231,136 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
     }
   };
 
+  // The water a ship has crossed. A troop boat keeps its whole course in its owner's colour until it
+  // lands (as in OpenFront); warships and merchants trail a short streak of foam.
+  View.prototype.drawWakes = function (ctx, g, z, ox, oy, alpha) {
+    const us = g.units, W = g.W, cw = this.cw, ch = this.ch;
+    ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    for (let i = 0; i < us.length; i++) {
+      const u = us[i], ty = u.type;
+      if (!u.active || !u.path || (ty !== UT.TRANSPORT && ty !== UT.WARSHIP && ty !== UT.TRADE)) continue;
+      const p = u.path, end = Math.min(u.pi, p.length - 1);
+      if (end < 1) continue;
+      const hx = (u.px + (u.x - u.px) * alpha + 0.5) * z + ox, hy = (u.py + (u.y - u.py) * alpha + 0.5) * z + oy;
+      if (ty === UT.TRANSPORT) {
+        const step = Math.max(1, Math.round(2.5 / z));
+        ctx.beginPath();
+        for (let k = 0; k < end; k += step) {
+          const x = (p[k] % W + 0.5) * z + ox, y = (((p[k] / W) | 0) + 0.5) * z + oy;
+          if (k) ctx.lineTo(x, y); else ctx.moveTo(x, y);
+        }
+        ctx.lineTo(hx, hy);
+        ctx.globalAlpha = 0.85;
+        ctx.lineWidth = Math.max(1.6, z * 0.95); ctx.strokeStyle = u.owner.css; ctx.stroke();
+        ctx.globalAlpha = 0.4;
+        ctx.lineWidth = Math.max(0.6, z * 0.28); ctx.strokeStyle = '#fff'; ctx.stroke();
+        ctx.globalAlpha = 1;
+        continue;
+      }
+      if (hx < -60 || hy < -60 || hx > cw + 60 || hy > ch + 60 || z < 1.3) continue;
+      const len = ty === UT.WARSHIP ? 14 : 8, wide = ty === UT.WARSHIP ? 0.55 : 0.4;
+      let lx = hx, ly = hy;
+      for (let k = 0; k < 3; k++) {
+        const idx = Math.max(0, end - Math.round((k + 1) * len / 3));
+        const x = (p[idx] % W + 0.5) * z + ox, y = (((p[idx] / W) | 0) + 0.5) * z + oy;
+        ctx.beginPath(); ctx.moveTo(lx, ly); ctx.lineTo(x, y);
+        ctx.lineWidth = Math.max(1, z * wide * (1 - k * 0.22));
+        ctx.strokeStyle = 'rgba(255,255,255,' + (0.5 - k * 0.15).toFixed(2) + ')'; ctx.stroke();
+        lx = x; ly = y;
+        if (!idx) break;
+      }
+    }
+  };
+
+  // A hull seen from above, pointing along the ship's course.
+  function hull(ctx, x, y, ang, s, kind) {
+    ctx.save();
+    ctx.translate(x, y); ctx.rotate(ang); ctx.scale(s, s);
+    ctx.beginPath();
+    if (kind === 'war') {
+      ctx.moveTo(-1.05, -0.4); ctx.lineTo(0.35, -0.44); ctx.lineTo(1.2, 0); ctx.lineTo(0.35, 0.44); ctx.lineTo(-1.05, 0.4); ctx.lineTo(-0.85, 0);
+    } else if (kind === 'boat') {
+      ctx.moveTo(-0.8, -0.46); ctx.lineTo(0.2, -0.46); ctx.lineTo(1, 0); ctx.lineTo(0.2, 0.46); ctx.lineTo(-0.8, 0.46);
+    } else {
+      ctx.moveTo(-1, -0.5); ctx.lineTo(0.5, -0.5); ctx.quadraticCurveTo(1.15, -0.3, 1.2, 0); ctx.quadraticCurveTo(1.15, 0.3, 0.5, 0.5); ctx.lineTo(-1, 0.5);
+    }
+    ctx.closePath();
+    ctx.restore();
+  }
+
   View.prototype.drawUnits = function (ctx, g, z, ox, oy, alpha) {
     const cw = this.cw, ch = this.ch, us = g.units;
     const ws = within(4 + z * 2.2, 7, 17), bs = within(3 + z * 1.6, 5, 12);
+    this.drawWakes(ctx, g, z, ox, oy, alpha);
+    ctx.lineJoin = 'round';
     for (let i = 0; i < us.length; i++) {
       const u = us[i], ty = u.type;
       if (!u.active || ty <= UT.FACTORY) continue;
       if (ty >= UT.ATOM) { this.drawMissile(ctx, g, u, z, ox, oy, alpha); continue; }
       const x = (u.px + (u.x - u.px) * alpha + 0.5) * z + ox, y = (u.py + (u.y - u.py) * alpha + 0.5) * z + oy;
-      if (x < -20 || y < -20 || x > cw + 20 || y > ch + 20) continue;
+      if (x < -30 || y < -30 || x > cw + 30 || y > ch + 30) continue;
       const p = u.owner;
+      if (u.x !== u.px || u.y !== u.py) u.ang = Math.atan2(u.y - u.py, u.x - u.px);
+      const ang = u.ang || 0;
       if (ty === UT.WARSHIP) {
-        ctx.beginPath();
-        ctx.moveTo(x, y - ws * 0.62); ctx.lineTo(x + ws * 0.62, y); ctx.lineTo(x, y + ws * 0.62); ctx.lineTo(x - ws * 0.62, y);
-        ctx.closePath();
+        const s = ws * 0.62;
+        hull(ctx, x, y, ang, s, 'war');
         ctx.fillStyle = p.css; ctx.fill();
-        ctx.lineWidth = 2; ctx.strokeStyle = '#10161d'; ctx.stroke();
-        ctx.lineWidth = 1; ctx.strokeStyle = '#fff'; ctx.stroke();
+        ctx.lineWidth = 2.6; ctx.strokeStyle = '#10161d'; ctx.stroke();
+        ctx.lineWidth = 1.1; ctx.strokeStyle = '#fff'; ctx.stroke();
+        ctx.fillStyle = '#10161d';
+        ctx.beginPath(); ctx.arc(x + Math.cos(ang) * s * 0.3, y + Math.sin(ang) * s * 0.3, Math.max(1.2, s * 0.2), 0, 6.2832); ctx.fill();
+        ctx.beginPath(); ctx.arc(x - Math.cos(ang) * s * 0.4, y - Math.sin(ang) * s * 0.4, Math.max(1, s * 0.16), 0, 6.2832); ctx.fill();
         if (u.hp < 1000) {
           ctx.fillStyle = '#10161d'; ctx.fillRect(x - ws / 2, y + ws * 0.8, ws, 3);
-          ctx.fillStyle = '#63d391'; ctx.fillRect(x - ws / 2, y + ws * 0.8, ws * u.hp / 1000, 3);
+          ctx.fillStyle = u.hp < 400 ? '#ff6b5e' : '#63d391'; ctx.fillRect(x - ws / 2, y + ws * 0.8, ws * u.hp / 1000, 3);
         }
       } else if (ty === UT.TRANSPORT) {
-        ctx.beginPath();
-        ctx.moveTo(x, y - bs * 0.7); ctx.lineTo(x + bs * 0.7, y + bs * 0.55); ctx.lineTo(x - bs * 0.7, y + bs * 0.55);
-        ctx.closePath();
+        hull(ctx, x, y, ang, bs * 0.62, 'boat');
         ctx.fillStyle = p.css; ctx.fill();
         ctx.lineWidth = 1.5; ctx.strokeStyle = '#fff'; ctx.stroke();
       } else if (ty === UT.TRAIN) {
-        const h = within(bs * 0.5, 2.6, 6);
-        ctx.fillStyle = p.css; ctx.fillRect(x - h, y - h * 0.7, h * 2, h * 1.4);
-        ctx.lineWidth = 1.2; ctx.strokeStyle = '#10161d'; ctx.strokeRect(x - h, y - h * 0.7, h * 2, h * 1.4);
-        ctx.fillStyle = '#fff'; ctx.fillRect(x - h * 0.45, y - h * 0.3, h * 0.9, h * 0.6);
+        this.drawTrain(ctx, g, u, z, ox, oy, alpha);
       } else if (ty === UT.TRADE) {
-        const h = bs * 0.42;
-        ctx.fillStyle = u.captured ? '#f4b740' : '#fff';
-        ctx.fillRect(x - h, y - h, h * 2, h * 2);
-        ctx.lineWidth = 1.5; ctx.strokeStyle = p.cssB;
-        ctx.strokeRect(x - h, y - h, h * 2, h * 2);
+        const s = bs * 0.56;
+        hull(ctx, x, y, ang, s, 'trade');
+        ctx.fillStyle = u.captured ? '#f4b740' : '#f6efdc'; ctx.fill();
+        ctx.lineWidth = 1.6; ctx.strokeStyle = p.cssB; ctx.stroke();
+        // the gold on board
+        ctx.fillStyle = u.captured ? '#7a5200' : '#e0a21c';
+        const cx = Math.cos(ang) * s, cy = Math.sin(ang) * s, r = Math.max(0.9, s * 0.22);
+        ctx.beginPath(); ctx.arc(x - cx * 0.45, y - cy * 0.45, r, 0, 6.2832); ctx.arc(x + cx * 0.1, y + cy * 0.1, r, 0, 6.2832); ctx.fill();
+        if (z >= 4.5) {
+          ctx.font = '700 ' + within(z * 1.6, 9, 13).toFixed(0) + 'px ' + FONT;
+          ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+          ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(13,20,27,.8)'; ctx.strokeText(G.fmt(u.gold), x, y - s * 0.8);
+          ctx.fillStyle = '#f4b740'; ctx.fillText(G.fmt(u.gold), x, y - s * 0.8);
+        }
       } else {
         ctx.beginPath(); ctx.arc(x, y, ty === UT.SHELL ? 1.6 : 2.2, 0, 6.2832);
         ctx.fillStyle = ty === UT.SHELL ? '#10161d' : '#fff'; ctx.fill();
       }
+    }
+  };
+
+  // An engine pulling two wagons along the track.
+  View.prototype.drawTrain = function (ctx, g, u, z, ox, oy, alpha) {
+    const path = u.edge.path, n = path.length, W = g.W, dir = u.fwd ? 1 : -1, p = u.owner;
+    const moved = u.x !== u.px || u.y !== u.py;
+    const head = u.pi - (moved ? dir * (1 - alpha) : 0);
+    const L = Math.max(5, z * 1.25), B = Math.max(3, z * 0.72);
+    for (let k = 2; k >= 0; k--) {
+      const f = within(head - dir * k * 1.55, 0, n - 1), i0 = Math.min(n - 2, Math.floor(f)), fr = f - i0;
+      if (i0 < 0) return;
+      const ax = path[i0] % W, ay = (path[i0] / W) | 0, bx = path[i0 + 1] % W, by = (path[i0 + 1] / W) | 0;
+      const x = (ax + (bx - ax) * fr + 0.5) * z + ox, y = (ay + (by - ay) * fr + 0.5) * z + oy;
+      ctx.save();
+      ctx.translate(x, y); ctx.rotate(Math.atan2(by - ay, bx - ax));
+      ctx.fillStyle = k ? p.cssB : p.css;
+      ctx.fillRect(-L / 2, -B / 2, L, B);
+      ctx.lineWidth = 1.1; ctx.strokeStyle = k ? 'rgba(255,255,255,.75)' : '#fff'; ctx.strokeRect(-L / 2, -B / 2, L, B);
+      if (!k) { ctx.fillStyle = '#fff'; ctx.fillRect(dir * L * 0.12 - L * 0.14, -B * 0.26, L * 0.28, B * 0.52); }
+      ctx.restore();
     }
   };
 
@@ -2973,14 +3394,33 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
   };
 
   View.prototype.drawFx = function (ctx, g, z, ox, oy, now) {
-    while (g.fx.length) { const f = g.fx.shift(); f.t0 = now; this.fxList.push(f); }
+    const cw = this.cw, ch = this.ch;
+    while (g.fx.length) {
+      const f = g.fx.shift();
+      f.t0 = now; this.fxList.push(f);
+      if (G.onFx) {
+        const x = (f.x + 0.5) * z + ox, y = (f.y + 0.5) * z + oy;
+        G.onFx(f, x > -40 && y > -40 && x < cw + 40 && y < ch + 40);
+      }
+    }
     const list = this.fxList;
     for (let i = list.length - 1; i >= 0; i--) {
-      const f = list[i], dur = f.k === 'boom' ? 1100 : 420, k = (now - f.t0) / dur;
+      const f = list[i];
+      const dur = f.k === 'boom' ? (f.big ? 2600 : 1100) : f.k === 'coin' ? 1000 : f.k === 'flag' ? 700 : 420, k = (now - f.t0) / dur;
       if (k >= 1 || (f.k === 'coin' && !f.mine)) { list.splice(i, 1); continue; }
       const x = (f.x + 0.5) * z + ox, y = (f.y + 0.5) * z + oy, e = k * (2 - k);
       if (f.k === 'boom') {
         const r = Math.max(6, f.r * z) * (0.3 + 0.7 * e);
+        if (f.big) {
+          // hydrogen bomb: the whole screen flashes, then two shock rings roll outward
+          if (k < 0.22 && x > -r && y > -r && x < cw + r && y < ch + r) {
+            ctx.fillStyle = 'rgba(255,246,220,' + (0.75 * (1 - k / 0.22)).toFixed(3) + ')'; ctx.fillRect(0, 0, cw, ch);
+          }
+          ctx.beginPath(); ctx.arc(x, y, r * (1 + 0.5 * k), 0, 6.2832);
+          ctx.strokeStyle = 'rgba(255,214,150,' + (0.7 * (1 - k)).toFixed(3) + ')'; ctx.lineWidth = 5 * (1 - k) + 1; ctx.stroke();
+          ctx.beginPath(); ctx.arc(x, y, r * 0.7, 0, 6.2832);
+          ctx.fillStyle = 'rgba(255,120,40,' + (0.5 * (1 - k)).toFixed(3) + ')'; ctx.fill();
+        }
         ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832);
         ctx.fillStyle = 'rgba(255,176,72,' + (0.7 * (1 - k)).toFixed(3) + ')'; ctx.fill();
         ctx.beginPath(); ctx.arc(x, y, r * 0.45, 0, 6.2832);
@@ -2990,6 +3430,16 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
       } else if (f.k === 'coin') {
         ctx.beginPath(); ctx.arc(x, y - 10 * e, 2 + 5 * e, 0, 6.2832);
         ctx.strokeStyle = 'rgba(244,183,64,' + (1 - k).toFixed(3) + ')'; ctx.lineWidth = 2; ctx.stroke();
+        if (f.amt) {
+          ctx.globalAlpha = Math.min(1, 2 * (1 - k));
+          ctx.font = '700 14px ' + FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+          ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(13,20,27,.85)'; ctx.strokeText('+' + G.fmt(f.amt), x, y - 14 - 22 * e);
+          ctx.fillStyle = '#f4b740'; ctx.fillText('+' + G.fmt(f.amt), x, y - 14 - 22 * e);
+          ctx.globalAlpha = 1;
+        }
+      } else if (f.k === 'flag') {
+        ctx.beginPath(); ctx.arc(x, y, 4 + 16 * e, 0, 6.2832);
+        ctx.strokeStyle = 'rgba(244,183,64,' + (1 - k).toFixed(3) + ')'; ctx.lineWidth = 3 * (1 - k) + 1; ctx.stroke();
       } else {
         ctx.beginPath(); ctx.arc(x, y, 3 + 13 * e, 0, 6.2832);
         ctx.strokeStyle = 'rgba(255,255,255,' + (1 - k).toFixed(3) + ')'; ctx.lineWidth = 2; ctx.stroke();
@@ -3066,18 +3516,20 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
   }
 
   const COLORS = [[226, 68, 60], [42, 122, 226], [241, 160, 36], [150, 84, 214], [28, 170, 150], [232, 86, 160]];
+  // The number keys 1 to 0 build these, in this order, at the mouse pointer.
   const BUILD = [
-    { t: UT.CITY, icon: 'city', note: 'Truppen-Limit +25K' },
-    { t: UT.PORT, icon: 'port', note: 'Handel und Kriegsschiffe' },
-    { t: UT.FACTORY, icon: 'factory', note: 'Gleise und Züge bringen Gold' },
-    { t: UT.DEFENSE, icon: 'defense', note: 'Grenze fünfmal zäher' },
-    { t: UT.SILO, icon: 'silo', note: 'Startet Bomben' },
-    { t: UT.SAM, icon: 'sam', note: 'Fängt Bomben ab' },
-    { t: UT.WARSHIP, icon: 'warship', note: 'Versenkt Boote, kapert Handel' },
-    { t: UT.ATOM, icon: 'atom', note: 'Kleiner Krater' },
-    { t: UT.HYDRO, icon: 'hydro', note: 'Riesiger Krater' },
-    { t: UT.MIRV, icon: 'mirv', note: 'Verwüstet ein ganzes Reich' }
+    { t: UT.CITY, icon: 'city', note: 'Truppen-Limit +25K', key: '1' },
+    { t: UT.PORT, icon: 'port', note: 'Handel und Kriegsschiffe', key: '2' },
+    { t: UT.FACTORY, icon: 'factory', note: 'Gleise und Züge bringen Gold', key: '3' },
+    { t: UT.DEFENSE, icon: 'defense', note: 'Grenze fünfmal zäher', key: '4' },
+    { t: UT.SILO, icon: 'silo', note: 'Startet Bomben', key: '5' },
+    { t: UT.SAM, icon: 'sam', note: 'Fängt Bomben ab', key: '6' },
+    { t: UT.WARSHIP, icon: 'warship', note: 'Nimmt fremde Schiffe ein', key: '7' },
+    { t: UT.ATOM, icon: 'atom', note: 'Kleiner Krater', key: '8' },
+    { t: UT.HYDRO, icon: 'hydro', note: 'Riesiger Krater', key: '9' },
+    { t: UT.MIRV, icon: 'mirv', note: 'Verwüstet ein ganzes Reich', key: '0' }
   ];
+  const snd = function (name, gap) { G.Audio.play(name, gap); };
   const TERRAIN = ['Ebene', 'Hochland', 'Gebirge'];
 
   let MAPS = [], maps = {}, game = null, view = null;
@@ -3085,14 +3537,17 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
   let sel = null, radialAt = 0, modalKind = '', infoId = 0, lbOpen = false, lbAt = -99, liveAt = -99, tradeAt = 0;
   let toastTimer = 0, endShown = false, botsTouched = false;
   const chips = new Map(), asks = new Map();
-  const cfg = { name: 'Spieler', color: 0, map: 'welt', diff: 1, bots: -1, nations: true, instant: false, gold: false, troops: false, tap: false };
+  const cfg = { name: 'Spieler', color: 0, map: 'welt', diff: 1, bots: -1, nations: true, instant: false, gold: false, troops: false, tap: false, music: true, sfx: true };
+  let hoverX = -1, hoverY = -1;
+  const special = function (id) { return G.SPECIAL_MAPS.find(function (m) { return m.id === id; }); };
 
   function loadCfg() {
     try {
       const s = JSON.parse(localStorage.getItem('grenzland.v1') || '{}');
       for (const k in cfg) if (typeof s[k] === typeof cfg[k]) cfg[k] = s[k];
     } catch (e) { /* storage may be unavailable */ }
-    if (cfg.map !== 'zufall' && !MAPS.some(function (m) { return m.id === cfg.map; })) cfg.map = 'welt';
+    if (cfg.map !== 'zufall' && !special(cfg.map) && !MAPS.some(function (m) { return m.id === cfg.map; })) cfg.map = 'welt';
+    G.Audio.on.music = cfg.music; G.Audio.on.sfx = cfg.sfx;
     botsTouched = cfg.bots >= 0;
   }
   function saveCfg() {
@@ -3106,6 +3561,12 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
       const seed = (Math.random() * 2e9) | 0;
       maps.zufall = G.buildMap(960, 600, G.randomClassMap(960, 600, seed), seed, { id: 'zufall', name: 'Zufallskarte', nations: [] });
       return Promise.resolve(maps.zufall);
+    }
+    if (special(id)) {
+      // built on the next frame, so the tap on the card shows at once
+      return new Promise(function (resolve) {
+        setTimeout(function () { maps[id] = maps[id] || G.specialMap(special(id)); resolve(maps[id]); }, 30);
+      });
     }
     const def = MAPS.find(function (m) { return m.id === id; });
     return new Promise(function (resolve, reject) {
@@ -3171,7 +3632,9 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
 
   // ---------- start screen ----------
   function showStart() {
-    const list = MAPS.map(function (m) { return { id: m.id, name: m.name }; }).concat([{ id: 'zufall', name: 'Zufallskarte' }]);
+    const mapCard = function (id, name, note) {
+      return '<button type="button" class="mapc" data-id="' + id + '" aria-pressed="' + (id === cfg.map) + '"><canvas width="132" height="84" data-thumb="' + id + '"></canvas><b>' + esc(name) + '</b><small>' + esc(note) + '</small></button>';
+    };
     const check = function (id, label, on) {
       return '<label class="check" for="' + id + '"><input id="' + id + '" type="checkbox"' + (on ? ' checked' : '') + '>' + label + '</label>';
     };
@@ -3180,9 +3643,11 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
     h += '<div class="field"><div class="lab">Farbe</div><div class="swatches" id="fColor">' + COLORS.map(function (c, i) {
       return '<button type="button" class="sw" data-i="' + i + '" aria-label="Farbe ' + (i + 1) + '" aria-pressed="' + (i === cfg.color) + '" style="background:rgb(' + c.join(',') + ')"></button>';
     }).join('') + '</div></div>';
-    h += '<div class="field"><div class="lab">Karte</div><div class="chips" id="fMap">' + list.map(function (m) {
-      return '<button type="button" class="chipb" data-id="' + m.id + '" aria-pressed="' + (m.id === cfg.map) + '">' + esc(m.name) + '</button>';
-    }).join('') + '</div></div>';
+    h += '<div class="field" id="fMap"><div class="lab">Karte · Erde</div><div class="maprow">' + MAPS.map(function (m) {
+      return mapCard(m.id, m.name, m.nations.length + ' Nationen');
+    }).join('') + '</div><div class="lab lab2">Spezialkarten</div><div class="maprow">' + G.SPECIAL_MAPS.map(function (m) {
+      return mapCard(m.id, m.name, m.note);
+    }).join('') + mapCard('zufall', 'Zufall', 'Jedes Mal eine neue Welt') + '</div></div>';
     h += '<div class="field"><div class="lab">Schwierigkeit</div><div class="seg" id="fDiff">' + G.DIFF_NAMES.map(function (n, i) {
       return '<button type="button" data-i="' + i + '" aria-pressed="' + (i === cfg.diff) + '">' + n + '</button>';
     }).join('') + '</div></div>';
@@ -3197,12 +3662,16 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
       if (b) { cfg.color = +b.dataset.i; press(this, b); }
     });
     $('fMap').addEventListener('click', function (e) {
-      const b = e.target.closest('.chipb');
+      const b = e.target.closest('.mapc');
       if (!b) return;
       if (b.dataset.id === 'zufall') delete maps.zufall;
-      cfg.map = b.dataset.id; press(this, b);
+      cfg.map = b.dataset.id;
+      for (const c of this.querySelectorAll('.mapc')) c.setAttribute('aria-pressed', c === b ? 'true' : 'false');
       previewMap(cfg.map);
     });
+    drawThumbs();
+    const cur = $('fMap').querySelector('.mapc[aria-pressed=true]');
+    if (cur && cur.scrollIntoView) cur.scrollIntoView({ block: 'nearest', inline: 'center' });
     $('fDiff').addEventListener('click', function (e) {
       const b = e.target.closest('button');
       if (b) { cfg.diff = +b.dataset.i; press(this, b); }
@@ -3210,6 +3679,49 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
     $('fBots').addEventListener('input', function () { botsTouched = true; cfg.bots = +this.value; $('fBotsVal').textContent = this.value; });
     $('fStart').addEventListener('click', startGame);
     $('fHelp').addEventListener('click', function () { showHelp(true); });
+  }
+
+  // Small pictures of every map for the picker.
+  const THUMB = [[38, 88, 140], [150, 200, 116], [196, 184, 138], [228, 230, 236]];
+  function paintThumb(cv, cls, w, h) {
+    const x = cv.getContext('2d'), tmp = document.createElement('canvas');
+    tmp.width = w; tmp.height = h;
+    const tx = tmp.getContext('2d'), img = tx.createImageData(w, h), d = img.data;
+    for (let i = 0; i < w * h; i++) {
+      const c = THUMB[cls[i]];
+      d[i * 4] = c[0]; d[i * 4 + 1] = c[1]; d[i * 4 + 2] = c[2]; d[i * 4 + 3] = 255;
+    }
+    tx.putImageData(img, 0, 0);
+    x.fillStyle = 'rgb(38,88,140)'; x.fillRect(0, 0, cv.width, cv.height);
+    const k = Math.min(cv.width / w, cv.height / h);
+    x.imageSmoothingEnabled = true;
+    x.drawImage(tmp, (cv.width - w * k) / 2, (cv.height - h * k) / 2, w * k, h * k);
+  }
+  function drawThumbs() {
+    for (const cv of document.querySelectorAll('canvas[data-thumb]')) {
+      const id = cv.dataset.thumb, sp = special(id);
+      if (id === 'zufall') {
+        const x = cv.getContext('2d');
+        x.fillStyle = 'rgb(38,88,140)'; x.fillRect(0, 0, cv.width, cv.height);
+        x.fillStyle = '#f4b740'; x.font = '700 54px ' + getComputedStyle(document.body).fontFamily;
+        x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('?', cv.width / 2, cv.height / 2 + 3);
+      } else if (sp) {
+        const w = Math.round(sp.w / 6), h = Math.round(sp.h / 6);
+        paintThumb(cv, G.randomClassMap(w, h, sp.seed, sp.kind, sp.w), w, h);
+      } else {
+        const def = MAPS.find(function (m) { return m.id === id; }), img = new Image();
+        img.onload = function () {
+          const w = Math.round(def.w / 6), h = Math.round(def.h / 6), c = document.createElement('canvas');
+          c.width = w; c.height = h;
+          const x = c.getContext('2d', { willReadFrequently: true });
+          x.drawImage(img, 0, 0, w, h);
+          const d = x.getImageData(0, 0, w, h).data, cls = new Uint8Array(w * h);
+          for (let i = 0; i < cls.length; i++) cls[i] = Math.round(d[i * 4] / 85);
+          paintThumb(cv, cls, w, h);
+        };
+        img.src = 'data:image/png;base64,' + def.png;
+      }
+    }
   }
 
   function helpHtml() {
@@ -3223,8 +3735,16 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
       '<li><b>Allianzen:</b> Verbündete greifen sich zehn Minuten lang nicht an. Wer eine Allianz bricht, ist 30 Sekunden lang leichter zu erobern.</li>' +
       '<li><b>Einkreisen:</b> Wer ganz von einem Gegner umschlossen ist, wird sofort übernommen.</li>' +
       '<li><b>Sieg:</b> Wer 80 % des Landes hält, gewinnt.</li>' +
+      '<li><b>Schiffe:</b> Handelsschiffe fahren Gold von Hafen zu Hafen, beide Häfen verdienen daran. Ein <b>Kriegsschiff</b> nimmt fremde Schiffe ein, mit deren Besitzer du keine Allianz hast: Handelsschiffe samt Gold, Boote samt der Hälfte der Truppen, und besiegte Kriegsschiffe wechseln die Seite.</li>' +
+      '<li><b>Züge:</b> Pro Bahnhof gibt es 10K Gold, bei Handelspartnern 25K für beide, bei Verbündeten 50K für beide.</li>' +
       '<li><b>Karte:</b> Ziehen verschiebt, zwei Finger oder das Mausrad zoomen. Mit der Maus greift ein Linksklick direkt an, der Rechtsklick öffnet das Menü.</li>' +
-      '</ul>';
+      '</ul><h2 class="h3">Tastenkürzel</h2><div class="keys">' +
+      BUILD.map(function (b) { return '<span><kbd>' + b.key + '</kbd>' + G.UNAME[b.t].replace('\u00AD', '') + '</span>'; }).join('') +
+      '<span><kbd>B</kbd>Baumenü</span><span><kbd>U</kbd>Ausbauen</span><span><kbd>F</kbd>Angreifen</span><span><kbd>G</kbd>Boot schicken</span>' +
+      '<span><kbd>V</kbd>Kriegsschiff hierher</span><span><kbd>R</kbd>Allianz anfragen</span><span><kbd>Q</kbd><kbd>E</kbd>Truppenanteil</span>' +
+      '<span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>Karte schieben</span><span><kbd>+</kbd><kbd>−</kbd>Zoom</span><span><kbd>C</kbd>Zum eigenen Gebiet</span>' +
+      '<span><kbd>T</kbd>Tempo</span><span><kbd>M</kbd>Ton an/aus</span><span><kbd>Leertaste</kbd>Pause</span><span><kbd>Esc</kbd>Schliessen</span>' +
+      '</div><p>Bauen und Befehle gelten für die Stelle unter dem Mauszeiger.</p>';
   }
   function showHelp(fromStart) {
     openModal(helpHtml() + '<button class="btn" data-act="' + (fromStart ? 'start' : 'resume') + '" type="button">' + (fromStart ? 'Zurück' : 'Weiterspielen') + '</button>', fromStart ? 'starthelp' : 'help');
@@ -3294,9 +3814,10 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
     if (!ev.length) return;
     for (let i = 0; i < ev.length; i++) {
       const e = ev[i];
-      if (e.k === 'msg') addMsg(e.text, e.cls);
+      if (e.k === 'msg') { addMsg(e.text, e.cls); if (e.cls === 'bad') snd('bad', 0.6); else if (e.cls === 'warn') snd('warn', 0.6); else if (e.cls === 'good') snd(/Allianz/.test(e.text) ? 'ally' : 'good', 0.4); }
       else if (e.k === 'allyReq') {
         const from = game.players[e.from], id = e.id;
+        snd('ally');
         addAsk('q' + id, from.name + ' bietet dir eine Allianz an', 'Annehmen', 'Ablehnen',
           function () { game.answerRequest(id, true); }, function () { game.answerRequest(id, false); });
       } else if (e.k === 'renew') {
@@ -3308,6 +3829,7 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
         const W = game.W;
         view.flyTo(h.spawnTile % W, (h.spawnTile / W) | 0, within(Math.min(view.cw, view.ch) / 70, 2.2, 6));
         addMsg('Los geht es. Breite dich aus, bevor es andere tun.', 'good');
+        snd('start');
       } else if (e.k === 'defeat') showEnd('defeat', null);
       else if (e.k === 'win') showEnd(game.players[e.id] === h ? 'win' : 'other', game.players[e.id]);
     }
@@ -3402,6 +3924,7 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
     if (kind === 'other' && endShown === 'defeat' && !$('modal').hidden) { /* replace the defeat card */ }
     else if (endShown && kind !== 'other') return;
     endShown = kind;
+    snd(kind === 'win' ? 'win' : 'lose');
     closeRadial(); $('sheet').hidden = true;
     const h = game.human, den = Math.max(1, game.map.landTiles - game.falloutCount);
     let s;
@@ -3461,9 +3984,21 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
     openModal('<h2>Pause</h2><p>' + esc(game.map.name) + ' · ' + G.DIFF_NAMES[game.opts.difficulty] + '</p>' +
       '<button class="btn" data-act="resume" type="button">Weiterspielen</button>' +
       '<button class="btn ghost" data-act="help" type="button">So wird gespielt</button>' +
-      '<label class="check wide" for="mTap"><input id="mTap" type="checkbox"' + (cfg.tap ? ' checked' : '') + '>Tippen greift direkt an, ohne Menü</label>' +
+      '<label class="check wide" for="mMusic"><input id="mMusic" type="checkbox"' + (cfg.music ? ' checked' : '') + '>Musik</label>' +
+      '<label class="check" for="mSfx"><input id="mSfx" type="checkbox"' + (cfg.sfx ? ' checked' : '') + '>Töne bei Aktionen</label>' +
+      '<label class="check" for="mTap"><input id="mTap" type="checkbox"' + (cfg.tap ? ' checked' : '') + '>Tippen greift direkt an, ohne Menü</label>' +
       '<button class="btn ghost" data-act="quit" type="button">Spiel beenden</button>', 'menu');
     $('mTap').addEventListener('change', function () { cfg.tap = this.checked; saveCfg(); });
+    $('mMusic').addEventListener('change', function () { setSound('music', this.checked); });
+    $('mSfx').addEventListener('change', function () { setSound('sfx', this.checked); });
+  }
+  function setSound(kind, v) {
+    cfg[kind] = v; saveCfg();
+    G.Audio.set(kind, v);
+    const any = cfg.music || cfg.sfx;
+    $('bSound').innerHTML = svg(any ? 'sound' : 'mute', 18);
+    $('bSound').setAttribute('aria-label', any ? 'Ton aus' : 'Ton an');
+    $('bSound').setAttribute('aria-pressed', any ? 'true' : 'false');
   }
 
   function onModalAct(act) {
@@ -3528,10 +4063,10 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
     const a = sel, h = game.human;
     if (which === 'C') {
       const mode = $('rC').dataset.mode;
-      if (mode === 'attack') { if (!game.attack(h, a.tid, h.troops * ratio, -1)) toast('Zu wenig Truppen'); }
+      if (mode === 'attack') { if (game.attack(h, a.tid, h.troops * ratio, -1)) snd('attack'); else { toast('Zu wenig Truppen'); snd('deny'); } }
       else if (mode === 'boat') sendBoat(a);
-      else if (mode === 'ship') toast(game.moveWarship(h, a.tile) ? 'Kriegsschiff nimmt Kurs' : 'Kein Schiff kann dorthin');
-      else toast(a.why || 'Hier nicht möglich');
+      else if (mode === 'ship') moveShip(a.tile);
+      else { toast(a.why || 'Hier nicht möglich'); snd('deny'); }
     } else if (which === 'E') sendBoat(a);
     else if (which === 'N') { closeRadial(); openBuild(a.tile); return; }
     else if (which === 'S') {
@@ -3541,13 +4076,24 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
     } else if (which === 'W') {
       const q = a.target;
       if (h.allies.has(q.id)) { infoId = q.id; onModalAct('break'); }
-      else toast(game.requestAlliance(h, q) ? 'Anfrage an ' + q.name + ' gesendet' : 'Gerade nicht möglich');
+      else askAlliance(q);
     }
     closeRadial();
   }
+  function askAlliance(q) {
+    const ok = game.requestAlliance(game.human, q);
+    toast(ok ? 'Anfrage an ' + q.name + ' gesendet' : 'Gerade nicht möglich');
+    snd(ok ? 'ui' : 'deny');
+  }
   function sendBoat(a) {
-    const h = game.human;
-    toast(game.sendBoat(h, a.boat, h.troops * ratio) ? 'Boot läuft aus' : 'Boot kann nicht auslaufen');
+    const h = game.human, ok = game.sendBoat(h, a.boat, h.troops * ratio);
+    toast(ok ? 'Boot läuft aus' : 'Boot kann nicht auslaufen');
+    snd(ok ? 'boat' : 'deny');
+  }
+  function moveShip(tile) {
+    const ok = game.moveWarship(game.human, tile);
+    toast(ok ? 'Kriegsschiff nimmt Kurs' : 'Kein Schiff kann dorthin');
+    snd(ok ? 'ship' : 'deny');
   }
 
   // ---------- build menu ----------
@@ -3564,28 +4110,37 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
     }
     for (const b of BUILD) {
       const c = game.buildCheck(h, b.t, tile);
-      html += '<button class="item" type="button" data-t="' + b.t + '"' + (c.ok ? '' : ' disabled') + '>' + svg(b.icon, 26) + '<b>' + G.UNAME[b.t] + '</b><em>' +
+      html += '<button class="item" type="button" data-t="' + b.t + '"' + (c.ok ? '' : ' disabled') + '><kbd>' + b.key + '</kbd>' + svg(b.icon, 26) + '<b>' + G.UNAME[b.t] + '</b><em>' +
         (c.cost ? fmt(c.cost) : 'gratis') + '</em><small>' + (c.ok ? b.note : esc(c.why)) + '</small></button>';
     }
     $('sheetBody').innerHTML = html;
     $('sheet').hidden = false;
     view.mark = tile;
+    snd('open');
+  }
+  // Build or launch at a tile and say what happened. Used by the menu and by the number keys.
+  function doBuild(t, tile) {
+    const h = game.human, c = game.buildCheck(h, t, tile);
+    if (!c.ok) { toast(G.UNAME[t].replace('\u00AD', '') + ': ' + c.why); snd('deny'); return false; }
+    const u = game.build(h, t, tile);
+    if (!u) { toast('Nicht möglich'); snd('deny'); return false; }
+    if (t >= UT.ATOM) toast(G.UNAME[t].replace('\u00AD', '') + ' gestartet');
+    else if (t === UT.WARSHIP) { toast('Kriegsschiff läuft aus'); snd('ship'); }
+    else { toast(G.UNAME[t].replace('\u00AD', '') + (game.opts.instantBuild ? ' gebaut' : ' wird gebaut')); snd('build'); }
+    return true;
+  }
+  function doUpgrade(tile) {
+    const h = game.human, u = game.owner[tile] === h.id ? game.structNear(tile, 4) : null;
+    const ok = !!u && game.upgrade(h, u);
+    toast(ok ? G.UNAME[u.type].replace('\u00AD', '') + ' ausgebaut auf Stufe ' + u.level : 'Ausbau nicht möglich');
+    snd(ok ? 'upgrade' : 'deny');
   }
   function closeBuild() { $('sheet').hidden = true; if (view) view.mark = -1; }
   function onBuild(e) {
     const b = e.target.closest('.item');
     if (!b || b.disabled) return;
-    const h = game.human;
-    if (b.dataset.up) {
-      const u = game.structNear(buildTile, 4);
-      toast(u && game.upgrade(h, u) ? G.UNAME[u.type] + ' ausgebaut' : 'Ausbau nicht möglich');
-    } else {
-      const t = +b.dataset.t, u = game.build(h, t, buildTile);
-      if (!u) toast('Nicht möglich');
-      else if (t >= UT.ATOM) toast(G.UNAME[t] + ' gestartet');
-      else if (t === UT.WARSHIP) toast('Kriegsschiff läuft aus');
-      else toast(G.UNAME[t] + (game.opts.instantBuild ? ' gebaut' : ' wird gebaut'));
-    }
+    if (b.dataset.up) doUpgrade(buildTile);
+    else doBuild(+b.dataset.t, buildTile);
     closeBuild();
   }
 
@@ -3597,14 +4152,15 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
     const h = game.human;
     if (game.phase === 'spawn') {
       if (!game.canSpawnAt(tile) && game.owner[tile] !== h.id) { toast(game.map.land[tile] ? 'Hier ist schon jemand' : 'Wähle Land, kein Wasser'); return; }
-      if (game.spawn(h, tile)) { view.flush(); view.placeName(h); hudTick(); }
+      if (game.spawn(h, tile)) { view.flush(); view.placeName(h); hudTick(); snd('tap'); }
       return;
     }
     if (direct && h.alive && game.owner[tile] !== h.id && game.map.land[tile]) {
-      const why = game.strike(h, tile, ratio);
-      if (why) toast(why);
+      const boats = h.boats, why = game.strike(h, tile, ratio);
+      if (why) { toast(why); snd('deny'); } else snd(h.boats > boats ? 'boat' : 'attack');
       return;
     }
+    snd('tap');
     openRadial(tile, sx, sy);
   }
 
@@ -3615,6 +4171,12 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
       const a = Array.from(ptr.values());
       return { x: (a[0].x + a[1].x) / 2, y: (a[0].y + a[1].y) / 2, d: Math.max(1, Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y)) };
     };
+    document.addEventListener('pointerdown', function () { G.Audio.resume(); }, true);
+    document.addEventListener('keydown', function () { G.Audio.resume(); }, true);
+    document.addEventListener('click', function (e) {
+      const b = e.target.closest && e.target.closest('button');
+      if (b && !b.disabled && !b.closest('#radial') && !b.closest('#sheetBody')) snd('ui');
+    }, true);
     cv.addEventListener('pointerdown', function (e) {
       if (e.pointerType === 'mouse' && e.button !== 0) return;
       closeRadial();
@@ -3625,6 +4187,7 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
       view.fly = null;
     });
     cv.addEventListener('pointermove', function (e) {
+      if (e.pointerType === 'mouse') { const r = cv.getBoundingClientRect(); hoverX = e.clientX - r.left; hoverY = e.clientY - r.top; }
       const p = ptr.get(e.pointerId);
       if (!p) return;
       if (ptr.size === 1) {
@@ -3662,14 +4225,49 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
       view.zoomAt(e.clientX - r.left, e.clientY - r.top, Math.exp(-e.deltaY * 0.0016));
     }, { passive: false });
     window.addEventListener('resize', function () { view.resize(); });
-    document.addEventListener('visibilitychange', function () { last = performance.now(); });
+    document.addEventListener('visibilitychange', function () { last = performance.now(); G.Audio.hush(document.hidden); });
+    const held = new Set();
+    document.addEventListener('keyup', function (e) { held.delete(e.key.toLowerCase()); });
+    window.addEventListener('blur', function () { held.clear(); });
+    G.heldKeys = held;
     document.addEventListener('keydown', function (e) {
-      if (e.target && e.target.tagName === 'INPUT') return;
-      if (e.key === 'Escape') {
+      if (e.target && e.target.tagName === 'INPUT' && e.target.type === 'text') return;
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      const k = e.key.toLowerCase();
+      if (k === 'escape') {
         if (!$('radial').hidden) closeRadial();
         else if (!$('sheet').hidden) closeBuild();
         else if (!$('modal').hidden && modalKind !== 'start' && modalKind !== 'starthelp') closeModal();
-      } else if (e.key === ' ' && game && $('modal').hidden) { e.preventDefault(); setPaused(!paused); }
+        return;
+      }
+      if (k === 'm') { const v = !(cfg.music || cfg.sfx); setSound('music', v); setSound('sfx', v); toast(v ? 'Ton an' : 'Ton aus'); return; }
+      if (!game || !$('modal').hidden) return;
+      if (k === ' ') { e.preventDefault(); setPaused(!paused); return; }
+      if ('wasd'.indexOf(k) >= 0 && k.length === 1 || k.indexOf('arrow') === 0) { held.add(k); e.preventDefault(); return; }
+      if (k === '+' || k === '=') { view.zoomAt(view.cw / 2, view.ch / 2, 1.25); return; }
+      if (k === '-' || k === '_') { view.zoomAt(view.cw / 2, view.ch / 2, 0.8); return; }
+      if (k === 'q') { setRatio(ratio * 100 - 5); return; }
+      if (k === 'e') { setRatio(ratio * 100 + 5); return; }
+      if (k === 'c' || k === 'h') { $('bHome').click(); return; }
+      if (k === 't') { $('bSpeed').click(); return; }
+      if (e.repeat || game.phase !== 'play' || !game.human.alive) return;
+      // everything below acts on the build menu's tile, or else on the tile under the mouse pointer
+      const open = !$('sheet').hidden;
+      const tile = open ? buildTile : (hoverX >= 0 ? view.tileAt(hoverX, hoverY) : -1);
+      const item = BUILD.find(function (b) { return b.key === k; });
+      if (tile < 0) { if (item || 'bufgvr'.indexOf(k) >= 0) toast('Zeige mit der Maus auf die Karte'); return; }
+      const h = game.human;
+      if (item) { doBuild(item.t, tile); if (open) closeBuild(); return; }
+      if (k === 'b') { if (open) closeBuild(); else { closeRadial(); openBuild(tile); } return; }
+      if (k === 'u') { doUpgrade(tile); if (open) closeBuild(); return; }
+      if (open) return;
+      const a = game.actionsAt(h, tile);
+      if (k === 'f') {
+        const boats = h.boats, why = game.strike(h, tile, ratio);
+        if (why) { toast(why); snd('deny'); } else snd(h.boats > boats ? 'boat' : 'attack');
+      } else if (k === 'g') { if (a.boat) sendBoat(a); else { toast(a.why || 'Kein Boot möglich'); snd('deny'); } }
+      else if (k === 'v') moveShip(tile);
+      else if (k === 'r') { if (a.target) askAlliance(a.target); else { toast('Zeige auf einen anderen Spieler'); snd('deny'); } }
     });
 
     $('rC').addEventListener('click', function () { radialAct('C'); });
@@ -3697,6 +4295,7 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
       else if (h.spawnTile >= 0) view.flyTo(h.spawnTile % game.W, (h.spawnTile / game.W) | 0, 4);
     });
     $('bMenu').addEventListener('click', showMenu);
+    $('bSound').addEventListener('click', function () { const v = !(cfg.music || cfg.sfx); setSound('music', v); setSound('sfx', v); });
     $('lbHead').addEventListener('click', function () {
       lbOpen = !lbOpen;
       this.setAttribute('aria-expanded', lbOpen ? 'true' : 'false');
@@ -3729,8 +4328,22 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
       if (n) { view.flush(); view.placeNames(); pump(); if (game) hudTick(); }
       alpha = acc / 100;
     }
+    const held = G.heldKeys;
+    if (held && held.size && game && $('modal').hidden) {
+      const d = dt * 0.75;
+      view.pan(((held.has('a') || held.has('arrowleft') ? 1 : 0) - (held.has('d') || held.has('arrowright') ? 1 : 0)) * d,
+        ((held.has('w') || held.has('arrowup') ? 1 : 0) - (held.has('s') || held.has('arrowdown') ? 1 : 0)) * d);
+    }
     view.draw(alpha, now);
   }
+  // Sounds for things that happen on the map.
+  G.onFx = function (f, seen) {
+    if (f.k === 'boom') { if (f.big) snd('hydro', 0.3); else if (seen || !f.head) snd(f.head ? 'head' : 'boom', 0.12); }
+    else if (f.k === 'coin') { if (f.mine) snd(f.amt && f.amt % 5000 === 0 ? 'train' : 'coin', 0.25); }
+    else if (f.k === 'flag') { if (seen) snd('flag', 0.2); }
+    else if (f.k === 'launch') { if (f.mine || seen) snd('launch', 0.3); }
+    else if (seen) snd('pop', 0.15);
+  };
 
   G.boot = function (defs) {
     MAPS = defs;
@@ -3747,6 +4360,8 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
     $('sheetClose').innerHTML = svg('close', 16);
     bind();
     loadCfg();
+    $('bSound').innerHTML = svg(cfg.music || cfg.sfx ? 'sound' : 'mute', 18);
+    $('bSound').setAttribute('aria-pressed', cfg.music || cfg.sfx ? 'true' : 'false');
     setRatio(20);
     showStart();
     previewMap(cfg.map);
