@@ -29,6 +29,7 @@
     troops: 'M12 3a4 4 0 1 0 0 8a4 4 0 0 0 0-8zM4 21c0-4.4 3.6-8 8-8s8 3.6 8 8z',
     gold: 'M12 3a9 9 0 1 0 0 18a9 9 0 0 0 0-18zM12 6.5a5.5 5.5 0 1 1 0 11a5.5 5.5 0 0 1 0-11z',
     up: 'M12 3l8 8h-5v9H9v-9H4z',
+    cruise: 'M22 2l-1.2 5.2L9.5 18.5l-4-4L16.8 3.2zM4.3 15.7l4 4L3 21zM10.5 6.5H6L3.5 9.5l4 .5zM17.5 13.5V18l-3 2.5l-.5-4z',
     people: 'M8 4a3.5 3.5 0 1 0 0 7a3.5 3.5 0 0 0 0-7zM16.5 5a3 3 0 1 0 0 6a3 3 0 0 0 0-6zM1.5 20c0-3.6 2.9-6.5 6.5-6.5s6.5 2.9 6.5 6.5zM16 20c0-2-.7-3.9-1.9-5.4c.8-.4 1.6-.6 2.4-.6c3 0 5.5 2.5 5.5 6z',
     copy: 'M8 3h11a2 2 0 0 1 2 2v11h-2V5H8zM5 7h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2z',
     target: 'M11 1h2v3.1a8 8 0 0 1 6.9 6.9H23v2h-3.1a8 8 0 0 1-6.9 6.9V23h-2v-3.1A8 8 0 0 1 4.1 13H1v-2h3.1A8 8 0 0 1 11 4.1zM12 6a6 6 0 1 0 0 12a6 6 0 0 0 0-12zM12 9.5a2.5 2.5 0 1 1 0 5a2.5 2.5 0 0 1 0-5z'
@@ -166,8 +167,7 @@
     }
   };
   View.prototype.placeName = function (p) {
-    const g = this.game;
-    g.shrinkBox(p);
+    const g = this.game;   // the box around the territory is kept tight by the simulation; never change it from here
     if (p.x1 < p.x0) { p.nameSize = 0; return; }
     const W = g.W, own = g.owner, id = p.id, occ = this.occ, sq = this.sq;
     const bw = p.x1 - p.x0 + 1, bh = p.y1 - p.y0 + 1;
@@ -371,8 +371,8 @@
   View.prototype.drawMissile = function (ctx, g, u, z, ox, oy, alpha) {
     if (u.delay > 0) return;
     const ty = u.type, prog = Math.min(1, u.prog + alpha * u.speed / u.dist);
-    const liftMax = Math.min(u.dist * 0.28, 70);
-    const col = ty === UT.ATOM ? '255,86,64' : ty === UT.HYDRO ? '255,150,40' : '206,120,255';
+    const liftMax = Math.min(u.dist * 0.28, 70) * (ty === UT.CRUISE ? 0.12 : 1);
+    const col = ty === UT.ATOM ? '255,86,64' : ty === UT.HYDRO ? '255,150,40' : ty === UT.CRUISE ? '110,215,255' : '206,120,255';
     const sx = (u.sx + 0.5) * z + ox, sy = (u.sy + 0.5) * z + oy;
     const ex = (u.dx + 0.5) * z + ox, ey = (u.dy + 0.5) * z + oy;
     if (Math.max(sx, ex) < -80 || Math.min(sx, ex) > this.cw + 80 || Math.max(sy, ey) < -200 || Math.min(sy, ey) > this.ch + 80) return;
@@ -386,13 +386,13 @@
       ctx.lineTo(x, y);
     }
     ctx.strokeStyle = 'rgba(' + col + ',0.5)'; ctx.lineWidth = ty === UT.WARHEAD ? 1 : 2; ctx.stroke();
-    if (ty === UT.ATOM || ty === UT.HYDRO) {
-      const r = (ty === UT.HYDRO ? g.R.hydroOut : g.R.atomOut) * z;
+    if (ty === UT.ATOM || ty === UT.HYDRO || ty === UT.CRUISE) {
+      const r = (ty === UT.HYDRO ? g.R.hydroOut : ty === UT.CRUISE ? g.R.cruiseOut : g.R.atomOut) * z;
       ctx.beginPath(); ctx.arc(ex, ey, r, 0, 6.2832);
       ctx.setLineDash([6, 5]); ctx.strokeStyle = 'rgba(' + col + ',0.75)'; ctx.lineWidth = 1.5; ctx.stroke();
       ctx.setLineDash([]);
     }
-    ctx.beginPath(); ctx.arc(x, y, ty === UT.WARHEAD ? 2 : ty === UT.ATOM ? 3.5 : 5, 0, 6.2832);
+    ctx.beginPath(); ctx.arc(x, y, ty === UT.WARHEAD ? 2 : ty === UT.ATOM || ty === UT.CRUISE ? 3.5 : 5, 0, 6.2832);
     ctx.fillStyle = 'rgb(' + col + ')'; ctx.fill();
     if (ty !== UT.WARHEAD) { ctx.lineWidth = 1.2; ctx.strokeStyle = '#fff'; ctx.stroke(); }
   };
@@ -508,7 +508,7 @@
     if (a.silo) {
       const sx = (a.silo.x + 0.5) * z + ox, sy = (a.silo.y + 0.5) * z + oy;
       const dist = Math.max(1, Math.hypot(a.tile % W - a.silo.x, ((a.tile / W) | 0) - a.silo.y));
-      const lift = Math.min(dist * 0.28, 70) * z, r2 = R.sam * R.sam, n = 48;
+      const lift = Math.min(dist * 0.28, 70) * z * (a.type === UT.CRUISE ? 0.12 : 1), r2 = R.sam * R.sam, n = 48;
       // the shadow of the path on the ground: this is where air defence measures its reach
       ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(tx, ty);
       ctx.setLineDash([2, 6]); ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(16,22,29,0.55)'; ctx.stroke(); ctx.setLineDash([]);
@@ -527,8 +527,8 @@
       ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(16,22,29,0.6)'; ctx.stroke();
       ctx.lineWidth = 2; ctx.strokeStyle = 'rgb(' + col + ')'; ctx.stroke();
     }
-    const rin = (a.type === UT.HYDRO ? R.hydroIn : a.type === UT.ATOM ? R.atomIn : R.headIn) * z;
-    const rout = (a.type === UT.HYDRO ? R.hydroOut : a.type === UT.ATOM ? R.atomOut : R.headOut) * z;
+    const rin = (a.type === UT.HYDRO ? R.hydroIn : a.type === UT.ATOM ? R.atomIn : a.type === UT.CRUISE ? R.cruiseIn : R.headIn) * z;
+    const rout = (a.type === UT.HYDRO ? R.hydroOut : a.type === UT.ATOM ? R.atomOut : a.type === UT.CRUISE ? R.cruiseOut : R.headOut) * z;
     const pulse = 0.5 + 0.5 * Math.sin(now / 220);
     ctx.beginPath(); ctx.arc(tx, ty, rout, 0, 6.2832);
     ctx.fillStyle = 'rgba(255,107,94,0.14)'; ctx.fill();

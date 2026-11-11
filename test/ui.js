@@ -104,6 +104,35 @@ const out = (n) => path.join(__dirname, '..', 'build', n);
   await page.waitForTimeout(700);
   must(await page.evaluate((b) => G.debug.game.human.gold < b - 600000 && document.getElementById('aimBar').hidden, goldBefore), 'Abfeuern launches the bomb');
   await page.screenshot({ path: out(`ui_${tag}_9flight.png`) });
+  // the cruise missile: aim it at the air defence, then check what a hit does
+  await page.evaluate(() => { G.debug.game.human.gold = 9e6; });
+  await page.waitForTimeout(8000);
+  await tapAt(aimAt.foe.x, aimAt.foe.y + 14);
+  await page.waitForTimeout(450);
+  await page.click('#rN');
+  await page.waitForTimeout(350);
+  await page.screenshot({ path: out(`ui_${tag}_11weapons.png`) });
+  await page.click('.item[data-t="16"]');
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: out(`ui_${tag}_12cruise.png`) });
+  console.log('cruise text:', await page.textContent('#aimInfo'));
+  const g2 = await page.evaluate(() => G.debug.game.human.gold);
+  await page.click('#aimGo');
+  await page.waitForTimeout(400);
+  must(await page.evaluate((b) => Math.round(b - G.debug.game.human.gold) >= 340000, g2), 'cruise missile launched for 350K');
+  const hit = await page.evaluate(() => {
+    const g = G.debug.game, h = g.human;
+    const foe = g.players.filter((p) => p && p.alive && p !== h && p.tiles > 400).sort((x, y) => y.tiles - x.tiles)[0];
+    let ft = -1; g.forTiles(foe, (t) => { if (ft < 0 && !foe.border.has(t) && !g.structNear(t, g.R.structDist + g.R.cruiseOut)) ft = t; });
+    foe.gold = 9e6;
+    const sam = g.build(foe, G.UT.SAM, ft);
+    if (!sam) return null;
+    const fo = g.falloutCount, tiles = sam.owner.tiles;
+    g.detonate({ type: G.UT.CRUISE, dx: sam.x, dy: sam.y, owner: h });
+    return { gone: !sam.active, fallout: g.falloutCount - fo, lost: tiles - sam.owner.tiles };
+  });
+  console.log('cruise hit', JSON.stringify(hit));
+  must(hit && hit.gone && hit.fallout === 0 && hit.lost > 20, 'a hit destroys the air defence and leaves no fallout');
   // conquer a bot: gold must be paid and shown
   const loot = await page.evaluate(() => {
     const g = G.debug.game, h = g.human;

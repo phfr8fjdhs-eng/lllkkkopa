@@ -5,10 +5,10 @@
   const PT = G.PT = { HUMAN: 0, NATION: 1, BOT: 2 };
   const UT = G.UT = {
     CITY: 0, DEFENSE: 1, PORT: 2, SILO: 3, SAM: 4, FACTORY: 5, WARSHIP: 6, TRANSPORT: 7, TRADE: 8,
-    TRAIN: 9, SHELL: 10, SAMM: 11, ATOM: 12, HYDRO: 13, MIRV: 14, WARHEAD: 15
+    TRAIN: 9, SHELL: 10, SAMM: 11, ATOM: 12, HYDRO: 13, MIRV: 14, WARHEAD: 15, CRUISE: 16
   };
   G.UNAME = ['Stadt', 'Verteidigungs\u00ADposten', 'Hafen', 'Raketensilo', 'Flugabwehr', 'Fabrik', 'Kriegsschiff', 'Boot',
-    'Handelsschiff', 'Zug', 'Granate', 'Abwehrrakete', 'Atombombe', 'Wasserstoff\u00ADbombe', 'MIRV', 'Sprengkopf'];
+    'Handelsschiff', 'Zug', 'Granate', 'Abwehrrakete', 'Atombombe', 'Wasserstoff\u00ADbombe', 'MIRV', 'Sprengkopf', 'Marschflug\u00ADkörper'];
   G.DIFF_NAMES = ['Leicht', 'Mittel', 'Schwer', 'Unmöglich'];
 
   const NATION_START = [2500, 5000, 20000, 50000];
@@ -64,6 +64,7 @@
       atomIn: Math.max(5, Math.round(12 * S)), atomOut: Math.max(9, Math.round(30 * S)),
       hydroIn: Math.round(80 * S), hydroOut: Math.round(100 * S),
       headIn: Math.max(4, Math.round(12 * S)), headOut: Math.max(6, Math.round(18 * S)),
+      cruiseIn: Math.max(3, Math.round(7 * S)), cruiseOut: Math.max(5, Math.round(11 * S)),
       sam: Math.round(75 * S), warTarget: Math.round(130 * S), warPatrol: Math.round(100 * S),
       mirvRange: Math.round(1500 * S), mirvCount: Math.max(12, Math.round(350 * S * S)),
       botDist: Math.max(10, Math.round(30 * S)), boatBox: Math.round(150 * S),
@@ -86,7 +87,7 @@
       id: id, name: info.name, type: info.type, strength: info.strength || 1, flag: info.flag || '',
       troops: 0, gold: 0, tiles: 0, border: new Set(), alive: false, spawned: false, spawnTile: -1,
       x0: this.W, y0: this.H, x1: -1, y1: -1,
-      units: [], cnt: new Int32Array(16), cityLv: 0, dposts: [], boats: 0,
+      units: [], cnt: new Int32Array(20), cityLv: 0, dposts: [], boats: 0,
       out: [], inc: [], allies: new Map(), embargo: new Set(), reqCd: new Map(),
       rel: info.type === PT.NATION ? new Map() : null,
       traitorUntil: -1, betrayals: 0, lastChange: 0, lastCluster: 0, ai: null,
@@ -800,6 +801,7 @@
     for (let i = 1; i < n; i++) {
       const p = ps[i];
       if (!p.alive) continue;
+      if ((T + i * 7) % 20 === 0 && p.lastChange >= (p.boxAt || 0)) { p.boxAt = T; this.shrinkBox(p); }
       if (p.ai) p.ai.tick();
       if ((T + i * 3) % 20 === 0 && p.lastChange >= p.lastCluster) { p.lastCluster = T; this.removeClusters(p); }
     }
@@ -886,7 +888,7 @@
       }
       case 'ship': return tileOk && this.moveWarship(p, c.t) ? '' : 'Kein Schiff kann dorthin';
       case 'build': {
-        if (!tileOk || !(c.u >= 0 && c.u <= UT.MIRV) || c.u === UT.TRANSPORT || c.u === UT.TRADE || (c.u > UT.WARSHIP && c.u < UT.ATOM)) return 'Nicht möglich';
+        if (!tileOk || !(c.u <= UT.WARSHIP || c.u === UT.ATOM || c.u === UT.HYDRO || c.u === UT.MIRV || c.u === UT.CRUISE) || !(c.u >= 0)) return 'Nicht möglich';
         const chk = this.buildCheck(p, c.u, c.t);
         if (!chk.ok) return chk.why || 'Nicht möglich';
         return this.build(p, c.u, c.t) ? '' : 'Nicht möglich';

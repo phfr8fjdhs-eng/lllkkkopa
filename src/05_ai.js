@@ -254,6 +254,11 @@
   AI.prototype.strikeFromAir = function (q) {
     const g = this.g, p = this.p, r = g.rng, d = g.opts.difficulty, W = g.W;
     if (d < 1 || q.type === PT.BOT || p.cnt[UT.SILO] < 1 || g.friendly(p, q) || g.ticks < g.immuneUntil) return;
+    // knock out an air defence first, so the big bombs get through
+    if (q.cnt[UT.SAM] > 0 && p.gold >= 1.5e6 && r.chance(2)) {
+      const s = q.units.find(function (u) { return u.type === UT.SAM && u.built; });
+      if (s && g.build(p, UT.CRUISE, s.tile)) return;
+    }
     let type = -1;
     if (d >= 2 && p.gold >= 26e6 && q.tiles > g.map.landTiles * 0.12) type = UT.MIRV;
     else if (d >= 2 && p.gold >= 6e6 && q.tiles > 3000) type = UT.HYDRO;

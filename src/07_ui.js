@@ -20,6 +20,7 @@
     { t: UT.SILO, icon: 'silo', note: 'Startet Bomben' },
     { t: UT.SAM, icon: 'sam', note: 'Fängt Bomben ab' },
     { t: UT.WARSHIP, icon: 'warship', note: 'Versenkt Boote, kapert Handel' },
+    { t: UT.CRUISE, icon: 'cruise', note: 'Trifft genau, keine Verstrahlung' },
     { t: UT.ATOM, icon: 'atom', note: 'Kleiner Krater' },
     { t: UT.HYDRO, icon: 'hydro', note: 'Riesiger Krater' },
     { t: UT.MIRV, icon: 'mirv', note: 'Verwüstet ein ganzes Reich' }
@@ -134,7 +135,7 @@
     const check = function (id, label, on) {
       return '<label class="check" for="' + id + '"><input id="' + id + '" type="checkbox"' + (on ? ' checked' : '') + '>' + label + '</label>';
     };
-    let h = '<h1>Grenzland</h1>';
+    let h = '<h1>Grenzland <small>Version 2.1</small></h1>';
     h += joinCode ? '<p>Du wurdest in den Raum <b class="code">' + esc(joinCode) + '</b> eingeladen. Wähle Name und Farbe.</p>' : '<p>Erobere die Karte, allein oder mit Freunden.</p>';
     h += '<div class="field"><label for="fName">Dein Name</label><input id="fName" type="text" maxlength="18" autocomplete="off" value="' + esc(cfg.name) + '"></div>';
     h += '<div class="field"><div class="lab">Farbe</div><div class="swatches" id="fColor">' + COLORS.map(function (c, i) {
@@ -298,6 +299,7 @@
       '<li><b>Bots:</b> Kleine Reiche mit langen Namen wehren sich kaum und breiten sich langsam aus. Wer eines erobert, bekommt sein Gold und eine Prämie.</li>' +
       '<li><b>Ausbauen:</b> Tippe auf ein eigenes Gebäude und dann auf <b>Ausbau</b>. Jede Stufe macht es stärker, bis Stufe 5.</li>' +
       '<li><b>Bomben:</b> Wähle im Baumenü eine Bombe. Die Karte zeigt dann die Flugbahn, den Einschlag, den Radius und die Reichweite jeder Flugabwehr. Erst <b>Abfeuern</b> startet sie.</li>' +
+      '<li><b>Marschflugkörper:</b> Günstig, schnell und genau. Er zerstört Gebäude in einem kleinen Umkreis, hinterlässt kein verstrahltes Land und wird nur selten abgefangen. Gut, um zuerst die Flugabwehr auszuschalten.</li>' +
       '<li><b>Mit Freunden:</b> <b>Mit Freunden spielen</b> öffnet einen Raum. Schick den Link weiter, dann spielt ihr auf derselben Karte.</li>' +
       '<li><b>Karte:</b> Ziehen verschiebt, zwei Finger oder das Mausrad zoomen.</li>' +
       '</ul>';
@@ -750,7 +752,8 @@
     if (!c.ok) { text = c.why; warn = true; }
     else {
       const sams = aim.type === UT.MIRV || !silo ? [] : game.samsOnPath(h, silo.x, silo.y, aim.tile % W, (aim.tile / W) | 0);
-      if (sams.length) { warn = true; text = (sams.length === 1 ? 'Eine Flugabwehr liegt' : sams.length + ' Flugabwehren liegen') + ' auf dem Weg. Die Bombe wird wahrscheinlich abgefangen.'; }
+      if (sams.length && aim.type === UT.CRUISE) text = 'Flugabwehr auf dem Weg. Marschflugkörper fliegen tief und werden nur selten abgefangen.';
+      else if (sams.length) { warn = true; text = (sams.length === 1 ? 'Eine Flugabwehr liegt' : sams.length + ' Flugabwehren liegen') + ' auf dem Weg. Die Bombe wird wahrscheinlich abgefangen.'; }
       else text = 'Tippe auf die Karte, um das Ziel zu verschieben.';
     }
     $('aimInfo').textContent = text;

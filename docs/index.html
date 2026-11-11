@@ -50,7 +50,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 }
 #lbHead span:last-child { letter-spacing: .02em; text-transform: none; font-size: 12px; }
 .lbrow {
-  display: grid; grid-template-columns: 24px minmax(0, 1fr) 38px 46px; gap: 5px; align-items: center; width: 100%;
+  display: grid; grid-template-columns: 30px minmax(0, 1fr) 38px 46px; gap: 5px; align-items: center; width: 100%;
   padding: 4px 10px; font-size: 13px; text-align: left; background: none; border: 0; border-top: 1px solid var(--line);
 }
 .lbrow i { font-style: normal; color: var(--muted); font-variant-numeric: tabular-nums; }
@@ -203,6 +203,7 @@ input[type=range] { width: 100%; height: 30px; margin: 0; accent-color: var(--ac
 #modal { position: absolute; inset: 0; z-index: 50; display: grid; place-items: center; padding: 14px; background: rgba(5, 13, 23, 0.5); }
 .card { width: min(100%, 430px); max-height: 100%; overflow: auto; padding: 16px 16px 14px; }
 .card h1 { margin: 0; font: 700 38px/1 var(--display); letter-spacing: .01em; }
+.card h1 small { margin-left: 6px; font: 600 13px var(--display); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); vertical-align: middle; }
 .card h2 { margin: 0; font: 700 26px/1.1 var(--display); text-wrap: balance; }
 .card p { margin: 6px 0 0; color: var(--muted); font-size: 14px; }
 .field { margin-top: 11px; }
@@ -706,10 +707,10 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
   const PT = G.PT = { HUMAN: 0, NATION: 1, BOT: 2 };
   const UT = G.UT = {
     CITY: 0, DEFENSE: 1, PORT: 2, SILO: 3, SAM: 4, FACTORY: 5, WARSHIP: 6, TRANSPORT: 7, TRADE: 8,
-    TRAIN: 9, SHELL: 10, SAMM: 11, ATOM: 12, HYDRO: 13, MIRV: 14, WARHEAD: 15
+    TRAIN: 9, SHELL: 10, SAMM: 11, ATOM: 12, HYDRO: 13, MIRV: 14, WARHEAD: 15, CRUISE: 16
   };
   G.UNAME = ['Stadt', 'Verteidigungs\u00ADposten', 'Hafen', 'Raketensilo', 'Flugabwehr', 'Fabrik', 'Kriegsschiff', 'Boot',
-    'Handelsschiff', 'Zug', 'Granate', 'Abwehrrakete', 'Atombombe', 'Wasserstoff\u00ADbombe', 'MIRV', 'Sprengkopf'];
+    'Handelsschiff', 'Zug', 'Granate', 'Abwehrrakete', 'Atombombe', 'Wasserstoff\u00ADbombe', 'MIRV', 'Sprengkopf', 'Marschflug\u00ADkörper'];
   G.DIFF_NAMES = ['Leicht', 'Mittel', 'Schwer', 'Unmöglich'];
 
   const NATION_START = [2500, 5000, 20000, 50000];
@@ -765,6 +766,7 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
       atomIn: Math.max(5, Math.round(12 * S)), atomOut: Math.max(9, Math.round(30 * S)),
       hydroIn: Math.round(80 * S), hydroOut: Math.round(100 * S),
       headIn: Math.max(4, Math.round(12 * S)), headOut: Math.max(6, Math.round(18 * S)),
+      cruiseIn: Math.max(3, Math.round(7 * S)), cruiseOut: Math.max(5, Math.round(11 * S)),
       sam: Math.round(75 * S), warTarget: Math.round(130 * S), warPatrol: Math.round(100 * S),
       mirvRange: Math.round(1500 * S), mirvCount: Math.max(12, Math.round(350 * S * S)),
       botDist: Math.max(10, Math.round(30 * S)), boatBox: Math.round(150 * S),
@@ -787,7 +789,7 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
       id: id, name: info.name, type: info.type, strength: info.strength || 1, flag: info.flag || '',
       troops: 0, gold: 0, tiles: 0, border: new Set(), alive: false, spawned: false, spawnTile: -1,
       x0: this.W, y0: this.H, x1: -1, y1: -1,
-      units: [], cnt: new Int32Array(16), cityLv: 0, dposts: [], boats: 0,
+      units: [], cnt: new Int32Array(20), cityLv: 0, dposts: [], boats: 0,
       out: [], inc: [], allies: new Map(), embargo: new Set(), reqCd: new Map(),
       rel: info.type === PT.NATION ? new Map() : null,
       traitorUntil: -1, betrayals: 0, lastChange: 0, lastCluster: 0, ai: null,
@@ -1501,6 +1503,7 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
     for (let i = 1; i < n; i++) {
       const p = ps[i];
       if (!p.alive) continue;
+      if ((T + i * 7) % 20 === 0 && p.lastChange >= (p.boxAt || 0)) { p.boxAt = T; this.shrinkBox(p); }
       if (p.ai) p.ai.tick();
       if ((T + i * 3) % 20 === 0 && p.lastChange >= p.lastCluster) { p.lastCluster = T; this.removeClusters(p); }
     }
@@ -1587,7 +1590,7 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
       }
       case 'ship': return tileOk && this.moveWarship(p, c.t) ? '' : 'Kein Schiff kann dorthin';
       case 'build': {
-        if (!tileOk || !(c.u >= 0 && c.u <= UT.MIRV) || c.u === UT.TRANSPORT || c.u === UT.TRADE || (c.u > UT.WARSHIP && c.u < UT.ATOM)) return 'Nicht möglich';
+        if (!tileOk || !(c.u <= UT.WARSHIP || c.u === UT.ATOM || c.u === UT.HYDRO || c.u === UT.MIRV || c.u === UT.CRUISE) || !(c.u >= 0)) return 'Nicht möglich';
         const chk = this.buildCheck(p, c.u, c.t);
         if (!chk.ok) return chk.why || 'Nicht möglich';
         return this.build(p, c.u, c.t) ? '' : 'Nicht möglich';
@@ -1644,6 +1647,7 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
       case UT.SAM: return Math.min(3e6, (c + 1) * 1.5e6);
       case UT.WARSHIP: return Math.min(1e6, (c + 1) * 250000);
       case UT.ATOM: return 750000;
+      case UT.CRUISE: return 350000;
       case UT.HYDRO: return 5e6;
       case UT.MIRV: return 25e6;
     }
@@ -2172,7 +2176,7 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
     const u = this.newUnit(type, p, silo.tile);
     u.dst = tile; u.sx = u.x; u.sy = u.y; u.dx = tile % W; u.dy = (tile / W) | 0;
     u.dist = Math.max(1, Math.hypot(u.dx - u.sx, u.dy - u.sy));
-    u.prog = 0; u.speed = this.R.nukeSpeed; u.tid = this.owner[tile]; u.sam = false; u.delay = 0;
+    u.prog = 0; u.speed = this.R.nukeSpeed * (type === UT.CRUISE ? 1.6 : 1); u.tid = this.owner[tile]; u.sam = false; u.delay = 0;
     this.addUnit(u);
     const h = this.human;
     if (type === UT.MIRV) {
@@ -2184,7 +2188,7 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
       }
       return u;
     }
-    const hit = this.tilesInDisc(u.dx, u.dy, type === UT.HYDRO ? this.R.hydroOut : this.R.atomOut);
+    const hit = this.tilesInDisc(u.dx, u.dy, type === UT.HYDRO ? this.R.hydroOut : type === UT.CRUISE ? this.R.cruiseOut : this.R.atomOut);
     for (const e of hit) {
       const q = this.players[e[0]];
       if (q === p) continue;
@@ -2207,8 +2211,9 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
   };
   Game.prototype.detonate = function (u) {
     const R = this.R, type = u.type;
-    const rin = type === UT.HYDRO ? R.hydroIn : type === UT.ATOM ? R.atomIn : R.headIn;
-    const rout = type === UT.HYDRO ? R.hydroOut : type === UT.ATOM ? R.atomOut : R.headOut;
+    const rin = type === UT.HYDRO ? R.hydroIn : type === UT.ATOM ? R.atomIn : type === UT.CRUISE ? R.cruiseIn : R.headIn;
+    const rout = type === UT.HYDRO ? R.hydroOut : type === UT.ATOM ? R.atomOut : type === UT.CRUISE ? R.cruiseOut : R.headOut;
+    const clean = type === UT.CRUISE;   // a cruise missile leaves no fallout behind
     const W = this.W, H = this.H, own = this.owner, land = this.map.land, rng = this.rng, ps = this.players;
     const cx = u.dx, cy = u.dy, in2 = rin * rin, out2 = rout * rout;
     const before = new Map();
@@ -2225,7 +2230,7 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
           q.troops = Math.max(0, q.troops - 5 * q.troops / Math.max(1, q.tiles));
           this.relinquish(t);
         }
-        if (!this.fallout[t]) { this.fallout[t] = 1; this.falloutCount++; this.markDirty(t); }
+        if (!clean && !this.fallout[t]) { this.fallout[t] = 1; this.falloutCount++; this.markDirty(t); }
       }
     }
     const h = this.human;
@@ -2276,7 +2281,7 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
     for (let s = 0; s < u.ready.length; s++) {
       if (u.ready[s] > T) continue;
       for (const n of this.nukes) {
-        if (!n.active || n.type > UT.HYDRO || n.sam || n.delay > 0) continue;
+        if (!n.active || (n.type > UT.HYDRO && n.type !== UT.CRUISE) || n.sam || n.delay > 0) continue;
         if (n.owner === u.owner || this.friendly(n.owner, u.owner)) continue;
         if ((n.x - u.x) * (n.x - u.x) + (n.y - u.y) * (n.y - u.y) > r2) continue;
         n.sam = true; u.ready[s] = T + 75;
@@ -2293,7 +2298,7 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
     const dx = n.x - u.x, dy = n.y - u.y, d = Math.hypot(dx, dy), sp = Math.max(5, 14 * this.S);
     if (d > sp) { u.x += dx / d * sp; u.y += dy / d * sp; return; }
     this.removeUnit(u);
-    if (this.rng.next() < 0.75) {
+    if (this.rng.next() < (n.type === UT.CRUISE ? 0.3 : 0.75)) {   // cruise missiles fly low and are hard to hit
       this.removeUnit(n);
       this.fx.push({ k: 'pop', x: n.x, y: n.y });
       const h = this.human;
@@ -2739,6 +2744,11 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
   AI.prototype.strikeFromAir = function (q) {
     const g = this.g, p = this.p, r = g.rng, d = g.opts.difficulty, W = g.W;
     if (d < 1 || q.type === PT.BOT || p.cnt[UT.SILO] < 1 || g.friendly(p, q) || g.ticks < g.immuneUntil) return;
+    // knock out an air defence first, so the big bombs get through
+    if (q.cnt[UT.SAM] > 0 && p.gold >= 1.5e6 && r.chance(2)) {
+      const s = q.units.find(function (u) { return u.type === UT.SAM && u.built; });
+      if (s && g.build(p, UT.CRUISE, s.tile)) return;
+    }
     let type = -1;
     if (d >= 2 && p.gold >= 26e6 && q.tiles > g.map.landTiles * 0.12) type = UT.MIRV;
     else if (d >= 2 && p.gold >= 6e6 && q.tiles > 3000) type = UT.HYDRO;
@@ -2841,6 +2851,7 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
     troops: 'M12 3a4 4 0 1 0 0 8a4 4 0 0 0 0-8zM4 21c0-4.4 3.6-8 8-8s8 3.6 8 8z',
     gold: 'M12 3a9 9 0 1 0 0 18a9 9 0 0 0 0-18zM12 6.5a5.5 5.5 0 1 1 0 11a5.5 5.5 0 0 1 0-11z',
     up: 'M12 3l8 8h-5v9H9v-9H4z',
+    cruise: 'M22 2l-1.2 5.2L9.5 18.5l-4-4L16.8 3.2zM4.3 15.7l4 4L3 21zM10.5 6.5H6L3.5 9.5l4 .5zM17.5 13.5V18l-3 2.5l-.5-4z',
     people: 'M8 4a3.5 3.5 0 1 0 0 7a3.5 3.5 0 0 0 0-7zM16.5 5a3 3 0 1 0 0 6a3 3 0 0 0 0-6zM1.5 20c0-3.6 2.9-6.5 6.5-6.5s6.5 2.9 6.5 6.5zM16 20c0-2-.7-3.9-1.9-5.4c.8-.4 1.6-.6 2.4-.6c3 0 5.5 2.5 5.5 6z',
     copy: 'M8 3h11a2 2 0 0 1 2 2v11h-2V5H8zM5 7h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2z',
     target: 'M11 1h2v3.1a8 8 0 0 1 6.9 6.9H23v2h-3.1a8 8 0 0 1-6.9 6.9V23h-2v-3.1A8 8 0 0 1 4.1 13H1v-2h3.1A8 8 0 0 1 11 4.1zM12 6a6 6 0 1 0 0 12a6 6 0 0 0 0-12zM12 9.5a2.5 2.5 0 1 1 0 5a2.5 2.5 0 0 1 0-5z'
@@ -2978,8 +2989,7 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
     }
   };
   View.prototype.placeName = function (p) {
-    const g = this.game;
-    g.shrinkBox(p);
+    const g = this.game;   // the box around the territory is kept tight by the simulation; never change it from here
     if (p.x1 < p.x0) { p.nameSize = 0; return; }
     const W = g.W, own = g.owner, id = p.id, occ = this.occ, sq = this.sq;
     const bw = p.x1 - p.x0 + 1, bh = p.y1 - p.y0 + 1;
@@ -3183,8 +3193,8 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
   View.prototype.drawMissile = function (ctx, g, u, z, ox, oy, alpha) {
     if (u.delay > 0) return;
     const ty = u.type, prog = Math.min(1, u.prog + alpha * u.speed / u.dist);
-    const liftMax = Math.min(u.dist * 0.28, 70);
-    const col = ty === UT.ATOM ? '255,86,64' : ty === UT.HYDRO ? '255,150,40' : '206,120,255';
+    const liftMax = Math.min(u.dist * 0.28, 70) * (ty === UT.CRUISE ? 0.12 : 1);
+    const col = ty === UT.ATOM ? '255,86,64' : ty === UT.HYDRO ? '255,150,40' : ty === UT.CRUISE ? '110,215,255' : '206,120,255';
     const sx = (u.sx + 0.5) * z + ox, sy = (u.sy + 0.5) * z + oy;
     const ex = (u.dx + 0.5) * z + ox, ey = (u.dy + 0.5) * z + oy;
     if (Math.max(sx, ex) < -80 || Math.min(sx, ex) > this.cw + 80 || Math.max(sy, ey) < -200 || Math.min(sy, ey) > this.ch + 80) return;
@@ -3198,13 +3208,13 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
       ctx.lineTo(x, y);
     }
     ctx.strokeStyle = 'rgba(' + col + ',0.5)'; ctx.lineWidth = ty === UT.WARHEAD ? 1 : 2; ctx.stroke();
-    if (ty === UT.ATOM || ty === UT.HYDRO) {
-      const r = (ty === UT.HYDRO ? g.R.hydroOut : g.R.atomOut) * z;
+    if (ty === UT.ATOM || ty === UT.HYDRO || ty === UT.CRUISE) {
+      const r = (ty === UT.HYDRO ? g.R.hydroOut : ty === UT.CRUISE ? g.R.cruiseOut : g.R.atomOut) * z;
       ctx.beginPath(); ctx.arc(ex, ey, r, 0, 6.2832);
       ctx.setLineDash([6, 5]); ctx.strokeStyle = 'rgba(' + col + ',0.75)'; ctx.lineWidth = 1.5; ctx.stroke();
       ctx.setLineDash([]);
     }
-    ctx.beginPath(); ctx.arc(x, y, ty === UT.WARHEAD ? 2 : ty === UT.ATOM ? 3.5 : 5, 0, 6.2832);
+    ctx.beginPath(); ctx.arc(x, y, ty === UT.WARHEAD ? 2 : ty === UT.ATOM || ty === UT.CRUISE ? 3.5 : 5, 0, 6.2832);
     ctx.fillStyle = 'rgb(' + col + ')'; ctx.fill();
     if (ty !== UT.WARHEAD) { ctx.lineWidth = 1.2; ctx.strokeStyle = '#fff'; ctx.stroke(); }
   };
@@ -3320,7 +3330,7 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
     if (a.silo) {
       const sx = (a.silo.x + 0.5) * z + ox, sy = (a.silo.y + 0.5) * z + oy;
       const dist = Math.max(1, Math.hypot(a.tile % W - a.silo.x, ((a.tile / W) | 0) - a.silo.y));
-      const lift = Math.min(dist * 0.28, 70) * z, r2 = R.sam * R.sam, n = 48;
+      const lift = Math.min(dist * 0.28, 70) * z * (a.type === UT.CRUISE ? 0.12 : 1), r2 = R.sam * R.sam, n = 48;
       // the shadow of the path on the ground: this is where air defence measures its reach
       ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(tx, ty);
       ctx.setLineDash([2, 6]); ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(16,22,29,0.55)'; ctx.stroke(); ctx.setLineDash([]);
@@ -3339,8 +3349,8 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
       ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(16,22,29,0.6)'; ctx.stroke();
       ctx.lineWidth = 2; ctx.strokeStyle = 'rgb(' + col + ')'; ctx.stroke();
     }
-    const rin = (a.type === UT.HYDRO ? R.hydroIn : a.type === UT.ATOM ? R.atomIn : R.headIn) * z;
-    const rout = (a.type === UT.HYDRO ? R.hydroOut : a.type === UT.ATOM ? R.atomOut : R.headOut) * z;
+    const rin = (a.type === UT.HYDRO ? R.hydroIn : a.type === UT.ATOM ? R.atomIn : a.type === UT.CRUISE ? R.cruiseIn : R.headIn) * z;
+    const rout = (a.type === UT.HYDRO ? R.hydroOut : a.type === UT.ATOM ? R.atomOut : a.type === UT.CRUISE ? R.cruiseOut : R.headOut) * z;
     const pulse = 0.5 + 0.5 * Math.sin(now / 220);
     ctx.beginPath(); ctx.arc(tx, ty, rout, 0, 6.2832);
     ctx.fillStyle = 'rgba(255,107,94,0.14)'; ctx.fill();
@@ -3692,6 +3702,7 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
     { t: UT.SILO, icon: 'silo', note: 'Startet Bomben' },
     { t: UT.SAM, icon: 'sam', note: 'Fängt Bomben ab' },
     { t: UT.WARSHIP, icon: 'warship', note: 'Versenkt Boote, kapert Handel' },
+    { t: UT.CRUISE, icon: 'cruise', note: 'Trifft genau, keine Verstrahlung' },
     { t: UT.ATOM, icon: 'atom', note: 'Kleiner Krater' },
     { t: UT.HYDRO, icon: 'hydro', note: 'Riesiger Krater' },
     { t: UT.MIRV, icon: 'mirv', note: 'Verwüstet ein ganzes Reich' }
@@ -3806,7 +3817,7 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
     const check = function (id, label, on) {
       return '<label class="check" for="' + id + '"><input id="' + id + '" type="checkbox"' + (on ? ' checked' : '') + '>' + label + '</label>';
     };
-    let h = '<h1>Grenzland</h1>';
+    let h = '<h1>Grenzland <small>Version 2.1</small></h1>';
     h += joinCode ? '<p>Du wurdest in den Raum <b class="code">' + esc(joinCode) + '</b> eingeladen. Wähle Name und Farbe.</p>' : '<p>Erobere die Karte, allein oder mit Freunden.</p>';
     h += '<div class="field"><label for="fName">Dein Name</label><input id="fName" type="text" maxlength="18" autocomplete="off" value="' + esc(cfg.name) + '"></div>';
     h += '<div class="field"><div class="lab">Farbe</div><div class="swatches" id="fColor">' + COLORS.map(function (c, i) {
@@ -3970,6 +3981,7 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
       '<li><b>Bots:</b> Kleine Reiche mit langen Namen wehren sich kaum und breiten sich langsam aus. Wer eines erobert, bekommt sein Gold und eine Prämie.</li>' +
       '<li><b>Ausbauen:</b> Tippe auf ein eigenes Gebäude und dann auf <b>Ausbau</b>. Jede Stufe macht es stärker, bis Stufe 5.</li>' +
       '<li><b>Bomben:</b> Wähle im Baumenü eine Bombe. Die Karte zeigt dann die Flugbahn, den Einschlag, den Radius und die Reichweite jeder Flugabwehr. Erst <b>Abfeuern</b> startet sie.</li>' +
+      '<li><b>Marschflugkörper:</b> Günstig, schnell und genau. Er zerstört Gebäude in einem kleinen Umkreis, hinterlässt kein verstrahltes Land und wird nur selten abgefangen. Gut, um zuerst die Flugabwehr auszuschalten.</li>' +
       '<li><b>Mit Freunden:</b> <b>Mit Freunden spielen</b> öffnet einen Raum. Schick den Link weiter, dann spielt ihr auf derselben Karte.</li>' +
       '<li><b>Karte:</b> Ziehen verschiebt, zwei Finger oder das Mausrad zoomen.</li>' +
       '</ul>';
@@ -4422,7 +4434,8 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
     if (!c.ok) { text = c.why; warn = true; }
     else {
       const sams = aim.type === UT.MIRV || !silo ? [] : game.samsOnPath(h, silo.x, silo.y, aim.tile % W, (aim.tile / W) | 0);
-      if (sams.length) { warn = true; text = (sams.length === 1 ? 'Eine Flugabwehr liegt' : sams.length + ' Flugabwehren liegen') + ' auf dem Weg. Die Bombe wird wahrscheinlich abgefangen.'; }
+      if (sams.length && aim.type === UT.CRUISE) text = 'Flugabwehr auf dem Weg. Marschflugkörper fliegen tief und werden nur selten abgefangen.';
+      else if (sams.length) { warn = true; text = (sams.length === 1 ? 'Eine Flugabwehr liegt' : sams.length + ' Flugabwehren liegen') + ' auf dem Weg. Die Bombe wird wahrscheinlich abgefangen.'; }
       else text = 'Tippe auf die Karte, um das Ziel zu verschieben.';
     }
     $('aimInfo').textContent = text;
