@@ -1,0 +1,5 @@
+shots/
+preview/
+build/preview_*.png
+build/*.png
+node_modules/
