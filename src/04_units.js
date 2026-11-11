@@ -407,6 +407,8 @@
     if (u.pi < u.path.length - 1) { u.pi++; this.setPos(u, u.path[u.pi]); return; }
     const q = d.owner, h = this.human;
     p.gold += u.gold;
+    this.fx.push({ k: 'coin', x: d.x, y: d.y, t: this.ticks, mine: p === h || (q === h && !u.captured), amt: u.gold });
+    if (this.fx.length > 300) this.fx.splice(0, 150);
     if (u.captured) {
       if (p === h) this.say('Gekapertes Handelsschiff bringt ' + fmt(u.gold) + ' Gold', 'good');
     } else if (q !== p) {
@@ -427,7 +429,8 @@
       const d = (v.x - ts.x) * (v.x - ts.x) + (v.y - ts.y) * (v.y - ts.y);
       if (d < bd) { bd = d; best = v; }
     }
-    if (np === h) this.say('Handelsschiff von ' + o.name + ' gekapert', 'good');
+    this.fx.push({ k: 'flag', x: ts.x, y: ts.y });
+    if (np === h) this.say('Handelsschiff von ' + o.name + ' gekapert (' + fmt(ts.gold) + ' Gold an Bord)', 'good');
     else if (o === h) this.say(np.name + ' hat ein Handelsschiff von dir gekapert', 'warn');
     if (!best) { np.gold += ts.gold; this.removeUnit(ts); return; }
     ts.dstPort = best; ts.path = null; ts.pi = 0;
@@ -516,12 +519,31 @@
     const dx = tg.x - u.x, dy = tg.y - u.y, d = Math.hypot(dx, dy), sp = 4;
     if (d > sp) { u.x += dx / d * sp; u.y += dy / d * sp; return; }
     this.removeUnit(u);
-    const by = u.owner, h = this.human;
-    if (tg.type === UT.WARSHIP) { tg.hp -= 250; if (tg.hp > 0) return; }
-    this.removeUnit(tg);
+    const by = u.owner, h = this.human, was = tg.owner;
+    if (was === by || this.friendly(was, by)) return;
     this.fx.push({ k: 'pop', x: tg.x, y: tg.y });
-    if (tg.owner === h) this.say((tg.type === UT.TRANSPORT ? 'Dein Boot' : 'Dein Kriegsschiff') + ' wurde von ' + by.name + ' versenkt', 'bad');
-    else if (by === h) this.say((tg.type === UT.TRANSPORT ? 'Boot' : 'Kriegsschiff') + ' von ' + tg.owner.name + ' versenkt', 'good');
+    if (tg.type === UT.WARSHIP) {
+      tg.hp -= 250;
+      if (tg.hp > 0) return;
+      if (!by.alive || by.cnt[UT.WARSHIP] >= 8) { this.removeUnit(tg); return; }   // a full fleet sinks it instead
+      // a beaten warship strikes its colours and sails on for the victor
+      const i = was.units.indexOf(tg);
+      if (i >= 0) was.units.splice(i, 1);
+      was.cnt[UT.WARSHIP]--; by.cnt[UT.WARSHIP]++;
+      tg.owner = by; by.units.push(tg);
+      tg.hp = 400; tg.target = null; tg.patrol = tg.tile; tg.shotAt = this.ticks + 30;
+      this.fx.push({ k: 'flag', x: tg.x, y: tg.y });
+      if (was === h) this.say(by.name + ' hat dein Kriegsschiff eingenommen', 'bad');
+      else if (by === h) this.say('Kriegsschiff von ' + was.name + ' eingenommen', 'good');
+      return;
+    }
+    // a troop boat is boarded: half of the troops on it change sides
+    const got = by.alive ? tg.troops * 0.5 : 0;
+    by.troops += got;
+    this.removeUnit(tg);
+    this.fx.push({ k: 'flag', x: tg.x, y: tg.y });
+    if (was === h) this.say('Dein Boot wurde von ' + by.name + ' eingenommen', 'bad');
+    else if (by === h) this.say('Boot von ' + was.name + ' eingenommen, ' + G.fmtTroops(got) + ' Truppen übernommen', 'good');
   };
 
   // ---------- missiles ----------
@@ -544,6 +566,7 @@
     u.dist = Math.max(1, Math.hypot(u.dx - u.sx, u.dy - u.sy));
     u.prog = 0; u.speed = this.R.nukeSpeed; u.tid = this.owner[tile]; u.sam = false; u.delay = 0;
     this.addUnit(u);
+    this.fx.push({ k: 'launch', x: u.x, y: u.y, mine: p === this.human });
     const h = this.human;
     if (type === UT.MIRV) {
       const q = this.players[u.tid];
@@ -610,7 +633,7 @@
       if (!v.active || v.type >= UT.SHELL) continue;
       if ((v.x - cx) * (v.x - cx) + (v.y - cy) * (v.y - cy) <= out2) this.removeUnit(v);
     }
-    this.fx.push({ k: 'boom', x: cx, y: cy, r: rout });
+    this.fx.push({ k: 'boom', x: cx, y: cy, r: rout, big: type === UT.HYDRO, head: type === UT.WARHEAD });
     if (this.fx.length > 300) this.fx.splice(0, 150);
   };
   Game.prototype.splitMirv = function (u) {

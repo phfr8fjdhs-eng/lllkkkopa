@@ -3,7 +3,9 @@
   // Factories, railways and trains. A factory links itself to nearby cities, ports and factories
   // with tracks laid over land; trains run along them and pay gold at every station they reach.
   const Game = G.Game, UT = G.UT;
-  const TRAIN_OWN = 10000, TRAIN_FOREIGN = 25000, TRAIN_EVERY = 200, LINKS = 4;
+  // Gold per station a train reaches: own station, a trade partner's, an ally's (as in OpenFront: 10K / 25K / 50K).
+  const TRAIN_OWN = 10000, TRAIN_FOREIGN = 25000, TRAIN_ALLY = 50000, TRAIN_EVERY = 200, LINKS = 4;
+  G.TRAIN_GOLD = [TRAIN_OWN, TRAIN_FOREIGN, TRAIN_ALLY];
 
   G.isStation = function (t) { return t === UT.CITY || t === UT.PORT || t === UT.FACTORY; };
 
@@ -32,9 +34,46 @@
       }
     }
     if (prev[goal] === -2) return null;
-    const out = [];
-    for (let c = goal; c !== -1; c = prev[c]) out.push(((c / w | 0) + y0) * W + (c % w) + x0);
-    return Int32Array.from(out);
+    const raw = [];
+    for (let c = goal; c !== -1; c = prev[c]) raw.push(((c / w | 0) + y0) * W + (c % w) + x0);
+    return this.straighten(raw);
+  };
+
+  // Can a track run in a straight line between two tiles without touching water?
+  Game.prototype.landLine = function (a, b) {
+    const W = this.W, land = this.map.land;
+    const ax = a % W, ay = (a / W) | 0, bx = b % W, by = (b / W) | 0;
+    const n = Math.max(Math.abs(bx - ax), Math.abs(by - ay)) * 2;
+    for (let i = 1; i < n; i++) {
+      const x = ax + (bx - ax) * i / n, y = ay + (by - ay) * i / n;
+      if (!land[Math.round(y) * W + Math.round(x)]) return false;
+      if (!land[Math.floor(y) * W + Math.floor(x)] || !land[Math.ceil(y) * W + Math.ceil(x)]) return false;
+    }
+    return true;
+  };
+  // Replace the stair-stepped search result by a few long straight stretches.
+  // Returns the tiles to travel along; the corner tiles are kept in `.pts` for drawing.
+  Game.prototype.straighten = function (raw) {
+    const W = this.W, pts = [raw[0]];
+    let i = 0;
+    while (i < raw.length - 1) {
+      let j = Math.min(raw.length - 1, i + 60);
+      while (j > i + 1 && !this.landLine(raw[i], raw[j])) j = i + ((j - i) >> 1);
+      pts.push(raw[j]); i = j;
+    }
+    const out = [pts[0]];
+    for (let k = 1; k < pts.length; k++) {
+      const a = pts[k - 1], b = pts[k];
+      const ax = a % W, ay = (a / W) | 0, bx = b % W, by = (b / W) | 0;
+      const n = Math.max(Math.abs(bx - ax), Math.abs(by - ay));
+      for (let s = 1; s <= n; s++) {
+        const t = Math.round(ay + (by - ay) * s / n) * W + Math.round(ax + (bx - ax) * s / n);
+        if (t !== out[out.length - 1]) out.push(t);
+      }
+    }
+    const path = Int32Array.from(out);
+    path.pts = Int32Array.from(pts);
+    return path;
   };
 
   // Bring the network in line with the stations that exist now. Works in small steps so a big map never stalls.
@@ -130,13 +169,15 @@
       return;
     }
     const st = u.fwd ? e.b : e.a, q = st.owner, h = this.human;
-    if (q === p) p.gold += TRAIN_OWN;
+    let pay = TRAIN_OWN;
+    if (q === p) p.gold += pay;
     else if (q.alive && this.canTrade(p, q)) {
-      p.gold += TRAIN_FOREIGN; q.gold += TRAIN_FOREIGN;
-      if (h && (p === h || q === h)) h.tradeGold += TRAIN_FOREIGN;
+      pay = p.allies.has(q.id) ? TRAIN_ALLY : TRAIN_FOREIGN;
+      p.gold += pay; q.gold += pay;
+      if (h && (p === h || q === h)) h.tradeGold += pay;
     } else { this.removeUnit(u); return; }
-    if (h && p === h) h.trainGold = (h.trainGold || 0) + (q === p ? TRAIN_OWN : TRAIN_FOREIGN);
-    this.fx.push({ k: 'coin', x: st.x, y: st.y, t: this.ticks, mine: p === h || q === h });
+    if (h && p === h) h.trainGold = (h.trainGold || 0) + pay;
+    this.fx.push({ k: 'coin', x: st.x, y: st.y, t: this.ticks, mine: p === h || q === h, amt: pay });
     if (this.fx.length > 300) this.fx.splice(0, 150);
     const nx = --u.hops > 0 ? this.railNext(p, st, e) : null;
     if (!nx) { this.removeUnit(u); return; }

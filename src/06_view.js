@@ -27,7 +27,10 @@
     menu: 'M3 5h18v2.4H3zM3 10.8h18v2.4H3zM3 16.6h18V19H3z',
     home: 'M12 3l9 8h-2.5v9h-5v-6h-3v6h-5v-9H3z',
     troops: 'M12 3a4 4 0 1 0 0 8a4 4 0 0 0 0-8zM4 21c0-4.4 3.6-8 8-8s8 3.6 8 8z',
-    gold: 'M12 3a9 9 0 1 0 0 18a9 9 0 0 0 0-18zM12 6.5a5.5 5.5 0 1 1 0 11a5.5 5.5 0 0 1 0-11z'
+    gold: 'M12 3a9 9 0 1 0 0 18a9 9 0 0 0 0-18zM12 6.5a5.5 5.5 0 1 1 0 11a5.5 5.5 0 0 1 0-11z',
+    sound: 'M3 9h4l5-4.5v15L7 15H3zM14.5 8.2a5 5 0 0 1 0 7.6l-1.2-1.4a3.2 3.2 0 0 0 0-4.8zM17 5.4a8.8 8.8 0 0 1 0 13.2l-1.2-1.4a7 7 0 0 0 0-10.4z',
+    mute: 'M3 9h4l5-4.5v15L7 15H3zM14.3 9.3l1.4-1.4l2.3 2.3l2.3-2.3l1.4 1.4l-2.3 2.3l2.3 2.3l-1.4 1.4l-2.3-2.3l-2.3 2.3l-1.4-1.4l2.3-2.3z',
+    upgrade: 'M12 3l8 8h-5v9H9v-9H4z'
   };
   const STRUCT_ICON = ['city', 'defense', 'port', 'silo', 'sam', 'factory'];
   const paths = {};
@@ -266,29 +269,57 @@
     this.drawMarks(ctx, g, z, ox, oy, now);
   };
 
+  // Railways: a gravel bed, sleepers and two rails once you are close enough; a plain line from far away.
   View.prototype.drawRails = function (ctx, g, z, ox, oy) {
     const rails = g.rails;
     if (!rails.length) return;
-    const W = g.W, x0 = -ox / z, y0 = -oy / z, x1 = (this.cw - ox) / z, y1 = (this.ch - oy) / z;
-    const step = Math.max(1, Math.round(2.5 / z));
+    const W = g.W, x0 = -ox / z - 2, y0 = -oy / z - 2, x1 = (this.cw - ox) / z + 2, y1 = (this.ch - oy) / z + 2;
+    const vis = [];
+    for (const e of rails) if (!(e.x1 < x0 || e.x0 > x1 || e.y1 < y0 || e.y0 > y1)) vis.push(e);
+    if (!vis.length) return;
+    const trace = function () {
+      ctx.beginPath();
+      for (const e of vis) {
+        const p = e.path.pts || e.path;
+        for (let i = 0; i < p.length; i++) {
+          const x = (p[i] % W + 0.5) * z + ox, y = (((p[i] / W) | 0) + 0.5) * z + oy;
+          if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y);
+        }
+      }
+    };
+    ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    trace();
+    if (z < 2.4) {
+      ctx.lineWidth = within(z * 0.8, 1.5, 2.6); ctx.strokeStyle = 'rgba(30,26,22,.8)'; ctx.stroke();
+      ctx.setLineDash([2, 3]);
+      ctx.lineWidth = within(z * 0.3, 0.7, 1.1); ctx.strokeStyle = 'rgba(240,236,226,.85)'; ctx.stroke();
+      ctx.setLineDash([]);
+      return;
+    }
+    ctx.lineWidth = z * 1.05; ctx.strokeStyle = 'rgba(40,34,28,.5)'; ctx.stroke();
+    ctx.lineWidth = z * 0.82; ctx.strokeStyle = '#8b8172'; ctx.stroke();
+    ctx.lineCap = 'butt';
+    ctx.setLineDash([z * 0.15, z * 0.33]);
+    ctx.lineWidth = z * 0.72; ctx.strokeStyle = '#4e3b28'; ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.lineCap = 'round';
+    const off = z * 0.2;
     ctx.beginPath();
-    for (const e of rails) {
-      if (e.x1 < x0 || e.x0 > x1 || e.y1 < y0 || e.y0 > y1) continue;
-      const p = e.path, n = p.length;
-      for (let i = 0; i < n; i += step) {
-        const j = i + step >= n ? n - 1 : i, t = p[j];
-        const x = (t % W + 0.5) * z + ox, y = (((t / W) | 0) + 0.5) * z + oy;
-        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-        if (j === n - 1) break;
+    for (const e of vis) {
+      const p = e.path.pts || e.path;
+      for (let side = -1; side <= 1; side += 2) {
+        let lx = 0, ly = 0;
+        for (let i = 0; i < p.length; i++) {
+          const x = (p[i] % W + 0.5) * z + ox, y = (((p[i] / W) | 0) + 0.5) * z + oy;
+          if (i) {
+            const dx = x - lx, dy = y - ly, d = Math.hypot(dx, dy) || 1, nx = -dy / d * off * side, ny = dx / d * off * side;
+            ctx.moveTo(lx + nx, ly + ny); ctx.lineTo(x + nx, y + ny);
+          }
+          lx = x; ly = y;
+        }
       }
     }
-    ctx.lineJoin = 'round'; ctx.lineCap = 'round';
-    ctx.lineWidth = within(z * 0.55, 1.6, 5); ctx.strokeStyle = 'rgba(16,22,29,.78)'; ctx.stroke();
-    if (z >= 2) {
-      ctx.setLineDash([within(z * 0.5, 2, 5), within(z * 0.9, 3, 8)]);
-      ctx.lineWidth = within(z * 0.22, 0.8, 2); ctx.strokeStyle = 'rgba(236,240,245,.8)'; ctx.stroke();
-      ctx.setLineDash([]);
-    }
+    ctx.lineWidth = Math.max(1, z * 0.1); ctx.strokeStyle = '#eef1f4'; ctx.stroke();
   };
 
   View.prototype.drawStructures = function (ctx, g, z, ox, oy) {
@@ -318,48 +349,136 @@
     }
   };
 
+  // The water a ship has crossed. A troop boat keeps its whole course in its owner's colour until it
+  // lands (as in OpenFront); warships and merchants trail a short streak of foam.
+  View.prototype.drawWakes = function (ctx, g, z, ox, oy, alpha) {
+    const us = g.units, W = g.W, cw = this.cw, ch = this.ch;
+    ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    for (let i = 0; i < us.length; i++) {
+      const u = us[i], ty = u.type;
+      if (!u.active || !u.path || (ty !== UT.TRANSPORT && ty !== UT.WARSHIP && ty !== UT.TRADE)) continue;
+      const p = u.path, end = Math.min(u.pi, p.length - 1);
+      if (end < 1) continue;
+      const hx = (u.px + (u.x - u.px) * alpha + 0.5) * z + ox, hy = (u.py + (u.y - u.py) * alpha + 0.5) * z + oy;
+      if (ty === UT.TRANSPORT) {
+        const step = Math.max(1, Math.round(2.5 / z));
+        ctx.beginPath();
+        for (let k = 0; k < end; k += step) {
+          const x = (p[k] % W + 0.5) * z + ox, y = (((p[k] / W) | 0) + 0.5) * z + oy;
+          if (k) ctx.lineTo(x, y); else ctx.moveTo(x, y);
+        }
+        ctx.lineTo(hx, hy);
+        ctx.globalAlpha = 0.85;
+        ctx.lineWidth = Math.max(1.6, z * 0.95); ctx.strokeStyle = u.owner.css; ctx.stroke();
+        ctx.globalAlpha = 0.4;
+        ctx.lineWidth = Math.max(0.6, z * 0.28); ctx.strokeStyle = '#fff'; ctx.stroke();
+        ctx.globalAlpha = 1;
+        continue;
+      }
+      if (hx < -60 || hy < -60 || hx > cw + 60 || hy > ch + 60 || z < 1.3) continue;
+      const len = ty === UT.WARSHIP ? 14 : 8, wide = ty === UT.WARSHIP ? 0.55 : 0.4;
+      let lx = hx, ly = hy;
+      for (let k = 0; k < 3; k++) {
+        const idx = Math.max(0, end - Math.round((k + 1) * len / 3));
+        const x = (p[idx] % W + 0.5) * z + ox, y = (((p[idx] / W) | 0) + 0.5) * z + oy;
+        ctx.beginPath(); ctx.moveTo(lx, ly); ctx.lineTo(x, y);
+        ctx.lineWidth = Math.max(1, z * wide * (1 - k * 0.22));
+        ctx.strokeStyle = 'rgba(255,255,255,' + (0.5 - k * 0.15).toFixed(2) + ')'; ctx.stroke();
+        lx = x; ly = y;
+        if (!idx) break;
+      }
+    }
+  };
+
+  // A hull seen from above, pointing along the ship's course.
+  function hull(ctx, x, y, ang, s, kind) {
+    ctx.save();
+    ctx.translate(x, y); ctx.rotate(ang); ctx.scale(s, s);
+    ctx.beginPath();
+    if (kind === 'war') {
+      ctx.moveTo(-1.05, -0.4); ctx.lineTo(0.35, -0.44); ctx.lineTo(1.2, 0); ctx.lineTo(0.35, 0.44); ctx.lineTo(-1.05, 0.4); ctx.lineTo(-0.85, 0);
+    } else if (kind === 'boat') {
+      ctx.moveTo(-0.8, -0.46); ctx.lineTo(0.2, -0.46); ctx.lineTo(1, 0); ctx.lineTo(0.2, 0.46); ctx.lineTo(-0.8, 0.46);
+    } else {
+      ctx.moveTo(-1, -0.5); ctx.lineTo(0.5, -0.5); ctx.quadraticCurveTo(1.15, -0.3, 1.2, 0); ctx.quadraticCurveTo(1.15, 0.3, 0.5, 0.5); ctx.lineTo(-1, 0.5);
+    }
+    ctx.closePath();
+    ctx.restore();
+  }
+
   View.prototype.drawUnits = function (ctx, g, z, ox, oy, alpha) {
     const cw = this.cw, ch = this.ch, us = g.units;
     const ws = within(4 + z * 2.2, 7, 17), bs = within(3 + z * 1.6, 5, 12);
+    this.drawWakes(ctx, g, z, ox, oy, alpha);
+    ctx.lineJoin = 'round';
     for (let i = 0; i < us.length; i++) {
       const u = us[i], ty = u.type;
       if (!u.active || ty <= UT.FACTORY) continue;
       if (ty >= UT.ATOM) { this.drawMissile(ctx, g, u, z, ox, oy, alpha); continue; }
       const x = (u.px + (u.x - u.px) * alpha + 0.5) * z + ox, y = (u.py + (u.y - u.py) * alpha + 0.5) * z + oy;
-      if (x < -20 || y < -20 || x > cw + 20 || y > ch + 20) continue;
+      if (x < -30 || y < -30 || x > cw + 30 || y > ch + 30) continue;
       const p = u.owner;
+      if (u.x !== u.px || u.y !== u.py) u.ang = Math.atan2(u.y - u.py, u.x - u.px);
+      const ang = u.ang || 0;
       if (ty === UT.WARSHIP) {
-        ctx.beginPath();
-        ctx.moveTo(x, y - ws * 0.62); ctx.lineTo(x + ws * 0.62, y); ctx.lineTo(x, y + ws * 0.62); ctx.lineTo(x - ws * 0.62, y);
-        ctx.closePath();
+        const s = ws * 0.62;
+        hull(ctx, x, y, ang, s, 'war');
         ctx.fillStyle = p.css; ctx.fill();
-        ctx.lineWidth = 2; ctx.strokeStyle = '#10161d'; ctx.stroke();
-        ctx.lineWidth = 1; ctx.strokeStyle = '#fff'; ctx.stroke();
+        ctx.lineWidth = 2.6; ctx.strokeStyle = '#10161d'; ctx.stroke();
+        ctx.lineWidth = 1.1; ctx.strokeStyle = '#fff'; ctx.stroke();
+        ctx.fillStyle = '#10161d';
+        ctx.beginPath(); ctx.arc(x + Math.cos(ang) * s * 0.3, y + Math.sin(ang) * s * 0.3, Math.max(1.2, s * 0.2), 0, 6.2832); ctx.fill();
+        ctx.beginPath(); ctx.arc(x - Math.cos(ang) * s * 0.4, y - Math.sin(ang) * s * 0.4, Math.max(1, s * 0.16), 0, 6.2832); ctx.fill();
         if (u.hp < 1000) {
           ctx.fillStyle = '#10161d'; ctx.fillRect(x - ws / 2, y + ws * 0.8, ws, 3);
-          ctx.fillStyle = '#63d391'; ctx.fillRect(x - ws / 2, y + ws * 0.8, ws * u.hp / 1000, 3);
+          ctx.fillStyle = u.hp < 400 ? '#ff6b5e' : '#63d391'; ctx.fillRect(x - ws / 2, y + ws * 0.8, ws * u.hp / 1000, 3);
         }
       } else if (ty === UT.TRANSPORT) {
-        ctx.beginPath();
-        ctx.moveTo(x, y - bs * 0.7); ctx.lineTo(x + bs * 0.7, y + bs * 0.55); ctx.lineTo(x - bs * 0.7, y + bs * 0.55);
-        ctx.closePath();
+        hull(ctx, x, y, ang, bs * 0.62, 'boat');
         ctx.fillStyle = p.css; ctx.fill();
         ctx.lineWidth = 1.5; ctx.strokeStyle = '#fff'; ctx.stroke();
       } else if (ty === UT.TRAIN) {
-        const h = within(bs * 0.5, 2.6, 6);
-        ctx.fillStyle = p.css; ctx.fillRect(x - h, y - h * 0.7, h * 2, h * 1.4);
-        ctx.lineWidth = 1.2; ctx.strokeStyle = '#10161d'; ctx.strokeRect(x - h, y - h * 0.7, h * 2, h * 1.4);
-        ctx.fillStyle = '#fff'; ctx.fillRect(x - h * 0.45, y - h * 0.3, h * 0.9, h * 0.6);
+        this.drawTrain(ctx, g, u, z, ox, oy, alpha);
       } else if (ty === UT.TRADE) {
-        const h = bs * 0.42;
-        ctx.fillStyle = u.captured ? '#f4b740' : '#fff';
-        ctx.fillRect(x - h, y - h, h * 2, h * 2);
-        ctx.lineWidth = 1.5; ctx.strokeStyle = p.cssB;
-        ctx.strokeRect(x - h, y - h, h * 2, h * 2);
+        const s = bs * 0.56;
+        hull(ctx, x, y, ang, s, 'trade');
+        ctx.fillStyle = u.captured ? '#f4b740' : '#f6efdc'; ctx.fill();
+        ctx.lineWidth = 1.6; ctx.strokeStyle = p.cssB; ctx.stroke();
+        // the gold on board
+        ctx.fillStyle = u.captured ? '#7a5200' : '#e0a21c';
+        const cx = Math.cos(ang) * s, cy = Math.sin(ang) * s, r = Math.max(0.9, s * 0.22);
+        ctx.beginPath(); ctx.arc(x - cx * 0.45, y - cy * 0.45, r, 0, 6.2832); ctx.arc(x + cx * 0.1, y + cy * 0.1, r, 0, 6.2832); ctx.fill();
+        if (z >= 4.5) {
+          ctx.font = '700 ' + within(z * 1.6, 9, 13).toFixed(0) + 'px ' + FONT;
+          ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+          ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(13,20,27,.8)'; ctx.strokeText(G.fmt(u.gold), x, y - s * 0.8);
+          ctx.fillStyle = '#f4b740'; ctx.fillText(G.fmt(u.gold), x, y - s * 0.8);
+        }
       } else {
         ctx.beginPath(); ctx.arc(x, y, ty === UT.SHELL ? 1.6 : 2.2, 0, 6.2832);
         ctx.fillStyle = ty === UT.SHELL ? '#10161d' : '#fff'; ctx.fill();
       }
+    }
+  };
+
+  // An engine pulling two wagons along the track.
+  View.prototype.drawTrain = function (ctx, g, u, z, ox, oy, alpha) {
+    const path = u.edge.path, n = path.length, W = g.W, dir = u.fwd ? 1 : -1, p = u.owner;
+    const moved = u.x !== u.px || u.y !== u.py;
+    const head = u.pi - (moved ? dir * (1 - alpha) : 0);
+    const L = Math.max(5, z * 1.25), B = Math.max(3, z * 0.72);
+    for (let k = 2; k >= 0; k--) {
+      const f = within(head - dir * k * 1.55, 0, n - 1), i0 = Math.min(n - 2, Math.floor(f)), fr = f - i0;
+      if (i0 < 0) return;
+      const ax = path[i0] % W, ay = (path[i0] / W) | 0, bx = path[i0 + 1] % W, by = (path[i0 + 1] / W) | 0;
+      const x = (ax + (bx - ax) * fr + 0.5) * z + ox, y = (ay + (by - ay) * fr + 0.5) * z + oy;
+      ctx.save();
+      ctx.translate(x, y); ctx.rotate(Math.atan2(by - ay, bx - ax));
+      ctx.fillStyle = k ? p.cssB : p.css;
+      ctx.fillRect(-L / 2, -B / 2, L, B);
+      ctx.lineWidth = 1.1; ctx.strokeStyle = k ? 'rgba(255,255,255,.75)' : '#fff'; ctx.strokeRect(-L / 2, -B / 2, L, B);
+      if (!k) { ctx.fillStyle = '#fff'; ctx.fillRect(dir * L * 0.12 - L * 0.14, -B * 0.26, L * 0.28, B * 0.52); }
+      ctx.restore();
     }
   };
 
@@ -393,14 +512,33 @@
   };
 
   View.prototype.drawFx = function (ctx, g, z, ox, oy, now) {
-    while (g.fx.length) { const f = g.fx.shift(); f.t0 = now; this.fxList.push(f); }
+    const cw = this.cw, ch = this.ch;
+    while (g.fx.length) {
+      const f = g.fx.shift();
+      f.t0 = now; this.fxList.push(f);
+      if (G.onFx) {
+        const x = (f.x + 0.5) * z + ox, y = (f.y + 0.5) * z + oy;
+        G.onFx(f, x > -40 && y > -40 && x < cw + 40 && y < ch + 40);
+      }
+    }
     const list = this.fxList;
     for (let i = list.length - 1; i >= 0; i--) {
-      const f = list[i], dur = f.k === 'boom' ? 1100 : 420, k = (now - f.t0) / dur;
+      const f = list[i];
+      const dur = f.k === 'boom' ? (f.big ? 2600 : 1100) : f.k === 'coin' ? 1000 : f.k === 'flag' ? 700 : 420, k = (now - f.t0) / dur;
       if (k >= 1 || (f.k === 'coin' && !f.mine)) { list.splice(i, 1); continue; }
       const x = (f.x + 0.5) * z + ox, y = (f.y + 0.5) * z + oy, e = k * (2 - k);
       if (f.k === 'boom') {
         const r = Math.max(6, f.r * z) * (0.3 + 0.7 * e);
+        if (f.big) {
+          // hydrogen bomb: the whole screen flashes, then two shock rings roll outward
+          if (k < 0.22 && x > -r && y > -r && x < cw + r && y < ch + r) {
+            ctx.fillStyle = 'rgba(255,246,220,' + (0.75 * (1 - k / 0.22)).toFixed(3) + ')'; ctx.fillRect(0, 0, cw, ch);
+          }
+          ctx.beginPath(); ctx.arc(x, y, r * (1 + 0.5 * k), 0, 6.2832);
+          ctx.strokeStyle = 'rgba(255,214,150,' + (0.7 * (1 - k)).toFixed(3) + ')'; ctx.lineWidth = 5 * (1 - k) + 1; ctx.stroke();
+          ctx.beginPath(); ctx.arc(x, y, r * 0.7, 0, 6.2832);
+          ctx.fillStyle = 'rgba(255,120,40,' + (0.5 * (1 - k)).toFixed(3) + ')'; ctx.fill();
+        }
         ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832);
         ctx.fillStyle = 'rgba(255,176,72,' + (0.7 * (1 - k)).toFixed(3) + ')'; ctx.fill();
         ctx.beginPath(); ctx.arc(x, y, r * 0.45, 0, 6.2832);
@@ -410,6 +548,16 @@
       } else if (f.k === 'coin') {
         ctx.beginPath(); ctx.arc(x, y - 10 * e, 2 + 5 * e, 0, 6.2832);
         ctx.strokeStyle = 'rgba(244,183,64,' + (1 - k).toFixed(3) + ')'; ctx.lineWidth = 2; ctx.stroke();
+        if (f.amt) {
+          ctx.globalAlpha = Math.min(1, 2 * (1 - k));
+          ctx.font = '700 14px ' + FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+          ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(13,20,27,.85)'; ctx.strokeText('+' + G.fmt(f.amt), x, y - 14 - 22 * e);
+          ctx.fillStyle = '#f4b740'; ctx.fillText('+' + G.fmt(f.amt), x, y - 14 - 22 * e);
+          ctx.globalAlpha = 1;
+        }
+      } else if (f.k === 'flag') {
+        ctx.beginPath(); ctx.arc(x, y, 4 + 16 * e, 0, 6.2832);
+        ctx.strokeStyle = 'rgba(244,183,64,' + (1 - k).toFixed(3) + ')'; ctx.lineWidth = 3 * (1 - k) + 1; ctx.stroke();
       } else {
         ctx.beginPath(); ctx.arc(x, y, 3 + 13 * e, 0, 6.2832);
         ctx.strokeStyle = 'rgba(255,255,255,' + (1 - k).toFixed(3) + ')'; ctx.lineWidth = 2; ctx.stroke();

@@ -63,28 +63,58 @@
     }
   }
 
-  // Invented continents for the random map.
-  G.randomClassMap = function (W, H, seed) {
+  // Invented maps. `kind` picks the overall shape; the default is a scatter of continents.
+  // `ref` is the width the features are sized for, so a small preview shows the same world.
+  const SHAPES = {
+    zufall: { share: 0.4, freq: 4.6 },
+    inseln: { share: 0.24, freq: 17 },
+    pangaea: { share: 0.5, freq: 4.2 },
+    ring: { share: 0.36, freq: 5.5 },
+    duell: { share: 0.37, freq: 5 },
+    seen: { share: 0.74, freq: 9 }
+  };
+  G.randomClassMap = function (W, H, seed, kind, ref) {
     const N = W * H, cls = new Uint8Array(N), e = new Float32Array(N);
-    const fbm = makeNoise(seed ^ 0x51ed27), sc = W / 4.6;
+    const sh = SHAPES[kind] || SHAPES.zufall, k = (ref || W) / W;
+    const fbm = makeNoise(seed ^ 0x51ed27), sc = W / sh.freq;
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-      const nx = Math.abs(x / W - 0.5) * 2, ny = Math.abs(y / H - 0.5) * 2;
-      const edge = Math.max(nx, ny);
-      e[y * W + x] = fbm(x / sc, y / sc, 5) - Math.max(0, edge - 0.74) * 1.7;
+      const u = x / W, v = y / H;
+      const nx = Math.abs(u - 0.5) * 2, ny = Math.abs(v - 0.5) * 2;
+      const edge = Math.max(nx, ny), n = fbm(x / sc, y / sc, 5);
+      let h;
+      if (kind === 'pangaea') h = n * 0.5 + 0.62 * (1 - Math.hypot(nx, ny));
+      else if (kind === 'ring') h = n * 0.45 + 0.7 * (1 - Math.abs(Math.hypot(nx, ny * 0.92) - 0.6) * 3.4);
+      else if (kind === 'duell') {
+        const dl = Math.hypot((u - 0.25) / 0.2, (v - 0.5) / 0.4), dr = Math.hypot((u - 0.75) / 0.2, (v - 0.5) / 0.4);
+        h = n * 0.5 + 0.55 * (1 - Math.min(dl, dr));
+      } else if (kind === 'seen') h = n - Math.max(0, edge - 0.86) * 3;
+      else h = n - Math.max(0, edge - 0.74) * 1.7;
+      e[y * W + x] = h;
     }
     const sample = new Float32Array(Math.ceil(N / 7));
     for (let i = 0, j = 0; i < N && j < sample.length; i += 7, j++) sample[j] = e[i];
     sample.sort();
-    const thr = sample[Math.floor(sample.length * 0.6)];
+    const thr = sample[Math.floor(sample.length * (1 - sh.share))];
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
       const i = y * W + x;
       if (e[i] <= thr) continue;
-      const ridge = 1 - Math.abs(fbm(x / 60 + 900, y / 60 + 900, 4) * 2 - 1);
-      const plat = fbm(x / 90 + 400, y / 90 + 400, 3);
+      const ridge = 1 - Math.abs(fbm(x * k / 60 + 900, y * k / 60 + 900, 4) * 2 - 1);
+      const plat = fbm(x * k / 90 + 400, y * k / 90 + 400, 3);
       cls[i] = (ridge > 0.9 && e[i] > thr + 0.02) ? 3 : (plat > 0.6 ? 2 : 1);
     }
     cleanup(cls, W, H);
     return cls;
+  };
+  // Hand-picked invented worlds with a fixed seed, so each one is always the same map.
+  G.SPECIAL_MAPS = [
+    { id: 'inseln', kind: 'inseln', name: 'Inselreich', note: 'Viele Inseln, Seemacht zählt', w: 960, h: 600, seed: 7411 },
+    { id: 'pangaea', kind: 'pangaea', name: 'Pangäa', note: 'Ein einziger Riesenkontinent', w: 900, h: 620, seed: 2203 },
+    { id: 'ring', kind: 'ring', name: 'Ringwelt', note: 'Land im Kreis um ein Binnenmeer', w: 860, h: 800, seed: 5150 },
+    { id: 'duell', kind: 'duell', name: 'Zwei Welten', note: 'Zwei Kontinente, ein Meer dazwischen', w: 980, h: 560, seed: 9031 },
+    { id: 'seen', kind: 'seen', name: 'Seenplatte', note: 'Viel Land, überall Seen', w: 900, h: 600, seed: 1287 }
+  ];
+  G.specialMap = function (def) {
+    return G.buildMap(def.w, def.h, G.randomClassMap(def.w, def.h, def.seed, def.kind), def.seed, { id: def.id, name: def.name, nations: [] });
   };
 
   // Build the playable map from a class grid (0 water, 1 plain, 2 plateau, 3 mountain range).
