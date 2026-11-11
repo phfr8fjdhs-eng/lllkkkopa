@@ -1,12 +1,13 @@
 (function (G) {
   'use strict';
+  const Math = G.M;   // same results on every device, see 00_util.js
   const PT = G.PT, UT = G.UT;
 
   // Computer opponents. Bots only spread and skirmish; nations also build, sail, ally and bomb.
   function AI(g, p) {
     const r = g.rng;
     this.g = g; this.p = p;
-    this.rate = r.int(40, 80); this.off = r.int(0, this.rate);
+    this.rate = p.type === PT.BOT ? r.int(80, 140) : r.int(40, 80); this.off = r.int(0, this.rate);
     if (p.type === PT.BOT) { this.trigger = r.int(60, 90) / 100; this.reserve = r.int(30, 60) / 100; }
     else { this.trigger = r.int(50, 60) / 100; this.reserve = r.int(30, 40) / 100; }
     this.expand = r.int(10, 20) / 100;

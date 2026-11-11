@@ -27,7 +27,11 @@
     menu: 'M3 5h18v2.4H3zM3 10.8h18v2.4H3zM3 16.6h18V19H3z',
     home: 'M12 3l9 8h-2.5v9h-5v-6h-3v6h-5v-9H3z',
     troops: 'M12 3a4 4 0 1 0 0 8a4 4 0 0 0 0-8zM4 21c0-4.4 3.6-8 8-8s8 3.6 8 8z',
-    gold: 'M12 3a9 9 0 1 0 0 18a9 9 0 0 0 0-18zM12 6.5a5.5 5.5 0 1 1 0 11a5.5 5.5 0 0 1 0-11z'
+    gold: 'M12 3a9 9 0 1 0 0 18a9 9 0 0 0 0-18zM12 6.5a5.5 5.5 0 1 1 0 11a5.5 5.5 0 0 1 0-11z',
+    up: 'M12 3l8 8h-5v9H9v-9H4z',
+    people: 'M8 4a3.5 3.5 0 1 0 0 7a3.5 3.5 0 0 0 0-7zM16.5 5a3 3 0 1 0 0 6a3 3 0 0 0 0-6zM1.5 20c0-3.6 2.9-6.5 6.5-6.5s6.5 2.9 6.5 6.5zM16 20c0-2-.7-3.9-1.9-5.4c.8-.4 1.6-.6 2.4-.6c3 0 5.5 2.5 5.5 6z',
+    copy: 'M8 3h11a2 2 0 0 1 2 2v11h-2V5H8zM5 7h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2z',
+    target: 'M11 1h2v3.1a8 8 0 0 1 6.9 6.9H23v2h-3.1a8 8 0 0 1-6.9 6.9V23h-2v-3.1A8 8 0 0 1 4.1 13H1v-2h3.1A8 8 0 0 1 11 4.1zM12 6a6 6 0 1 0 0 12a6 6 0 0 0 0-12zM12 9.5a2.5 2.5 0 1 1 0 5a2.5 2.5 0 0 1 0-5z'
   };
   const STRUCT_ICON = ['city', 'defense', 'port', 'silo', 'sam', 'factory'];
   const paths = {};
@@ -65,7 +69,7 @@
     this.ctx = canvas.getContext('2d', { alpha: false });
     this.cam = { x: 0, y: 0, z: 1 };
     this.fly = null; this.map = null; this.game = null;
-    this.fxList = []; this.mark = -1;
+    this.fxList = []; this.mark = -1; this.aim = null;
     this.occ = new Uint8Array(2600); this.sq = new Uint16Array(2600);
     this.dpr = 1; this.cw = 1; this.ch = 1;
     this.resize();
@@ -81,7 +85,7 @@
   };
 
   View.prototype.setMap = function (map) {
-    this.map = map; this.game = null; this.fxList.length = 0; this.mark = -1;
+    this.map = map; this.game = null; this.fxList.length = 0; this.mark = -1; this.aim = null;
     const mc = this.mc = document.createElement('canvas');
     mc.width = map.W; mc.height = map.H;
     this.mctx = mc.getContext('2d');
@@ -264,6 +268,7 @@
     this.drawFx(ctx, g, z, ox, oy, now);
     this.drawNames(ctx, g, z, ox, oy);
     this.drawMarks(ctx, g, z, ox, oy, now);
+    if (this.aim) this.drawAim(ctx, g, z, ox, oy, now);
   };
 
   View.prototype.drawRails = function (ctx, g, z, ox, oy) {
@@ -396,7 +401,7 @@
     while (g.fx.length) { const f = g.fx.shift(); f.t0 = now; this.fxList.push(f); }
     const list = this.fxList;
     for (let i = list.length - 1; i >= 0; i--) {
-      const f = list[i], dur = f.k === 'boom' ? 1100 : 420, k = (now - f.t0) / dur;
+      const f = list[i], dur = f.k === 'boom' ? 1100 : f.k === 'text' ? 2200 : 420, k = (now - f.t0) / dur;
       if (k >= 1 || (f.k === 'coin' && !f.mine)) { list.splice(i, 1); continue; }
       const x = (f.x + 0.5) * z + ox, y = (f.y + 0.5) * z + oy, e = k * (2 - k);
       if (f.k === 'boom') {
@@ -407,6 +412,13 @@
         ctx.fillStyle = 'rgba(255,250,225,' + ((1 - k) * (1 - k)).toFixed(3) + ')'; ctx.fill();
         ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832);
         ctx.strokeStyle = 'rgba(255,255,255,' + (0.8 * (1 - k)).toFixed(3) + ')'; ctx.lineWidth = 2; ctx.stroke();
+      } else if (f.k === 'text') {
+        const pop = k < 0.12 ? 0.6 + k / 0.12 * 0.5 : 1.1 - Math.min(0.1, (k - 0.12) * 0.5), fs = 26 * pop;
+        ctx.globalAlpha = k < 0.7 ? 1 : (1 - k) / 0.3;
+        ctx.font = '700 ' + fs.toFixed(1) + 'px ' + FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
+        ctx.lineWidth = 5; ctx.strokeStyle = 'rgba(16,22,29,0.9)'; ctx.strokeText(f.text, x, y - 46 * e);
+        ctx.fillStyle = '#ffd25e'; ctx.fillText(f.text, x, y - 46 * e);
+        ctx.globalAlpha = 1;
       } else if (f.k === 'coin') {
         ctx.beginPath(); ctx.arc(x, y - 10 * e, 2 + 5 * e, 0, 6.2832);
         ctx.strokeStyle = 'rgba(244,183,64,' + (1 - k).toFixed(3) + ')'; ctx.lineWidth = 2; ctx.stroke();
@@ -467,6 +479,69 @@
       ctx.lineWidth = 3.5; ctx.strokeStyle = 'rgba(16,22,29,0.6)'; ctx.stroke();
       ctx.lineWidth = 1.5; ctx.strokeStyle = '#fff'; ctx.stroke();
     }
+  };
+
+  // Float a line of text up from a place on the map (gold won, for example).
+  View.prototype.floatText = function (x, y, text) {
+    this.fxList.push({ k: 'text', x: x, y: y, text: text, t0: performance.now() });
+  };
+
+  // Preview while a bomb is being aimed: reach of every air defence, the flight path from the silo,
+  // the point of impact and how far the blast goes.
+  View.prototype.drawAim = function (ctx, g, z, ox, oy, now) {
+    const a = this.aim, W = g.W, h = g.human, R = g.R;
+    const tx = (a.tile % W + 0.5) * z + ox, ty = (((a.tile / W) | 0) + 0.5) * z + oy;
+    const hostile = [];
+    ctx.lineWidth = 1.5;
+    for (const u of g.structAt.values()) {
+      if (u.type !== UT.SAM || !u.built) continue;
+      const mine = h && (u.owner === h || h.allies.has(u.owner.id));
+      const x = (u.x + 0.5) * z + ox, y = (u.y + 0.5) * z + oy, r = R.sam * z;
+      if (x < -r || y < -r || x > this.cw + r || y > this.ch + r) { if (!mine) hostile.push(u); continue; }
+      ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832);
+      ctx.fillStyle = mine ? 'rgba(99,211,145,0.10)' : 'rgba(197,139,255,0.20)'; ctx.fill();
+      ctx.setLineDash([7, 5]); ctx.lineWidth = 2; ctx.strokeStyle = mine ? 'rgba(99,211,145,0.9)' : 'rgb(197,139,255)'; ctx.stroke(); ctx.setLineDash([]);
+      ctx.fillStyle = mine ? 'rgb(99,211,145)' : 'rgb(197,139,255)'; glyph(ctx, 'sam', x, y - within(5 + z * 3, 9, 22) * 0.95, 13);
+      if (!mine) hostile.push(u);
+    }
+    const col = a.ok ? '255,214,94' : '190,200,210';
+    if (a.silo) {
+      const sx = (a.silo.x + 0.5) * z + ox, sy = (a.silo.y + 0.5) * z + oy;
+      const dist = Math.max(1, Math.hypot(a.tile % W - a.silo.x, ((a.tile / W) | 0) - a.silo.y));
+      const lift = Math.min(dist * 0.28, 70) * z, r2 = R.sam * R.sam, n = 48;
+      // the shadow of the path on the ground: this is where air defence measures its reach
+      ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(tx, ty);
+      ctx.setLineDash([2, 6]); ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(16,22,29,0.55)'; ctx.stroke(); ctx.setLineDash([]);
+      let px = sx, py = sy;
+      for (let i = 1; i <= n; i++) {
+        const q = i / n, gx = a.silo.x + (a.tile % W - a.silo.x) * q, gy = a.silo.y + (((a.tile / W) | 0) - a.silo.y) * q;
+        let danger = false;
+        if (a.type !== UT.MIRV) for (const u of hostile) if ((gx - u.x) * (gx - u.x) + (gy - u.y) * (gy - u.y) <= r2) { danger = true; break; }
+        const x = sx + (tx - sx) * q, y = sy + (ty - sy) * q - Math.sin(Math.PI * q) * lift;
+        ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(x, y);
+        ctx.lineWidth = 5; ctx.strokeStyle = 'rgba(16,22,29,0.6)'; ctx.stroke();
+        ctx.lineWidth = 2.5; ctx.strokeStyle = danger ? 'rgb(255,107,94)' : 'rgb(' + col + ')'; ctx.stroke();
+        px = x; py = y;
+      }
+      ctx.beginPath(); ctx.arc(sx, sy, 13, 0, 6.2832);
+      ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(16,22,29,0.6)'; ctx.stroke();
+      ctx.lineWidth = 2; ctx.strokeStyle = 'rgb(' + col + ')'; ctx.stroke();
+    }
+    const rin = (a.type === UT.HYDRO ? R.hydroIn : a.type === UT.ATOM ? R.atomIn : R.headIn) * z;
+    const rout = (a.type === UT.HYDRO ? R.hydroOut : a.type === UT.ATOM ? R.atomOut : R.headOut) * z;
+    const pulse = 0.5 + 0.5 * Math.sin(now / 220);
+    ctx.beginPath(); ctx.arc(tx, ty, rout, 0, 6.2832);
+    ctx.fillStyle = 'rgba(255,107,94,0.14)'; ctx.fill();
+    ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(255,107,94,' + (0.7 + 0.3 * pulse).toFixed(2) + ')'; ctx.stroke();
+    ctx.beginPath(); ctx.arc(tx, ty, rin, 0, 6.2832);
+    ctx.fillStyle = 'rgba(255,70,50,0.32)'; ctx.fill();
+    ctx.lineWidth = 2; ctx.strokeStyle = 'rgb(255,107,94)'; ctx.stroke();
+    const c = 9 + pulse * 3;
+    ctx.beginPath();
+    ctx.moveTo(tx - c - 6, ty); ctx.lineTo(tx - 4, ty); ctx.moveTo(tx + 4, ty); ctx.lineTo(tx + c + 6, ty);
+    ctx.moveTo(tx, ty - c - 6); ctx.lineTo(tx, ty - 4); ctx.moveTo(tx, ty + 4); ctx.lineTo(tx, ty + c + 6);
+    ctx.lineWidth = 4.5; ctx.strokeStyle = 'rgba(16,22,29,0.7)'; ctx.stroke();
+    ctx.lineWidth = 2; ctx.strokeStyle = '#fff'; ctx.stroke();
   };
 
   G.View = View;

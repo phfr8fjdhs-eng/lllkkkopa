@@ -52,6 +52,47 @@
   Heap.prototype.clear = function () { this.n = 0; };
   G.Heap = Heap;
 
+
+  // Arithmetic for the simulation that gives the same bits on every device, so that players
+  // connected over the network stay in step. Built only from + - * / and sqrt, which are exact everywhere.
+  const LN2 = 0.6931471805599453, SQ2 = 1.4142135623730951, PI = 3.141592653589793;
+  function dln(x) {
+    let e = 0;
+    while (x > SQ2) { x /= 2; e++; }
+    while (x < SQ2 / 2) { x *= 2; e--; }
+    const z = (x - 1) / (x + 1), z2 = z * z;
+    let s = 0, t = z;
+    for (let k = 1; k <= 27; k += 2) { s += t / k; t *= z2; }
+    return 2 * s + e * LN2;
+  }
+  function dexp(x) {
+    const k = Math.round(x / LN2), r = x - k * LN2;
+    let s = 1, t = 1;
+    for (let i = 1; i <= 18; i++) { t *= r / i; s += t; }
+    if (k > 0) for (let i = 0; i < k; i++) s *= 2; else for (let i = 0; i < -k; i++) s /= 2;
+    return s;
+  }
+  function dpow(x, y) {
+    if (y === 0) return 1;
+    if (!(x > 0)) return x === 0 ? 0 : NaN;
+    if (y === 1) return x;
+    if (y > 0 && y < 64 && Math.floor(y) === y) { let r = 1; for (let i = 0; i < y; i++) r *= x; return r; }
+    return dexp(y * dln(x));
+  }
+  function dsin(a) {
+    a -= 2 * PI * Math.round(a / (2 * PI));
+    const a2 = a * a;
+    let s = a, t = a;
+    for (let i = 1; i <= 12; i++) { t *= -a2 / ((2 * i) * (2 * i + 1)); s += t; }
+    return s;
+  }
+  G.M = {
+    min: Math.min, max: Math.max, floor: Math.floor, ceil: Math.ceil, round: Math.round, abs: Math.abs,
+    sqrt: Math.sqrt, imul: Math.imul, PI: PI, pow: dpow, sin: dsin,
+    cos: function (a) { return dsin(a + PI / 2); },
+    hypot: function (x, y) { return Math.sqrt(x * x + y * y); }
+  };
+
   G.within = function (v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; };
 
   // 1234 -> "1.23K", 123456 -> "123K", 2500000 -> "2.50M"

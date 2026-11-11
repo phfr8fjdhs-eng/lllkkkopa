@@ -1,5 +1,6 @@
 (function (G) {
   'use strict';
+  const Math = G.M;   // same results on every device, see 00_util.js
   // Factories, railways and trains. A factory links itself to nearby cities, ports and factories
   // with tracks laid over land; trains run along them and pay gold at every station they reach.
   const Game = G.Game, UT = G.UT;
@@ -108,7 +109,7 @@
       if (u.type !== UT.FACTORY || !u.built || this.ticks < u.nextTrain) continue;
       const p = u.owner;
       if (!p.alive) continue;
-      u.nextTrain = this.ticks + TRAIN_EVERY + this.rng.int(0, 60);
+      u.nextTrain = this.ticks + Math.round(TRAIN_EVERY * 2 / (1 + u.level)) + this.rng.int(0, 60);
       if (p.cnt[UT.TRAIN] >= 2 * p.cnt[UT.FACTORY] + 1) continue;
       const e = this.railNext(p, u, null);
       if (!e) continue;

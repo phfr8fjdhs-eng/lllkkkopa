@@ -1,8 +1,10 @@
 (function (G) {
   'use strict';
+  const Math = G.M;   // same results on every device, see 00_util.js
   const Game = G.Game, UT = G.UT, PT = G.PT, fmt = G.fmt;
   const BUILD_TICKS = [20, 50, 20, 100, 300, 20];   // city, defence post, port, silo, air defence, factory
   G.BUILD_TICKS = BUILD_TICKS;
+  G.MAX_LEVEL = 5;
 
   Game.prototype.cost = function (p, type) {
     if (p.type === PT.HUMAN && this.opts.infiniteGold) return 0;
@@ -226,7 +228,7 @@
       u = this.newUnit(type, p, c.port.water);
       u.hp = 1000; u.patrol = c.tile; u.shotAt = 0; u.target = null; u.path = null; u.pi = 0; u.wait = false;
       this.addUnit(u);
-      this.sail(u, c.tile, p === this.human);
+      this.sail(u, c.tile, p.type === PT.HUMAN);
     } else {
       u = this.launch(p, type, c.silo, c.tile);
     }
@@ -234,8 +236,7 @@
   };
 
   Game.prototype.canUpgrade = function (p, u) {
-    return !!u && u.active && u.owner === p && u.built &&
-      (u.type === UT.CITY || u.type === UT.PORT || u.type === UT.SILO || u.type === UT.SAM);
+    return !!u && u.active && u.owner === p && u.built && u.type <= UT.FACTORY && u.level < G.MAX_LEVEL;
   };
   Game.prototype.upgrade = function (p, u) {
     if (!this.canUpgrade(p, u)) return false;
@@ -243,6 +244,7 @@
     if (p.gold < cost) return false;
     p.gold -= cost; u.level++; p.cnt[u.type]++;
     if (u.type === UT.CITY) p.cityLv++;
+    else if (u.type === UT.DEFENSE) this.dirtyDisc(u.tile);
     else if (u.ready) u.ready.push(0);
     return true;
   };
@@ -319,7 +321,7 @@
       if (path) { u.path = path; u.pi = 0; return; }
       if (p.alive) p.troops += u.troops;
       this.removeUnit(u);
-    }, p === this.human);
+    }, p.type === PT.HUMAN);
     const q = plan.tid ? this.players[plan.tid] : null;
     if (q) {
       this.relate(q, p, -40);
@@ -672,6 +674,19 @@
     } else {
       n.sam = false;
     }
+  };
+
+  // Air defences that could reach a bomb on its way from the silo to the target (for the aiming preview).
+  Game.prototype.samsOnPath = function (p, sx, sy, dx, dy) {
+    const r2 = this.R.sam * this.R.sam, out = [];
+    for (const u of this.structAt.values()) {
+      if (u.type !== UT.SAM || !u.built || u.owner === p || this.friendly(u.owner, p)) continue;
+      for (let i = 0; i <= 40; i++) {
+        const x = sx + (dx - sx) * i / 40, y = sy + (dy - sy) * i / 40;
+        if ((x - u.x) * (x - u.x) + (y - u.y) * (y - u.y) <= r2) { out.push(u); break; }
+      }
+    }
+    return out;
   };
 
   Game.prototype.tickUnit = function (u) {

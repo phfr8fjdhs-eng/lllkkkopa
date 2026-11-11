@@ -1,5 +1,6 @@
 (function (G) {
   'use strict';
+  const Math = G.M;   // same results on every device, see 00_util.js
   const within = G.within, fmt = G.fmt;
   const PT = G.PT = { HUMAN: 0, NATION: 1, BOT: 2 };
   const UT = G.UT = {
@@ -17,12 +18,19 @@
   const TRAITOR_TICKS = 300;        // thirty seconds
   const WIN_SHARE = 0.8;
 
-  const PRE = ['Nord', 'Süd', 'Ost', 'West', 'Alt', 'Neu', 'Hoch', 'Tief', 'Eisen', 'Gold', 'Silber', 'Stein', 'Wald',
-    'See', 'Berg', 'Sturm', 'Feuer', 'Schatten', 'Licht', 'Rot', 'Grau', 'Wolf', 'Adler', 'Bären', 'Falken', 'Raben',
-    'Löwen', 'Drachen', 'Hirsch', 'Salz', 'Moor', 'Dorn', 'Eichen', 'Birken', 'Nebel', 'Frost', 'Sonnen', 'Mond',
-    'Stern', 'Kupfer', 'Sand', 'Klippen', 'Wiesen', 'Donner', 'Winter', 'Sommer', 'Herbst', 'Kiesel', 'Flut', 'Wind'];
-  const SUF = ['mark', 'land', 'reich', 'bund', 'heim', 'burg', 'tal', 'wacht', 'feld', 'hain', 'furt', 'gard',
-    'stein', 'au', 'horst', 'wall', 'hafen', 'berg', 'tor', 'grund', 'brück', 'weiler', 'stadt', 'eck'];
+  // Bot names: a people and a form of state, with the ending the grammar asks for.
+  const FOLK = ['Hethitisch', 'Phönizisch', 'Karthagisch', 'Mongolisch', 'Byzantinisch', 'Venezianisch', 'Hanseatisch',
+    'Aztekisch', 'Babylonisch', 'Assyrisch', 'Persisch', 'Osmanisch', 'Preussisch', 'Bayrisch', 'Burgundisch',
+    'Normannisch', 'Fränkisch', 'Gotisch', 'Keltisch', 'Skythisch', 'Etruskisch', 'Makedonisch', 'Spartanisch',
+    'Trojanisch', 'Nubisch', 'Äthiopisch', 'Tatarisch', 'Kosakisch', 'Bengalisch', 'Khmerisch', 'Mandschurisch',
+    'Tibetisch', 'Sumerisch', 'Lydisch', 'Thrakisch', 'Dakisch', 'Sächsisch', 'Friesisch', 'Lombardisch', 'Katalanisch',
+    'Andalusisch', 'Walisisch', 'Kaledonisch', 'Livländisch', 'Böhmisch', 'Mährisch', 'Illyrisch', 'Kretisch',
+    'Samnitisch', 'Numidisch', 'Parthisch', 'Baktrisch', 'Armenisch', 'Georgisch', 'Polynesisch', 'Maurisch'];
+  const STATE = [['Reich', 'es'], ['Kaiserreich', 'es'], ['Königreich', 'es'], ['Sultanat', 'es'], ['Khanat', 'es'],
+    ['Fürstentum', 'es'], ['Herzogtum', 'es'], ['Protektorat', 'es'], ['Emirat', 'es'], ['Imperium', 'es'],
+    ['Republik', 'e'], ['Union', 'e'], ['Föderation', 'e'], ['Dynastie', 'e'], ['Horde', 'e'], ['Liga', 'e'],
+    ['Allianz', 'e'], ['Konföderation', 'e'], ['Krone', 'e'], ['Bund', 'er'], ['Orden', 'er'], ['Freistaat', 'er'],
+    ['Stammesbund', 'er'], ['Städtebund', 'er']];
   const INVENTED = ['Aldoria', 'Brenmark', 'Calvenien', 'Dornreich', 'Elmstadt', 'Falkonia', 'Grauhaven', 'Hohenfels',
     'Ilmland', 'Jadeküste', 'Kronwald', 'Lindau', 'Morvanien', 'Nordheim', 'Ostara', 'Pellgard', 'Quellmark',
     'Rabenstein', 'Silvanien', 'Tessmark'];
@@ -31,7 +39,7 @@
     this.map = map; this.W = map.W; this.H = map.H; this.N = map.N; this.S = map.S;
     this.opts = Object.assign({
       seed: 1, difficulty: 1, bots: 100, nations: true, instantBuild: false,
-      infiniteGold: false, infiniteTroops: false, spawnTicks: 150
+      infiniteGold: false, infiniteTroops: false, spawnTicks: 150, autoSpawn: false, me: 0
     }, opts || {});
     this.rng = new G.RNG(this.opts.seed);
     const N = this.N, S = this.S;
@@ -46,7 +54,7 @@
     this.portList = null; this.tradeCount = 0;
     this.rails = []; this.railKeys = new Map(); this.railAdj = new Map(); this.railDirty = false; this.railAt = 0; this.railBad = new Set();
     this.requests = []; this.events = []; this.fx = [];
-    this.human = null; this.winner = null; this.names = new Set();
+    this.human = null; this.humans = []; this.winner = null; this.names = new Set();
     this.dirty = new Int32Array(N); this.dirtyN = 0; this.dirtyFlag = new Uint8Array(N);
     this.path = new G.Pathfinder(map); this.pathCache = new Map(); this.pathQ = []; this.pathJob = null;
     this.R = {
@@ -100,11 +108,12 @@
 
   Game.prototype.botName = function () {
     const r = this.rng;
-    for (let i = 0; i < 40; i++) {
-      const n = r.pick(PRE) + r.pick(SUF);
+    const make = function () { const f = r.pick(FOLK), st = r.pick(STATE); return f + st[1] + ' ' + st[0]; };
+    for (let i = 0; i < 60; i++) {
+      const n = make();
       if (!this.names.has(n)) { this.names.add(n); return n; }
     }
-    return r.pick(PRE) + r.pick(SUF) + ' ' + (this.players.length);
+    return make() + ' ' + (this.players.length);
   };
 
   Game.prototype.freeLandNear = function (x, y, rad) {
@@ -123,7 +132,10 @@
 
   Game.prototype.setup = function (human) {
     const map = this.map, o = this.opts, rng = this.rng, W = this.W;
-    if (human) this.human = this.addPlayer({ name: human.name, type: PT.HUMAN, color: human.color });
+    // one person, or a list of people for a game over the network (opts.me picks the one at this device)
+    const people = !human ? [] : Array.isArray(human) ? human : [human];
+    for (const h of people) { this.humans.push(this.addPlayer({ name: h.name, type: PT.HUMAN, color: h.color })); this.names.add(h.name); }
+    if (people.length) this.human = this.humans[o.me] || null;
     const spots = [];
     const far = function (t, d) {
       const x = t % W, y = (t / W) | 0;
@@ -184,7 +196,7 @@
   Game.prototype.troopGrowth = function (p) {
     const max = this.maxTroops(p);
     let add = (10 + Math.pow(p.troops, 0.73) / 4) * (1 - p.troops / max);
-    if (p.type === PT.BOT) add *= 0.6;
+    if (p.type === PT.BOT) add *= 0.4;
     else if (p.type === PT.NATION) add *= NATION_GROW[this.opts.difficulty];
     return Math.min(p.troops + add, max) - p.troops;
   };
@@ -536,12 +548,12 @@
     if (at.troops < 1) { this.endAttack(at, false); return; }
     const own = this.owner, map = this.map, mg = map.mag, W = this.W, H = this.H, aid = a.id;
     const n = at.front.size + this.rng.int(0, 5);
-    let budget = t ? within((5 * at.troops / Math.max(1, t.troops)) * 2, 0.01, 0.5) * n * 3 : n * 2;
+    let budget = t ? within((5 * at.troops / Math.max(1, t.troops)) * 2, 0.01, 0.5) * n * 3 : n * (a.type === PT.BOT ? 0.7 : 2);
     const landTiles = map.landTiles;
     const lossMod = a.tiles > landTiles * 0.17 ? Math.sqrt(landTiles * 0.17 / a.tiles) : 1;
     const speedMod = a.tiles > landTiles * 0.13 ? Math.pow(landTiles * 0.13 / a.tiles, 0.6) : 1;
     const traitor = t && t.traitorUntil > this.ticks ? 0.5 : 1;
-    const botMod = t && t.type === PT.BOT && a.type !== PT.BOT ? 0.8 : 1;
+    const easy = !!t && t.type === PT.BOT && a.type !== PT.BOT, botMod = easy ? 0.5 : 1;   // bots barely defend themselves
     const dp = t ? t.dposts : null, dr2 = this.R.defense * this.R.defense, fo = this.fallout;
     let guard = 0;
     while (budget > 0) {
@@ -563,7 +575,7 @@
       if (dp && dp.length) {
         for (let i = 0; i < dp.length; i++) {
           const dx = dp[i].x - x, dy = dp[i].y - y;
-          if (dx * dx + dy * dy <= dr2) { mag *= 5; speed *= 5; break; }
+          if (dx * dx + dy * dy <= dr2) { const f = 3 + 2 * dp[i].level; mag *= f; speed *= f; break; }
         }
       }
       if (fo[tile]) { const f = 5 - 2 * this.falloutCount / landTiles; mag *= f; speed *= f; }
@@ -571,7 +583,7 @@
       if (t) {
         const tt = t.troops;
         loss = within(tt / at.troops, 0.6, 2) * mag * 0.8 * botMod * lossMod * traitor;
-        used = within(tt / (5 * at.troops), 0.2, 1.5) * speed * speedMod;
+        used = within(tt / (5 * at.troops), 0.2, 1.5) * speed * speedMod * (easy ? 0.6 : 1);
         t.troops = Math.max(0, tt - tt / Math.max(1, t.tiles));
       } else {
         loss = a.type === PT.BOT ? mag / 10 : mag / 5;
@@ -583,10 +595,16 @@
     }
   };
 
+  // Whoever takes a player over gets its gold; a bot pays a bounty on top.
+  Game.prototype.loot = function (a, t) {
+    const gold = Math.floor(t.gold) + (t.type === PT.BOT ? 50000 : 0);
+    t.gold = 0; a.gold += gold; a.conquests++;
+    this.emit({ k: 'loot', by: a.id, gold: gold, x: (t.x0 + t.x1) / 2, y: (t.y0 + t.y1) / 2 });
+    return gold;
+  };
   // A player reduced to a sliver of land is absorbed whole, gold included.
   Game.prototype.finishOff = function (a, t) {
-    const gold = t.gold;
-    t.gold = 0; a.gold += gold; a.conquests++;
+    const gold = this.loot(a, t);
     if (a === this.human) this.say(t.name + ' erobert, ' + fmt(gold) + ' Gold erbeutet', 'good');
     this.forTiles(t, (x) => this.conquer(a, x));
   };
@@ -700,8 +718,7 @@
       if (y < H - 1 && own[t + W] === id && st[t + W] !== sid) { st[t + W] = sid; q[qt++] = t + W; }
     }
     if (qt === p.tiles) {
-      const gold = p.gold;
-      p.gold = 0; taker.gold += gold; taker.conquests++;
+      const gold = this.loot(taker, p);
       if (taker === this.human) this.say(p.name + ' eingekreist und übernommen, ' + fmt(gold) + ' Gold erbeutet', 'good');
     }
     const list = q.slice(0, qt);
@@ -739,7 +756,19 @@
   Game.prototype.tick = function () {
     const T = ++this.ticks, ps = this.players, n = ps.length;
     if (this.phase === 'spawn') {
-      if (T >= this.spawnEnd && (!this.human || this.human.spawned)) {
+      // With people in the game it starts as soon as everyone has picked a start point.
+      const hs = this.humans;
+      let all = true;
+      for (let i = 0; i < hs.length; i++) if (!hs[i].spawned) all = false;
+      const late = T >= this.spawnEnd;
+      if (hs.length ? (all || (late && this.opts.autoSpawn)) : late) {
+        for (let i = 0; i < hs.length; i++) {
+          if (hs[i].spawned) continue;
+          for (let k = 0; k < 400 && !hs[i].spawned; k++) {
+            const c = this.rng.int(0, this.N);
+            if (this.canSpawnAt(c) && !this.map.shore[c]) this.spawn(hs[i], c);
+          }
+        }
         this.phase = 'play'; this.playStart = T; this.immuneUntil = T + 50;
         this.emit({ k: 'start' });
       }
@@ -752,7 +781,7 @@
       if (p.troops < 0) p.troops = 0;
       p.gold += this.goldRate(p);
     }
-    if (this.human && this.opts.infiniteGold && this.human.alive) this.human.gold = 1e9;
+    if (this.opts.infiniteGold) for (let i = 0; i < this.humans.length; i++) if (this.humans[i].alive) this.humans[i].gold = 1e9;
 
     const at = this.attacks;
     for (let i = 0; i < at.length; i++) if (at[i].active) this.tickAttack(at[i]);
@@ -831,6 +860,66 @@
     if (a.canAttack) return this.attack(p, a.tid, p.troops * ratio, -1) ? '' : 'Zu wenig Truppen';
     if (a.boat) return this.sendBoat(p, a.boat, p.troops * ratio) ? '' : 'Boot kann nicht auslaufen';
     return a.why;
+  };
+
+  // ---------- orders ----------
+  // Everything a person does goes through here, so the same order gives the same result on every device.
+  // Returns '' when it worked, otherwise the reason.
+  Game.prototype.exec = function (id, c) {
+    const p = this.players[id], ps = this.players;
+    if (!p || p.type !== PT.HUMAN || !c) return 'Nicht möglich';
+    if (c.k === 'spawn') {
+      if (this.phase !== 'spawn' || !(c.t >= 0 && c.t < this.N)) return 'Nicht möglich';
+      if (!this.canSpawnAt(c.t) && this.owner[c.t] !== p.id) return this.map.land[c.t] ? 'Hier ist schon jemand' : 'Wähle Land, kein Wasser';
+      return this.spawn(p, c.t) ? '' : 'Hier nicht möglich';
+    }
+    if (!p.alive || this.phase !== 'play') return 'Nicht möglich';
+    const q = c.p > 0 && c.p < ps.length && c.p !== id ? ps[c.p] : null;
+    const tileOk = c.t >= 0 && c.t < this.N, r = within(+c.r || 0, 0.01, 1);
+    switch (c.k) {
+      case 'strike': {
+        if (!tileOk) return 'Nicht möglich';
+        const a = this.actionsAt(p, c.t);
+        if (a.canAttack && !c.sea) return this.attack(p, a.tid, p.troops * r, -1) ? '' : 'Zu wenig Truppen';
+        if (a.boat) return this.sendBoat(p, a.boat, p.troops * r) ? '' : 'Boot kann nicht auslaufen';
+        return a.why || 'Hier nicht möglich';
+      }
+      case 'ship': return tileOk && this.moveWarship(p, c.t) ? '' : 'Kein Schiff kann dorthin';
+      case 'build': {
+        if (!tileOk || !(c.u >= 0 && c.u <= UT.MIRV) || c.u === UT.TRANSPORT || c.u === UT.TRADE || (c.u > UT.WARSHIP && c.u < UT.ATOM)) return 'Nicht möglich';
+        const chk = this.buildCheck(p, c.u, c.t);
+        if (!chk.ok) return chk.why || 'Nicht möglich';
+        return this.build(p, c.u, c.t) ? '' : 'Nicht möglich';
+      }
+      case 'up': {
+        const u = tileOk ? this.structNear(c.t, 4) : null;
+        return u && this.upgrade(p, u) ? '' : 'Ausbau nicht möglich';
+      }
+      case 'ret': { for (const a of p.out) if (a.id === c.a) { this.retreat(a); return ''; } return 'Nicht möglich'; }
+      case 'bret': { for (const u of p.units) if (u.id === c.u && u.type === UT.TRANSPORT) { u.retreat = true; return ''; } return 'Nicht möglich'; }
+      case 'ally': return q && this.requestAlliance(p, q) ? '' : 'Gerade nicht möglich';
+      case 'ans': {
+        for (const rq of this.requests) if (rq.id === c.id && rq.to === p) { this.answerRequest(rq.id, !!c.y); return ''; }
+        return 'Nicht möglich';
+      }
+      case 'renew': return q && this.renewAlliance(p, q) ? '' : 'Nicht möglich';
+      case 'break': return q && this.breakAlliance(p, q) ? '' : 'Nicht möglich';
+      case 'don': return q && this.donate(p, q, c.g === 'gold' ? 'gold' : 'troops', c.g === 'gold' ? Math.floor(Math.min(p.gold, 1e9) * 0.1) : p.troops * r) ? '' : 'Nicht möglich';
+      case 'emb': if (!q) return 'Nicht möglich'; if (c.on) p.embargo.add(q.id); else p.embargo.delete(q.id); return '';
+    }
+    return 'Nicht möglich';
+  };
+
+  // A short fingerprint of the game, to notice when two devices have drifted apart.
+  Game.prototype.checksum = function () {
+    let h = this.ticks | 0;
+    for (let i = 1; i < this.players.length; i++) {
+      const p = this.players[i];
+      h = (Math.imul(h, 31) + p.tiles) | 0;
+      h = (Math.imul(h, 31) + Math.floor(p.troops)) | 0;
+      h = (Math.imul(h, 31) + Math.floor(p.gold / 16)) | 0;
+    }
+    return h;
   };
 
   G.Game = Game;
