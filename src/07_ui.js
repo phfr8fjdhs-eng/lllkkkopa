@@ -51,6 +51,7 @@
   const cfg = { name: 'Spieler', color: 0, map: 'welt', diff: 1, bots: -1, nations: true, instant: false, gold: false, troops: false, tap: false, music: true, sfx: true, mode: 'klassisch' };
   const MODES = [['klassisch', 'Klassisch', 'Das Spiel wie gewohnt.'], ['arsenal', 'Arsenal', 'Zusätzliche Waffe: der Satellitenstrahl. Er kommt aus dem All, braucht kein Silo und lässt sich nicht abfangen. Auch die Nationen setzen ihn ein.']];
   let hoverX = -1, hoverY = -1;
+  let ghost = null, ghostKey = '', shiftHeld = false;   // the thing a build key is about to place
   const special = function (id) { return G.SPECIAL_MAPS.find(function (m) { return m.id === id; }); };
 
   function loadCfg() {
@@ -101,7 +102,7 @@
       img.src = 'data:image/png;base64,' + def.png;
     });
   }
-  function defaultBots(map) { return Math.min(400, Math.round(map.landTiles / 1500 / 10) * 10); }
+  function defaultBots(map) { return Math.min(400, Math.round(map.landTiles / 700 / 10) * 10); }
   function previewMap(id) {
     loadMap(id).then(function (map) {
       if (game || cfg.map !== id) return;
@@ -373,7 +374,7 @@
       '<li><b>Allianzen:</b> Verbündete greifen sich zehn Minuten lang nicht an. Wer eine Allianz bricht, ist 30 Sekunden lang leichter zu erobern.</li>' +
       '<li><b>Einkreisen:</b> Wer ganz von einem Gegner umschlossen ist, wird sofort übernommen.</li>' +
       '<li><b>Sieg:</b> Wer 80 % des Landes hält, gewinnt.</li>' +
-      '<li><b>Bots:</b> Kleine Reiche mit langen Namen. Sie greifen niemanden an, bauen nichts, breiten sich nur langsam ein Stück aus und wehren sich kaum. Wer eines erobert, bekommt sein Gold und 75K Prämie.</li>' +
+      '<li><b>Bots:</b> Kleine Reiche mit langen Namen. Sie greifen niemanden an, bauen nichts, nehmen sich ein Stück freies Land und wehren sich kaum. Wer eines erobert, bekommt sein Gold und 75K Prämie.</li>' +
       '<li><b>Ausbauen:</b> Tippe auf ein eigenes Gebäude und dann auf <b>Ausbau</b>. Jede Stufe macht es stärker, bis Stufe 5.</li>' +
       '<li><b>Bomben:</b> Wähle im Baumenü eine Bombe. Die Karte zeigt dann die Flugbahn, den Einschlag, den Radius und die Reichweite jeder Flugabwehr. Erst <b>Abfeuern</b> startet sie.</li>' +
       '<li><b>Marschflugkörper:</b> Günstig, schnell und genau. Er zerstört Gebäude in einem kleinen Umkreis, hinterlässt kein verstrahltes Land und wird nur selten abgefangen. Gut, um zuerst die Flugabwehr auszuschalten.</li>' +
@@ -390,8 +391,8 @@
       '<span><kbd>K</kbd>Allianz anfragen</span><span><kbd>L</kbd>Allianz brechen</span><span><kbd>I</kbd>Spieler-Info</span>' +
       '<span><kbd>Q</kbd><kbd>E</kbd>Zoom −/+</span><span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>Karte schieben</span><span><kbd>C</kbd>Zum eigenen Gebiet</span>' +
       '<span><kbd>P</kbd>Pause</span><span><kbd>,</kbd><kbd>.</kbd>Tempo −/+</span><span><kbd>Strg</kbd>+ Klick: Baumenü</span><span>Rechtsklick: Kreismenü</span><span><kbd>Shift</kbd>+ Mausrad: Truppenanteil</span>' +
-      '<span><kbd>Esc</kbd>Schliessen</span></div><p>Zusätzlich, weil es das in OpenFront nicht gibt: <kbd>U</kbd> baut das Gebäude unter dem Mauszeiger aus, <kbd>Shift</kbd> + <kbd>1</kbd>–<kbd>6</kbd> das nächste Gebäude dieser Art, <kbd>Enter</kbd> feuert die Bombe ab, <kbd>M</kbd> schaltet den Ton, die Leertaste pausiert ebenfalls.</p><p>' +
-      'Bauen und Befehle gelten für die Stelle unter dem Mauszeiger.</p>';
+      '<span><kbd>Esc</kbd>Schliessen</span></div><p>Eine Bau-Taste zeigt das Gebäude oder die Bombe zuerst am Mauszeiger: in deiner Farbe, wenn es dort geht, rot mit dem Grund, wenn nicht (zum Beispiel zu wenig Gold). Ein Klick setzt es, mit gedrückter <kbd>Shift</kbd>-Taste mehrere hintereinander; dieselbe Taste, <kbd>Esc</kbd> oder ein Rechtsklick legt es wieder weg.</p><p>Zusätzlich, weil es das in OpenFront nicht gibt: <kbd>U</kbd> baut das Gebäude unter dem Mauszeiger aus, <kbd>Shift</kbd> + <kbd>1</kbd>–<kbd>6</kbd> das nächste Gebäude dieser Art, <kbd>Enter</kbd> feuert im Zielmodus des Baumenüs die Bombe ab, <kbd>M</kbd> schaltet den Ton, die Leertaste pausiert ebenfalls.</p><p>' +
+      'Befehle gelten für die Stelle unter dem Mauszeiger.</p>';
   }
   function showHelp(fromStart) {
     openModal(helpHtml() + '<button class="btn" data-act="' + (fromStart ? 'start' : 'resume') + '" type="button">' + (fromStart ? 'Zurück' : 'Weiterspielen') + '</button>', fromStart ? 'starthelp' : 'help');
@@ -936,11 +937,39 @@
   // ---------- taps on the map ----------
   // A tap on free land or on a bot attacks at once. Against nations and other players the menu
   // opens and the attack has to be chosen there. A long press opens the menu everywhere.
+  // A build key shows what it would place under the mouse pointer; the next click places it.
+  function setGhost(t) {
+    ghost = t === null ? null : { t: t };
+    ghostKey = '';
+    if (view) view.ghost = null;
+    document.body.classList.toggle('placing', !!ghost);
+  }
+  function refreshGhost() {
+    if (!ghost) return;
+    if (!game || game.phase !== 'play' || !game.human.alive || aim || !$('modal').hidden) { setGhost(null); return; }
+    const tile = hoverX >= 0 ? view.tileAt(hoverX, hoverY) : -1;
+    const key = tile + ':' + ((game.ticks / 3) | 0);
+    if (key === ghostKey) return;
+    ghostKey = key;
+    if (tile < 0) { view.ghost = null; return; }
+    const h = game.human, c = game.buildCheck(h, ghost.t, tile);
+    view.ghost = { type: ghost.t, icon: BUILD.find(function (b) { return b.t === ghost.t; }).icon, tile: tile, ok: c.ok,
+      text: c.ok ? plain(ghost.t) + ' · ' + G.fmt(game.cost(h, ghost.t)) : c.why || 'Hier nicht möglich' };
+  }
+  function placeGhost(tile) {
+    const h = game.human, t = ghost.t, c = game.buildCheck(h, t, tile);
+    if (!c.ok) { toast(plain(t) + ': ' + (c.why || 'Hier nicht möglich')); snd('deny'); return; }
+    if (t >= UT.ATOM) act({ k: 'build', u: t, t: tile, say: plain(t) + ' gestartet' });
+    else doBuild(t, tile);
+    if (!shiftHeld) setGhost(null);   // hold Shift to place several in a row
+  }
+
   function tap(sx, sy, menu) {
     if (!game) return;
     const tile = view.tileAt(sx, sy);
     if (tile < 0) return;
     const h = game.human;
+    if (ghost && game.phase === 'play' && h.alive) { placeGhost(tile); return; }
     if (game.phase === 'spawn') {
       if (!game.canSpawnAt(tile) && game.owner[tile] !== h.id) { toast(game.map.land[tile] ? 'Hier ist schon jemand' : 'Wähle Land, kein Wasser'); return; }
       act({ k: 'spawn', t: tile });
@@ -1004,6 +1033,7 @@
       ptr.delete(e.pointerId);
       if (ptr.size === 0 && !moved && e.type === 'pointerup' && performance.now() - downAt < 1500) {
         const r = cv.getBoundingClientRect();
+        shiftHeld = e.shiftKey;
         if ((e.ctrlKey || e.metaKey) && game && game.phase === 'play' && game.human.alive && !aim) {
           const t = view.tileAt(e.clientX - r.left, e.clientY - r.top);
           if (t >= 0) { closeRadial(); openBuild(t); }
@@ -1016,6 +1046,7 @@
     cv.addEventListener('pointercancel', up);
     cv.addEventListener('contextmenu', function (e) {
       e.preventDefault();
+      if (ghost) { setGhost(null); return; }
       if (!game || game.phase !== 'play' || aim) return;
       const r = cv.getBoundingClientRect(), tile = view.tileAt(e.clientX - r.left, e.clientY - r.top);
       if (tile >= 0) openRadial(tile, e.clientX - r.left, e.clientY - r.top);
@@ -1038,7 +1069,8 @@
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       const k = e.key.toLowerCase();
       if (k === 'escape') {
-        if (aim) stopAim();
+        if (ghost) setGhost(null);
+        else if (aim) stopAim();
         else if (!$('radial').hidden) closeRadial();
         else if (!$('sheet').hidden) closeBuild();
         else if (!$('modal').hidden && modalKind !== 'start' && modalKind !== 'starthelp' && modalKind !== 'lobby') closeModal();
@@ -1070,10 +1102,17 @@
       const digit = /^Digit[0-9]$/.test(e.code || '') ? e.code.slice(5) : k;
       const item = BUILD.find(function (b) { return b.key === digit; });
       if (!item && 'bgkliu'.indexOf(k) < 0) return;
-      if (tile < 0) { toast('Zeige mit der Maus auf die Karte'); return; }
+      if (tile < 0 && !item) { toast('Zeige mit der Maus auf die Karte'); return; }
       const h = game.human;
       closeRadial();
-      if (item) { if (open) closeBuild(); doBuild(item.t, tile); return; }
+      if (item) {
+        // the key only shows the building or bomb at the pointer; the click places it (same key again: put it away)
+        if (open) closeBuild();
+        if (item.t === UT.LASER && !game.opts.arsenal) { toast('Den Satellitenstrahl gibt es nur im Arsenal-Modus'); snd('deny'); return; }
+        setGhost(ghost && ghost.t === item.t ? null : item.t);
+        snd('ui');
+        return;
+      }
       if (k === 'u') { if (open) closeBuild(); doUpgrade(tile); return; }
       if (open) return;
       const q = game.owner[tile] && game.owner[tile] !== h.id ? game.players[game.owner[tile]] : null;
@@ -1167,6 +1206,7 @@
       if (n) { view.flush(); view.placeNames(); pump(); if (game) hudTick(); }
       alpha = Math.min(1, acc / 100);
     }
+    refreshGhost();
     const held = G.heldKeys;
     if (held && held.size && game && $('modal').hidden) {
       const d = dt * 0.75;

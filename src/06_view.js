@@ -272,6 +272,44 @@
     this.drawNames(ctx, g, z, ox, oy);
     this.drawMarks(ctx, g, z, ox, oy, now);
     if (this.aim) this.drawAim(ctx, g, z, ox, oy, now);
+    if (this.ghost) this.drawGhost(ctx, g, z, ox, oy);
+  };
+
+  // What a build key is about to place, shown under the mouse pointer: in the player's colour when it
+  // can be built there, red when it cannot (too little gold, wrong spot ...). Bombs show their blast.
+  View.prototype.drawGhost = function (ctx, g, z, ox, oy) {
+    const gh = this.ghost, W = g.W, R = g.R, h = g.human;
+    if (gh.tile < 0 || !h) return;
+    const x = (gh.tile % W + 0.5) * z + ox, y = (((gh.tile / W) | 0) + 0.5) * z + oy;
+    const s = within(5 + z * 3, 9, 22) * 1.5, t = gh.type, bad = !gh.ok;
+    const rout = t === UT.HYDRO ? R.hydroOut : t === UT.ATOM ? R.atomOut : t === UT.CRUISE ? R.cruiseOut : t === UT.LASER ? R.laserOut : 0;
+    const rin = t === UT.HYDRO ? R.hydroIn : t === UT.ATOM ? R.atomIn : t === UT.CRUISE ? R.cruiseIn : t === UT.LASER ? R.laserIn : 0;
+    if (rout) {
+      ctx.beginPath(); ctx.arc(x, y, rout * z, 0, 6.2832);
+      ctx.fillStyle = bad ? 'rgba(216,54,47,.14)' : 'rgba(255,176,72,.16)'; ctx.fill();
+      ctx.setLineDash([5, 5]); ctx.lineWidth = 1.5; ctx.strokeStyle = bad ? 'rgba(255,120,110,.9)' : 'rgba(255,220,160,.9)'; ctx.stroke(); ctx.setLineDash([]);
+      ctx.beginPath(); ctx.arc(x, y, rin * z, 0, 6.2832);
+      ctx.fillStyle = bad ? 'rgba(216,54,47,.2)' : 'rgba(255,120,40,.24)'; ctx.fill();
+    } else if (t <= UT.FACTORY) {
+      // the room this building keeps free around itself
+      ctx.beginPath(); ctx.arc(x, y, R.structDist * z, 0, 6.2832);
+      ctx.setLineDash([4, 5]); ctx.lineWidth = 1.2; ctx.strokeStyle = bad ? 'rgba(255,120,110,.7)' : 'rgba(255,255,255,.55)'; ctx.stroke(); ctx.setLineDash([]);
+    }
+    // a dark rim first, so the marker stands out on any colour of land
+    ctx.beginPath(); ctx.arc(x, y, s / 2 + 3, 0, 6.2832);
+    ctx.fillStyle = 'rgba(13,20,27,.85)'; ctx.fill();
+    ctx.beginPath(); ctx.arc(x, y, s / 2, 0, 6.2832);
+    ctx.fillStyle = bad ? '#e02a20' : h.cssB; ctx.fill();
+    ctx.lineWidth = 2; ctx.strokeStyle = bad ? '#ffd0cb' : '#fff'; ctx.stroke();
+    ctx.fillStyle = '#fff';
+    glyph(ctx, gh.icon, x, y, s * 0.62);
+    // the label on a pill: name and price, or the reason it cannot be built
+    ctx.font = '700 13px ' + FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const tw = ctx.measureText(gh.text).width + 16, ty = y + s / 2 + 18;
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(x - tw / 2, ty - 11, tw, 22, 11); else ctx.rect(x - tw / 2, ty - 11, tw, 22);
+    ctx.fillStyle = bad ? 'rgba(150,24,18,.95)' : 'rgba(13,20,27,.9)'; ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.fillText(gh.text, x, ty + 0.5);
   };
 
   // Railways: a gravel bed, sleepers and two rails once you are close enough; a plain line from far away.

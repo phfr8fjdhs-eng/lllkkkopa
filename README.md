@@ -24,3 +24,7 @@ Spielmodus «Arsenal» (`opts.arsenal`): zusätzlich der Satellitenstrahl (`UT.L
 ## Abgleich mit OpenFront
 Die Zahlen stammen aus dem OpenFront-Quellcode (`packages/engine-lib/src/configuration/Config.ts`, `packages/engine/src/configuration/EngineConfig.ts`, Stand 11.11.2026): Baukosten (Hafen und Fabrik teilen sich eine Preisleiter, MIRV +15M je bereits gestartetem MIRV), Bauzeiten, Truppen-Limit und -Zuwachs, Stärke der Nationen je Schwierigkeit, Allianzdauer 5 Minuten, Nachladezeit von Silo und Flugabwehr 9 s, Reichweite der Flugabwehr je Stufe, Verteidigungsposten (Verluste x5, Tempo x3), Zug-Gold, Handelsschiff-Gold, Bombenradien. Bewusst anders: Bots (schwächer, greifen nicht an, 75K Prämie), Kriegsschiffe nehmen ein statt zu versenken, Städte höchstens Stufe 100, Marschflugkörper und Satellitenstrahl gibt es nur hier.
 
+## Bau-Vorschau, Bots und Nationen
+Eine Bau-Taste zeigt das Gebäude oder die Bombe zuerst am Mauszeiger (`view.ghost`): in der Spielerfarbe, wenn es dort geht, rot mit Grund, wenn nicht. Ein Klick setzt es (Shift: mehrere), dieselbe Taste, Esc oder Rechtsklick legt es weg.
+Bots sind so bunt wie alle anderen, nehmen freies Land zügig bis zu ihrer kleinen Zielgrösse und es gibt mehr davon (Vorgabe: Landfläche / 700). Von den Nationen einer Karte tritt nur die Hälfte an (`opts.nationShare`, Vorgabe 0.5).
+

@@ -138,19 +138,38 @@ const out = (n) => path.join(__dirname, '..', 'build', n);
   const pt = await page.evaluate(() => { const g = G.debug.game, v = G.debug.view, h = g.human; v.fly = null; v.cam.x = h.nameX; v.cam.y = h.nameY; v.cam.z = 4; return v.screenOf(Math.round(h.nameY) * g.W + Math.round(h.nameX)); });
   await page.mouse.move(pt.x, pt.y);
   const c0 = await page.evaluate(() => Array.from(G.debug.game.human.cnt));
+  // key 4 only shows the defence post at the pointer; with no gold it is red, a click then places nothing
+  const ghostState = async () => page.evaluate(() => { const v = G.debug.view; return v.ghost ? { ok: v.ghost.ok, text: v.ghost.text } : null; });
+  await page.evaluate(() => { const g = G.debug.game; g.opts.infiniteGold = false; g.human.gold = 0; });
   await page.keyboard.press('4');
+  await page.mouse.move(pt.x + 2, pt.y + 2);
+  await page.waitForTimeout(500);
+  const poor = await ghostState();
+  await page.screenshot({ path: out('feat_d_4ghostRed.png') });
+  await page.mouse.click(pt.x, pt.y);
+  await page.waitForTimeout(300);
+  const stillNone = await page.evaluate(() => G.debug.game.human.cnt[1]);
+  await page.evaluate(() => { const g = G.debug.game; g.opts.infiniteGold = true; g.human.gold = 5e7; });
+  await page.waitForTimeout(600);
+  const rich = await ghostState();
+  await page.screenshot({ path: out('feat_d_4ghostOk.png') });
+  await page.mouse.click(pt.x, pt.y);
+  await page.waitForTimeout(300);
+  console.log('ghost', JSON.stringify({ poor, builtWhilePoor: stillNone, rich, after: await ghostState() }));
   await page.keyboard.press('y');   // attack share +10 %
   await page.keyboard.down('Control'); await page.mouse.click(pt.x, pt.y); await page.keyboard.up('Control');   // Ctrl+click: build menu
   await page.waitForTimeout(400);
   await page.screenshot({ path: out('feat_d_5build.png') });
   await page.keyboard.press('Escape');
-  // hydrogen bomb on a neighbour: key 9 aims (as in OpenFront), Enter fires
+  // hydrogen bomb on a neighbour: key 9 shows it with its blast (as in OpenFront), a click fires
   const tgt = await page.evaluate(() => { const g = G.debug.game, v = G.debug.view, h = g.human; const foe = g.players.filter((p) => p && p.alive && p !== h).sort((a, b) => b.tiles - a.tiles)[0]; v.cam.x = foe.nameX; v.cam.y = foe.nameY; v.cam.z = 2.5; return v.screenOf(Math.round(foe.nameY) * g.W + Math.round(foe.nameX)); });
   await page.mouse.move(tgt.x, tgt.y);
   await page.keyboard.press('9');
   await page.waitForTimeout(300);
+  await page.mouse.move(tgt.x + 1, tgt.y + 1);
+  await page.waitForTimeout(400);
   await page.screenshot({ path: out('feat_d_5aim.png') });
-  await page.keyboard.press('Enter');
+  await page.mouse.click(tgt.x, tgt.y);
   await page.waitForFunction(() => G.debug.game.falloutCount > 500, null, { timeout: 60000 }).catch(() => {});
   await page.waitForTimeout(350);
   await page.screenshot({ path: out('feat_d_6hydro.png') });
@@ -193,8 +212,10 @@ const out = (n) => path.join(__dirname, '..', 'build', n);
   await page.mouse.move(las.pt.x, las.pt.y);
   await page.keyboard.press('z');
   await page.waitForTimeout(400);
+  await page.mouse.move(las.pt.x + 1, las.pt.y + 1);
+  await page.waitForTimeout(400);
   await page.screenshot({ path: out('feat_a_2aim.png') });
-  await page.keyboard.press('Enter');
+  await page.mouse.click(las.pt.x, las.pt.y);
   await page.waitForTimeout(1500);
   await page.screenshot({ path: out('feat_a_3charge.png') });
   await page.waitForFunction((t) => G.debug.game.owner[t] === 0, las.t, { timeout: 15000 });

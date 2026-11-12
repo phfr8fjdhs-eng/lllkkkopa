@@ -28,17 +28,17 @@
   };
 
   // Bots are easy prey: they never attack anyone and build nothing. They only take free land,
-  // slowly and a little at a time, and stop once they have a small realm of their own.
+  // at a steady pace, and stop once they have a small realm of their own.
   AI.prototype.bot = function () {
     const g = this.g, p = this.p;
     if (!this.cap) {
       const share = g.map.landTiles / Math.max(50, g.players.length - 1);
-      this.cap = G.within(share * 0.3, 120, 2000) * (0.6 + this.expand * 4);
+      this.cap = G.within(share * 0.5, 150, 2500) * (0.6 + this.expand * 4);
     }
     if (p.tiles >= this.cap) return;
     if (!g.neighbors(p).tn) return;
     // a small party each time, and never more than the land still missing needs (a free tile costs about ten troops)
-    const troops = Math.min((p.troops - g.maxTroops(p) * this.reserve) * 0.3, (this.cap - p.tiles) * 10, 500);
+    const troops = Math.min((p.troops - g.maxTroops(p) * this.reserve) * 0.3, (this.cap - p.tiles) * 10, 2500);
     if (troops >= 1) g.attack(p, 0, troops, -1);
   };
 

@@ -100,7 +100,7 @@
     if (!c) {
       c = info.type === PT.NATION
         ? G.hsl((id * 137.508 + 40) % 360, 0.55 + (id % 3) * 0.07, 0.5 + (id % 4) * 0.035)
-        : G.hsl((id * 137.508) % 360, 0.34 + (id % 3) * 0.05, 0.58 + (id % 4) * 0.03);
+        : G.hsl((id * 137.508) % 360, 0.5 + (id % 3) * 0.06, 0.55 + (id % 4) * 0.03);   // bots are as colourful as everyone else
     }
     p.r = c[0]; p.g = c[1]; p.b = c[2];
     if (info.type === PT.BOT) p.troops = 10000;
@@ -168,6 +168,13 @@
           list.push([names.splice(rng.int(0, names.length), 1)[0], t % W, (t / W) | 0, 1 + (i % 3 === 0 ? 1 : 0), '']);
         }
         spots.length = 0;
+      }
+      // only part of the nations take the field (half of them unless told otherwise), the rest of the world belongs to bots
+      const share = o.nationShare === undefined ? 0.5 : o.nationShare;
+      if (share < 1 && list.length > 4) {
+        list = list.slice();
+        const keep = Math.max(4, Math.round(list.length * share));
+        while (list.length > keep) list.splice(rng.int(0, list.length), 1);
       }
       for (const n of list) {
         const t = this.freeLandNear(n[1], n[2], 10);
@@ -552,7 +559,7 @@
     if (at.troops < 1) { this.endAttack(at, false); return; }
     const own = this.owner, map = this.map, mg = map.mag, W = this.W, H = this.H, aid = a.id;
     const n = at.front.size + this.rng.int(0, 5);
-    let budget = t ? within((5 * at.troops / Math.max(1, t.troops)) * 2, 0.01, 0.5) * n * 3 : n * (a.type === PT.BOT ? 0.3 : 2);
+    let budget = t ? within((5 * at.troops / Math.max(1, t.troops)) * 2, 0.01, 0.5) * n * 3 : n * (a.type === PT.BOT ? 0.8 : 2);
     const landTiles = map.landTiles;
     const lossMod = a.tiles > landTiles * 0.17 ? Math.sqrt(landTiles * 0.17 / a.tiles) : 1;
     const speedMod = a.tiles > landTiles * 0.13 ? Math.pow(landTiles * 0.13 / a.tiles, 0.6) : 1;
