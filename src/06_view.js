@@ -290,7 +290,23 @@
       ctx.setLineDash([5, 5]); ctx.lineWidth = 1.5; ctx.strokeStyle = bad ? 'rgba(255,120,110,.9)' : 'rgba(255,220,160,.9)'; ctx.stroke(); ctx.setLineDash([]);
       ctx.beginPath(); ctx.arc(x, y, rin * z, 0, 6.2832);
       ctx.fillStyle = bad ? 'rgba(216,54,47,.2)' : 'rgba(255,120,40,.24)'; ctx.fill();
+      // hostile air defence in reach of the target: these can shoot the bomb down (not the satellite beam, not a MIRV)
+      if (t !== UT.LASER) for (const u of g.structAt.values()) {
+        if (u.type !== UT.SAM || !u.built || u.owner === h || h.allies.has(u.owner.id)) continue;
+        const sr = g.samRange(u), ux = (u.x + 0.5) * z + ox, uy = (u.y + 0.5) * z + oy;
+        if (ux < -sr * z || uy < -sr * z || ux > this.cw + sr * z || uy > this.ch + sr * z) continue;
+        ctx.beginPath(); ctx.arc(ux, uy, sr * z, 0, 6.2832);
+        ctx.fillStyle = 'rgba(197,139,255,.08)'; ctx.fill();
+        ctx.setLineDash([6, 5]); ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(197,139,255,.9)'; ctx.stroke(); ctx.setLineDash([]);
+      }
     } else if (t <= UT.FACTORY) {
+      // what the building would cover: a defence post its stretch of border, an air defence its sky
+      const reach = t === UT.DEFENSE ? R.defense : t === UT.SAM ? g.samRange({ level: 1 }) : 0;
+      if (reach && !bad) {
+        ctx.beginPath(); ctx.arc(x, y, reach * z, 0, 6.2832);
+        ctx.fillStyle = 'rgba(255,255,255,.07)'; ctx.fill();
+        ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(255,255,255,.6)'; ctx.stroke();
+      }
       // the room this building keeps free around itself
       ctx.beginPath(); ctx.arc(x, y, R.structDist * z, 0, 6.2832);
       ctx.setLineDash([4, 5]); ctx.lineWidth = 1.2; ctx.strokeStyle = bad ? 'rgba(255,120,110,.7)' : 'rgba(255,255,255,.55)'; ctx.stroke(); ctx.setLineDash([]);

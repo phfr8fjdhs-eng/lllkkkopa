@@ -391,7 +391,7 @@
       '<span><kbd>K</kbd>Allianz anfragen</span><span><kbd>L</kbd>Allianz brechen</span><span><kbd>I</kbd>Spieler-Info</span>' +
       '<span><kbd>Q</kbd><kbd>E</kbd>Zoom −/+</span><span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>Karte schieben</span><span><kbd>C</kbd>Zum eigenen Gebiet</span>' +
       '<span><kbd>P</kbd>Pause</span><span><kbd>,</kbd><kbd>.</kbd>Tempo −/+</span><span><kbd>Strg</kbd>+ Klick: Baumenü</span><span>Rechtsklick: Kreismenü</span><span><kbd>Shift</kbd>+ Mausrad: Truppenanteil</span>' +
-      '<span><kbd>Esc</kbd>Schliessen</span></div><p>Eine Bau-Taste zeigt das Gebäude oder die Bombe zuerst am Mauszeiger: in deiner Farbe, wenn es dort geht, rot mit dem Grund, wenn nicht (zum Beispiel zu wenig Gold). Ein Klick setzt es, mit gedrückter <kbd>Shift</kbd>-Taste mehrere hintereinander. Klickst du damit auf ein eigenes Gebäude derselben Art, wird es um eine Stufe ausgebaut; dieselbe Taste, <kbd>Esc</kbd> oder ein Rechtsklick legt es wieder weg.</p><p>Zusätzlich, weil es das in OpenFront nicht gibt: <kbd>U</kbd> baut das Gebäude unter dem Mauszeiger aus, <kbd>Shift</kbd> + <kbd>1</kbd>–<kbd>6</kbd> das nächste Gebäude dieser Art, <kbd>Enter</kbd> feuert im Zielmodus des Baumenüs die Bombe ab, <kbd>M</kbd> schaltet den Ton, die Leertaste pausiert ebenfalls.</p><p>' +
+      '<span><kbd>Esc</kbd>Schliessen</span></div><p>Eine Bau-Taste zeigt das Gebäude oder die Bombe zuerst am Mauszeiger: in deiner Farbe, wenn es dort geht, rot, wenn nicht. Fehlt nur das Gold, bleibt der Preis stehen und wird rot; sonst steht der Grund dabei. Ein Klick setzt es, mit gedrückter <kbd>Shift</kbd>-Taste mehrere hintereinander. Klickst du damit auf ein eigenes Gebäude derselben Art, wird es um eine Stufe ausgebaut; dieselbe Taste, <kbd>Esc</kbd> oder ein Rechtsklick legt es wieder weg.</p><p>Zusätzlich, weil es das in OpenFront nicht gibt: <kbd>U</kbd> baut das Gebäude unter dem Mauszeiger aus, <kbd>Shift</kbd> + <kbd>1</kbd>–<kbd>6</kbd> das nächste Gebäude dieser Art, <kbd>Enter</kbd> feuert im Zielmodus des Baumenüs die Bombe ab, <kbd>M</kbd> schaltet den Ton, die Leertaste pausiert ebenfalls.</p><p>' +
       'Befehle gelten für die Stelle unter dem Mauszeiger.</p>';
   }
   function showHelp(fromStart) {
@@ -580,6 +580,28 @@
     $('lbCount').textContent = ps.length + ' im Spiel';
   }
 
+  // The build bar at the bottom of a desktop screen, as in OpenFront: every building and weapon with
+  // its key, how many you own and its price (red while you cannot pay). A click picks it up.
+  let hotSig = '';
+  function renderHotbar() {
+    const el = $('hotbar'), h = game.human;
+    if (!h.alive || game.phase !== 'play') { el.hidden = true; return; }
+    el.hidden = false;
+    const rich = game.opts.infiniteGold;
+    const cells = BUILD.filter(function (b) { return b.t !== UT.LASER || game.opts.arsenal; }).map(function (b) {
+      const cost = game.cost(h, b.t), wait = b.t === UT.LASER ? Math.ceil(((h.laserAt || 0) - game.ticks) / 10) : 0;
+      const have = b.t === UT.WARSHIP ? h.units.filter(function (u) { return u.type === UT.WARSHIP; }).length : b.t <= UT.FACTORY ? h.units.filter(function (u) { return u.type === b.t; }).length : 0;
+      return { b: b, cost: wait > 0 ? wait + ' s' : fmt(cost), poor: wait > 0 || (!rich && h.gold < cost), have: have, on: !!ghost && ghost.t === b.t };
+    });
+    const sig = cells.map(function (c) { return c.cost + (c.poor ? '!' : '') + c.have + (c.on ? '*' : ''); }).join('|');
+    if (sig === hotSig) return;
+    hotSig = sig;
+    el.innerHTML = cells.map(function (c) {
+      return '<button type="button" class="hk' + (c.poor ? ' poor' : '') + '" data-t="' + c.b.t + '" aria-pressed="' + c.on + '" title="' + plain(c.b.t) + ': ' + esc(c.b.note) + '">' +
+        '<kbd>' + c.b.key.toUpperCase() + '</kbd>' + (c.have ? '<i class="own">' + c.have + '</i>' : '') + svg(c.b.icon, 22) + '<span>' + c.cost + '</span></button>';
+    }).join('');
+  }
+
   function hudTick() {
     const h = game.human, T = game.ticks;
     if (game.phase === 'spawn') {
@@ -597,6 +619,7 @@
       return;
     }
     $('clock').textContent = clock((T - game.playStart) / 10);
+    renderHotbar();
     if (h.alive) {
       $('sTroops').textContent = fmtT(h.troops);
       $('sTroopsSub').textContent = 'von ' + (game.opts.infiniteTroops ? '∞' : fmtT(game.maxTroops(h))) + ' · +' + fmtT(Math.max(0, game.troopGrowth(h)) * 10) + '/s';
@@ -835,7 +858,7 @@
         ok = c.ok; note = c.ok ? b.note : c.why; cost = c.cost;
       }
       const have = b.t < UT.ATOM ? h.cnt[b.t] : 0;
-      return '<button class="item' + (nuke ? ' nuke' : '') + '" type="button" data-t="' + b.t + '"' + (ok ? '' : ' disabled') + '><kbd>' + b.key.toUpperCase() + '</kbd>' + (have ? '<i class="own">' + have + '</i>' : '') +
+      return '<button class="item' + (nuke ? ' nuke' : '') + (!game.opts.infiniteGold && h.gold < cost ? ' poor' : '') + '" type="button" data-t="' + b.t + '"' + (ok ? '' : ' disabled') + '><kbd>' + b.key.toUpperCase() + '</kbd>' + (have ? '<i class="own">' + have + '</i>' : '') +
         '<span class="ic">' + svg(b.icon, 24) + '</span><b>' + G.UNAME[b.t] + '</b><small>' + esc(note) + '</small>' + coin(cost) + '</button>';
     };
     html += '<h3>Gebäude</h3><div class="grid">' + BUILD.filter(function (b) { return b.t <= UT.FACTORY; }).map(cell).join('') + '</div>';
@@ -943,6 +966,7 @@
     ghostKey = '';
     if (view) view.ghost = null;
     document.body.classList.toggle('placing', !!ghost);
+    if (game && game.phase === 'play') renderHotbar();
   }
   function refreshGhost() {
     if (!ghost) return;
@@ -958,12 +982,12 @@
       // over one of your own buildings of this kind the click upgrades it
       const top = up.level >= G.maxLevel(up.type), cost = game.cost(h, up.type), poor = !game.opts.infiniteGold && h.gold < cost;
       view.ghost = { type: ghost.t, icon: 'up', tile: up.tile, ok: !top && !poor,
-        text: top ? 'Höchste Stufe erreicht' : poor ? 'Zu wenig Gold für Stufe ' + (up.level + 1) : 'Ausbauen auf Stufe ' + (up.level + 1) + ' · ' + G.fmt(cost) };
+        text: top ? 'Höchste Stufe erreicht' : 'Ausbauen auf Stufe ' + (up.level + 1) + ' · ' + G.fmt(cost) };   // too little gold: same text, shown in red
       return;
     }
     const c = game.buildCheck(h, ghost.t, tile);
     view.ghost = { type: ghost.t, icon: icon, tile: tile, ok: c.ok,
-      text: c.ok ? plain(ghost.t) + ' · ' + G.fmt(game.cost(h, ghost.t)) : c.why || 'Hier nicht möglich' };
+      text: c.ok || c.why === 'Zu wenig Gold' ? plain(ghost.t) + ' · ' + G.fmt(game.cost(h, ghost.t)) : c.why || 'Hier nicht möglich' };   // too little gold: the price stays, in red
   }
   // The player's own finished building of the kind being placed, if the pointer is on it.
   function ghostUpgrade(tile) {
@@ -1174,6 +1198,14 @@
       else if (h.spawnTile >= 0) view.flyTo(h.spawnTile % game.W, (h.spawnTile / game.W) | 0, 4);
     });
     $('bMenu').addEventListener('click', showMenu);
+    $('hotbar').addEventListener('click', function (e) {
+      const b = e.target.closest('.hk');
+      if (!b || !game || game.phase !== 'play' || !game.human.alive) return;
+      const t = +b.dataset.t;
+      if (aim) stopAim();
+      closeRadial(); if (!$('sheet').hidden) closeBuild();
+      setGhost(ghost && ghost.t === t ? null : t);
+    });
     $('bSound').addEventListener('click', function () { const v = !(cfg.music || cfg.sfx); setSound('music', v); setSound('sfx', v); });
     $('lbHead').addEventListener('click', function () {
       lbOpen = !lbOpen;

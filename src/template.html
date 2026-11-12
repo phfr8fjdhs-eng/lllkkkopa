@@ -255,6 +255,24 @@ kbd {
 .check.wide { margin-top: 12px; }
 #bSound[aria-pressed=false] { color: var(--muted); }
 body.placing #cv { cursor: crosshair; }
+.item.poor .price { color: #ff8a80; background: rgba(224, 42, 32, 0.16); }
+/* build bar: desktop only, next to the troop panel */
+#hotbar { display: none; }
+@media (min-width: 1160px) and (hover: hover) and (pointer: fine) {
+  #hotbar:not([hidden]) { position: absolute; left: 448px; bottom: 8px; display: flex; gap: 4px; padding: 5px; pointer-events: auto; }
+  #app #toast { bottom: 84px; }
+}
+.hk {
+  position: relative; display: flex; flex-direction: column; align-items: center; gap: 1px; width: 54px; padding: 15px 0 4px;
+  color: var(--ink); background: rgba(255, 255, 255, 0.05); border: 1.5px solid transparent; border-radius: 9px; cursor: pointer;
+}
+.hk:hover { background: rgba(255, 255, 255, 0.11); }
+.hk[aria-pressed=true] { border-color: var(--accent); background: rgba(244, 183, 64, 0.16); }
+.hk kbd { position: absolute; left: 3px; top: 3px; min-width: 16px; padding: 0 3px; font-size: 10.5px; line-height: 13px; border-bottom-width: 1px; }
+.hk .own { position: absolute; right: 4px; top: 3px; font: 700 10.5px var(--display); font-style: normal; color: var(--muted); }
+.hk span { font: 700 11.5px var(--display); color: var(--accent); font-variant-numeric: tabular-nums; }
+.hk.poor span { color: #ff8a80; }
+.hk.poor svg { opacity: 0.5; }
 .check input { width: 18px; height: 18px; margin: 0; flex: none; accent-color: var(--accent); }
 .btn {
   display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; margin-top: 14px; padding: 12px; border: 0; border-radius: 11px;
@@ -329,6 +347,7 @@ body.placing #cv { cursor: crosshair; }
       <span id="spawnHint">Tippe auf freies Land</span>
       <div class="bar" id="spawnBarLine" hidden><i id="spawnFill"></i></div>
     </div>
+    <div id="hotbar" class="panel" hidden></div>
     <div id="bottom">
       <div id="feed"><div id="feedMsgs"></div><div id="feedLive"></div></div>
       <div id="ctrl" class="panel">

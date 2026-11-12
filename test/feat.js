@@ -158,7 +158,7 @@ const out = (n) => path.join(__dirname, '..', 'build', n);
   const c0 = await page.evaluate(() => Array.from(G.debug.game.human.cnt));
   // key 4 only shows the defence post at the pointer; with no gold it is red, a click then places nothing
   const ghostState = async () => page.evaluate(() => { const v = G.debug.view; return v.ghost ? { ok: v.ghost.ok, text: v.ghost.text } : null; });
-  await page.evaluate(() => { const g = G.debug.game; g.opts.infiniteGold = false; g.human.gold = 0; });
+  await page.evaluate(() => { const g = G.debug.game; g.opts.infiniteGold = false; g.human.gold = -1e9; });   // so far in debt that no income during the test changes it
   await page.keyboard.press('4');
   await page.mouse.move(pt.x + 2, pt.y + 2);
   await page.waitForTimeout(500);
