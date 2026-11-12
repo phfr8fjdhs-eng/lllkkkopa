@@ -32,19 +32,41 @@ const out = (n) => path.join(__dirname, '..', 'build', n);
   await page.waitForFunction(() => G.debug.game.phase === 'play', null, { timeout: 3000 });
   must(true, 'game starts right after the start point is picked');
   await page.waitForTimeout(1500);
-  // tap free land next to our territory -> circle menu, nothing is attacked yet
-  const target = await page.evaluate(() => {
+  // tap free land next to our territory -> attacks at once, no menu
+  const freeSpot = () => page.evaluate(() => {
     const g = G.debug.game, v = G.debug.view, h = g.human, W = g.W;
     for (const b of h.border) for (const n of [b - 1, b + 1, b - W, b + W]) if (g.map.land[n] && g.owner[n] === 0) return v.screenOf(n);
     return null;
   });
+  const target = await freeSpot();
   await tapAt(target.x, target.y);
   await page.waitForTimeout(450);
-  must(await page.evaluate(() => !document.getElementById('radial').hidden && G.debug.game.human.out.length === 0), 'tap opens the menu and does not attack by itself');
+  must(await page.evaluate(() => document.getElementById('radial').hidden && G.debug.game.human.out.length === 1), 'a tap on free land attacks at once');
+  // a nation is never attacked by a tap alone: the menu opens and waits for Angreifen
+  const nat = await page.evaluate(() => {
+    const g = G.debug.game, v = G.debug.view, q = g.players.find((p) => p && p.alive && p.type === G.PT.NATION && p.nameSize);
+    if (!q) return null;
+    const cam = { x: v.cam.x, y: v.cam.y, z: v.cam.z };
+    v.fly = null; v.cam.x = q.nameX; v.cam.y = q.nameY;
+    let t = -1;
+    for (let i = 0; i < g.N && t < 0; i++) if (g.owner[i] === q.id) t = i;
+    const pt = v.screenOf(t);
+    G.debug.tap(pt.x, pt.y);
+    const r = { open: !document.getElementById('radial').hidden, out: g.human.out.length };
+    document.getElementById('radial').hidden = true;
+    v.cam.x = cam.x; v.cam.y = cam.y; v.cam.z = cam.z;
+    return r;
+  });
+  if (nat) must(nat.open && nat.out === 1, 'a tap on a nation opens the menu and does not attack');
+  // a long press opens the menu on free land too
+  const t2 = await freeSpot();
+  await page.evaluate((p) => G.debug.tap(p.x, p.y, true), t2);
+  await page.waitForTimeout(450);
+  must(await page.evaluate(() => !document.getElementById('radial').hidden), 'a long press opens the menu');
   await page.screenshot({ path: out(`ui_${tag}_3radial.png`) });
   await page.click('#rC');
   await page.waitForTimeout(600);
-  must(await page.evaluate(() => G.debug.game.human.out.length === 1), 'Angreifen starts the attack');
+  must(await page.evaluate(() => G.debug.game.human.out.length >= 1), 'Angreifen starts the attack');
   await page.waitForTimeout(6000);
   // build menu on own land
   await page.evaluate(() => { G.debug.game.human.gold = 9e6; });
@@ -89,7 +111,7 @@ const out = (n) => path.join(__dirname, '..', 'build', n);
   });
   console.log('aim setup', JSON.stringify(aimAt));
   await page.waitForTimeout(300);
-  await tapAt(aimAt.foe.x, aimAt.foe.y + 14);
+  await page.evaluate((p) => G.debug.tap(p.x, p.y + 14, true), aimAt.foe);   // long press: the menu, not an attack
   await page.waitForTimeout(450);
   await page.click('#rN');
   await page.waitForTimeout(350);
@@ -107,7 +129,7 @@ const out = (n) => path.join(__dirname, '..', 'build', n);
   // the cruise missile: aim it at the air defence, then check what a hit does
   await page.evaluate(() => { G.debug.game.human.gold = 9e6; });
   await page.waitForTimeout(8000);
-  await tapAt(aimAt.foe.x, aimAt.foe.y + 14);
+  await page.evaluate((p) => G.debug.tap(p.x, p.y + 14, true), aimAt.foe);   // long press: the menu, not an attack
   await page.waitForTimeout(450);
   await page.click('#rN');
   await page.waitForTimeout(350);

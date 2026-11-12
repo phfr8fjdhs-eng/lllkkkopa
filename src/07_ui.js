@@ -367,6 +367,7 @@
       '<li><b>Mit Freunden:</b> <b>Mit Freunden spielen</b> öffnet einen Raum. Schick den Link weiter, dann spielt ihr auf derselben Karte.</li>' +
       '<li><b>Schiffe:</b> Handelsschiffe fahren Gold von Hafen zu Hafen, beide Häfen verdienen daran. Ein <b>Kriegsschiff</b> nimmt fremde Schiffe ein, mit deren Besitzer du keine Allianz hast: Handelsschiffe samt Gold, Boote samt der Hälfte der Truppen, und besiegte Kriegsschiffe wechseln die Seite.</li>' +
       '<li><b>Züge:</b> Pro Bahnhof gibt es 10K Gold, bei Handelspartnern 25K für beide, bei Verbündeten 50K für beide.</li>' +
+      '<li><b>Tippen:</b> Ein Tipp auf freies Land oder auf einen Bot greift sofort an. Bei Nationen und Mitspielern öffnet sich das Menü, dort musst du auf Angreifen tippen. Lange drücken öffnet das Menü überall.</li>' +
       '<li><b>Karte:</b> Ziehen verschiebt, zwei Finger oder das Mausrad zoomen.</li>' +
       '</ul><h2 class="h3">Tastenkürzel</h2><div class="keys">' +
       BUILD.map(function (b) { return '<span><kbd>' + b.key.toUpperCase() + '</kbd>' + plain(b.t) + '</span>'; }).join('') +
@@ -663,9 +664,7 @@
       '<button class="btn ghost" data-act="help" type="button">So wird gespielt</button>' +
       '<label class="check wide" for="mMusic"><input id="mMusic" type="checkbox"' + (cfg.music ? ' checked' : '') + '>Musik</label>' +
       '<label class="check" for="mSfx"><input id="mSfx" type="checkbox"' + (cfg.sfx ? ' checked' : '') + '>Töne bei Aktionen</label>' +
-      '<label class="check" for="mTap"><input id="mTap" type="checkbox"' + (cfg.tap ? ' checked' : '') + '>Tippen greift direkt an, ohne Menü</label>' +
       '<button class="btn ghost" data-act="quit" type="button">Spiel beenden</button>', 'menu');
-    $('mTap').addEventListener('change', function () { cfg.tap = this.checked; saveCfg(); });
     $('mMusic').addEventListener('change', function () { setSound('music', this.checked); });
     $('mSfx').addEventListener('change', function () { setSound('sfx', this.checked); });
   }
@@ -876,7 +875,9 @@
   }
 
   // ---------- taps on the map ----------
-  function tap(sx, sy, direct) {
+  // A tap on free land or on a bot attacks at once. Against nations and other players the menu
+  // opens and the attack has to be chosen there. A long press opens the menu everywhere.
+  function tap(sx, sy, menu) {
     if (!game) return;
     const tile = view.tileAt(sx, sy);
     if (tile < 0) return;
@@ -887,7 +888,8 @@
       return;
     }
     if (aim) { aim.tile = tile; refreshAim(); snd('tap'); return; }
-    if (direct && h.alive && game.owner[tile] !== h.id && game.map.land[tile]) {
+    const o = game.owner[tile], q = o ? game.players[o] : null;
+    if (!menu && (!q || q.type === PT.BOT) && h.alive && o !== h.id && game.map.land[tile]) {
       act({ k: 'strike', t: tile, r: ratio });
       return;
     }
@@ -936,9 +938,9 @@
     const up = function (e) {
       if (!ptr.has(e.pointerId)) return;
       ptr.delete(e.pointerId);
-      if (ptr.size === 0 && !moved && e.type === 'pointerup' && performance.now() - downAt < 700) {
+      if (ptr.size === 0 && !moved && e.type === 'pointerup' && performance.now() - downAt < 1500) {
         const r = cv.getBoundingClientRect();
-        tap(e.clientX - r.left, e.clientY - r.top, cfg.tap);
+        tap(e.clientX - r.left, e.clientY - r.top, performance.now() - downAt > 400);
       }
     };
     cv.addEventListener('pointerup', up);

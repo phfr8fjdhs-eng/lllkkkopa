@@ -42,14 +42,7 @@ const out = (n) => path.join(__dirname, '..', 'build', n);
     return null;
   });
   console.log('target', target);
-  if (mobile) {
-    await tapAt(target.x, target.y);
-    await page.waitForTimeout(500);
-    await page.screenshot({ path: out(`shot_${tag}_5radial.png`) });
-    await page.click('#rC');
-  } else {
-    await page.mouse.click(target.x, target.y);
-  }
+  await tapAt(target.x, target.y);   // free land is attacked at once
   await page.waitForTimeout(3500);
   await page.screenshot({ path: out(`shot_${tag}_6attack.png`) });
   // fast-forward the simulation a little so there is something to look at
