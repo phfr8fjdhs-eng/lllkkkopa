@@ -100,7 +100,7 @@
     if (!c) {
       c = info.type === PT.NATION
         ? G.hsl((id * 137.508 + 40) % 360, 0.55 + (id % 3) * 0.07, 0.5 + (id % 4) * 0.035)
-        : G.hsl((id * 137.508) % 360, 0.5 + (id % 3) * 0.06, 0.55 + (id % 4) * 0.03);   // bots are as colourful as everyone else
+        : G.hsl((id * 137.508) % 360, 0.34 + (id % 3) * 0.05, 0.58 + (id % 4) * 0.03);   // bots stay greyish, so they are easy to tell from nations
     }
     p.r = c[0]; p.g = c[1]; p.b = c[2];
     if (info.type === PT.BOT) p.troops = 10000;
