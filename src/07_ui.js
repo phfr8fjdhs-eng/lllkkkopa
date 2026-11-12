@@ -12,20 +12,21 @@
   }
 
   const COLORS = [[226, 68, 60], [42, 122, 226], [241, 160, 36], [150, 84, 214], [28, 170, 150], [232, 86, 160]];
-  // The keys 1 to 0 and I build these, in this order, at the mouse pointer.
+  // The keys are OpenFront's defaults (1 city, 2 factory, 3 port ... 0 MIRV); the two weapons OpenFront
+  // does not have sit on free letters. They build at the mouse pointer.
   const BUILD = [
     { t: UT.CITY, icon: 'city', note: 'Truppen-Limit +25K', key: '1' },
-    { t: UT.PORT, icon: 'port', note: 'Handel und Kriegsschiffe', key: '2' },
-    { t: UT.FACTORY, icon: 'factory', note: 'Gleise und Züge bringen Gold', key: '3' },
+    { t: UT.PORT, icon: 'port', note: 'Handel und Kriegsschiffe', key: '3' },
+    { t: UT.FACTORY, icon: 'factory', note: 'Gleise und Züge bringen Gold', key: '2' },
     { t: UT.DEFENSE, icon: 'defense', note: 'Grenze fünfmal zäher', key: '4' },
     { t: UT.SILO, icon: 'silo', note: 'Startet Bomben', key: '5' },
     { t: UT.SAM, icon: 'sam', note: 'Fängt Bomben ab', key: '6' },
     { t: UT.WARSHIP, icon: 'warship', note: 'Nimmt fremde Schiffe ein', key: '7' },
-    { t: UT.CRUISE, icon: 'cruise', note: 'Trifft genau, keine Verstrahlung', key: '8' },
-    { t: UT.ATOM, icon: 'atom', note: 'Kleiner Krater', key: '9' },
-    { t: UT.HYDRO, icon: 'hydro', note: 'Riesiger Krater', key: '0' },
-    { t: UT.LASER, icon: 'laser', note: 'Aus dem All, nicht abfangbar', key: 'l' },
-    { t: UT.MIRV, icon: 'mirv', note: 'Verwüstet ein ganzes Reich', key: 'i' }
+    { t: UT.CRUISE, icon: 'cruise', note: 'Trifft genau, keine Verstrahlung', key: 'v' },
+    { t: UT.ATOM, icon: 'atom', note: 'Kleiner Krater', key: '8' },
+    { t: UT.HYDRO, icon: 'hydro', note: 'Riesiger Krater', key: '9' },
+    { t: UT.LASER, icon: 'laser', note: 'Aus dem All, nicht abfangbar', key: 'z' },
+    { t: UT.MIRV, icon: 'mirv', note: 'Verwüstet ein ganzes Reich', key: '0' }
   ];
   const TERRAIN = ['Ebene', 'Hochland', 'Gebirge'];
   const snd = function (name, gap) { G.Audio.play(name, gap); };
@@ -36,7 +37,7 @@
     if (type === UT.CITY) return 'Truppen-Limit +' + 25 * lv + 'K';
     if (type === UT.PORT) return lv === 1 ? 'Schickt Handelsschiffe' : 'Schickt ' + lv + '-mal so oft Handelsschiffe';
     if (type === UT.SILO) return lv === 1 ? '1 Rakete pro Ladung' : lv + ' Raketen pro Ladung';
-    if (type === UT.SAM) return lv === 1 ? '1 Abwehrrakete pro Ladung' : lv + ' Abwehrraketen pro Ladung';
+    if (type === UT.SAM) return (lv === 1 ? '1 Abwehrrakete' : lv + ' Abwehrraketen') + ' pro Ladung, Reichweite ' + Math.round(150 - 480 / (lv + 5));
     if (type === UT.DEFENSE) return 'Grenze ' + (3 + 2 * lv) + '-mal zäher';
     return lv === 1 ? 'Schickt Züge los' : 'Züge fahren ' + ((1 + lv) / 2).toLocaleString('de-CH') + '-mal so oft';
   }
@@ -378,18 +379,19 @@
       '<li><b>Marschflugkörper:</b> Günstig, schnell und genau. Er zerstört Gebäude in einem kleinen Umkreis, hinterlässt kein verstrahltes Land und wird nur selten abgefangen. Gut, um zuerst die Flugabwehr auszuschalten.</li>' +
       '<li><b>Mit Freunden:</b> <b>Mit Freunden spielen</b> öffnet einen Raum. Schick den Link weiter, dann spielt ihr auf derselben Karte.</li>' +
       '<li><b>Schiffe:</b> Handelsschiffe fahren Gold von Hafen zu Hafen, beide Häfen verdienen daran. Ein <b>Kriegsschiff</b> nimmt fremde Schiffe ein, mit deren Besitzer du keine Allianz hast: Handelsschiffe samt Gold, Boote samt der Hälfte der Truppen, und besiegte Kriegsschiffe wechseln die Seite.</li>' +
-      '<li><b>Züge:</b> Pro Bahnhof gibt es 10K Gold, bei Handelspartnern 25K für beide, bei Verbündeten 50K für beide.</li>' +
+      '<li><b>Züge:</b> Pro Bahnhof gibt es 10K Gold, bei Handelspartnern 25K für beide, bei Verbündeten 35K für beide. Ab dem zehnten Bahnhof einer Fahrt sinkt der Betrag um 5K pro Halt, aber nie unter 5K.</li>' +
       '<li><b>Spielmodus Arsenal:</b> Zusätzlich gibt es den <b>Satellitenstrahl</b> (600K Gold). Er braucht kein Silo, trifft drei Sekunden nach dem Abfeuern, kann nicht abgefangen werden und hinterlässt keine Verstrahlung. Danach lädt der Satellit 45 Sekunden nach.</li>' +
-      '<li><b>Ausbauen:</b> Tippe auf eines deiner Gebäude, dann öffnet sich gleich die Ausbaukarte mit drei Knöpfen: eine Stufe, fünf Stufen oder so viele, wie dein Gold reicht. Städte gehen bis Stufe 100, alle anderen Gebäude bis Stufe 5. Jede Stufe kostet so viel wie ein weiteres Gebäude derselben Art (Stadt: 125K, 250K, 500K, danach je 1M) und bringt bei Städten +25K Truppen-Limit. Mit Tastatur: <kbd>U</kbd> baut das Gebäude unter dem Mauszeiger aus, <kbd>Shift</kbd> + Zahl das nächste Gebäude dieser Art.</li>' +
+      '<li><b>Ausbauen:</b> Tippe auf eines deiner Gebäude, dann öffnet sich gleich die Ausbaukarte mit drei Knöpfen: eine Stufe, fünf Stufen oder so viele, wie dein Gold reicht. Städte gehen bis Stufe 100, alle anderen Gebäude bis Stufe 5. Jede Stufe kostet so viel wie ein weiteres Gebäude derselben Art (Stadt: 125K, 250K, 500K, danach je 1M) und bringt bei Städten +25K Truppen-Limit. </li>' +
       '<li><b>Tippen:</b> Ein Tipp auf freies Land oder auf einen Bot greift sofort an. Bei Nationen und Mitspielern öffnet sich das Menü, dort musst du auf Angreifen tippen. Lange drücken öffnet das Menü überall.</li>' +
       '<li><b>Karte:</b> Ziehen verschiebt, zwei Finger oder das Mausrad zoomen.</li>' +
-      '</ul><h2 class="h3">Tastenkürzel</h2><div class="keys">' +
+      '</ul><h2 class="h3">Tastenkürzel</h2><p>Die Belegung ist die von OpenFront.</p><div class="keys">' +
       BUILD.map(function (b) { return '<span><kbd>' + b.key.toUpperCase() + '</kbd>' + plain(b.t) + (b.t === UT.LASER ? ' (Arsenal)' : '') + '</span>'; }).join('') +
-      '<span><kbd>B</kbd>Baumenü</span><span><kbd>U</kbd>Ausbauen</span><span><kbd>Shift</kbd><kbd>1</kbd>–<kbd>6</kbd>Nächstes Gebäude dieser Art ausbauen</span><span><kbd>F</kbd>Angreifen</span><span><kbd>G</kbd>Boot schicken</span>' +
-      '<span><kbd>V</kbd>Kriegsschiff hierher</span><span><kbd>R</kbd>Allianz anfragen</span><span><kbd>Q</kbd><kbd>E</kbd>Truppenanteil</span>' +
-      '<span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>Karte schieben</span><span><kbd>+</kbd><kbd>−</kbd>Zoom</span><span><kbd>C</kbd>Zum eigenen Gebiet</span>' +
-      '<span><kbd>T</kbd>Tempo</span><span><kbd>M</kbd>Ton an/aus</span><span><kbd>Leertaste</kbd>Pause</span><span><kbd>Enter</kbd>Bombe abfeuern</span><span><kbd>Esc</kbd>Schliessen</span>' +
-      '</div><p>Bauen und Befehle gelten für die Stelle unter dem Mauszeiger.</p>';
+      '<span><kbd>G</kbd>Angreifen</span><span><kbd>B</kbd>Boot schicken</span><span><kbd>T</kbd><kbd>Y</kbd>Truppenanteil −/+ 10 %</span>' +
+      '<span><kbd>K</kbd>Allianz anfragen</span><span><kbd>L</kbd>Allianz brechen</span><span><kbd>I</kbd>Spieler-Info</span>' +
+      '<span><kbd>Q</kbd><kbd>E</kbd>Zoom −/+</span><span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>Karte schieben</span><span><kbd>C</kbd>Zum eigenen Gebiet</span>' +
+      '<span><kbd>P</kbd>Pause</span><span><kbd>,</kbd><kbd>.</kbd>Tempo −/+</span><span><kbd>Strg</kbd>+ Klick: Baumenü</span><span>Rechtsklick: Kreismenü</span><span><kbd>Shift</kbd>+ Mausrad: Truppenanteil</span>' +
+      '<span><kbd>Esc</kbd>Schliessen</span></div><p>Zusätzlich, weil es das in OpenFront nicht gibt: <kbd>U</kbd> baut das Gebäude unter dem Mauszeiger aus, <kbd>Shift</kbd> + <kbd>1</kbd>–<kbd>6</kbd> das nächste Gebäude dieser Art, <kbd>Enter</kbd> feuert die Bombe ab, <kbd>M</kbd> schaltet den Ton, die Leertaste pausiert ebenfalls.</p><p>' +
+      'Bauen und Befehle gelten für die Stelle unter dem Mauszeiger.</p>';
   }
   function showHelp(fromStart) {
     openModal(helpHtml() + '<button class="btn" data-act="' + (fromStart ? 'start' : 'resume') + '" type="button">' + (fromStart ? 'Zurück' : 'Weiterspielen') + '</button>', fromStart ? 'starthelp' : 'help');
@@ -1002,6 +1004,11 @@
       ptr.delete(e.pointerId);
       if (ptr.size === 0 && !moved && e.type === 'pointerup' && performance.now() - downAt < 1500) {
         const r = cv.getBoundingClientRect();
+        if ((e.ctrlKey || e.metaKey) && game && game.phase === 'play' && game.human.alive && !aim) {
+          const t = view.tileAt(e.clientX - r.left, e.clientY - r.top);
+          if (t >= 0) { closeRadial(); openBuild(t); }
+          return;
+        }
         tap(e.clientX - r.left, e.clientY - r.top, performance.now() - downAt > 400);
       }
     };
@@ -1039,7 +1046,8 @@
       }
       if (k === 'm') { const v = !(cfg.music || cfg.sfx); setSound('music', v); setSound('sfx', v); toast(v ? 'Ton an' : 'Ton aus'); return; }
       if (!game || !$('modal').hidden) return;
-      if (k === ' ') { e.preventDefault(); togglePause(); return; }
+      // The layout follows OpenFront's default keys.
+      if (k === 'p' || k === ' ') { e.preventDefault(); togglePause(); return; }
       if ((k.length === 1 && 'wasd'.indexOf(k) >= 0) || k.indexOf('arrow') === 0) { held.add(k); e.preventDefault(); return; }
       // Shift with a building's number upgrades one of that kind: the nearest to the pointer that can still grow
       if (e.shiftKey && /^Digit[1-6]$/.test(e.code || '')) {
@@ -1048,32 +1056,34 @@
         upgradeKind(b.t);
         return;
       }
-      if (k === '+' || k === '=') { view.zoomAt(view.cw / 2, view.ch / 2, 1.25); return; }
-      if (k === '-' || k === '_') { view.zoomAt(view.cw / 2, view.ch / 2, 0.8); return; }
-      if (k === 'q') { setRatio(ratio * 100 - 5); return; }
-      if (k === 'e') { setRatio(ratio * 100 + 5); return; }
-      if (k === 'c' || k === 'h') { $('bHome').click(); return; }
-      if (k === 't') { if (!mp) $('bSpeed').click(); return; }
+      if (k === 'e' || k === '+' || k === '=') { view.zoomAt(view.cw / 2, view.ch / 2, 1.25); return; }
+      if (k === 'q' || k === '-' || k === '_') { view.zoomAt(view.cw / 2, view.ch / 2, 0.8); return; }
+      if (k === 't') { setRatio(ratio * 100 - 10); return; }
+      if (k === 'y') { setRatio(ratio * 100 + 10); return; }
+      if (k === 'c') { $('bHome').click(); return; }
+      if (k === '.' || k === ',') { if (!mp) setSpeed(k === '.' ? 1 : -1); return; }
       if (e.repeat || game.phase !== 'play' || !game.human.alive) return;
       if (aim) { if (k === 'enter' && !$('aimGo').disabled) fireAim(); return; }
       // everything below acts on the build menu's tile, or else on the tile under the mouse pointer
       const open = !$('sheet').hidden;
       const tile = open ? buildTile : (hoverX >= 0 ? view.tileAt(hoverX, hoverY) : -1);
-      const item = BUILD.find(function (b) { return b.key === k; });
-      if (!item && 'bufgvr'.indexOf(k) < 0) return;
+      const digit = /^Digit[0-9]$/.test(e.code || '') ? e.code.slice(5) : k;
+      const item = BUILD.find(function (b) { return b.key === digit; });
+      if (!item && 'bgkliu'.indexOf(k) < 0) return;
       if (tile < 0) { toast('Zeige mit der Maus auf die Karte'); return; }
       const h = game.human;
       closeRadial();
       if (item) { if (open) closeBuild(); doBuild(item.t, tile); return; }
-      if (k === 'b') { if (open) closeBuild(); else openBuild(tile); return; }
       if (k === 'u') { if (open) closeBuild(); doUpgrade(tile); return; }
       if (open) return;
-      if (k === 'f') act({ k: 'strike', t: tile, r: ratio });
-      else if (k === 'g') act({ k: 'strike', t: tile, r: ratio, sea: 1, say: 'Boot läuft aus' });
-      else if (k === 'v') act({ k: 'ship', t: tile, say: 'Kriegsschiff nimmt Kurs' });
-      else if (k === 'r') {
-        const q = game.owner[tile] && game.owner[tile] !== h.id ? game.players[game.owner[tile]] : null;
-        if (q) act({ k: 'ally', p: q.id, say: 'Anfrage an ' + q.name + ' gesendet' }); else { toast('Zeige auf einen anderen Spieler'); snd('deny'); }
+      const q = game.owner[tile] && game.owner[tile] !== h.id ? game.players[game.owner[tile]] : null;
+      if (k === 'g') act({ k: 'strike', t: tile, r: ratio });
+      else if (k === 'b') act({ k: 'strike', t: tile, r: ratio, sea: 1, say: 'Boot läuft aus' });
+      else if (k === 'i') openInfo(q ? q.id : h.id);
+      else if (!q) { toast('Zeige auf einen anderen Spieler'); snd('deny'); }
+      else if (k === 'k') act({ k: 'ally', p: q.id, say: 'Anfrage an ' + q.name + ' gesendet' });
+      else if (k === 'l') {
+        if (h.allies.has(q.id)) { infoId = q.id; onModalAct('break'); } else { toast('Mit ' + q.name + ' besteht keine Allianz'); snd('deny'); }
       }
     });
 
@@ -1094,10 +1104,7 @@
     $('bPause').addEventListener('click', togglePause);
     $('aimNo').addEventListener('click', stopAim);
     $('aimGo').addEventListener('click', fireAim);
-    $('bSpeed').addEventListener('click', function () {
-      speed = speed === 1 ? 2 : speed === 2 ? 4 : 1;
-      this.textContent = speed + '×';
-    });
+    $('bSpeed').addEventListener('click', function () { setSpeed(0); });
     $('bHome').addEventListener('click', function () {
       const h = game.human;
       if (h.alive && h.nameSize) view.flyTo(h.nameX, h.nameY, within(Math.min(view.cw, view.ch) / Math.max(30, (h.x1 - h.x0) * 1.5), 1.2, 7));
@@ -1114,6 +1121,11 @@
       const b = e.target.closest('.lbrow');
       if (b && game) openInfo(+b.dataset.id);
     });
+  }
+  // 1x, 2x, 4x: the button cycles, the keys step up or down
+  function setSpeed(dir) {
+    speed = dir > 0 ? Math.min(4, speed * 2) : dir < 0 ? Math.max(1, speed / 2) : speed === 1 ? 2 : speed === 2 ? 4 : 1;
+    $('bSpeed').textContent = speed + '×';
   }
   function togglePause() {
     if (mp) { if (mp.host) { mp.setPaused(!mp.paused); setPaused(mp.paused); } return; }

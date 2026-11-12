@@ -4,8 +4,9 @@
   // Factories, railways and trains. A factory links itself to nearby cities, ports and factories
   // with tracks laid over land; trains run along them and pay gold at every station they reach.
   const Game = G.Game, UT = G.UT;
-  // Gold per station a train reaches: own station, a trade partner's, an ally's (as in OpenFront: 10K / 25K / 50K).
-  const TRAIN_OWN = 10000, TRAIN_FOREIGN = 25000, TRAIN_ALLY = 50000, TRAIN_EVERY = 200, LINKS = 4;
+  // Gold per station a train reaches: own station, a trade partner's, an ally's (as in OpenFront: 10K / 25K / 35K).
+  // From the tenth station of its journey on a train pays 5K less per stop, but never under 5K.
+  const TRAIN_OWN = 10000, TRAIN_FOREIGN = 25000, TRAIN_ALLY = 35000, TRAIN_EVERY = 200, LINKS = 4;
   G.TRAIN_GOLD = [TRAIN_OWN, TRAIN_FOREIGN, TRAIN_ALLY];
 
   G.isStation = function (t) { return t === UT.CITY || t === UT.PORT || t === UT.FACTORY; };
@@ -170,10 +171,12 @@
       return;
     }
     const st = u.fwd ? e.b : e.a, q = st.owner, h = this.human;
-    let pay = TRAIN_OWN;
+    u.stops = (u.stops || 0) + 1;
+    const worn = Math.max(0, u.stops - 9) * 5000;
+    let pay = Math.max(5000, TRAIN_OWN - worn);
     if (q === p) p.gold += pay;
     else if (q.alive && this.canTrade(p, q)) {
-      pay = p.allies.has(q.id) ? TRAIN_ALLY : TRAIN_FOREIGN;
+      pay = Math.max(5000, (p.allies.has(q.id) ? TRAIN_ALLY : TRAIN_FOREIGN) - worn);
       p.gold += pay; q.gold += pay;
       if (h && (p === h || q === h)) h.tradeGold += pay;
     } else { this.removeUnit(u); return; }

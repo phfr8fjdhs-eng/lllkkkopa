@@ -88,7 +88,7 @@
   }
   G.M = {
     min: Math.min, max: Math.max, floor: Math.floor, ceil: Math.ceil, round: Math.round, abs: Math.abs,
-    sqrt: Math.sqrt, imul: Math.imul, PI: PI, pow: dpow, sin: dsin,
+    sqrt: Math.sqrt, imul: Math.imul, PI: PI, pow: dpow, exp: dexp, sin: dsin,
     cos: function (a) { return dsin(a + PI / 2); },
     hypot: function (x, y) { return Math.sqrt(x * x + y * y); }
   };

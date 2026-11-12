@@ -139,15 +139,15 @@ const out = (n) => path.join(__dirname, '..', 'build', n);
   await page.mouse.move(pt.x, pt.y);
   const c0 = await page.evaluate(() => Array.from(G.debug.game.human.cnt));
   await page.keyboard.press('4');
-  await page.keyboard.press('e'); await page.keyboard.press('e');
-  await page.keyboard.press('b');
+  await page.keyboard.press('y');   // attack share +10 %
+  await page.keyboard.down('Control'); await page.mouse.click(pt.x, pt.y); await page.keyboard.up('Control');   // Ctrl+click: build menu
   await page.waitForTimeout(400);
   await page.screenshot({ path: out('feat_d_5build.png') });
   await page.keyboard.press('Escape');
-  // hydrogen bomb on a neighbour: key 0 aims, Enter fires
+  // hydrogen bomb on a neighbour: key 9 aims (as in OpenFront), Enter fires
   const tgt = await page.evaluate(() => { const g = G.debug.game, v = G.debug.view, h = g.human; const foe = g.players.filter((p) => p && p.alive && p !== h).sort((a, b) => b.tiles - a.tiles)[0]; v.cam.x = foe.nameX; v.cam.y = foe.nameY; v.cam.z = 2.5; return v.screenOf(Math.round(foe.nameY) * g.W + Math.round(foe.nameX)); });
   await page.mouse.move(tgt.x, tgt.y);
-  await page.keyboard.press('0');
+  await page.keyboard.press('9');
   await page.waitForTimeout(300);
   await page.screenshot({ path: out('feat_d_5aim.png') });
   await page.keyboard.press('Enter');
@@ -191,7 +191,7 @@ const out = (n) => path.join(__dirname, '..', 'build', n);
     return { arsenal: g.opts.arsenal, pt: v.screenOf(t), foe: foe.id, tiles: foe.tiles, t: t };
   });
   await page.mouse.move(las.pt.x, las.pt.y);
-  await page.keyboard.press('l');
+  await page.keyboard.press('z');
   await page.waitForTimeout(400);
   await page.screenshot({ path: out('feat_a_2aim.png') });
   await page.keyboard.press('Enter');

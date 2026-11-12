@@ -12,10 +12,11 @@
   G.LASER_COOL = 450;   // ticks between two shots of the satellite beam (Arsenal mode)
   G.DIFF_NAMES = ['Leicht', 'Mittel', 'Schwer', 'Unmöglich'];
 
-  const NATION_START = [2500, 5000, 20000, 50000];
-  const NATION_MAX = [0.5, 1, 1.5, 2];
-  const NATION_GROW = [0.9, 1, 1.1, 1.2];
-  const ALLIANCE_TICKS = 6000;      // ten minutes
+  // Nation strength per difficulty and the alliance length follow OpenFront's configuration.
+  const NATION_START = [12500, 18750, 25000, 31250];
+  const NATION_MAX = [0.5, 0.75, 1, 1.25];
+  const NATION_GROW = [0.9, 0.95, 1, 1.05];
+  const ALLIANCE_TICKS = 3000;      // five minutes
   const TRAITOR_TICKS = 300;        // thirty seconds
   const WIN_SHARE = 0.8;
 
@@ -67,7 +68,7 @@
       headIn: Math.max(4, Math.round(12 * S)), headOut: Math.max(6, Math.round(18 * S)),
       cruiseIn: Math.max(3, Math.round(7 * S)), cruiseOut: Math.max(5, Math.round(11 * S)),
       laserIn: Math.max(4, Math.round(10 * S)), laserOut: Math.max(6, Math.round(16 * S)),
-      sam: Math.round(75 * S), warTarget: Math.round(130 * S), warPatrol: Math.round(100 * S),
+      sam: Math.round(70 * S), warTarget: Math.round(130 * S), warPatrol: Math.round(100 * S),
       mirvRange: Math.round(1500 * S), mirvCount: Math.max(12, Math.round(350 * S * S)),
       botDist: Math.max(10, Math.round(30 * S)), boatBox: Math.round(150 * S),
       tnSearch: Math.max(60, Math.round(200 * S)), portSearch: Math.max(14, Math.round(40 * S)),
@@ -578,7 +579,7 @@
       if (dp && dp.length) {
         for (let i = 0; i < dp.length; i++) {
           const dx = dp[i].x - x, dy = dp[i].y - y;
-          if (dx * dx + dy * dy <= dr2) { const f = 3 + 2 * dp[i].level; mag *= f; speed *= f; break; }
+          if (dx * dx + dy * dy <= dr2) { mag *= 3 + 2 * dp[i].level; speed *= 1 + 2 * dp[i].level; break; }   // level 1: losses x5, speed cost x3
         }
       }
       if (fo[tile]) { const f = 5 - 2 * this.falloutCount / landTiles; mag *= f; speed *= f; }
@@ -601,7 +602,8 @@
   // Whoever takes a player over gets its gold; a bot pays a bounty on top.
   G.BOT_BOUNTY = 75000;
   Game.prototype.loot = function (a, t) {
-    const gold = Math.floor(t.gold) + (t.type === PT.BOT ? G.BOT_BOUNTY : 0);
+    // a conquered person keeps half of the gold out of the victor's hands, bots and nations lose all of it
+    const gold = Math.floor(t.type === PT.HUMAN ? t.gold / 2 : t.gold) + (t.type === PT.BOT ? G.BOT_BOUNTY : 0);
     t.gold = 0; a.gold += gold; a.conquests++;
     this.emit({ k: 'loot', by: a.id, gold: gold, x: (t.x0 + t.x1) / 2, y: (t.y0 + t.y1) / 2 });
     return gold;

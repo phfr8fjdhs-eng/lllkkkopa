@@ -2,7 +2,7 @@
   'use strict';
   const Math = G.M;   // same results on every device, see 00_util.js
   const Game = G.Game, UT = G.UT, PT = G.PT, fmt = G.fmt;
-  const BUILD_TICKS = [20, 50, 20, 100, 300, 20];   // city, defence post, port, silo, air defence, factory
+  const BUILD_TICKS = [20, 50, 50, 100, 300, 20];   // city, defence post, port, silo, air defence, factory
   G.BUILD_TICKS = BUILD_TICKS;
   G.MAX_LEVEL = 5;
   G.CITY_MAX_LEVEL = 100;
@@ -14,7 +14,8 @@
   // 500K, then 1M each). `have` overrides how many the player is counted as owning.
   Game.prototype.cost = function (p, type, have) {
     if (p.type === PT.HUMAN && this.opts.infiniteGold) return 0;
-    const c = have === undefined ? p.cnt[type] : have;
+    // ports and factories share one price ladder
+    const c = (have === undefined ? p.cnt[type] : have) + (type === UT.PORT ? p.cnt[UT.FACTORY] : type === UT.FACTORY ? p.cnt[UT.PORT] : 0);
     switch (type) {
       case UT.CITY: case UT.PORT: case UT.FACTORY: return Math.min(1e6, Math.pow(2, c) * 125000);
       case UT.DEFENSE: return Math.min(250000, (c + 1) * 50000);
@@ -24,7 +25,7 @@
       case UT.ATOM: return 750000;
       case UT.CRUISE: return 350000;
       case UT.HYDRO: return 5e6;
-      case UT.MIRV: return 25e6;
+      case UT.MIRV: return 25e6 + 15e6 * (this.mirvs || 0);   // every MIRV launched in this game makes the next one dearer
       case UT.LASER: return 600000;
     }
     return 0;
@@ -401,7 +402,9 @@
     if (!this.canTrade(u.owner, dst.owner) || this.tradeCount >= 120) return;
     const ship = this.newUnit(UT.TRADE, u.owner, u.water);
     ship.path = path; ship.pi = 0; ship.dstPort = dst; ship.captured = false;
-    ship.gold = Math.round(10000 + 150 * Math.pow((Math.abs(u.x - dst.x) + Math.abs(u.y - dst.y)) / this.S, 1.1));
+    // OpenFront's payout: short hops pay little, from about 300 tiles on a ship is worth its while
+    const dist = (Math.abs(u.x - dst.x) + Math.abs(u.y - dst.y)) / this.S;
+    ship.gold = Math.floor(75000 / (1 + Math.exp(-0.03 * (dist - 300))) + 50 * dist);
     this.addUnit(ship);
   };
   Game.prototype.tickPort = function (u) {
@@ -599,7 +602,7 @@
   };
   Game.prototype.launch = function (p, type, silo, tile) {
     const T = this.ticks, W = this.W;
-    for (let i = 0; i < silo.ready.length; i++) if (silo.ready[i] <= T) { silo.ready[i] = T + 75; break; }
+    for (let i = 0; i < silo.ready.length; i++) if (silo.ready[i] <= T) { silo.ready[i] = T + 90; break; }
     const u = this.newUnit(type, p, silo.tile);
     u.dst = tile; u.sx = u.x; u.sy = u.y; u.dx = tile % W; u.dy = (tile / W) | 0;
     u.dist = Math.max(1, Math.hypot(u.dx - u.sx, u.dy - u.sy));
@@ -608,6 +611,7 @@
     this.fx.push({ k: 'launch', x: u.x, y: u.y, mine: p === this.human });
     const h = this.human;
     if (type === UT.MIRV) {
+      this.mirvs = (this.mirvs || 0) + 1;
       const q = this.players[u.tid];
       if (q) {
         if (p.allies.has(q.id)) this.breakAlliance(p, q);
@@ -728,15 +732,19 @@
     }
     if (tp === this.human) this.say('MIRV von ' + u.owner.name + ' teilt sich über deinem Gebiet', 'bad');
   };
+  // Reach of an air defence: 70 tiles at level 1, growing with every level towards 150 (scaled to the map).
+  Game.prototype.samRange = function (u) {
+    return Math.round((150 - 480 / (u.level + 5)) * this.S);
+  };
   Game.prototype.tickSam = function (u) {
-    const T = this.ticks, r2 = this.R.sam * this.R.sam;
+    const T = this.ticks, sr = this.samRange(u), r2 = sr * sr;
     for (let s = 0; s < u.ready.length; s++) {
       if (u.ready[s] > T) continue;
       for (const n of this.nukes) {
         if (!n.active || (n.type > UT.HYDRO && n.type !== UT.CRUISE) || n.sam || n.delay > 0) continue;
         if (n.owner === u.owner || this.friendly(n.owner, u.owner)) continue;
         if ((n.x - u.x) * (n.x - u.x) + (n.y - u.y) * (n.y - u.y) > r2) continue;
-        n.sam = true; u.ready[s] = T + 75;
+        n.sam = true; u.ready[s] = T + 90;
         const m = this.newUnit(UT.SAMM, u.owner, u.tile);
         m.target = n;
         this.addUnit(m);
@@ -763,9 +771,10 @@
 
   // Air defences that could reach a bomb on its way from the silo to the target (for the aiming preview).
   Game.prototype.samsOnPath = function (p, sx, sy, dx, dy) {
-    const r2 = this.R.sam * this.R.sam, out = [];
+    const out = [];
     for (const u of this.structAt.values()) {
       if (u.type !== UT.SAM || !u.built || u.owner === p || this.friendly(u.owner, p)) continue;
+      const sr = this.samRange(u), r2 = sr * sr;
       for (let i = 0; i <= 40; i++) {
         const x = sx + (dx - sx) * i / 40, y = sy + (dy - sy) * i / 40;
         if ((x - u.x) * (x - u.x) + (y - u.y) * (y - u.y) <= r2) { out.push(u); break; }

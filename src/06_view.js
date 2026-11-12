@@ -671,7 +671,7 @@
     for (const u of g.structAt.values()) {
       if (u.type !== UT.SAM || !u.built) continue;
       const mine = h && (u.owner === h || h.allies.has(u.owner.id));
-      const x = (u.x + 0.5) * z + ox, y = (u.y + 0.5) * z + oy, r = R.sam * z;
+      const x = (u.x + 0.5) * z + ox, y = (u.y + 0.5) * z + oy, r = g.samRange(u) * z;
       if (x < -r || y < -r || x > this.cw + r || y > this.ch + r) { if (!mine) hostile.push(u); continue; }
       ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832);
       ctx.fillStyle = mine ? 'rgba(99,211,145,0.10)' : 'rgba(197,139,255,0.20)'; ctx.fill();
@@ -683,7 +683,7 @@
     if (a.silo) {
       const sx = (a.silo.x + 0.5) * z + ox, sy = (a.silo.y + 0.5) * z + oy;
       const dist = Math.max(1, Math.hypot(a.tile % W - a.silo.x, ((a.tile / W) | 0) - a.silo.y));
-      const lift = Math.min(dist * 0.28, 70) * z * (a.type === UT.CRUISE ? 0.12 : 1), r2 = R.sam * R.sam, n = 48;
+      const lift = Math.min(dist * 0.28, 70) * z * (a.type === UT.CRUISE ? 0.12 : 1), n = 48;
       // the shadow of the path on the ground: this is where air defence measures its reach
       ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(tx, ty);
       ctx.setLineDash([2, 6]); ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(16,22,29,0.55)'; ctx.stroke(); ctx.setLineDash([]);
@@ -691,7 +691,7 @@
       for (let i = 1; i <= n; i++) {
         const q = i / n, gx = a.silo.x + (a.tile % W - a.silo.x) * q, gy = a.silo.y + (((a.tile / W) | 0) - a.silo.y) * q;
         let danger = false;
-        if (a.type !== UT.MIRV) for (const u of hostile) if ((gx - u.x) * (gx - u.x) + (gy - u.y) * (gy - u.y) <= r2) { danger = true; break; }
+        if (a.type !== UT.MIRV) for (const u of hostile) { const sr = g.samRange(u); if ((gx - u.x) * (gx - u.x) + (gy - u.y) * (gy - u.y) <= sr * sr) { danger = true; break; } }
         const x = sx + (tx - sx) * q, y = sy + (ty - sy) * q - Math.sin(Math.PI * q) * lift;
         ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(x, y);
         ctx.lineWidth = 5; ctx.strokeStyle = 'rgba(16,22,29,0.6)'; ctx.stroke();
