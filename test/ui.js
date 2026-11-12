@@ -126,7 +126,7 @@ const out = (n) => path.join(__dirname, '..', 'build', n);
   await page.screenshot({ path: out(`ui_${tag}_9flight.png`) });
   // the cruise missile: aim it at the air defence, then check what a hit does
   await page.evaluate(() => { G.debug.game.human.gold = 9e6; });
-  await page.waitForTimeout(8000);
+  await page.waitForTimeout(10500);   // the silo reloads for nine seconds
   await page.evaluate((p) => G.debug.tap(p.x, p.y + 14, true), aimAt.foe);   // long press: the menu, not an attack
   await page.waitForTimeout(450);
   await page.click('#rN');
