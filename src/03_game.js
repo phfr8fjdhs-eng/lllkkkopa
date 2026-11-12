@@ -88,7 +88,7 @@
     const id = this.players.length, o = this.opts;
     const p = {
       id: id, name: info.name, type: info.type, strength: info.strength || 1, flag: info.flag || '',
-      troops: 0, gold: 0, tiles: 0, border: new Set(), alive: false, spawned: false, spawnTile: -1,
+      troops: 0, gold: 0, tiles: 0, peak: 0, border: new Set(), alive: false, spawned: false, spawnTile: -1,
       x0: this.W, y0: this.H, x1: -1, y1: -1,
       units: [], cnt: new Int32Array(20), cityLv: 0, dposts: [], boats: 0,
       out: [], inc: [], allies: new Map(), embargo: new Set(), reqCd: new Map(),
@@ -240,6 +240,7 @@
     if (prev === id) return;
     if (prev) { const q = this.players[prev]; q.tiles--; q.border.delete(t); q.lastChange = this.ticks; }
     own[t] = id; p.tiles++; p.lastChange = this.ticks;
+    if (p.tiles > p.peak) p.peak = p.tiles;   // the largest it has ever been decides what its conquest pays
     if (this.fallout[t]) { this.fallout[t] = 0; this.falloutCount--; }
     const W = this.W, x = t % W, y = (t - x) / W;
     if (x < p.x0) p.x0 = x;
@@ -607,10 +608,15 @@
   };
 
   // Whoever takes a player over gets its gold; a bot pays a bounty on top.
-  G.BOT_BOUNTY = 75000;
+  // On top comes a reward by size: so much gold for every tile the conquered realm held at its largest.
+  G.BOT_BOUNTY = 25000;
+  G.LAND_GOLD = 60;
+  Game.prototype.bounty = function (t) {
+    return Math.round(Math.max(t.peak || 0, t.tiles) * G.LAND_GOLD) + (t.type === PT.BOT ? G.BOT_BOUNTY : 0);
+  };
   Game.prototype.loot = function (a, t) {
     // a conquered person keeps half of the gold out of the victor's hands, bots and nations lose all of it
-    const gold = Math.floor(t.type === PT.HUMAN ? t.gold / 2 : t.gold) + (t.type === PT.BOT ? G.BOT_BOUNTY : 0);
+    const gold = Math.floor(t.type === PT.HUMAN ? t.gold / 2 : t.gold) + this.bounty(t);
     t.gold = 0; a.gold += gold; a.conquests++;
     this.emit({ k: 'loot', by: a.id, gold: gold, x: (t.x0 + t.x1) / 2, y: (t.y0 + t.y1) / 2 });
     return gold;

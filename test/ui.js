@@ -173,12 +173,12 @@ const out = (n) => path.join(__dirname, '..', 'build', n);
   const loot = await page.evaluate(() => {
     const g = G.debug.game, h = g.human;
     const bot = g.players.find((p) => p && p.alive && p.type === G.PT.BOT);
-    const before = h.gold; g.finishOff(h, bot);
-    return { gain: h.gold - before, name: bot.name };
+    const before = h.gold, least = g.bounty(bot); g.finishOff(h, bot);
+    return { gain: h.gold - before, name: bot.name, least: least };
   });
   await page.waitForTimeout(500);
   await page.screenshot({ path: out(`ui_${tag}_10loot.png`) });
-  must(loot.gain >= 50000, 'conquering the bot "' + loot.name + '" paid ' + loot.gain + ' gold');
+  must(loot.gain >= loot.least && loot.least > 25000, 'conquering the bot "' + loot.name + '" paid ' + loot.gain + ' gold');
   must(await page.evaluate(() => document.getElementById('goldPop').classList.contains('go')), 'gold pop-up is shown');
   console.log('bot names:', await page.evaluate(() => G.debug.game.players.filter((p) => p && p.type === G.PT.BOT).slice(0, 6).map((p) => p.name).join(' | ')));
   console.log(errors.length ? errors.join('\n') : 'no errors');

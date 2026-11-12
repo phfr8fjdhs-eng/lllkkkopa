@@ -374,7 +374,7 @@
       '<li><b>Allianzen:</b> Verbündete greifen sich zehn Minuten lang nicht an. Wer eine Allianz bricht, ist 30 Sekunden lang leichter zu erobern.</li>' +
       '<li><b>Einkreisen:</b> Wer ganz von einem Gegner umschlossen ist, wird sofort übernommen.</li>' +
       '<li><b>Sieg:</b> Wer 80 % des Landes hält, gewinnt.</li>' +
-      '<li><b>Bots:</b> Kleine Reiche mit langen Namen. Ihr Land ist grau. Sie bauen nichts, nehmen sich ein Stück freies Land und wehren sich kaum. Angreifen tun sie nur, wer viel weniger Truppen hat als sie selbst, und auch dann nur langsam. Wer eines erobert, bekommt sein Gold und 75K Prämie.</li>' +
+      '<li><b>Bots:</b> Kleine Reiche mit langen Namen. Ihr Land ist grau. Sie bauen nichts, nehmen sich ein Stück freies Land und wehren sich kaum. Angreifen tun sie nur, wer viel weniger Truppen hat als sie selbst, und auch dann nur langsam. Wer eines erobert, bekommt sein Gold und eine Prämie.</li>' +
       '<li><b>Ausbauen:</b> Tippe auf ein eigenes Gebäude und dann auf <b>Ausbau</b>. Jede Stufe macht es stärker, bis Stufe 5.</li>' +
       '<li><b>Bomben:</b> Wähle im Baumenü eine Bombe. Die Karte zeigt dann die Flugbahn, den Einschlag, den Radius und die Reichweite jeder Flugabwehr. Erst <b>Abfeuern</b> startet sie.</li>' +
       '<li><b>Marschflugkörper:</b> Günstig, schnell und genau. Er zerstört Gebäude in einem kleinen Umkreis, hinterlässt kein verstrahltes Land und wird nur selten abgefangen. Gut, um zuerst die Flugabwehr auszuschalten.</li>' +
@@ -383,6 +383,7 @@
       '<li><b>Züge:</b> Pro Bahnhof gibt es 10K Gold, bei Handelspartnern 25K für beide, bei Verbündeten 35K für beide. Ab dem zehnten Bahnhof einer Fahrt sinkt der Betrag um 5K pro Halt, aber nie unter 5K.</li>' +
       '<li><b>Spielmodus Arsenal:</b> Zusätzlich gibt es den <b>Satellitenstrahl</b> (600K Gold). Er braucht kein Silo, trifft drei Sekunden nach dem Abfeuern, kann nicht abgefangen werden und hinterlässt keine Verstrahlung. Danach lädt der Satellit 45 Sekunden nach.</li>' +
       '<li><b>Ausbauen:</b> Tippe auf eines deiner Gebäude, dann öffnet sich gleich die Ausbaukarte mit drei Knöpfen: eine Stufe, fünf Stufen oder so viele, wie dein Gold reicht. Städte gehen bis Stufe 100, alle anderen Gebäude bis Stufe 5. Jede Stufe kostet so viel wie ein weiteres Gebäude derselben Art (Stadt: 125K, 250K, 500K, danach je 1M) und bringt bei Städten +25K Truppen-Limit. </li>' +
+      '<li><b>Eroberung:</b> Wer ein Reich ganz einnimmt, bekommt dessen Gold (bei Mitspielern die Hälfte) und dazu eine Prämie nach Landgrösse: 60 Gold für jedes Feld, das das Reich zu seiner grössten Zeit hatte. Bots bringen zusätzlich 25K. Die Summe steht in der Spieler-Info.</li>' +
       '<li><b>Tippen:</b> Ein Tipp auf freies Land oder auf einen Bot greift sofort an. Bei Nationen und Mitspielern öffnet sich das Menü, dort musst du auf Angreifen tippen. Läuft dein Angriff auf sie schon, schickt jeder weitere Tipp auf ihr Land sofort mehr Truppen. Lange drücken öffnet das Menü überall.</li>' +
       '<li><b>Karte:</b> Ziehen verschiebt, zwei Finger oder das Mausrad zoomen.</li>' +
       '</ul><h2 class="h3">Tastenkürzel</h2><p>Die Belegung ist die von OpenFront.</p><div class="keys">' +
@@ -667,9 +668,10 @@
     else if (p.type === PT.NATION) {
       const r = game.relation(p, h);
       kind = 'Nation · ' + (r < -50 ? 'feindlich' : r < 0 ? 'misstrauisch' : r < 50 ? 'neutral' : 'freundlich') + ' gesinnt';
-    } else kind = p.type === PT.HUMAN ? 'Mitspieler' : 'Bot · baut nichts, greift nur viel Schwächere langsam an und bringt 75K Gold, wenn du ihn eroberst';
+    } else kind = p.type === PT.HUMAN ? 'Mitspieler' : 'Bot · baut nichts, greift nur viel Schwächere langsam an';
     let s = '<div class="who"><span class="dot big" style="background:' + p.css + '"></span><div><h2>' + (p.flag ? G.flagOf(p.flag) + ' ' : '') + esc(p.name) + '</h2><p>' + kind + '</p></div></div>';
     s += '<div class="facts">' + fact('Truppen', fmtT(p.troops)) + fact('Gold', me && game.opts.infiniteGold ? '∞' : fmt(p.gold)) + fact('Gebiet', (p.tiles / den * 100).toFixed(1) + ' %') + '</div>';
+    if (!me && p.alive) s += '<p class="notes">Eroberung bringt ' + fmt(Math.floor(p.type === PT.HUMAN ? p.gold / 2 : p.gold) + game.bounty(p)) + ' Gold (sein Gold und die Prämie für ' + G.fmt(Math.max(p.peak, p.tiles)) + ' Felder).</p>';
     s += '<div class="facts six">' + fact('Städte', p.cnt[UT.CITY]) + fact('Häfen', p.cnt[UT.PORT]) + fact('Fabriken', p.cnt[UT.FACTORY]) +
       fact('Posten', p.cnt[UT.DEFENSE]) + fact('Silos', p.cnt[UT.SILO]) + fact('Abwehr', p.cnt[UT.SAM]) + '</div>';
     const notes = [];
