@@ -66,6 +66,14 @@
     const o = u.owner;
     if (o === np) return;
     if (!u.built) { this.removeUnit(u); return; }
+    // A defence post falls with the ground it stands on: as in OpenFront it is torn down, not
+    // taken over (every other building changes hands).
+    if (u.type === UT.DEFENSE) {
+      this.removeUnit(u);
+      if (o === this.human) this.say(G.UNAME[u.type] + ' von ' + np.name + ' zerstört', 'bad');
+      else if (np === this.human) this.say(G.UNAME[u.type] + ' von ' + o.name + ' zerstört', 'good');
+      return;
+    }
     const i = o.units.indexOf(u);
     if (i >= 0) o.units.splice(i, 1);
     o.cnt[u.type] -= u.level; np.cnt[u.type] += u.level;
@@ -769,17 +777,56 @@
   Game.prototype.samRange = function (u) {
     return Math.round((150 - 480 / (u.level + 5)) * this.S);
   };
+  Game.prototype.sammSpeed = function () { return Math.max(5, 14 * this.S); };
+  // What an air defence may shoot at. The MIRV itself flies too high; its warheads do not, and
+  // the satellite beam comes straight down from orbit (as in OpenFront).
+  G.canIntercept = function (type) {
+    return type === UT.ATOM || type === UT.HYDRO || type === UT.WARHEAD || type === UT.CRUISE;
+  };
+  // Where a bomb stands `k` ticks from now. It flies a straight line at a constant speed, so this
+  // is exact rather than a guess.
+  Game.prototype.nukeAt = function (n, k, out) {
+    const moved = Math.max(0, k - (n.delay || 0));
+    const pr = Math.min(1, n.prog + moved * n.speed / n.dist);
+    out.x = n.sx + (n.dx - n.sx) * pr;
+    out.y = n.sy + (n.dy - n.sy) * pr;
+    out.prog = pr;
+    return out;
+  };
+  // Is this the tick to shoot at that bomb? Like OpenFront the launcher works the whole flight
+  // path out ahead of time: it looks for a point of the path that lies inside its reach and that
+  // an interceptor fired now would arrive at exactly when the bomb does. So it neither waits
+  // until the bomb is overhead and is then too late, nor fires so early that it meets the bomb
+  // far outside the area it is supposed to protect.
+  const SOLVE = { x: 0, y: 0, prog: 0 };
+  Game.prototype.samSolve = function (u, n, sr) {
+    const sp = this.sammSpeed(), r2 = sr * sr;
+    const steps = Math.ceil((1 - n.prog) * n.dist / n.speed) + (n.delay || 0);
+    for (let k = 0; k <= steps; k++) {
+      const p = this.nukeAt(n, k, SOLVE);
+      const dx = p.x - u.x, dy = p.y - u.y, d2 = dx * dx + dy * dy;
+      if (d2 > r2) continue;                           // outside the launcher's reach: not its business
+      const fly = Math.ceil(Math.sqrt(d2) / sp);       // ticks the interceptor needs to get there
+      if (fly <= k && k - fly <= 1) return true;       // meets the bomb there: shoot now
+    }
+    return false;
+  };
+  // A cruise missile hugs the ground, so a launcher only picks it up inside half its reach.
+  // That is what makes it worth its lower price: it slips past a thin line of launchers, but a
+  // launcher standing near the target still stops it for certain.
+  G.CRUISE_RANGE = 0.5;
   Game.prototype.tickSam = function (u) {
-    const T = this.ticks, sr = this.samRange(u), r2 = sr * sr;
+    if (!this.nukes.length) return;
+    const T = this.ticks, sr = this.samRange(u);
     for (let s = 0; s < u.ready.length; s++) {
       if (u.ready[s] > T) continue;
       for (const n of this.nukes) {
-        if (!n.active || (n.type > UT.HYDRO && n.type !== UT.CRUISE) || n.sam || n.delay > 0) continue;
+        if (!n.active || n.sam || !G.canIntercept(n.type)) continue;
         if (n.owner === u.owner || this.friendly(n.owner, u.owner)) continue;
-        if ((n.x - u.x) * (n.x - u.x) + (n.y - u.y) * (n.y - u.y) > r2) continue;
+        if (!this.samSolve(u, n, n.type === UT.CRUISE ? sr * G.CRUISE_RANGE : sr)) continue;
         n.sam = true; u.ready[s] = T + 90;
         const m = this.newUnit(UT.SAMM, u.owner, u.tile);
-        m.target = n;
+        m.target = n; m.src = u;
         this.addUnit(m);
         break;
       }
@@ -787,27 +834,33 @@
   };
   Game.prototype.tickSamMissile = function (u) {
     const n = u.target;
-    if (!n.active) { this.removeUnit(u); return; }
-    const dx = n.x - u.x, dy = n.y - u.y, d = Math.hypot(dx, dy), sp = Math.max(5, 14 * this.S);
-    if (d > sp) { u.x += dx / d * sp; u.y += dy / d * sp; return; }
-    this.removeUnit(u);
-    if (this.rng.next() < (n.type === UT.CRUISE ? 0.3 : 0.75)) {   // cruise missiles fly low and are hard to hit
-      this.removeUnit(n);
-      this.fx.push({ k: 'pop', x: n.x, y: n.y });
-      const h = this.human;
-      if (u.owner === h) this.say(G.UNAME[n.type] + ' von ' + n.owner.name + ' abgefangen', 'good');
-      else if (n.owner === h) this.say('Deine ' + G.UNAME[n.type] + ' wurde abgefangen', 'warn');
-    } else {
-      n.sam = false;
+    // Target gone, or the launcher that fired it was destroyed: the interceptor is spent.
+    if (!n.active || (u.src && !u.src.active)) {
+      if (n.active) n.sam = false;
+      this.removeUnit(u);
+      return;
     }
+    const dx = n.x - u.x, dy = n.y - u.y, d = Math.hypot(dx, dy), sp = this.sammSpeed();
+    if (d > sp) { u.x += dx / d * sp; u.y += dy / d * sp; return; }
+    // Contact. An interceptor that reaches its target always kills it, as in OpenFront.
+    this.removeUnit(u);
+    this.removeUnit(n);
+    this.fx.push({ k: 'pop', x: n.x, y: n.y });
+    const h = this.human;
+    if (u.owner === h) this.say(G.UNAME[n.type] + ' von ' + n.owner.name + ' abgefangen', 'good');
+    else if (n.owner === h) this.say('Deine ' + G.UNAME[n.type] + ' wurde abgefangen', 'warn');
   };
 
-  // Air defences that could reach a bomb on its way from the silo to the target (for the aiming preview).
-  Game.prototype.samsOnPath = function (p, sx, sy, dx, dy) {
+  // Air defences that could reach a bomb on its way from the silo to the target (for the aiming
+  // preview). `type` is the bomb being aimed, so the preview uses the same reach the launcher
+  // will really use.
+  Game.prototype.samsOnPath = function (p, sx, sy, dx, dy, type) {
     const out = [];
+    if (type !== undefined && !G.canIntercept(type)) return out;
+    const f = type === UT.CRUISE ? G.CRUISE_RANGE : 1;
     for (const u of this.structAt.values()) {
       if (u.type !== UT.SAM || !u.built || u.owner === p || this.friendly(u.owner, p)) continue;
-      const sr = this.samRange(u), r2 = sr * sr;
+      const sr = this.samRange(u) * f, r2 = sr * sr;
       for (let i = 0; i <= 40; i++) {
         const x = sx + (dx - sx) * i / 40, y = sy + (dy - sy) * i / 40;
         if ((x - u.x) * (x - u.x) + (y - u.y) * (y - u.y) <= r2) { out.push(u); break; }

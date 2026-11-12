@@ -942,9 +942,9 @@
     let text, warn = false;
     if (!c.ok) { text = c.why; warn = true; }
     else {
-      const sams = aim.type === UT.MIRV || !silo ? [] : game.samsOnPath(h, silo.x, silo.y, aim.tile % W, (aim.tile / W) | 0);
-      if (sams.length && aim.type === UT.CRUISE) text = 'Flugabwehr auf dem Weg. Marschflugkörper fliegen tief und werden nur selten abgefangen.';
-      else if (sams.length) { warn = true; text = (sams.length === 1 ? 'Eine Flugabwehr liegt' : sams.length + ' Flugabwehren liegen') + ' auf dem Weg. Die Bombe wird wahrscheinlich abgefangen.'; }
+      const sams = aim.type === UT.MIRV || !silo ? [] : game.samsOnPath(h, silo.x, silo.y, aim.tile % W, (aim.tile / W) | 0, aim.type);
+      if (sams.length && aim.type === UT.CRUISE) { warn = true; text = (sams.length === 1 ? 'Eine Flugabwehr steht' : sams.length + ' Flugabwehren stehen') + ' nah genug am Weg. Marschflugkörper fliegen tief, aber so nah werden sie abgefangen.'; }
+      else if (sams.length) { warn = true; text = (sams.length === 1 ? 'Eine Flugabwehr liegt' : sams.length + ' Flugabwehren liegen') + ' auf dem Weg. Die Bombe wird abgefangen.'; }
       else if (aim.type === UT.LASER) text = 'Kommt aus dem All: keine Flugabwehr hält ihn auf. Tippe auf die Karte, um das Ziel zu verschieben.';
       else text = 'Tippe auf die Karte, um das Ziel zu verschieben.';
     }

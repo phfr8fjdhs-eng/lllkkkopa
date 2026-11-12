@@ -267,9 +267,10 @@
     if (!g) return;
     this.drawRails(ctx, g, z, ox, oy);
     this.drawStructures(ctx, g, z, ox, oy);
-    this.drawUnits(ctx, g, z, ox, oy, alpha);
+    this.drawUnits(ctx, g, z, ox, oy, alpha, now);
     this.drawFx(ctx, g, z, ox, oy, now);
     this.drawNames(ctx, g, z, ox, oy);
+    this.drawIncoming(ctx, g, z, ox, oy, alpha, now);
     this.drawMarks(ctx, g, z, ox, oy, now);
     if (this.aim) this.drawAim(ctx, g, z, ox, oy, now);
     if (this.ghost) this.drawGhost(ctx, g, z, ox, oy);
@@ -349,10 +350,17 @@
     ctx.lineJoin = 'round'; ctx.lineCap = 'round';
     trace();
     if (z < 2.4) {
-      ctx.lineWidth = within(z * 0.8, 1.5, 2.6); ctx.strokeStyle = 'rgba(30,26,22,.8)'; ctx.stroke();
-      ctx.setLineDash([2, 3]);
-      ctx.lineWidth = within(z * 0.3, 0.7, 1.1); ctx.strokeStyle = 'rgba(240,236,226,.85)'; ctx.stroke();
+      // Too small for real sleepers and rails. A wide dashed line laid over a narrow base sticks
+      // out on both sides, which reads as cross-ties from a distance; a thin pale line down the
+      // middle gives it the glint of the rails. Much calmer than a dotted line.
+      const base = within(z * 0.95, 1.8, 2.6);
+      ctx.lineCap = 'butt';
+      ctx.setLineDash([Math.max(1.1, z * 0.34), Math.max(1.7, z * 0.56)]);
+      ctx.lineWidth = base * 2.15; ctx.strokeStyle = 'rgba(126,110,92,.75)'; ctx.stroke();
       ctx.setLineDash([]);
+      ctx.lineCap = 'round';
+      ctx.lineWidth = base; ctx.strokeStyle = 'rgba(38,32,26,.9)'; ctx.stroke();
+      ctx.lineWidth = Math.max(0.7, base * 0.38); ctx.strokeStyle = 'rgba(234,230,220,.9)'; ctx.stroke();
       return;
     }
     ctx.lineWidth = z * 1.05; ctx.strokeStyle = 'rgba(40,34,28,.5)'; ctx.stroke();
@@ -428,10 +436,12 @@
           if (k) ctx.lineTo(x, y); else ctx.moveTo(x, y);
         }
         ctx.lineTo(hx, hy);
-        ctx.globalAlpha = 0.85;
-        ctx.lineWidth = Math.max(1.6, z * 0.95); ctx.strokeStyle = u.owner.css; ctx.stroke();
-        ctx.globalAlpha = 0.4;
-        ctx.lineWidth = Math.max(0.6, z * 0.28); ctx.strokeStyle = '#fff'; ctx.stroke();
+        // The route a boat has sailed is background information: faint enough not to compete
+        // with borders and buildings, still clear enough to follow.
+        ctx.globalAlpha = 0.38;
+        ctx.lineWidth = Math.max(1.3, z * 0.8); ctx.strokeStyle = u.owner.css; ctx.stroke();
+        ctx.globalAlpha = 0.16;
+        ctx.lineWidth = Math.max(0.5, z * 0.24); ctx.strokeStyle = '#fff'; ctx.stroke();
         ctx.globalAlpha = 1;
         continue;
       }
@@ -443,7 +453,7 @@
         const x = (p[idx] % W + 0.5) * z + ox, y = (((p[idx] / W) | 0) + 0.5) * z + oy;
         ctx.beginPath(); ctx.moveTo(lx, ly); ctx.lineTo(x, y);
         ctx.lineWidth = Math.max(1, z * wide * (1 - k * 0.22));
-        ctx.strokeStyle = 'rgba(255,255,255,' + (0.5 - k * 0.15).toFixed(2) + ')'; ctx.stroke();
+        ctx.strokeStyle = 'rgba(255,255,255,' + (0.3 - k * 0.09).toFixed(2) + ')'; ctx.stroke();
         lx = x; ly = y;
         if (!idx) break;
       }
@@ -466,7 +476,7 @@
     ctx.restore();
   }
 
-  View.prototype.drawUnits = function (ctx, g, z, ox, oy, alpha) {
+  View.prototype.drawUnits = function (ctx, g, z, ox, oy, alpha, now) {
     const cw = this.cw, ch = this.ch, us = g.units;
     const ws = within(4 + z * 2.2, 7, 17), bs = within(3 + z * 1.6, 5, 12);
     this.drawWakes(ctx, g, z, ox, oy, alpha);
@@ -474,7 +484,7 @@
     for (let i = 0; i < us.length; i++) {
       const u = us[i], ty = u.type;
       if (!u.active || ty <= UT.FACTORY) continue;
-      if (ty >= UT.ATOM) { this.drawMissile(ctx, g, u, z, ox, oy, alpha); continue; }
+      if (ty >= UT.ATOM) { this.drawMissile(ctx, g, u, z, ox, oy, alpha, now); continue; }
       const x = (u.px + (u.x - u.px) * alpha + 0.5) * z + ox, y = (u.py + (u.y - u.py) * alpha + 0.5) * z + oy;
       if (x < -30 || y < -30 || x > cw + 30 || y > ch + 30) continue;
       const p = u.owner;
@@ -534,23 +544,94 @@
     const path = u.edge.path, n = path.length, W = g.W, dir = u.fwd ? 1 : -1, p = u.owner;
     const moved = u.x !== u.px || u.y !== u.py;
     const head = u.pi - (moved ? dir * (1 - alpha) : 0);
-    const L = Math.max(5, z * 1.25), B = Math.max(3, z * 0.72);
+    // Big enough to make out even on a map zoomed right out, where a train used to be three
+    // specks melting into the track.
+    const L = Math.max(9.5, z * 1.45), B = Math.max(4.5, z * 0.86);
+    // Keep the carriages a carriage-length apart on the screen, not a fixed number of tiles,
+    // so they stay separate instead of piling up when zoomed out.
+    const gap = Math.max(1.55, L * 1.3 / z);
     for (let k = 2; k >= 0; k--) {
-      const f = within(head - dir * k * 1.55, 0, n - 1), i0 = Math.min(n - 2, Math.floor(f)), fr = f - i0;
+      const f = within(head - dir * k * gap, 0, n - 1), i0 = Math.min(n - 2, Math.floor(f)), fr = f - i0;
       if (i0 < 0) return;
       const ax = path[i0] % W, ay = (path[i0] / W) | 0, bx = path[i0 + 1] % W, by = (path[i0 + 1] / W) | 0;
       const x = (ax + (bx - ax) * fr + 0.5) * z + ox, y = (ay + (by - ay) * fr + 0.5) * z + oy;
       ctx.save();
       ctx.translate(x, y); ctx.rotate(Math.atan2(by - ay, bx - ax));
+      // dark skirt, so the carriage lifts off the track and the land underneath
+      ctx.fillStyle = 'rgba(16,14,12,.5)';
+      ctx.fillRect(-L / 2 - 1.2, -B / 2 - 1.2, L + 2.4, B + 2.4);
       ctx.fillStyle = k ? p.cssB : p.css;
       ctx.fillRect(-L / 2, -B / 2, L, B);
-      ctx.lineWidth = 1.1; ctx.strokeStyle = k ? 'rgba(255,255,255,.75)' : '#fff'; ctx.strokeRect(-L / 2, -B / 2, L, B);
-      if (!k) { ctx.fillStyle = '#fff'; ctx.fillRect(dir * L * 0.12 - L * 0.14, -B * 0.26, L * 0.28, B * 0.52); }
+      ctx.lineWidth = 1.2; ctx.strokeStyle = k ? 'rgba(255,255,255,.8)' : '#fff'; ctx.strokeRect(-L / 2, -B / 2, L, B);
+      if (!k) { ctx.fillStyle = '#fff'; ctx.fillRect(dir * L * 0.14 - L * 0.16, -B * 0.28, L * 0.32, B * 0.56); }
       ctx.restore();
     }
   };
 
-  View.prototype.drawMissile = function (ctx, g, u, z, ox, oy, alpha) {
+  // The two blast radii of a bomb, for the mark on the ground.
+  const blast = function (R, ty) {
+    if (ty === UT.HYDRO) return [R.hydroIn, R.hydroOut];
+    if (ty === UT.ATOM) return [R.atomIn, R.atomOut];
+    if (ty === UT.CRUISE) return [R.cruiseIn, R.cruiseOut];
+    if (ty === UT.WARHEAD) return [R.headIn, R.headOut];
+    return null;
+  };
+  // Where your own bomb will land: a thin dashed ring, no fuss.
+  View.prototype.drawImpact = function (ctx, g, u, z, ox, oy) {
+    const b = blast(g.R, u.type);
+    if (!b) return;
+    const h = g.human;
+    if (h && u.owner !== h && !g.friendly(u.owner, h)) return;   // that one gets the warning instead
+    const ty = u.type;
+    const col = ty === UT.ATOM ? '255,86,64' : ty === UT.HYDRO ? '255,150,40' : ty === UT.CRUISE ? '110,215,255' : '206,120,255';
+    const x = (u.dx + 0.5) * z + ox, y = (u.dy + 0.5) * z + oy, r = b[1] * z;
+    if (x + r < -40 || y + r < -40 || x - r > this.cw + 40 || y - r > this.ch + 40) return;
+    ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832);
+    ctx.setLineDash([6, 5]); ctx.strokeStyle = 'rgba(' + col + ',0.75)'; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.setLineDash([]);
+  };
+
+  // Everything flying at you gets a loud warning, drawn over the names and borders so nothing can
+  // hide it: a pulsing ring on the outer edge of the blast, the inner ring where nothing survives,
+  // cross hairs on the tile itself and the seconds left until it hits.
+  View.prototype.drawIncoming = function (ctx, g, z, ox, oy, alpha, now) {
+    const h = g.human;
+    if (!h || !g.nukes.length) return;
+    const k = 0.5 + 0.5 * Math.sin(now / 115);                      // the pulse
+    const fs = within(z * 2.6, 12, 18);
+    for (const u of g.nukes) {
+      if (!u.active || u.owner === h || g.friendly(u.owner, h)) continue;
+      const b = blast(g.R, u.type);
+      if (!b) continue;
+      const x = (u.dx + 0.5) * z + ox, y = (u.dy + 0.5) * z + oy, r = b[1] * z;
+      if (x + r < -40 || y + r < -40 || x - r > this.cw + 40 || y - r > this.ch + 40) continue;
+      ctx.beginPath(); ctx.arc(x, y, b[0] * z, 0, 6.2832);
+      ctx.fillStyle = 'rgba(255,70,55,' + (0.12 + 0.14 * k).toFixed(3) + ')'; ctx.fill();
+      ctx.lineWidth = 1.4; ctx.strokeStyle = 'rgba(255,130,110,' + (0.5 + 0.35 * k).toFixed(2) + ')'; ctx.stroke();
+      ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832);
+      ctx.lineWidth = 3.4 + 1.4 * k; ctx.strokeStyle = 'rgba(0,0,0,.45)'; ctx.stroke();   // dark halo for contrast
+      ctx.setLineDash([9, 6]); ctx.lineDashOffset = -now / 26;
+      ctx.lineWidth = 2 + 1.4 * k; ctx.strokeStyle = 'rgba(255,90,74,' + (0.75 + 0.25 * k).toFixed(2) + ')'; ctx.stroke();
+      ctx.setLineDash([]); ctx.lineDashOffset = 0;
+      // cross hairs, so the exact tile stays readable when the rings run off the screen
+      const a = Math.min(Math.max(r, 6), 9 + 7 * k);
+      ctx.beginPath();
+      ctx.moveTo(x - a, y); ctx.lineTo(x + a, y); ctx.moveTo(x, y - a); ctx.lineTo(x, y + a);
+      ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,.5)'; ctx.stroke();
+      ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(255,236,232,' + (0.65 + 0.35 * k).toFixed(2) + ')'; ctx.stroke();
+      // ticks still to run: the wait before it drops, then the rest of the flight
+      const left = (u.delay || 0) + Math.max(0, (1 - Math.min(1, u.prog + alpha * u.speed / u.dist)) * u.dist / u.speed);
+      const s = left / 10;                                          // ten ticks to the second
+      const label = (s >= 10 ? Math.round(s) : s.toFixed(1)) + ' s';
+      const ly = y - Math.min(r, 26) - 5;
+      ctx.font = '700 ' + fs.toFixed(1) + 'px ' + FONT;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'; ctx.lineJoin = 'round';
+      ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(0,0,0,.8)'; ctx.strokeText(label, x, ly);
+      ctx.fillStyle = '#ffd7cf'; ctx.fillText(label, x, ly);
+    }
+  };
+
+  View.prototype.drawMissile = function (ctx, g, u, z, ox, oy, alpha, now) {
     if (u.type === UT.LASER) {
       // the beam gathering: a ring closes in on the target while a thin ray comes down from above
       const x = (u.dx + 0.5) * z + ox, y = (u.dy + 0.5) * z + oy, k = 1 - Math.max(0, u.fuse - alpha) / 30;
@@ -564,6 +645,7 @@
       ctx.lineWidth = 1 + 2 * k; ctx.strokeStyle = 'rgba(190,245,255,' + (0.25 + 0.5 * k).toFixed(2) + ')'; ctx.stroke();
       return;
     }
+    this.drawImpact(ctx, g, u, z, ox, oy);
     if (u.delay > 0) return;
     const ty = u.type, prog = Math.min(1, u.prog + alpha * u.speed / u.dist);
     const liftMax = Math.min(u.dist * 0.28, 70) * (ty === UT.CRUISE ? 0.12 : 1);
@@ -581,12 +663,6 @@
       ctx.lineTo(x, y);
     }
     ctx.strokeStyle = 'rgba(' + col + ',0.5)'; ctx.lineWidth = ty === UT.WARHEAD ? 1 : 2; ctx.stroke();
-    if (ty === UT.ATOM || ty === UT.HYDRO || ty === UT.CRUISE) {
-      const r = (ty === UT.HYDRO ? g.R.hydroOut : ty === UT.CRUISE ? g.R.cruiseOut : g.R.atomOut) * z;
-      ctx.beginPath(); ctx.arc(ex, ey, r, 0, 6.2832);
-      ctx.setLineDash([6, 5]); ctx.strokeStyle = 'rgba(' + col + ',0.75)'; ctx.lineWidth = 1.5; ctx.stroke();
-      ctx.setLineDash([]);
-    }
     ctx.beginPath(); ctx.arc(x, y, ty === UT.WARHEAD ? 2 : ty === UT.ATOM || ty === UT.CRUISE ? 3.5 : 5, 0, 6.2832);
     ctx.fillStyle = 'rgb(' + col + ')'; ctx.fill();
     if (ty !== UT.WARHEAD) { ctx.lineWidth = 1.2; ctx.strokeStyle = '#fff'; ctx.stroke(); }
