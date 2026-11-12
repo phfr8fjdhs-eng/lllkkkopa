@@ -31,6 +31,7 @@
     sound: 'M3 9h4l5-4.5v15L7 15H3zM14.5 8.2a5 5 0 0 1 0 7.6l-1.2-1.4a3.2 3.2 0 0 0 0-4.8zM17 5.4a8.8 8.8 0 0 1 0 13.2l-1.2-1.4a7 7 0 0 0 0-10.4z',
     mute: 'M3 9h4l5-4.5v15L7 15H3zM14.3 9.3l1.4-1.4l2.3 2.3l2.3-2.3l1.4 1.4l-2.3 2.3l2.3 2.3l-1.4 1.4l-2.3-2.3l-2.3 2.3l-1.4-1.4l2.3-2.3z',
     up: 'M12 3l8 8h-5v9H9v-9H4z',
+    laser: 'M11 1h2v9l5.5-5.5l1.4 1.4L14.4 11.5H23v2h-8.6l5.5 5.6l-1.4 1.4L13 15v8h-2v-8l-5.5 5.5l-1.4-1.4l5.5-5.6H1v-2h8.6L4.1 5.9l1.4-1.4L11 10z',
     cruise: 'M22 2l-1.2 5.2L9.5 18.5l-4-4L16.8 3.2zM4.3 15.7l4 4L3 21zM10.5 6.5H6L3.5 9.5l4 .5zM17.5 13.5V18l-3 2.5l-.5-4z',
     people: 'M8 4a3.5 3.5 0 1 0 0 7a3.5 3.5 0 0 0 0-7zM16.5 5a3 3 0 1 0 0 6a3 3 0 0 0 0-6zM1.5 20c0-3.6 2.9-6.5 6.5-6.5s6.5 2.9 6.5 6.5zM16 20c0-2-.7-3.9-1.9-5.4c.8-.4 1.6-.6 2.4-.6c3 0 5.5 2.5 5.5 6z',
     copy: 'M8 3h11a2 2 0 0 1 2 2v11h-2V5H8zM5 7h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2z',
@@ -343,10 +344,11 @@
         ctx.beginPath(); ctx.arc(x, y, s / 2 + 2.5, -1.5708, -1.5708 + 6.2832 * k);
         ctx.strokeStyle = '#f4b740'; ctx.lineWidth = 2; ctx.stroke();
       } else if (u.level > 1 && s >= 11) {
-        const bx = x + s * 0.42, by = y + s * 0.42, br = Math.max(5, s * 0.3);
+        const digits = u.level > 99 ? 3 : u.level > 9 ? 2 : 1;
+        const bx = x + s * 0.42, by = y + s * 0.42, br = Math.max(5, s * 0.3) * (digits > 1 ? 1.3 : 1);
         ctx.beginPath(); ctx.arc(bx, by, br, 0, 6.2832);
         ctx.fillStyle = '#10161d'; ctx.fill();
-        ctx.fillStyle = '#fff'; ctx.font = '700 ' + Math.round(br * 1.5) + 'px ' + FONT;
+        ctx.fillStyle = '#fff'; ctx.font = '700 ' + Math.round(br * (digits === 1 ? 1.5 : digits === 2 ? 1.15 : 0.85)) + 'px ' + FONT;
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
         ctx.fillText(String(u.level), bx, by + 0.5);
       }
@@ -487,6 +489,19 @@
   };
 
   View.prototype.drawMissile = function (ctx, g, u, z, ox, oy, alpha) {
+    if (u.type === UT.LASER) {
+      // the beam gathering: a ring closes in on the target while a thin ray comes down from above
+      const x = (u.dx + 0.5) * z + ox, y = (u.dy + 0.5) * z + oy, k = 1 - Math.max(0, u.fuse - alpha) / 30;
+      const r = (g.R.laserOut * (2.2 - 1.2 * k)) * z;
+      if (x < -r || y < -r || x > this.cw + r || y > this.ch + r) return;
+      ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832);
+      ctx.lineWidth = 2 + 2 * k; ctx.strokeStyle = 'rgba(120,235,255,' + (0.35 + 0.6 * k).toFixed(2) + ')'; ctx.stroke();
+      ctx.beginPath(); ctx.arc(x, y, g.R.laserIn * z, 0, 6.2832);
+      ctx.fillStyle = 'rgba(120,235,255,' + (0.08 + 0.2 * k).toFixed(2) + ')'; ctx.fill();
+      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, y);
+      ctx.lineWidth = 1 + 2 * k; ctx.strokeStyle = 'rgba(190,245,255,' + (0.25 + 0.5 * k).toFixed(2) + ')'; ctx.stroke();
+      return;
+    }
     if (u.delay > 0) return;
     const ty = u.type, prog = Math.min(1, u.prog + alpha * u.speed / u.dist);
     const liftMax = Math.min(u.dist * 0.28, 70) * (ty === UT.CRUISE ? 0.12 : 1);
@@ -542,6 +557,19 @@
           ctx.strokeStyle = 'rgba(255,214,150,' + (0.7 * (1 - k)).toFixed(3) + ')'; ctx.lineWidth = 5 * (1 - k) + 1; ctx.stroke();
           ctx.beginPath(); ctx.arc(x, y, r * 0.7, 0, 6.2832);
           ctx.fillStyle = 'rgba(255,120,40,' + (0.5 * (1 - k)).toFixed(3) + ')'; ctx.fill();
+        }
+        if (f.beam) {
+          // satellite beam: a column of light from the top of the screen, cold instead of fiery
+          const w = Math.max(4, f.r * z * 0.7) * (1 - k);
+          ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, y);
+          ctx.lineCap = 'butt';
+          ctx.lineWidth = w; ctx.strokeStyle = 'rgba(120,235,255,' + (0.55 * (1 - k)).toFixed(3) + ')'; ctx.stroke();
+          ctx.lineWidth = w * 0.35; ctx.strokeStyle = 'rgba(255,255,255,' + (0.95 * (1 - k)).toFixed(3) + ')'; ctx.stroke();
+          ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832);
+          ctx.fillStyle = 'rgba(120,235,255,' + (0.6 * (1 - k)).toFixed(3) + ')'; ctx.fill();
+          ctx.beginPath(); ctx.arc(x, y, r * 0.45, 0, 6.2832);
+          ctx.fillStyle = 'rgba(255,255,255,' + ((1 - k) * (1 - k)).toFixed(3) + ')'; ctx.fill();
+          continue;
         }
         ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832);
         ctx.fillStyle = 'rgba(255,176,72,' + (0.7 * (1 - k)).toFixed(3) + ')'; ctx.fill();
@@ -674,8 +702,8 @@
       ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(16,22,29,0.6)'; ctx.stroke();
       ctx.lineWidth = 2; ctx.strokeStyle = 'rgb(' + col + ')'; ctx.stroke();
     }
-    const rin = (a.type === UT.HYDRO ? R.hydroIn : a.type === UT.ATOM ? R.atomIn : a.type === UT.CRUISE ? R.cruiseIn : R.headIn) * z;
-    const rout = (a.type === UT.HYDRO ? R.hydroOut : a.type === UT.ATOM ? R.atomOut : a.type === UT.CRUISE ? R.cruiseOut : R.headOut) * z;
+    const rin = (a.type === UT.HYDRO ? R.hydroIn : a.type === UT.ATOM ? R.atomIn : a.type === UT.CRUISE ? R.cruiseIn : a.type === UT.LASER ? R.laserIn : R.headIn) * z;
+    const rout = (a.type === UT.HYDRO ? R.hydroOut : a.type === UT.ATOM ? R.atomOut : a.type === UT.CRUISE ? R.cruiseOut : a.type === UT.LASER ? R.laserOut : R.headOut) * z;
     const pulse = 0.5 + 0.5 * Math.sin(now / 220);
     ctx.beginPath(); ctx.arc(tx, ty, rout, 0, 6.2832);
     ctx.fillStyle = 'rgba(255,107,94,0.14)'; ctx.fill();

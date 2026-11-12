@@ -5,10 +5,11 @@
   const PT = G.PT = { HUMAN: 0, NATION: 1, BOT: 2 };
   const UT = G.UT = {
     CITY: 0, DEFENSE: 1, PORT: 2, SILO: 3, SAM: 4, FACTORY: 5, WARSHIP: 6, TRANSPORT: 7, TRADE: 8,
-    TRAIN: 9, SHELL: 10, SAMM: 11, ATOM: 12, HYDRO: 13, MIRV: 14, WARHEAD: 15, CRUISE: 16
+    TRAIN: 9, SHELL: 10, SAMM: 11, ATOM: 12, HYDRO: 13, MIRV: 14, WARHEAD: 15, CRUISE: 16, LASER: 17
   };
   G.UNAME = ['Stadt', 'Verteidigungs\u00ADposten', 'Hafen', 'Raketensilo', 'Flugabwehr', 'Fabrik', 'Kriegsschiff', 'Boot',
-    'Handelsschiff', 'Zug', 'Granate', 'Abwehrrakete', 'Atombombe', 'Wasserstoff\u00ADbombe', 'MIRV', 'Sprengkopf', 'Marschflug\u00ADkörper'];
+    'Handelsschiff', 'Zug', 'Granate', 'Abwehrrakete', 'Atombombe', 'Wasserstoff\u00ADbombe', 'MIRV', 'Sprengkopf', 'Marschflug\u00ADkörper', 'Satelliten\u00ADstrahl'];
+  G.LASER_COOL = 450;   // ticks between two shots of the satellite beam (Arsenal mode)
   G.DIFF_NAMES = ['Leicht', 'Mittel', 'Schwer', 'Unmöglich'];
 
   const NATION_START = [2500, 5000, 20000, 50000];
@@ -65,6 +66,7 @@
       hydroIn: Math.round(80 * S), hydroOut: Math.round(100 * S),
       headIn: Math.max(4, Math.round(12 * S)), headOut: Math.max(6, Math.round(18 * S)),
       cruiseIn: Math.max(3, Math.round(7 * S)), cruiseOut: Math.max(5, Math.round(11 * S)),
+      laserIn: Math.max(4, Math.round(10 * S)), laserOut: Math.max(6, Math.round(16 * S)),
       sam: Math.round(75 * S), warTarget: Math.round(130 * S), warPatrol: Math.round(100 * S),
       mirvRange: Math.round(1500 * S), mirvCount: Math.max(12, Math.round(350 * S * S)),
       botDist: Math.max(10, Math.round(30 * S)), boatBox: Math.round(150 * S),
@@ -889,14 +891,15 @@
       }
       case 'ship': return tileOk && this.moveWarship(p, c.t) ? '' : 'Kein Schiff kann dorthin';
       case 'build': {
-        if (!tileOk || !(c.u <= UT.WARSHIP || c.u === UT.ATOM || c.u === UT.HYDRO || c.u === UT.MIRV || c.u === UT.CRUISE) || !(c.u >= 0)) return 'Nicht möglich';
+        if (!tileOk || !(c.u <= UT.WARSHIP || c.u === UT.ATOM || c.u === UT.HYDRO || c.u === UT.MIRV || c.u === UT.CRUISE || c.u === UT.LASER) || !(c.u >= 0)) return 'Nicht möglich';
         const chk = this.buildCheck(p, c.u, c.t);
         if (!chk.ok) return chk.why || 'Nicht möglich';
         return this.build(p, c.u, c.t) ? '' : 'Nicht möglich';
       }
       case 'up': {
         const u = tileOk ? this.structNear(c.t, 4) : null;
-        return u && this.upgrade(p, u) ? '' : 'Ausbau nicht möglich';
+        const n = c.n >= 1 && c.n <= 100 ? Math.floor(c.n) : 1;
+        return u && this.upgradeBy(p, u, n) > 0 ? '' : 'Ausbau nicht möglich';
       }
       case 'ret': { for (const a of p.out) if (a.id === c.a) { this.retreat(a); return ''; } return 'Nicht möglich'; }
       case 'bret': { for (const u of p.units) if (u.id === c.u && u.type === UT.TRANSPORT) { u.retreat = true; return ''; } return 'Nicht möglich'; }

@@ -33,6 +33,35 @@ const out = (n) => path.join(__dirname, '..', 'build', n);
   await page.tap('#bMenu');
   await page.waitForTimeout(300);
   await page.screenshot({ path: out('feat_m_4menu.png') });
+  await page.keyboard.press('Escape');
+  // city upgrades: tap the city, then +1, +5 and Max
+  const cityPt = await page.evaluate(() => {
+    const g = G.debug.game, h = g.human, v = G.debug.view;
+    for (let i = 0; i < 300; i++) g.tick();
+    h.gold = 125000;
+    let t = -1; g.forTiles(h, (x) => { if (t < 0 && !h.border.has(x) && !g.structNear(x, g.R.structDist)) t = x; });
+    g.opts.instantBuild = true; g.build(h, G.UT.CITY, t);
+    h.gold = 250000 + 500000 + 4 * 1e6 + 3.5e6;   // +1 costs 250K, the next five 500K + 4 x 1M, Max then three more
+    v.fly = null; v.cam.x = t % g.W; v.cam.y = (t / g.W) | 0; v.cam.z = 5;
+    return v.screenOf(t);
+  });
+  await page.waitForTimeout(300);
+  await page.touchscreen.tap(cityPt.x, cityPt.y);
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: out('feat_m_5city.png') });
+  const lvNow = () => page.evaluate(() => { const h = G.debug.game.human; return [h.cityLv, Math.round(h.gold / 1000)]; });
+  const steps = [];
+  for (const n of [0, 1, 2]) {
+    await page.locator('.uprow .upbtn').nth(n).tap();
+    await page.waitForTimeout(300);
+    steps.push(await lvNow());
+    await page.touchscreen.tap(cityPt.x, cityPt.y);
+    await page.waitForTimeout(300);
+  }
+  await page.screenshot({ path: out('feat_m_6cityMax.png') });
+  console.log('city +1, +5, Max -> [level, gold in K]', JSON.stringify(steps));
+  const cap = await page.evaluate(() => { const g = G.debug.game, h = g.human; h.gold = 1e12; const u = h.units.find((x) => x.type === G.UT.CITY); g.upgradeBy(h, u, 500); return [u.level, g.canUpgrade(h, u), Math.round(g.maxTroops(h))]; });
+  console.log('city cap [level, can go on, max troops]', JSON.stringify(cap));
   await page.close();
 
   // ---- desktop: play on the island map with plenty of gold ----
@@ -128,6 +157,57 @@ const out = (n) => path.join(__dirname, '..', 'build', n);
   console.log(JSON.stringify(await page.evaluate((c0) => { const g = G.debug.game, h = g.human; return { defBefore: c0[1], defAfter: h.cnt[1], ratio: document.getElementById('ratioPct').textContent, fallout: g.falloutCount, audio: G.Audio.ctx && G.Audio.ctx.state, music: G.Audio.on.music }; }, c0)));
   await page.keyboard.press('m');
   console.log('after M', JSON.stringify(await page.evaluate(() => ({ on: G.Audio.on, cfg: G.debug.cfg.music }))));
+  // Shift+1 upgrades the nearest city without pointing at it exactly
+  const lv = await page.evaluate(() => { const h = G.debug.game.human; h.gold = 9e8; return h.cityLv; });
+  await page.keyboard.press('Shift+Digit1');
+  await page.waitForTimeout(400);
+  console.log('shift+1 upgrade', lv, '->', await page.evaluate(() => G.debug.game.human.cityLv));
+  await page.close();
+
+  // ---- Arsenal mode: the satellite beam ----
+  page = await open({ viewport: { width: 1280, height: 760 } });
+  await page.click('#fMode button[data-id=arsenal]');
+  await page.click('.mapc[data-id=pangaea]');
+  await page.waitForTimeout(500);
+  await page.screenshot({ path: out('feat_a_1start.png') });
+  await page.click('#fStart');
+  await page.waitForFunction(() => G.debug.game && G.debug.game.players.length > 5, null, { timeout: 20000 });
+  await page.evaluate(() => {
+    const g = G.debug.game, h = g.human;
+    let spot = -1;
+    for (let t = (g.N / 2 | 0); t < g.N && spot < 0; t += 7) if (g.canSpawnAt(t)) spot = t;
+    g.spawn(h, spot); g.spawnEnd = g.ticks + 2;
+    for (let i = 0; i < 400; i++) g.tick();
+  });
+  await page.waitForTimeout(2500);   // let the camera finish flying home before aiming elsewhere
+  const las = await page.evaluate(() => {
+    const g = G.debug.game, h = g.human, v = G.debug.view;
+    g.immuneUntil = 0; h.gold = 5e6;
+    const foe = g.players.filter((p) => p && p.alive && p !== h).sort((a, b) => b.tiles - a.tiles)[0];
+    v.fly = null; v.cam.x = foe.nameX; v.cam.y = foe.nameY; v.cam.z = 5;
+    let t = -1; g.forTiles(foe, (x) => { if (t < 0 && Math.abs(x % g.W - foe.nameX) < 3 && Math.abs((x / g.W | 0) - foe.nameY) < 3) t = x; });
+    if (t < 0) g.forTiles(foe, (x) => { if (t < 0) t = x; });
+    v.cam.x = t % g.W; v.cam.y = (t / g.W) | 0;
+    return { arsenal: g.opts.arsenal, pt: v.screenOf(t), foe: foe.id, tiles: foe.tiles, t: t };
+  });
+  await page.mouse.move(las.pt.x, las.pt.y);
+  await page.keyboard.press('l');
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: out('feat_a_2aim.png') });
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(1500);
+  await page.screenshot({ path: out('feat_a_3charge.png') });
+  await page.waitForFunction((t) => G.debug.game.owner[t] === 0, las.t, { timeout: 15000 });
+  await page.waitForTimeout(250);
+  await page.screenshot({ path: out('feat_a_4beam.png') });
+  console.log('laser', JSON.stringify(await page.evaluate((l) => { const g = G.debug.game, h = g.human; return { arsenal: l.arsenal, foeBefore: l.tiles, foeAfter: g.players[l.foe].tiles, gold: Math.round(h.gold), fallout: g.falloutCount, again: g.buildCheck(h, G.UT.LASER, l.t).why }; }, las)));
+  // classic mode must not offer it
+  await page.close();
+  page = await open({ viewport: { width: 1280, height: 760 } });
+  await page.click('#fMode button[data-id=klassisch]');
+  await page.click('#fStart');
+  await page.waitForFunction(() => G.debug.game && G.debug.game.players.length > 5, null, { timeout: 20000 });
+  console.log('classic', JSON.stringify(await page.evaluate(() => { const g = G.debug.game; return { arsenal: !!g.opts.arsenal, why: g.exec(g.human.id, { k: 'build', u: G.UT.LASER, t: 5 }) }; })));
   console.log('errors:', errors.length ? errors.join('\n') : 'none');
   await browser.close();
 })().catch((e) => { console.error(e); process.exit(1); });

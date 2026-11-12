@@ -167,6 +167,13 @@
       tone(sfxBus, 'triangle', 46, t + 0.15, 2.6, 0.35, 24, 0.2);
       noise(sfxBus, t + 0.5, 2.6, 0.14, 'bandpass', 240, 90, 2);
     },
+    // satellite beam: a rising whine, then a hard electric crack
+    laser: function (t) {
+      tone(sfxBus, 'sawtooth', 300, t, 0.5, 0.12, 2400);
+      tone(sfxBus, 'square', 1900, t + 0.02, 0.45, 0.05, 120);
+      noise(sfxBus, t, 0.6, 0.35, 'bandpass', 3200, 300, 1.2);
+      tone(sfxBus, 'sine', 90, t + 0.05, 0.8, 0.4, 30);
+    },
     start: function (t) { [57, 64, 69, 76].forEach(function (m, i) { tone(sfxBus, 'triangle', hz(m), t + i * 0.1, 0.5, 0.11); }); },
     win: function (t) { [60, 64, 67, 72, 76, 79, 84].forEach(function (m, i) { tone(sfxBus, 'triangle', hz(m), t + i * 0.11, i === 6 ? 1.2 : 0.3, 0.13); }); },
     lose: function (t) { [69, 65, 62, 57, 50].forEach(function (m, i) { tone(sfxBus, 'sawtooth', hz(m), t + i * 0.2, i === 4 ? 1.2 : 0.34, 0.07); }); }

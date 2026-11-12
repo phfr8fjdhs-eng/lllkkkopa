@@ -5,10 +5,16 @@
   const BUILD_TICKS = [20, 50, 20, 100, 300, 20];   // city, defence post, port, silo, air defence, factory
   G.BUILD_TICKS = BUILD_TICKS;
   G.MAX_LEVEL = 5;
+  G.CITY_MAX_LEVEL = 100;
+  // Cities grow up to level 100, every other building up to level 5.
+  G.maxLevel = function (type) { return type === UT.CITY ? G.CITY_MAX_LEVEL : G.MAX_LEVEL; };
 
-  Game.prototype.cost = function (p, type) {
+  // Price of the next one of a kind. As in OpenFront every level of a building counts like a
+  // building of its own, so an upgrade costs what the next new one would (cities: 125K, 250K,
+  // 500K, then 1M each). `have` overrides how many the player is counted as owning.
+  Game.prototype.cost = function (p, type, have) {
     if (p.type === PT.HUMAN && this.opts.infiniteGold) return 0;
-    const c = p.cnt[type];
+    const c = have === undefined ? p.cnt[type] : have;
     switch (type) {
       case UT.CITY: case UT.PORT: case UT.FACTORY: return Math.min(1e6, Math.pow(2, c) * 125000);
       case UT.DEFENSE: return Math.min(250000, (c + 1) * 50000);
@@ -19,6 +25,7 @@
       case UT.CRUISE: return 350000;
       case UT.HYDRO: return 5e6;
       case UT.MIRV: return 25e6;
+      case UT.LASER: return 600000;
     }
     return 0;
   };
@@ -198,6 +205,13 @@
       if (w < 0) { res.why = 'Tippe dafür auf Wasser'; return res; }
       if (!best) { res.why = 'Kein eigener Hafen an diesem Gewässer'; return res; }
       res.port = best; res.tile = w;
+    } else if (type === UT.LASER) {
+      // Arsenal mode only: fired from orbit, so it needs no silo, but the satellite has to recharge
+      if (!this.opts.arsenal) { res.why = 'Nur im Arsenal-Modus'; return res; }
+      if (this.ticks < this.immuneUntil) { res.why = 'Schonfrist läuft noch'; return res; }
+      const wait = (p.laserAt || 0) - this.ticks;
+      if (wait > 0) { res.why = 'Satellit lädt noch ' + Math.ceil(wait / 10) + ' s'; return res; }
+      if (!map.land[tile]) { res.why = 'Ziel muss Land sein'; return res; }
     } else {
       const s = this.readySilo(p, tile);
       if (!s.silo) { res.why = s.any ? 'Silo lädt noch nach' : 'Dafür brauchst du ein Raketensilo'; return res; }
@@ -230,6 +244,8 @@
       u.hp = 1000; u.patrol = c.tile; u.shotAt = 0; u.target = null; u.path = null; u.pi = 0; u.wait = false;
       this.addUnit(u);
       this.sail(u, c.tile, p.type === PT.HUMAN);
+    } else if (type === UT.LASER) {
+      u = this.fireLaser(p, c.tile);
     } else {
       u = this.launch(p, type, c.silo, c.tile);
     }
@@ -237,7 +253,7 @@
   };
 
   Game.prototype.canUpgrade = function (p, u) {
-    return !!u && u.active && u.owner === p && u.built && u.type <= UT.FACTORY && u.level < G.MAX_LEVEL;
+    return !!u && u.active && u.owner === p && u.built && u.type <= UT.FACTORY && u.level < G.maxLevel(u.type);
   };
   Game.prototype.upgrade = function (p, u) {
     if (!this.canUpgrade(p, u)) return false;
@@ -248,6 +264,25 @@
     else if (u.type === UT.DEFENSE) this.dirtyDisc(u.tile);
     else if (u.ready) u.ready.push(0);
     return true;
+  };
+
+  // How many of `want` levels the player can pay for right now, and what they cost together.
+  Game.prototype.upgradePlan = function (p, u, want) {
+    const res = { n: 0, cost: 0 };
+    if (!this.canUpgrade(p, u)) return res;
+    const room = G.maxLevel(u.type) - u.level;
+    for (let i = 0; i < want && i < room; i++) {
+      const c = this.cost(p, u.type, p.cnt[u.type] + i);
+      if (p.gold < res.cost + c) break;
+      res.cost += c; res.n++;
+    }
+    return res;
+  };
+  // Several levels in one go; stops when the gold runs out. Returns how many were bought.
+  Game.prototype.upgradeBy = function (p, u, want) {
+    let n = 0;
+    while (n < want && this.upgrade(p, u)) n++;
+    return n;
   };
 
   // ---------- boats ----------
@@ -591,7 +626,31 @@
     }
     return u;
   };
+  // The satellite beam of the Arsenal mode: it gathers over the target for three seconds, then strikes.
+  // Nothing can intercept it. It burns a small hole and leaves no fallout.
+  Game.prototype.fireLaser = function (p, tile) {
+    p.laserAt = this.ticks + G.LASER_COOL;
+    const u = this.newUnit(UT.LASER, p, tile);
+    u.dst = tile; u.sx = u.x; u.sy = u.y; u.dx = u.x; u.dy = u.y; u.dist = 1; u.prog = 0; u.speed = 1;
+    u.tid = this.owner[tile]; u.sam = false; u.delay = 0; u.fuse = 30;
+    this.addUnit(u);
+    this.fx.push({ k: 'launch', x: u.x, y: u.y, mine: p === this.human });
+    const h = this.human, hit = this.tilesInDisc(u.dx, u.dy, this.R.laserOut);
+    for (const e of hit) {
+      const q = this.players[e[0]];
+      if (q === p) continue;
+      if (p.allies.has(q.id) && e[1] > 20) this.breakAlliance(p, q);
+      this.relate(q, p, -100);
+      if (q === h) this.say('Satellitenstrahl von ' + p.name + ' zielt auf dein Gebiet!', 'bad');
+    }
+    return u;
+  };
   Game.prototype.tickNuke = function (u) {
+    if (u.type === UT.LASER) {
+      if (--u.fuse > 0) return;
+      this.removeUnit(u); this.detonate(u);
+      return;
+    }
     if (u.delay > 0) { u.delay--; return; }
     u.prog += u.speed / u.dist;
     if (u.prog < 1) {
@@ -604,9 +663,9 @@
   };
   Game.prototype.detonate = function (u) {
     const R = this.R, type = u.type;
-    const rin = type === UT.HYDRO ? R.hydroIn : type === UT.ATOM ? R.atomIn : type === UT.CRUISE ? R.cruiseIn : R.headIn;
-    const rout = type === UT.HYDRO ? R.hydroOut : type === UT.ATOM ? R.atomOut : type === UT.CRUISE ? R.cruiseOut : R.headOut;
-    const clean = type === UT.CRUISE;   // a cruise missile leaves no fallout behind
+    const rin = type === UT.HYDRO ? R.hydroIn : type === UT.ATOM ? R.atomIn : type === UT.CRUISE ? R.cruiseIn : type === UT.LASER ? R.laserIn : R.headIn;
+    const rout = type === UT.HYDRO ? R.hydroOut : type === UT.ATOM ? R.atomOut : type === UT.CRUISE ? R.cruiseOut : type === UT.LASER ? R.laserOut : R.headOut;
+    const clean = type === UT.CRUISE || type === UT.LASER;   // cruise missile and satellite beam leave no fallout behind
     const W = this.W, H = this.H, own = this.owner, land = this.map.land, rng = this.rng, ps = this.players;
     const cx = u.dx, cy = u.dy, in2 = rin * rin, out2 = rout * rout;
     const before = new Map();
@@ -638,7 +697,7 @@
       if (!v.active || v.type >= UT.SHELL) continue;
       if ((v.x - cx) * (v.x - cx) + (v.y - cy) * (v.y - cy) <= out2) this.removeUnit(v);
     }
-    this.fx.push({ k: 'boom', x: cx, y: cy, r: rout, big: type === UT.HYDRO, head: type === UT.WARHEAD });
+    this.fx.push({ k: 'boom', x: cx, y: cy, r: rout, big: type === UT.HYDRO, head: type === UT.WARHEAD, beam: type === UT.LASER });
     if (this.fx.length > 300) this.fx.splice(0, 150);
   };
   Game.prototype.splitMirv = function (u) {

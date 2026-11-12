@@ -172,6 +172,12 @@ input[type=range] { width: 100%; height: 30px; margin: 0; accent-color: var(--ac
 .own { position: absolute; right: 6px; top: 6px; min-width: 20px; padding: 0 5px; font: 700 12.5px/20px var(--display); font-style: normal; color: var(--ink); background: rgba(255, 255, 255, 0.14); border-radius: 999px; }
 .scard { display: flex; align-items: center; gap: 12px; margin-top: 8px; padding: 10px 12px; border: 1px solid rgba(244, 183, 64, 0.55); border-radius: 13px; background: rgba(244, 183, 64, 0.07); }
 .scard .ic { color: var(--accent); background: rgba(244, 183, 64, 0.16); }
+.scard { flex-direction: column; align-items: stretch; }
+.shead { display: flex; align-items: center; gap: 12px; }
+.uprow { display: flex; gap: 6px; }
+.uprow .upbtn { flex: 1; min-width: 0; }
+.lvbar { height: 6px; margin: 6px 0 4px; border-radius: 3px; background: rgba(255, 255, 255, 0.16); overflow: hidden; }
+.lvbar i { display: block; height: 100%; min-width: 3px; border-radius: 3px; background: var(--accent); }
 .sinfo { flex: 1; min-width: 0; }
 .sinfo b { display: block; font: 700 18px/1.1 var(--display); }
 .sinfo small { display: block; font-size: 12px; line-height: 1.3; color: var(--muted); }
@@ -216,6 +222,7 @@ input[type=text] { width: 100%; padding: 8px 11px; font: 500 16px var(--body); c
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
 /* map picker: two rows of cards that scroll sideways */
 .lab2 { margin-top: 10px; }
+.hint { margin: 6px 0 0; font-size: 13px; line-height: 1.35; color: var(--muted); }
 .maprow { display: flex; gap: 8px; margin: 0 -16px; padding: 2px 16px 6px; overflow-x: auto; scroll-snap-type: x proximity; scrollbar-width: thin; }
 .mapc {
   flex: none; width: 112px; padding: 0 0 6px; text-align: left; scroll-snap-align: center; overflow: hidden;
@@ -764,10 +771,11 @@ kbd {
   const PT = G.PT = { HUMAN: 0, NATION: 1, BOT: 2 };
   const UT = G.UT = {
     CITY: 0, DEFENSE: 1, PORT: 2, SILO: 3, SAM: 4, FACTORY: 5, WARSHIP: 6, TRANSPORT: 7, TRADE: 8,
-    TRAIN: 9, SHELL: 10, SAMM: 11, ATOM: 12, HYDRO: 13, MIRV: 14, WARHEAD: 15, CRUISE: 16
+    TRAIN: 9, SHELL: 10, SAMM: 11, ATOM: 12, HYDRO: 13, MIRV: 14, WARHEAD: 15, CRUISE: 16, LASER: 17
   };
   G.UNAME = ['Stadt', 'Verteidigungs\u00ADposten', 'Hafen', 'Raketensilo', 'Flugabwehr', 'Fabrik', 'Kriegsschiff', 'Boot',
-    'Handelsschiff', 'Zug', 'Granate', 'Abwehrrakete', 'Atombombe', 'Wasserstoff\u00ADbombe', 'MIRV', 'Sprengkopf', 'Marschflug\u00ADkörper'];
+    'Handelsschiff', 'Zug', 'Granate', 'Abwehrrakete', 'Atombombe', 'Wasserstoff\u00ADbombe', 'MIRV', 'Sprengkopf', 'Marschflug\u00ADkörper', 'Satelliten\u00ADstrahl'];
+  G.LASER_COOL = 450;   // ticks between two shots of the satellite beam (Arsenal mode)
   G.DIFF_NAMES = ['Leicht', 'Mittel', 'Schwer', 'Unmöglich'];
 
   const NATION_START = [2500, 5000, 20000, 50000];
@@ -824,6 +832,7 @@ kbd {
       hydroIn: Math.round(80 * S), hydroOut: Math.round(100 * S),
       headIn: Math.max(4, Math.round(12 * S)), headOut: Math.max(6, Math.round(18 * S)),
       cruiseIn: Math.max(3, Math.round(7 * S)), cruiseOut: Math.max(5, Math.round(11 * S)),
+      laserIn: Math.max(4, Math.round(10 * S)), laserOut: Math.max(6, Math.round(16 * S)),
       sam: Math.round(75 * S), warTarget: Math.round(130 * S), warPatrol: Math.round(100 * S),
       mirvRange: Math.round(1500 * S), mirvCount: Math.max(12, Math.round(350 * S * S)),
       botDist: Math.max(10, Math.round(30 * S)), boatBox: Math.round(150 * S),
@@ -1648,14 +1657,15 @@ kbd {
       }
       case 'ship': return tileOk && this.moveWarship(p, c.t) ? '' : 'Kein Schiff kann dorthin';
       case 'build': {
-        if (!tileOk || !(c.u <= UT.WARSHIP || c.u === UT.ATOM || c.u === UT.HYDRO || c.u === UT.MIRV || c.u === UT.CRUISE) || !(c.u >= 0)) return 'Nicht möglich';
+        if (!tileOk || !(c.u <= UT.WARSHIP || c.u === UT.ATOM || c.u === UT.HYDRO || c.u === UT.MIRV || c.u === UT.CRUISE || c.u === UT.LASER) || !(c.u >= 0)) return 'Nicht möglich';
         const chk = this.buildCheck(p, c.u, c.t);
         if (!chk.ok) return chk.why || 'Nicht möglich';
         return this.build(p, c.u, c.t) ? '' : 'Nicht möglich';
       }
       case 'up': {
         const u = tileOk ? this.structNear(c.t, 4) : null;
-        return u && this.upgrade(p, u) ? '' : 'Ausbau nicht möglich';
+        const n = c.n >= 1 && c.n <= 100 ? Math.floor(c.n) : 1;
+        return u && this.upgradeBy(p, u, n) > 0 ? '' : 'Ausbau nicht möglich';
       }
       case 'ret': { for (const a of p.out) if (a.id === c.a) { this.retreat(a); return ''; } return 'Nicht möglich'; }
       case 'bret': { for (const u of p.units) if (u.id === c.u && u.type === UT.TRANSPORT) { u.retreat = true; return ''; } return 'Nicht möglich'; }
@@ -1694,10 +1704,16 @@ kbd {
   const BUILD_TICKS = [20, 50, 20, 100, 300, 20];   // city, defence post, port, silo, air defence, factory
   G.BUILD_TICKS = BUILD_TICKS;
   G.MAX_LEVEL = 5;
+  G.CITY_MAX_LEVEL = 100;
+  // Cities grow up to level 100, every other building up to level 5.
+  G.maxLevel = function (type) { return type === UT.CITY ? G.CITY_MAX_LEVEL : G.MAX_LEVEL; };
 
-  Game.prototype.cost = function (p, type) {
+  // Price of the next one of a kind. As in OpenFront every level of a building counts like a
+  // building of its own, so an upgrade costs what the next new one would (cities: 125K, 250K,
+  // 500K, then 1M each). `have` overrides how many the player is counted as owning.
+  Game.prototype.cost = function (p, type, have) {
     if (p.type === PT.HUMAN && this.opts.infiniteGold) return 0;
-    const c = p.cnt[type];
+    const c = have === undefined ? p.cnt[type] : have;
     switch (type) {
       case UT.CITY: case UT.PORT: case UT.FACTORY: return Math.min(1e6, Math.pow(2, c) * 125000);
       case UT.DEFENSE: return Math.min(250000, (c + 1) * 50000);
@@ -1708,6 +1724,7 @@ kbd {
       case UT.CRUISE: return 350000;
       case UT.HYDRO: return 5e6;
       case UT.MIRV: return 25e6;
+      case UT.LASER: return 600000;
     }
     return 0;
   };
@@ -1887,6 +1904,13 @@ kbd {
       if (w < 0) { res.why = 'Tippe dafür auf Wasser'; return res; }
       if (!best) { res.why = 'Kein eigener Hafen an diesem Gewässer'; return res; }
       res.port = best; res.tile = w;
+    } else if (type === UT.LASER) {
+      // Arsenal mode only: fired from orbit, so it needs no silo, but the satellite has to recharge
+      if (!this.opts.arsenal) { res.why = 'Nur im Arsenal-Modus'; return res; }
+      if (this.ticks < this.immuneUntil) { res.why = 'Schonfrist läuft noch'; return res; }
+      const wait = (p.laserAt || 0) - this.ticks;
+      if (wait > 0) { res.why = 'Satellit lädt noch ' + Math.ceil(wait / 10) + ' s'; return res; }
+      if (!map.land[tile]) { res.why = 'Ziel muss Land sein'; return res; }
     } else {
       const s = this.readySilo(p, tile);
       if (!s.silo) { res.why = s.any ? 'Silo lädt noch nach' : 'Dafür brauchst du ein Raketensilo'; return res; }
@@ -1919,6 +1943,8 @@ kbd {
       u.hp = 1000; u.patrol = c.tile; u.shotAt = 0; u.target = null; u.path = null; u.pi = 0; u.wait = false;
       this.addUnit(u);
       this.sail(u, c.tile, p.type === PT.HUMAN);
+    } else if (type === UT.LASER) {
+      u = this.fireLaser(p, c.tile);
     } else {
       u = this.launch(p, type, c.silo, c.tile);
     }
@@ -1926,7 +1952,7 @@ kbd {
   };
 
   Game.prototype.canUpgrade = function (p, u) {
-    return !!u && u.active && u.owner === p && u.built && u.type <= UT.FACTORY && u.level < G.MAX_LEVEL;
+    return !!u && u.active && u.owner === p && u.built && u.type <= UT.FACTORY && u.level < G.maxLevel(u.type);
   };
   Game.prototype.upgrade = function (p, u) {
     if (!this.canUpgrade(p, u)) return false;
@@ -1937,6 +1963,25 @@ kbd {
     else if (u.type === UT.DEFENSE) this.dirtyDisc(u.tile);
     else if (u.ready) u.ready.push(0);
     return true;
+  };
+
+  // How many of `want` levels the player can pay for right now, and what they cost together.
+  Game.prototype.upgradePlan = function (p, u, want) {
+    const res = { n: 0, cost: 0 };
+    if (!this.canUpgrade(p, u)) return res;
+    const room = G.maxLevel(u.type) - u.level;
+    for (let i = 0; i < want && i < room; i++) {
+      const c = this.cost(p, u.type, p.cnt[u.type] + i);
+      if (p.gold < res.cost + c) break;
+      res.cost += c; res.n++;
+    }
+    return res;
+  };
+  // Several levels in one go; stops when the gold runs out. Returns how many were bought.
+  Game.prototype.upgradeBy = function (p, u, want) {
+    let n = 0;
+    while (n < want && this.upgrade(p, u)) n++;
+    return n;
   };
 
   // ---------- boats ----------
@@ -2280,7 +2325,31 @@ kbd {
     }
     return u;
   };
+  // The satellite beam of the Arsenal mode: it gathers over the target for three seconds, then strikes.
+  // Nothing can intercept it. It burns a small hole and leaves no fallout.
+  Game.prototype.fireLaser = function (p, tile) {
+    p.laserAt = this.ticks + G.LASER_COOL;
+    const u = this.newUnit(UT.LASER, p, tile);
+    u.dst = tile; u.sx = u.x; u.sy = u.y; u.dx = u.x; u.dy = u.y; u.dist = 1; u.prog = 0; u.speed = 1;
+    u.tid = this.owner[tile]; u.sam = false; u.delay = 0; u.fuse = 30;
+    this.addUnit(u);
+    this.fx.push({ k: 'launch', x: u.x, y: u.y, mine: p === this.human });
+    const h = this.human, hit = this.tilesInDisc(u.dx, u.dy, this.R.laserOut);
+    for (const e of hit) {
+      const q = this.players[e[0]];
+      if (q === p) continue;
+      if (p.allies.has(q.id) && e[1] > 20) this.breakAlliance(p, q);
+      this.relate(q, p, -100);
+      if (q === h) this.say('Satellitenstrahl von ' + p.name + ' zielt auf dein Gebiet!', 'bad');
+    }
+    return u;
+  };
   Game.prototype.tickNuke = function (u) {
+    if (u.type === UT.LASER) {
+      if (--u.fuse > 0) return;
+      this.removeUnit(u); this.detonate(u);
+      return;
+    }
     if (u.delay > 0) { u.delay--; return; }
     u.prog += u.speed / u.dist;
     if (u.prog < 1) {
@@ -2293,9 +2362,9 @@ kbd {
   };
   Game.prototype.detonate = function (u) {
     const R = this.R, type = u.type;
-    const rin = type === UT.HYDRO ? R.hydroIn : type === UT.ATOM ? R.atomIn : type === UT.CRUISE ? R.cruiseIn : R.headIn;
-    const rout = type === UT.HYDRO ? R.hydroOut : type === UT.ATOM ? R.atomOut : type === UT.CRUISE ? R.cruiseOut : R.headOut;
-    const clean = type === UT.CRUISE;   // a cruise missile leaves no fallout behind
+    const rin = type === UT.HYDRO ? R.hydroIn : type === UT.ATOM ? R.atomIn : type === UT.CRUISE ? R.cruiseIn : type === UT.LASER ? R.laserIn : R.headIn;
+    const rout = type === UT.HYDRO ? R.hydroOut : type === UT.ATOM ? R.atomOut : type === UT.CRUISE ? R.cruiseOut : type === UT.LASER ? R.laserOut : R.headOut;
+    const clean = type === UT.CRUISE || type === UT.LASER;   // cruise missile and satellite beam leave no fallout behind
     const W = this.W, H = this.H, own = this.owner, land = this.map.land, rng = this.rng, ps = this.players;
     const cx = u.dx, cy = u.dy, in2 = rin * rin, out2 = rout * rout;
     const before = new Map();
@@ -2327,7 +2396,7 @@ kbd {
       if (!v.active || v.type >= UT.SHELL) continue;
       if ((v.x - cx) * (v.x - cx) + (v.y - cy) * (v.y - cy) <= out2) this.removeUnit(v);
     }
-    this.fx.push({ k: 'boom', x: cx, y: cy, r: rout, big: type === UT.HYDRO, head: type === UT.WARHEAD });
+    this.fx.push({ k: 'boom', x: cx, y: cy, r: rout, big: type === UT.HYDRO, head: type === UT.WARHEAD, beam: type === UT.LASER });
     if (this.fx.length > 300) this.fx.splice(0, 150);
   };
   Game.prototype.splitMirv = function (u) {
@@ -2672,6 +2741,7 @@ kbd {
     const target = this.choose(list);
     if (!target) { this.overseas(); return; }
     this.strikeFromAir(target);
+    if (g.opts.arsenal) this.beam(target);
     if (p.troops / g.maxTroops(p) >= this.trigger) this.send(target);
   };
 
@@ -2856,6 +2926,15 @@ kbd {
   };
 
   // ---------- missiles ----------
+  // Arsenal mode: now and then burn out one of the target's buildings from orbit.
+  AI.prototype.beam = function (q) {
+    const g = this.g, p = this.p, r = g.rng;
+    if (g.opts.difficulty < 1 || q.type === PT.BOT || g.friendly(p, q) || g.ticks < g.immuneUntil) return;
+    if ((p.laserAt || 0) > g.ticks || p.gold < 900000 || !r.chance(3)) return;
+    const cands = [];
+    for (const u of q.units) if (u.type <= UT.FACTORY && !this.nearOwn(u.tile, g.R.laserOut + 3)) cands.push(u.tile);
+    if (cands.length) g.build(p, UT.LASER, r.pick(cands));
+  };
   AI.prototype.strikeFromAir = function (q) {
     const g = this.g, p = this.p, r = g.rng, d = g.opts.difficulty, W = g.W;
     if (d < 1 || q.type === PT.BOT || p.cnt[UT.SILO] < 1 || g.friendly(p, q) || g.ticks < g.immuneUntil) return;
@@ -3104,6 +3183,13 @@ kbd {
       tone(sfxBus, 'triangle', 46, t + 0.15, 2.6, 0.35, 24, 0.2);
       noise(sfxBus, t + 0.5, 2.6, 0.14, 'bandpass', 240, 90, 2);
     },
+    // satellite beam: a rising whine, then a hard electric crack
+    laser: function (t) {
+      tone(sfxBus, 'sawtooth', 300, t, 0.5, 0.12, 2400);
+      tone(sfxBus, 'square', 1900, t + 0.02, 0.45, 0.05, 120);
+      noise(sfxBus, t, 0.6, 0.35, 'bandpass', 3200, 300, 1.2);
+      tone(sfxBus, 'sine', 90, t + 0.05, 0.8, 0.4, 30);
+    },
     start: function (t) { [57, 64, 69, 76].forEach(function (m, i) { tone(sfxBus, 'triangle', hz(m), t + i * 0.1, 0.5, 0.11); }); },
     win: function (t) { [60, 64, 67, 72, 76, 79, 84].forEach(function (m, i) { tone(sfxBus, 'triangle', hz(m), t + i * 0.11, i === 6 ? 1.2 : 0.3, 0.13); }); },
     lose: function (t) { [69, 65, 62, 57, 50].forEach(function (m, i) { tone(sfxBus, 'sawtooth', hz(m), t + i * 0.2, i === 4 ? 1.2 : 0.34, 0.07); }); }
@@ -3151,6 +3237,7 @@ kbd {
     sound: 'M3 9h4l5-4.5v15L7 15H3zM14.5 8.2a5 5 0 0 1 0 7.6l-1.2-1.4a3.2 3.2 0 0 0 0-4.8zM17 5.4a8.8 8.8 0 0 1 0 13.2l-1.2-1.4a7 7 0 0 0 0-10.4z',
     mute: 'M3 9h4l5-4.5v15L7 15H3zM14.3 9.3l1.4-1.4l2.3 2.3l2.3-2.3l1.4 1.4l-2.3 2.3l2.3 2.3l-1.4 1.4l-2.3-2.3l-2.3 2.3l-1.4-1.4l2.3-2.3z',
     up: 'M12 3l8 8h-5v9H9v-9H4z',
+    laser: 'M11 1h2v9l5.5-5.5l1.4 1.4L14.4 11.5H23v2h-8.6l5.5 5.6l-1.4 1.4L13 15v8h-2v-8l-5.5 5.5l-1.4-1.4l5.5-5.6H1v-2h8.6L4.1 5.9l1.4-1.4L11 10z',
     cruise: 'M22 2l-1.2 5.2L9.5 18.5l-4-4L16.8 3.2zM4.3 15.7l4 4L3 21zM10.5 6.5H6L3.5 9.5l4 .5zM17.5 13.5V18l-3 2.5l-.5-4z',
     people: 'M8 4a3.5 3.5 0 1 0 0 7a3.5 3.5 0 0 0 0-7zM16.5 5a3 3 0 1 0 0 6a3 3 0 0 0 0-6zM1.5 20c0-3.6 2.9-6.5 6.5-6.5s6.5 2.9 6.5 6.5zM16 20c0-2-.7-3.9-1.9-5.4c.8-.4 1.6-.6 2.4-.6c3 0 5.5 2.5 5.5 6z',
     copy: 'M8 3h11a2 2 0 0 1 2 2v11h-2V5H8zM5 7h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2z',
@@ -3463,10 +3550,11 @@ kbd {
         ctx.beginPath(); ctx.arc(x, y, s / 2 + 2.5, -1.5708, -1.5708 + 6.2832 * k);
         ctx.strokeStyle = '#f4b740'; ctx.lineWidth = 2; ctx.stroke();
       } else if (u.level > 1 && s >= 11) {
-        const bx = x + s * 0.42, by = y + s * 0.42, br = Math.max(5, s * 0.3);
+        const digits = u.level > 99 ? 3 : u.level > 9 ? 2 : 1;
+        const bx = x + s * 0.42, by = y + s * 0.42, br = Math.max(5, s * 0.3) * (digits > 1 ? 1.3 : 1);
         ctx.beginPath(); ctx.arc(bx, by, br, 0, 6.2832);
         ctx.fillStyle = '#10161d'; ctx.fill();
-        ctx.fillStyle = '#fff'; ctx.font = '700 ' + Math.round(br * 1.5) + 'px ' + FONT;
+        ctx.fillStyle = '#fff'; ctx.font = '700 ' + Math.round(br * (digits === 1 ? 1.5 : digits === 2 ? 1.15 : 0.85)) + 'px ' + FONT;
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
         ctx.fillText(String(u.level), bx, by + 0.5);
       }
@@ -3607,6 +3695,19 @@ kbd {
   };
 
   View.prototype.drawMissile = function (ctx, g, u, z, ox, oy, alpha) {
+    if (u.type === UT.LASER) {
+      // the beam gathering: a ring closes in on the target while a thin ray comes down from above
+      const x = (u.dx + 0.5) * z + ox, y = (u.dy + 0.5) * z + oy, k = 1 - Math.max(0, u.fuse - alpha) / 30;
+      const r = (g.R.laserOut * (2.2 - 1.2 * k)) * z;
+      if (x < -r || y < -r || x > this.cw + r || y > this.ch + r) return;
+      ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832);
+      ctx.lineWidth = 2 + 2 * k; ctx.strokeStyle = 'rgba(120,235,255,' + (0.35 + 0.6 * k).toFixed(2) + ')'; ctx.stroke();
+      ctx.beginPath(); ctx.arc(x, y, g.R.laserIn * z, 0, 6.2832);
+      ctx.fillStyle = 'rgba(120,235,255,' + (0.08 + 0.2 * k).toFixed(2) + ')'; ctx.fill();
+      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, y);
+      ctx.lineWidth = 1 + 2 * k; ctx.strokeStyle = 'rgba(190,245,255,' + (0.25 + 0.5 * k).toFixed(2) + ')'; ctx.stroke();
+      return;
+    }
     if (u.delay > 0) return;
     const ty = u.type, prog = Math.min(1, u.prog + alpha * u.speed / u.dist);
     const liftMax = Math.min(u.dist * 0.28, 70) * (ty === UT.CRUISE ? 0.12 : 1);
@@ -3662,6 +3763,19 @@ kbd {
           ctx.strokeStyle = 'rgba(255,214,150,' + (0.7 * (1 - k)).toFixed(3) + ')'; ctx.lineWidth = 5 * (1 - k) + 1; ctx.stroke();
           ctx.beginPath(); ctx.arc(x, y, r * 0.7, 0, 6.2832);
           ctx.fillStyle = 'rgba(255,120,40,' + (0.5 * (1 - k)).toFixed(3) + ')'; ctx.fill();
+        }
+        if (f.beam) {
+          // satellite beam: a column of light from the top of the screen, cold instead of fiery
+          const w = Math.max(4, f.r * z * 0.7) * (1 - k);
+          ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, y);
+          ctx.lineCap = 'butt';
+          ctx.lineWidth = w; ctx.strokeStyle = 'rgba(120,235,255,' + (0.55 * (1 - k)).toFixed(3) + ')'; ctx.stroke();
+          ctx.lineWidth = w * 0.35; ctx.strokeStyle = 'rgba(255,255,255,' + (0.95 * (1 - k)).toFixed(3) + ')'; ctx.stroke();
+          ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832);
+          ctx.fillStyle = 'rgba(120,235,255,' + (0.6 * (1 - k)).toFixed(3) + ')'; ctx.fill();
+          ctx.beginPath(); ctx.arc(x, y, r * 0.45, 0, 6.2832);
+          ctx.fillStyle = 'rgba(255,255,255,' + ((1 - k) * (1 - k)).toFixed(3) + ')'; ctx.fill();
+          continue;
         }
         ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832);
         ctx.fillStyle = 'rgba(255,176,72,' + (0.7 * (1 - k)).toFixed(3) + ')'; ctx.fill();
@@ -3794,8 +3908,8 @@ kbd {
       ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(16,22,29,0.6)'; ctx.stroke();
       ctx.lineWidth = 2; ctx.strokeStyle = 'rgb(' + col + ')'; ctx.stroke();
     }
-    const rin = (a.type === UT.HYDRO ? R.hydroIn : a.type === UT.ATOM ? R.atomIn : a.type === UT.CRUISE ? R.cruiseIn : R.headIn) * z;
-    const rout = (a.type === UT.HYDRO ? R.hydroOut : a.type === UT.ATOM ? R.atomOut : a.type === UT.CRUISE ? R.cruiseOut : R.headOut) * z;
+    const rin = (a.type === UT.HYDRO ? R.hydroIn : a.type === UT.ATOM ? R.atomIn : a.type === UT.CRUISE ? R.cruiseIn : a.type === UT.LASER ? R.laserIn : R.headIn) * z;
+    const rout = (a.type === UT.HYDRO ? R.hydroOut : a.type === UT.ATOM ? R.atomOut : a.type === UT.CRUISE ? R.cruiseOut : a.type === UT.LASER ? R.laserOut : R.headOut) * z;
     const pulse = 0.5 + 0.5 * Math.sin(now / 220);
     ctx.beginPath(); ctx.arc(tx, ty, rout, 0, 6.2832);
     ctx.fillStyle = 'rgba(255,107,94,0.14)'; ctx.fill();
@@ -4151,6 +4265,7 @@ kbd {
     { t: UT.CRUISE, icon: 'cruise', note: 'Trifft genau, keine Verstrahlung', key: '8' },
     { t: UT.ATOM, icon: 'atom', note: 'Kleiner Krater', key: '9' },
     { t: UT.HYDRO, icon: 'hydro', note: 'Riesiger Krater', key: '0' },
+    { t: UT.LASER, icon: 'laser', note: 'Aus dem All, nicht abfangbar', key: 'l' },
     { t: UT.MIRV, icon: 'mirv', note: 'Verwüstet ein ganzes Reich', key: 'i' }
   ];
   const TERRAIN = ['Ebene', 'Hochland', 'Gebirge'];
@@ -4173,7 +4288,8 @@ kbd {
   let toastTimer = 0, endShown = false, botsTouched = false;
   let mp = null, turnLeft = 0, aim = null, joinCode = '', lobbyNote = '', goldTimer = 0;
   const chips = new Map(), asks = new Map();
-  const cfg = { name: 'Spieler', color: 0, map: 'welt', diff: 1, bots: -1, nations: true, instant: false, gold: false, troops: false, tap: false, music: true, sfx: true };
+  const cfg = { name: 'Spieler', color: 0, map: 'welt', diff: 1, bots: -1, nations: true, instant: false, gold: false, troops: false, tap: false, music: true, sfx: true, mode: 'klassisch' };
+  const MODES = [['klassisch', 'Klassisch', 'Das Spiel wie gewohnt.'], ['arsenal', 'Arsenal', 'Zusätzliche Waffe: der Satellitenstrahl. Er kommt aus dem All, braucht kein Silo und lässt sich nicht abfangen. Auch die Nationen setzen ihn ein.']];
   let hoverX = -1, hoverY = -1;
   const special = function (id) { return G.SPECIAL_MAPS.find(function (m) { return m.id === id; }); };
 
@@ -4184,6 +4300,7 @@ kbd {
     } catch (e) { /* storage may be unavailable */ }
     if (cfg.map !== 'zufall' && !special(cfg.map) && !MAPS.some(function (m) { return m.id === cfg.map; })) cfg.map = 'welt';
     G.Audio.on.music = cfg.music; G.Audio.on.sfx = cfg.sfx;
+    if (cfg.mode !== 'arsenal') cfg.mode = 'klassisch';
     botsTouched = cfg.bots >= 0;
   }
   function saveCfg() {
@@ -4292,6 +4409,9 @@ kbd {
       }).join('') + '</div><div class="lab lab2">Spezialkarten</div><div class="maprow">' + G.SPECIAL_MAPS.map(function (m) {
         return mapCard(m.id, m.name, m.note);
       }).join('') + mapCard('zufall', 'Zufall', 'Jedes Mal eine neue Welt') + '</div></div>';
+      h += '<div class="field"><div class="lab">Spielmodus</div><div class="seg" id="fMode">' + MODES.map(function (m) {
+        return '<button type="button" data-id="' + m[0] + '" aria-pressed="' + (m[0] === cfg.mode) + '">' + m[1] + '</button>';
+      }).join('') + '</div><p class="hint" id="fModeNote">' + MODES.find(function (m) { return m[0] === cfg.mode; })[2] + '</p></div>';
       h += '<div class="field"><div class="lab">Schwierigkeit</div><div class="seg" id="fDiff">' + G.DIFF_NAMES.map(function (n, i) {
         return '<button type="button" data-i="' + i + '" aria-pressed="' + (i === cfg.diff) + '">' + n + '</button>';
       }).join('') + '</div></div>';
@@ -4324,6 +4444,12 @@ kbd {
     drawThumbs();
     const cur = $('fMap').querySelector('.mapc[aria-pressed=true]');
     if (cur && cur.scrollIntoView) cur.scrollIntoView({ block: 'nearest', inline: 'center' });
+    $('fMode').addEventListener('click', function (e) {
+      const b = e.target.closest('button');
+      if (!b) return;
+      cfg.mode = b.dataset.id; press(this, b);
+      $('fModeNote').textContent = MODES.find(function (m) { return m[0] === cfg.mode; })[2];
+    });
     $('fDiff').addEventListener('click', function (e) {
       const b = e.target.closest('button');
       if (b) { cfg.diff = +b.dataset.i; press(this, b); }
@@ -4417,7 +4543,7 @@ kbd {
       this.disabled = true;
       mp.begin({
         seed: (Math.random() * 2e9) | 0, map: cfg.map, mapSeed: (Math.random() * 2e9) | 0,
-        diff: cfg.diff, bots: Math.max(0, cfg.bots), nations: cfg.nations
+        diff: cfg.diff, bots: Math.max(0, cfg.bots), nations: cfg.nations, arsenal: cfg.mode === 'arsenal'
       });
     });
   }
@@ -4426,7 +4552,7 @@ kbd {
     turnLeft = 0;
     loadMap(m.map, m.mapSeed).then(function (map) {
       begin(map, {
-        seed: m.seed, difficulty: m.diff, bots: m.bots, nations: m.nations, spawnTicks: 300, autoSpawn: true, me: me
+        seed: m.seed, difficulty: m.diff, bots: m.bots, nations: m.nations, arsenal: !!m.arsenal, spawnTicks: 300, autoSpawn: true, me: me
       }, m.players.map(function (p) { return { name: p.name, color: COLORS[p.color % 6] }; }));
       $('bSpeed').hidden = true; $('bPause').hidden = !mp.host;
       addMsg(m.players.length > 1 ? m.players.length + ' Spieler sind dabei. Wählt eure Startpunkte.' : 'Du bist allein im Raum.', 'info');
@@ -4494,11 +4620,13 @@ kbd {
       '<li><b>Mit Freunden:</b> <b>Mit Freunden spielen</b> öffnet einen Raum. Schick den Link weiter, dann spielt ihr auf derselben Karte.</li>' +
       '<li><b>Schiffe:</b> Handelsschiffe fahren Gold von Hafen zu Hafen, beide Häfen verdienen daran. Ein <b>Kriegsschiff</b> nimmt fremde Schiffe ein, mit deren Besitzer du keine Allianz hast: Handelsschiffe samt Gold, Boote samt der Hälfte der Truppen, und besiegte Kriegsschiffe wechseln die Seite.</li>' +
       '<li><b>Züge:</b> Pro Bahnhof gibt es 10K Gold, bei Handelspartnern 25K für beide, bei Verbündeten 50K für beide.</li>' +
+      '<li><b>Spielmodus Arsenal:</b> Zusätzlich gibt es den <b>Satellitenstrahl</b> (600K Gold). Er braucht kein Silo, trifft drei Sekunden nach dem Abfeuern, kann nicht abgefangen werden und hinterlässt keine Verstrahlung. Danach lädt der Satellit 45 Sekunden nach.</li>' +
+      '<li><b>Ausbauen:</b> Tippe auf eines deiner Gebäude, dann öffnet sich gleich die Ausbaukarte mit drei Knöpfen: eine Stufe, fünf Stufen oder so viele, wie dein Gold reicht. Städte gehen bis Stufe 100, alle anderen Gebäude bis Stufe 5. Jede Stufe kostet so viel wie ein weiteres Gebäude derselben Art (Stadt: 125K, 250K, 500K, danach je 1M) und bringt bei Städten +25K Truppen-Limit. Mit Tastatur: <kbd>U</kbd> baut das Gebäude unter dem Mauszeiger aus, <kbd>Shift</kbd> + Zahl das nächste Gebäude dieser Art.</li>' +
       '<li><b>Tippen:</b> Ein Tipp auf freies Land oder auf einen Bot greift sofort an. Bei Nationen und Mitspielern öffnet sich das Menü, dort musst du auf Angreifen tippen. Lange drücken öffnet das Menü überall.</li>' +
       '<li><b>Karte:</b> Ziehen verschiebt, zwei Finger oder das Mausrad zoomen.</li>' +
       '</ul><h2 class="h3">Tastenkürzel</h2><div class="keys">' +
-      BUILD.map(function (b) { return '<span><kbd>' + b.key.toUpperCase() + '</kbd>' + plain(b.t) + '</span>'; }).join('') +
-      '<span><kbd>B</kbd>Baumenü</span><span><kbd>U</kbd>Ausbauen</span><span><kbd>F</kbd>Angreifen</span><span><kbd>G</kbd>Boot schicken</span>' +
+      BUILD.map(function (b) { return '<span><kbd>' + b.key.toUpperCase() + '</kbd>' + plain(b.t) + (b.t === UT.LASER ? ' (Arsenal)' : '') + '</span>'; }).join('') +
+      '<span><kbd>B</kbd>Baumenü</span><span><kbd>U</kbd>Ausbauen</span><span><kbd>Shift</kbd><kbd>1</kbd>–<kbd>6</kbd>Nächstes Gebäude dieser Art ausbauen</span><span><kbd>F</kbd>Angreifen</span><span><kbd>G</kbd>Boot schicken</span>' +
       '<span><kbd>V</kbd>Kriegsschiff hierher</span><span><kbd>R</kbd>Allianz anfragen</span><span><kbd>Q</kbd><kbd>E</kbd>Truppenanteil</span>' +
       '<span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>Karte schieben</span><span><kbd>+</kbd><kbd>−</kbd>Zoom</span><span><kbd>C</kbd>Zum eigenen Gebiet</span>' +
       '<span><kbd>T</kbd>Tempo</span><span><kbd>M</kbd>Ton an/aus</span><span><kbd>Leertaste</kbd>Pause</span><span><kbd>Enter</kbd>Bombe abfeuern</span><span><kbd>Esc</kbd>Schliessen</span>' +
@@ -4513,7 +4641,7 @@ kbd {
     $('fStart').disabled = true; $('fStart').textContent = 'Karte wird vorbereitet';
     loadMap(cfg.map).then(function (map) {
       begin(map, {
-        seed: (Math.random() * 2e9) | 0, difficulty: cfg.diff, bots: cfg.bots, nations: cfg.nations,
+        seed: (Math.random() * 2e9) | 0, difficulty: cfg.diff, bots: cfg.bots, nations: cfg.nations, arsenal: cfg.mode === 'arsenal',
         instantBuild: cfg.instant, infiniteGold: cfg.gold, infiniteTroops: cfg.troops
       }, { name: cfg.name, color: COLORS[cfg.color] });
     }).catch(function (e) {
@@ -4786,7 +4914,7 @@ kbd {
 
   function showMenu() {
     if (!mp) setPaused(true);
-    openModal('<h2>' + (mp ? 'Menü' : 'Pause') + '</h2><p>' + esc(game.map.name) + ' · ' + G.DIFF_NAMES[game.opts.difficulty] + '</p>' +
+    openModal('<h2>' + (mp ? 'Menü' : 'Pause') + '</h2><p>' + esc(game.map.name) + ' · ' + G.DIFF_NAMES[game.opts.difficulty] + (game.opts.arsenal ? ' · Arsenal' : '') + '</p>' +
       '<button class="btn" data-act="resume" type="button">Weiterspielen</button>' +
       '<button class="btn ghost" data-act="help" type="button">So wird gespielt</button>' +
       '<label class="check wide" for="mMusic"><input id="mMusic" type="checkbox"' + (cfg.music ? ' checked' : '') + '>Musik</label>' +
@@ -4899,19 +5027,44 @@ kbd {
     let html = '';
     const near = game.owner[tile] === h.id ? game.structNear(tile, 4) : null;
     if (near && near.owner === h && near.built) {
-      const cost = game.cost(h, near.type), max = near.level >= G.MAX_LEVEL, can = !max && h.gold >= cost;
-      let pips = '';
-      for (let i = 1; i <= G.MAX_LEVEL; i++) pips += '<i' + (i <= near.level ? ' class="on"' : '') + '></i>';
-      html += '<div class="scard"><span class="ic big">' + svg(BUILD.find(function (b) { return b.t === near.type; }).icon, 30) + '</span>' +
-        '<div class="sinfo"><b>' + G.UNAME[near.type] + '</b><div class="pips" aria-label="Stufe ' + near.level + ' von ' + G.MAX_LEVEL + '">' + pips + '</div>' +
-        '<small>Stufe ' + near.level + ': ' + levelText(near.type, near.level) + '</small>' +
-        (max ? '<small>Höchste Stufe erreicht</small>' : '<small class="next">Stufe ' + (near.level + 1) + ': ' + levelText(near.type, near.level + 1) + '</small>') + '</div>' +
-        (max ? '' : '<button class="upbtn" type="button" data-up="1"' + (can ? '' : ' disabled') + '>' + svg('up', 18) + '<span>Ausbauen</span>' + coin(cost) + '</button>') + '</div>';
+      const top = G.maxLevel(near.type), max = near.level >= top, room = top - near.level;
+      const one = game.cost(h, near.type), rich = game.opts.infiniteGold;
+      let bar;
+      if (top > 10) bar = '<div class="lvbar" aria-label="Stufe ' + near.level + ' von ' + top + '"><i style="width:' + (100 * near.level / top) + '%"></i></div>';
+      else {
+        bar = '<div class="pips" aria-label="Stufe ' + near.level + ' von ' + top + '">';
+        for (let i = 1; i <= top; i++) bar += '<i' + (i <= near.level ? ' class="on"' : '') + '></i>';
+        bar += '</div>';
+      }
+      // three ways to buy: one level, five levels, or as many as the gold allows
+      let btns = '';
+      if (!max) {
+        const five = Math.min(5, room), all = game.upgradePlan(h, near, room);
+        let cost5 = 0;
+        for (let i = 0; i < five; i++) cost5 += game.cost(h, near.type, h.cnt[near.type] + i);
+        const btn = function (n, label, cost, ok) {
+          return '<button class="upbtn" type="button" data-up="' + n + '"' + (ok ? '' : ' disabled') + '><span>' + label + '</span>' + coin(cost) + '</button>';
+        };
+        btns = '<div class="uprow">' + btn(1, '+1 Stufe', one, rich || h.gold >= one);
+        if (room > 1) {
+          btns += btn(five, '+' + five + ' Stufen', cost5, rich || h.gold >= cost5);
+          btns += btn(all.n || 1, all.n > 1 ? 'Max: +' + all.n : 'Max', all.n ? all.cost : one, all.n > 0);
+        }
+        btns += '</div>';
+      }
+      html += '<div class="scard"><div class="shead"><span class="ic big">' + svg(BUILD.find(function (b) { return b.t === near.type; }).icon, 30) + '</span>' +
+        '<div class="sinfo"><b>' + G.UNAME[near.type] + ' · Stufe ' + near.level + (top > 10 ? ' von ' + top : '') + '</b>' + bar +
+        '<small>Jetzt: ' + levelText(near.type, near.level) + '</small>' +
+        (max ? '<small>Höchste Stufe erreicht</small>' : '<small class="next">Stufe ' + (near.level + 1) + ': ' + levelText(near.type, near.level + 1) + '</small>') + '</div></div>' + btns + '</div>';
     }
     const cell = function (b) {
       const nuke = b.t >= UT.ATOM;
       let ok, note, cost = game.cost(h, b.t);
-      if (nuke) {
+      if (b.t === UT.LASER) {
+        const wait = (h.laserAt || 0) - game.ticks;
+        ok = wait <= 0 && h.gold >= cost && game.ticks >= game.immuneUntil;
+        note = wait > 0 ? 'Lädt noch ' + Math.ceil(wait / 10) + ' s' : game.ticks < game.immuneUntil ? 'Schonfrist läuft noch' : h.gold < cost ? 'Zu wenig Gold' : b.note;
+      } else if (nuke) {
         const s = game.readySilo(h, tile);
         ok = s.any && h.gold >= cost;
         note = !s.any ? 'Dafür brauchst du ein Raketensilo' : h.gold < cost ? 'Zu wenig Gold' : 'Ziel wählen und abfeuern';
@@ -4924,7 +5077,7 @@ kbd {
         '<span class="ic">' + svg(b.icon, 24) + '</span><b>' + G.UNAME[b.t] + '</b><small>' + esc(note) + '</small>' + coin(cost) + '</button>';
     };
     html += '<h3>Gebäude</h3><div class="grid">' + BUILD.filter(function (b) { return b.t <= UT.FACTORY; }).map(cell).join('') + '</div>';
-    html += '<h3>Flotte und Raketen</h3><div class="grid">' + BUILD.filter(function (b) { return b.t > UT.FACTORY; }).map(cell).join('') + '</div>';
+    html += '<h3>Flotte und Raketen</h3><div class="grid">' + BUILD.filter(function (b) { return b.t > UT.FACTORY && (b.t !== UT.LASER || game.opts.arsenal); }).map(cell).join('') + '</div>';
     $('sheetBody').innerHTML = html;
     $('purse').innerHTML = svg('gold', 15) + (game.opts.infiniteGold ? '∞' : fmt(h.gold));
     $('sheet').hidden = false;
@@ -4933,6 +5086,8 @@ kbd {
   }
   // Build at a tile, or start aiming a bomb at it. Used by the menu and by the keys.
   function doBuild(t, tile) {
+    if (t === UT.LASER && !game.opts.arsenal) { toast('Den Satellitenstrahl gibt es nur im Arsenal-Modus'); snd('deny'); return; }
+    if (t === UT.LASER) { startAim(t, tile); return; }
     if (t >= UT.ATOM) {
       const h = game.human, s = game.readySilo(h, tile);
       if (!s.any) { toast('Dafür brauchst du ein Raketensilo'); snd('deny'); return; }
@@ -4941,15 +5096,30 @@ kbd {
     }
     act({ k: 'build', u: t, t: tile, say: t === UT.WARSHIP ? 'Kriegsschiff läuft aus' : plain(t) + (game.opts.instantBuild ? ' gebaut' : ' wird gebaut') });
   }
-  function doUpgrade(tile) {
+  function doUpgrade(tile, n) {
     const u = game.structNear(tile, 4);
-    act({ k: 'up', t: tile, say: (u ? plain(u.type) : 'Gebäude') + ' ausgebaut' });
+    act({ k: 'up', t: tile, n: n || 1, say: (u ? plain(u.type) : 'Gebäude') + ' ausgebaut' });
+  }
+  function upgradeKind(t) {
+    const h = game.human, W = game.W;
+    const at = hoverX >= 0 ? view.tileAt(hoverX, hoverY) : -1;
+    const px = at >= 0 ? at % W : h.nameX, py = at >= 0 ? (at / W) | 0 : h.nameY;
+    let best = null, bd = Infinity;
+    for (const u of h.units) {
+      if (u.type !== t || !game.canUpgrade(h, u)) continue;
+      const d = (u.x - px) * (u.x - px) + (u.y - py) * (u.y - py);
+      if (d < bd) { bd = d; best = u; }
+    }
+    if (!best) { toast(h.cnt[t] ? plain(t) + ': alle schon auf der höchsten Stufe' : 'Du hast noch kein Gebäude dieser Art'); snd('deny'); return; }
+    act({ k: 'up', t: best.tile, say: plain(t) + ' ausgebaut auf Stufe ' + (best.level + 1) });
+    view.mark = best.tile;
+    setTimeout(function () { if (view && view.mark === best.tile && $('sheet').hidden) view.mark = -1; }, 900);
   }
   function closeBuild() { $('sheet').hidden = true; if (view) view.mark = -1; }
   function onBuild(e) {
     const b = e.target.closest('[data-t],[data-up]');
     if (!b || b.disabled) return;
-    if (b.dataset.up) doUpgrade(buildTile);
+    if (b.dataset.up) doUpgrade(buildTile, +b.dataset.up);
     else {
       const t = +b.dataset.t;
       if (t >= UT.ATOM) closeBuild();
@@ -4980,7 +5150,7 @@ kbd {
     const h = game.human;
     if (!h.alive) { stopAim(); return; }
     const c = game.buildCheck(h, aim.type, aim.tile), W = game.W;
-    const silo = c.silo || game.readySilo(h, aim.tile).silo || h.units.find(function (u) { return u.type === UT.SILO && u.built; }) || null;
+    const silo = aim.type === UT.LASER ? null : c.silo || game.readySilo(h, aim.tile).silo || h.units.find(function (u) { return u.type === UT.SILO && u.built; }) || null;
     view.aim = { type: aim.type, tile: aim.tile, silo: silo, ok: c.ok };
     let text, warn = false;
     if (!c.ok) { text = c.why; warn = true; }
@@ -4988,6 +5158,7 @@ kbd {
       const sams = aim.type === UT.MIRV || !silo ? [] : game.samsOnPath(h, silo.x, silo.y, aim.tile % W, (aim.tile / W) | 0);
       if (sams.length && aim.type === UT.CRUISE) text = 'Flugabwehr auf dem Weg. Marschflugkörper fliegen tief und werden nur selten abgefangen.';
       else if (sams.length) { warn = true; text = (sams.length === 1 ? 'Eine Flugabwehr liegt' : sams.length + ' Flugabwehren liegen') + ' auf dem Weg. Die Bombe wird wahrscheinlich abgefangen.'; }
+      else if (aim.type === UT.LASER) text = 'Kommt aus dem All: keine Flugabwehr hält ihn auf. Tippe auf die Karte, um das Ziel zu verschieben.';
       else text = 'Tippe auf die Karte, um das Ziel zu verschieben.';
     }
     $('aimInfo').textContent = text;
@@ -5021,6 +5192,11 @@ kbd {
       return;
     }
     snd('tap');
+    // a tap on one of your own buildings goes straight to its upgrade card
+    if (!menu && o === h.id && h.alive) {
+      const u = game.structNear(tile, 3);
+      if (u && u.owner === h && u.built) { openBuild(u.tile); return; }
+    }
     openRadial(tile, sx, sy);
   }
 
@@ -5106,6 +5282,13 @@ kbd {
       if (!game || !$('modal').hidden) return;
       if (k === ' ') { e.preventDefault(); togglePause(); return; }
       if ((k.length === 1 && 'wasd'.indexOf(k) >= 0) || k.indexOf('arrow') === 0) { held.add(k); e.preventDefault(); return; }
+      // Shift with a building's number upgrades one of that kind: the nearest to the pointer that can still grow
+      if (e.shiftKey && /^Digit[1-6]$/.test(e.code || '')) {
+        if (e.repeat || game.phase !== 'play' || !game.human.alive) return;
+        const b = BUILD.find(function (x) { return x.key === e.code.slice(5); });
+        upgradeKind(b.t);
+        return;
+      }
       if (k === '+' || k === '=') { view.zoomAt(view.cw / 2, view.ch / 2, 1.25); return; }
       if (k === '-' || k === '_') { view.zoomAt(view.cw / 2, view.ch / 2, 0.8); return; }
       if (k === 'q') { setRatio(ratio * 100 - 5); return; }
@@ -5223,7 +5406,7 @@ kbd {
   }
   // Sounds for things that happen on the map.
   G.onFx = function (f, seen) {
-    if (f.k === 'boom') { if (f.big) snd('hydro', 0.3); else if (seen || !f.head) snd(f.head ? 'head' : 'boom', 0.12); }
+    if (f.k === 'boom') { if (f.beam) { if (seen) snd('laser', 0.2); } else if (f.big) snd('hydro', 0.3); else if (seen || !f.head) snd(f.head ? 'head' : 'boom', 0.12); }
     else if (f.k === 'coin') { if (f.mine) snd(f.amt && f.amt % 5000 === 0 ? 'train' : 'coin', 0.25); }
     else if (f.k === 'flag') { if (seen) snd('flag', 0.2); }
     else if (f.k === 'launch') { if (f.mine || seen) snd('launch', 0.3); }

@@ -24,6 +24,7 @@
     { t: UT.CRUISE, icon: 'cruise', note: 'Trifft genau, keine Verstrahlung', key: '8' },
     { t: UT.ATOM, icon: 'atom', note: 'Kleiner Krater', key: '9' },
     { t: UT.HYDRO, icon: 'hydro', note: 'Riesiger Krater', key: '0' },
+    { t: UT.LASER, icon: 'laser', note: 'Aus dem All, nicht abfangbar', key: 'l' },
     { t: UT.MIRV, icon: 'mirv', note: 'Verwüstet ein ganzes Reich', key: 'i' }
   ];
   const TERRAIN = ['Ebene', 'Hochland', 'Gebirge'];
@@ -46,7 +47,8 @@
   let toastTimer = 0, endShown = false, botsTouched = false;
   let mp = null, turnLeft = 0, aim = null, joinCode = '', lobbyNote = '', goldTimer = 0;
   const chips = new Map(), asks = new Map();
-  const cfg = { name: 'Spieler', color: 0, map: 'welt', diff: 1, bots: -1, nations: true, instant: false, gold: false, troops: false, tap: false, music: true, sfx: true };
+  const cfg = { name: 'Spieler', color: 0, map: 'welt', diff: 1, bots: -1, nations: true, instant: false, gold: false, troops: false, tap: false, music: true, sfx: true, mode: 'klassisch' };
+  const MODES = [['klassisch', 'Klassisch', 'Das Spiel wie gewohnt.'], ['arsenal', 'Arsenal', 'Zusätzliche Waffe: der Satellitenstrahl. Er kommt aus dem All, braucht kein Silo und lässt sich nicht abfangen. Auch die Nationen setzen ihn ein.']];
   let hoverX = -1, hoverY = -1;
   const special = function (id) { return G.SPECIAL_MAPS.find(function (m) { return m.id === id; }); };
 
@@ -57,6 +59,7 @@
     } catch (e) { /* storage may be unavailable */ }
     if (cfg.map !== 'zufall' && !special(cfg.map) && !MAPS.some(function (m) { return m.id === cfg.map; })) cfg.map = 'welt';
     G.Audio.on.music = cfg.music; G.Audio.on.sfx = cfg.sfx;
+    if (cfg.mode !== 'arsenal') cfg.mode = 'klassisch';
     botsTouched = cfg.bots >= 0;
   }
   function saveCfg() {
@@ -165,6 +168,9 @@
       }).join('') + '</div><div class="lab lab2">Spezialkarten</div><div class="maprow">' + G.SPECIAL_MAPS.map(function (m) {
         return mapCard(m.id, m.name, m.note);
       }).join('') + mapCard('zufall', 'Zufall', 'Jedes Mal eine neue Welt') + '</div></div>';
+      h += '<div class="field"><div class="lab">Spielmodus</div><div class="seg" id="fMode">' + MODES.map(function (m) {
+        return '<button type="button" data-id="' + m[0] + '" aria-pressed="' + (m[0] === cfg.mode) + '">' + m[1] + '</button>';
+      }).join('') + '</div><p class="hint" id="fModeNote">' + MODES.find(function (m) { return m[0] === cfg.mode; })[2] + '</p></div>';
       h += '<div class="field"><div class="lab">Schwierigkeit</div><div class="seg" id="fDiff">' + G.DIFF_NAMES.map(function (n, i) {
         return '<button type="button" data-i="' + i + '" aria-pressed="' + (i === cfg.diff) + '">' + n + '</button>';
       }).join('') + '</div></div>';
@@ -197,6 +203,12 @@
     drawThumbs();
     const cur = $('fMap').querySelector('.mapc[aria-pressed=true]');
     if (cur && cur.scrollIntoView) cur.scrollIntoView({ block: 'nearest', inline: 'center' });
+    $('fMode').addEventListener('click', function (e) {
+      const b = e.target.closest('button');
+      if (!b) return;
+      cfg.mode = b.dataset.id; press(this, b);
+      $('fModeNote').textContent = MODES.find(function (m) { return m[0] === cfg.mode; })[2];
+    });
     $('fDiff').addEventListener('click', function (e) {
       const b = e.target.closest('button');
       if (b) { cfg.diff = +b.dataset.i; press(this, b); }
@@ -290,7 +302,7 @@
       this.disabled = true;
       mp.begin({
         seed: (Math.random() * 2e9) | 0, map: cfg.map, mapSeed: (Math.random() * 2e9) | 0,
-        diff: cfg.diff, bots: Math.max(0, cfg.bots), nations: cfg.nations
+        diff: cfg.diff, bots: Math.max(0, cfg.bots), nations: cfg.nations, arsenal: cfg.mode === 'arsenal'
       });
     });
   }
@@ -299,7 +311,7 @@
     turnLeft = 0;
     loadMap(m.map, m.mapSeed).then(function (map) {
       begin(map, {
-        seed: m.seed, difficulty: m.diff, bots: m.bots, nations: m.nations, spawnTicks: 300, autoSpawn: true, me: me
+        seed: m.seed, difficulty: m.diff, bots: m.bots, nations: m.nations, arsenal: !!m.arsenal, spawnTicks: 300, autoSpawn: true, me: me
       }, m.players.map(function (p) { return { name: p.name, color: COLORS[p.color % 6] }; }));
       $('bSpeed').hidden = true; $('bPause').hidden = !mp.host;
       addMsg(m.players.length > 1 ? m.players.length + ' Spieler sind dabei. Wählt eure Startpunkte.' : 'Du bist allein im Raum.', 'info');
@@ -367,11 +379,13 @@
       '<li><b>Mit Freunden:</b> <b>Mit Freunden spielen</b> öffnet einen Raum. Schick den Link weiter, dann spielt ihr auf derselben Karte.</li>' +
       '<li><b>Schiffe:</b> Handelsschiffe fahren Gold von Hafen zu Hafen, beide Häfen verdienen daran. Ein <b>Kriegsschiff</b> nimmt fremde Schiffe ein, mit deren Besitzer du keine Allianz hast: Handelsschiffe samt Gold, Boote samt der Hälfte der Truppen, und besiegte Kriegsschiffe wechseln die Seite.</li>' +
       '<li><b>Züge:</b> Pro Bahnhof gibt es 10K Gold, bei Handelspartnern 25K für beide, bei Verbündeten 50K für beide.</li>' +
+      '<li><b>Spielmodus Arsenal:</b> Zusätzlich gibt es den <b>Satellitenstrahl</b> (600K Gold). Er braucht kein Silo, trifft drei Sekunden nach dem Abfeuern, kann nicht abgefangen werden und hinterlässt keine Verstrahlung. Danach lädt der Satellit 45 Sekunden nach.</li>' +
+      '<li><b>Ausbauen:</b> Tippe auf eines deiner Gebäude, dann öffnet sich gleich die Ausbaukarte mit drei Knöpfen: eine Stufe, fünf Stufen oder so viele, wie dein Gold reicht. Städte gehen bis Stufe 100, alle anderen Gebäude bis Stufe 5. Jede Stufe kostet so viel wie ein weiteres Gebäude derselben Art (Stadt: 125K, 250K, 500K, danach je 1M) und bringt bei Städten +25K Truppen-Limit. Mit Tastatur: <kbd>U</kbd> baut das Gebäude unter dem Mauszeiger aus, <kbd>Shift</kbd> + Zahl das nächste Gebäude dieser Art.</li>' +
       '<li><b>Tippen:</b> Ein Tipp auf freies Land oder auf einen Bot greift sofort an. Bei Nationen und Mitspielern öffnet sich das Menü, dort musst du auf Angreifen tippen. Lange drücken öffnet das Menü überall.</li>' +
       '<li><b>Karte:</b> Ziehen verschiebt, zwei Finger oder das Mausrad zoomen.</li>' +
       '</ul><h2 class="h3">Tastenkürzel</h2><div class="keys">' +
-      BUILD.map(function (b) { return '<span><kbd>' + b.key.toUpperCase() + '</kbd>' + plain(b.t) + '</span>'; }).join('') +
-      '<span><kbd>B</kbd>Baumenü</span><span><kbd>U</kbd>Ausbauen</span><span><kbd>F</kbd>Angreifen</span><span><kbd>G</kbd>Boot schicken</span>' +
+      BUILD.map(function (b) { return '<span><kbd>' + b.key.toUpperCase() + '</kbd>' + plain(b.t) + (b.t === UT.LASER ? ' (Arsenal)' : '') + '</span>'; }).join('') +
+      '<span><kbd>B</kbd>Baumenü</span><span><kbd>U</kbd>Ausbauen</span><span><kbd>Shift</kbd><kbd>1</kbd>–<kbd>6</kbd>Nächstes Gebäude dieser Art ausbauen</span><span><kbd>F</kbd>Angreifen</span><span><kbd>G</kbd>Boot schicken</span>' +
       '<span><kbd>V</kbd>Kriegsschiff hierher</span><span><kbd>R</kbd>Allianz anfragen</span><span><kbd>Q</kbd><kbd>E</kbd>Truppenanteil</span>' +
       '<span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>Karte schieben</span><span><kbd>+</kbd><kbd>−</kbd>Zoom</span><span><kbd>C</kbd>Zum eigenen Gebiet</span>' +
       '<span><kbd>T</kbd>Tempo</span><span><kbd>M</kbd>Ton an/aus</span><span><kbd>Leertaste</kbd>Pause</span><span><kbd>Enter</kbd>Bombe abfeuern</span><span><kbd>Esc</kbd>Schliessen</span>' +
@@ -386,7 +400,7 @@
     $('fStart').disabled = true; $('fStart').textContent = 'Karte wird vorbereitet';
     loadMap(cfg.map).then(function (map) {
       begin(map, {
-        seed: (Math.random() * 2e9) | 0, difficulty: cfg.diff, bots: cfg.bots, nations: cfg.nations,
+        seed: (Math.random() * 2e9) | 0, difficulty: cfg.diff, bots: cfg.bots, nations: cfg.nations, arsenal: cfg.mode === 'arsenal',
         instantBuild: cfg.instant, infiniteGold: cfg.gold, infiniteTroops: cfg.troops
       }, { name: cfg.name, color: COLORS[cfg.color] });
     }).catch(function (e) {
@@ -659,7 +673,7 @@
 
   function showMenu() {
     if (!mp) setPaused(true);
-    openModal('<h2>' + (mp ? 'Menü' : 'Pause') + '</h2><p>' + esc(game.map.name) + ' · ' + G.DIFF_NAMES[game.opts.difficulty] + '</p>' +
+    openModal('<h2>' + (mp ? 'Menü' : 'Pause') + '</h2><p>' + esc(game.map.name) + ' · ' + G.DIFF_NAMES[game.opts.difficulty] + (game.opts.arsenal ? ' · Arsenal' : '') + '</p>' +
       '<button class="btn" data-act="resume" type="button">Weiterspielen</button>' +
       '<button class="btn ghost" data-act="help" type="button">So wird gespielt</button>' +
       '<label class="check wide" for="mMusic"><input id="mMusic" type="checkbox"' + (cfg.music ? ' checked' : '') + '>Musik</label>' +
@@ -772,19 +786,44 @@
     let html = '';
     const near = game.owner[tile] === h.id ? game.structNear(tile, 4) : null;
     if (near && near.owner === h && near.built) {
-      const cost = game.cost(h, near.type), max = near.level >= G.MAX_LEVEL, can = !max && h.gold >= cost;
-      let pips = '';
-      for (let i = 1; i <= G.MAX_LEVEL; i++) pips += '<i' + (i <= near.level ? ' class="on"' : '') + '></i>';
-      html += '<div class="scard"><span class="ic big">' + svg(BUILD.find(function (b) { return b.t === near.type; }).icon, 30) + '</span>' +
-        '<div class="sinfo"><b>' + G.UNAME[near.type] + '</b><div class="pips" aria-label="Stufe ' + near.level + ' von ' + G.MAX_LEVEL + '">' + pips + '</div>' +
-        '<small>Stufe ' + near.level + ': ' + levelText(near.type, near.level) + '</small>' +
-        (max ? '<small>Höchste Stufe erreicht</small>' : '<small class="next">Stufe ' + (near.level + 1) + ': ' + levelText(near.type, near.level + 1) + '</small>') + '</div>' +
-        (max ? '' : '<button class="upbtn" type="button" data-up="1"' + (can ? '' : ' disabled') + '>' + svg('up', 18) + '<span>Ausbauen</span>' + coin(cost) + '</button>') + '</div>';
+      const top = G.maxLevel(near.type), max = near.level >= top, room = top - near.level;
+      const one = game.cost(h, near.type), rich = game.opts.infiniteGold;
+      let bar;
+      if (top > 10) bar = '<div class="lvbar" aria-label="Stufe ' + near.level + ' von ' + top + '"><i style="width:' + (100 * near.level / top) + '%"></i></div>';
+      else {
+        bar = '<div class="pips" aria-label="Stufe ' + near.level + ' von ' + top + '">';
+        for (let i = 1; i <= top; i++) bar += '<i' + (i <= near.level ? ' class="on"' : '') + '></i>';
+        bar += '</div>';
+      }
+      // three ways to buy: one level, five levels, or as many as the gold allows
+      let btns = '';
+      if (!max) {
+        const five = Math.min(5, room), all = game.upgradePlan(h, near, room);
+        let cost5 = 0;
+        for (let i = 0; i < five; i++) cost5 += game.cost(h, near.type, h.cnt[near.type] + i);
+        const btn = function (n, label, cost, ok) {
+          return '<button class="upbtn" type="button" data-up="' + n + '"' + (ok ? '' : ' disabled') + '><span>' + label + '</span>' + coin(cost) + '</button>';
+        };
+        btns = '<div class="uprow">' + btn(1, '+1 Stufe', one, rich || h.gold >= one);
+        if (room > 1) {
+          btns += btn(five, '+' + five + ' Stufen', cost5, rich || h.gold >= cost5);
+          btns += btn(all.n || 1, all.n > 1 ? 'Max: +' + all.n : 'Max', all.n ? all.cost : one, all.n > 0);
+        }
+        btns += '</div>';
+      }
+      html += '<div class="scard"><div class="shead"><span class="ic big">' + svg(BUILD.find(function (b) { return b.t === near.type; }).icon, 30) + '</span>' +
+        '<div class="sinfo"><b>' + G.UNAME[near.type] + ' · Stufe ' + near.level + (top > 10 ? ' von ' + top : '') + '</b>' + bar +
+        '<small>Jetzt: ' + levelText(near.type, near.level) + '</small>' +
+        (max ? '<small>Höchste Stufe erreicht</small>' : '<small class="next">Stufe ' + (near.level + 1) + ': ' + levelText(near.type, near.level + 1) + '</small>') + '</div></div>' + btns + '</div>';
     }
     const cell = function (b) {
       const nuke = b.t >= UT.ATOM;
       let ok, note, cost = game.cost(h, b.t);
-      if (nuke) {
+      if (b.t === UT.LASER) {
+        const wait = (h.laserAt || 0) - game.ticks;
+        ok = wait <= 0 && h.gold >= cost && game.ticks >= game.immuneUntil;
+        note = wait > 0 ? 'Lädt noch ' + Math.ceil(wait / 10) + ' s' : game.ticks < game.immuneUntil ? 'Schonfrist läuft noch' : h.gold < cost ? 'Zu wenig Gold' : b.note;
+      } else if (nuke) {
         const s = game.readySilo(h, tile);
         ok = s.any && h.gold >= cost;
         note = !s.any ? 'Dafür brauchst du ein Raketensilo' : h.gold < cost ? 'Zu wenig Gold' : 'Ziel wählen und abfeuern';
@@ -797,7 +836,7 @@
         '<span class="ic">' + svg(b.icon, 24) + '</span><b>' + G.UNAME[b.t] + '</b><small>' + esc(note) + '</small>' + coin(cost) + '</button>';
     };
     html += '<h3>Gebäude</h3><div class="grid">' + BUILD.filter(function (b) { return b.t <= UT.FACTORY; }).map(cell).join('') + '</div>';
-    html += '<h3>Flotte und Raketen</h3><div class="grid">' + BUILD.filter(function (b) { return b.t > UT.FACTORY; }).map(cell).join('') + '</div>';
+    html += '<h3>Flotte und Raketen</h3><div class="grid">' + BUILD.filter(function (b) { return b.t > UT.FACTORY && (b.t !== UT.LASER || game.opts.arsenal); }).map(cell).join('') + '</div>';
     $('sheetBody').innerHTML = html;
     $('purse').innerHTML = svg('gold', 15) + (game.opts.infiniteGold ? '∞' : fmt(h.gold));
     $('sheet').hidden = false;
@@ -806,6 +845,8 @@
   }
   // Build at a tile, or start aiming a bomb at it. Used by the menu and by the keys.
   function doBuild(t, tile) {
+    if (t === UT.LASER && !game.opts.arsenal) { toast('Den Satellitenstrahl gibt es nur im Arsenal-Modus'); snd('deny'); return; }
+    if (t === UT.LASER) { startAim(t, tile); return; }
     if (t >= UT.ATOM) {
       const h = game.human, s = game.readySilo(h, tile);
       if (!s.any) { toast('Dafür brauchst du ein Raketensilo'); snd('deny'); return; }
@@ -814,15 +855,30 @@
     }
     act({ k: 'build', u: t, t: tile, say: t === UT.WARSHIP ? 'Kriegsschiff läuft aus' : plain(t) + (game.opts.instantBuild ? ' gebaut' : ' wird gebaut') });
   }
-  function doUpgrade(tile) {
+  function doUpgrade(tile, n) {
     const u = game.structNear(tile, 4);
-    act({ k: 'up', t: tile, say: (u ? plain(u.type) : 'Gebäude') + ' ausgebaut' });
+    act({ k: 'up', t: tile, n: n || 1, say: (u ? plain(u.type) : 'Gebäude') + ' ausgebaut' });
+  }
+  function upgradeKind(t) {
+    const h = game.human, W = game.W;
+    const at = hoverX >= 0 ? view.tileAt(hoverX, hoverY) : -1;
+    const px = at >= 0 ? at % W : h.nameX, py = at >= 0 ? (at / W) | 0 : h.nameY;
+    let best = null, bd = Infinity;
+    for (const u of h.units) {
+      if (u.type !== t || !game.canUpgrade(h, u)) continue;
+      const d = (u.x - px) * (u.x - px) + (u.y - py) * (u.y - py);
+      if (d < bd) { bd = d; best = u; }
+    }
+    if (!best) { toast(h.cnt[t] ? plain(t) + ': alle schon auf der höchsten Stufe' : 'Du hast noch kein Gebäude dieser Art'); snd('deny'); return; }
+    act({ k: 'up', t: best.tile, say: plain(t) + ' ausgebaut auf Stufe ' + (best.level + 1) });
+    view.mark = best.tile;
+    setTimeout(function () { if (view && view.mark === best.tile && $('sheet').hidden) view.mark = -1; }, 900);
   }
   function closeBuild() { $('sheet').hidden = true; if (view) view.mark = -1; }
   function onBuild(e) {
     const b = e.target.closest('[data-t],[data-up]');
     if (!b || b.disabled) return;
-    if (b.dataset.up) doUpgrade(buildTile);
+    if (b.dataset.up) doUpgrade(buildTile, +b.dataset.up);
     else {
       const t = +b.dataset.t;
       if (t >= UT.ATOM) closeBuild();
@@ -853,7 +909,7 @@
     const h = game.human;
     if (!h.alive) { stopAim(); return; }
     const c = game.buildCheck(h, aim.type, aim.tile), W = game.W;
-    const silo = c.silo || game.readySilo(h, aim.tile).silo || h.units.find(function (u) { return u.type === UT.SILO && u.built; }) || null;
+    const silo = aim.type === UT.LASER ? null : c.silo || game.readySilo(h, aim.tile).silo || h.units.find(function (u) { return u.type === UT.SILO && u.built; }) || null;
     view.aim = { type: aim.type, tile: aim.tile, silo: silo, ok: c.ok };
     let text, warn = false;
     if (!c.ok) { text = c.why; warn = true; }
@@ -861,6 +917,7 @@
       const sams = aim.type === UT.MIRV || !silo ? [] : game.samsOnPath(h, silo.x, silo.y, aim.tile % W, (aim.tile / W) | 0);
       if (sams.length && aim.type === UT.CRUISE) text = 'Flugabwehr auf dem Weg. Marschflugkörper fliegen tief und werden nur selten abgefangen.';
       else if (sams.length) { warn = true; text = (sams.length === 1 ? 'Eine Flugabwehr liegt' : sams.length + ' Flugabwehren liegen') + ' auf dem Weg. Die Bombe wird wahrscheinlich abgefangen.'; }
+      else if (aim.type === UT.LASER) text = 'Kommt aus dem All: keine Flugabwehr hält ihn auf. Tippe auf die Karte, um das Ziel zu verschieben.';
       else text = 'Tippe auf die Karte, um das Ziel zu verschieben.';
     }
     $('aimInfo').textContent = text;
@@ -894,6 +951,11 @@
       return;
     }
     snd('tap');
+    // a tap on one of your own buildings goes straight to its upgrade card
+    if (!menu && o === h.id && h.alive) {
+      const u = game.structNear(tile, 3);
+      if (u && u.owner === h && u.built) { openBuild(u.tile); return; }
+    }
     openRadial(tile, sx, sy);
   }
 
@@ -979,6 +1041,13 @@
       if (!game || !$('modal').hidden) return;
       if (k === ' ') { e.preventDefault(); togglePause(); return; }
       if ((k.length === 1 && 'wasd'.indexOf(k) >= 0) || k.indexOf('arrow') === 0) { held.add(k); e.preventDefault(); return; }
+      // Shift with a building's number upgrades one of that kind: the nearest to the pointer that can still grow
+      if (e.shiftKey && /^Digit[1-6]$/.test(e.code || '')) {
+        if (e.repeat || game.phase !== 'play' || !game.human.alive) return;
+        const b = BUILD.find(function (x) { return x.key === e.code.slice(5); });
+        upgradeKind(b.t);
+        return;
+      }
       if (k === '+' || k === '=') { view.zoomAt(view.cw / 2, view.ch / 2, 1.25); return; }
       if (k === '-' || k === '_') { view.zoomAt(view.cw / 2, view.ch / 2, 0.8); return; }
       if (k === 'q') { setRatio(ratio * 100 - 5); return; }
@@ -1096,7 +1165,7 @@
   }
   // Sounds for things that happen on the map.
   G.onFx = function (f, seen) {
-    if (f.k === 'boom') { if (f.big) snd('hydro', 0.3); else if (seen || !f.head) snd(f.head ? 'head' : 'boom', 0.12); }
+    if (f.k === 'boom') { if (f.beam) { if (seen) snd('laser', 0.2); } else if (f.big) snd('hydro', 0.3); else if (seen || !f.head) snd(f.head ? 'head' : 'boom', 0.12); }
     else if (f.k === 'coin') { if (f.mine) snd(f.amt && f.amt % 5000 === 0 ? 'train' : 'coin', 0.25); }
     else if (f.k === 'flag') { if (seen) snd('flag', 0.2); }
     else if (f.k === 'launch') { if (f.mine || seen) snd('launch', 0.3); }

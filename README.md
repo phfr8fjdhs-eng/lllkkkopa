@@ -15,3 +15,9 @@ Neben den Erdkarten gibt es Spezialkarten (`G.SPECIAL_MAPS` in `src/01_map.js`):
 Tastenkürzel (gelten für die Stelle unter dem Mauszeiger): `1`–`0` und `I` bauen bzw. zielen, `B` Baumenü, `U` ausbauen, `F` angreifen, `G` Boot, `V` Kriegsschiff schicken, `R` Allianz, `Q`/`E` Truppenanteil, `WASD` Karte schieben, `+`/`−` Zoom, `C` eigenes Gebiet, `T` Tempo, `Enter` Bombe abfeuern, Leertaste Pause.
 Kriegsschiffe versenken nicht mehr, sie nehmen ein: Handelsschiffe samt Gold, Boote samt der Hälfte der Truppen, besiegte Kriegsschiffe wechseln die Seite. Züge zahlen je Bahnhof 10K (eigen), 25K (Handelspartner) oder 50K (Verbündete).
 `node test/feat.js` prüft das alles im Browser und legt Bilder nach `build/`.
+
+## Bots, Tippen, Ausbau, Arsenal
+Bots greifen niemanden an, bauen nichts und wachsen nur langsam bis zu einer kleinen Grösse; wer einen erobert, bekommt sein Gold und 75K Prämie (`G.BOT_BOUNTY`). Ein Tipp auf freies Land oder einen Bot greift sofort an, Nationen und Mitspieler nur über das Menü; lange drücken öffnet das Menü überall.
+Ein Tipp auf ein eigenes Gebäude öffnet die Ausbaukarte mit «+1», «+5» und «Max». Städte gehen bis Stufe 100 (`G.CITY_MAX_LEVEL`), alles andere bis 5. Wie in OpenFront zählt jede Stufe wie ein weiteres Gebäude: Stadt 125K, 250K, 500K, danach je 1M, pro Stufe +25K Truppen-Limit. `Shift`+`1`–`6` baut das nächste Gebäude dieser Art aus.
+Spielmodus «Arsenal» (`opts.arsenal`): zusätzlich der Satellitenstrahl (`UT.LASER`, Taste `L`, 600K, 45 s Nachladen, kein Silo, nicht abfangbar, keine Verstrahlung). Auch Nationen setzen ihn ein.
+

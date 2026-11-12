@@ -59,6 +59,7 @@
     const target = this.choose(list);
     if (!target) { this.overseas(); return; }
     this.strikeFromAir(target);
+    if (g.opts.arsenal) this.beam(target);
     if (p.troops / g.maxTroops(p) >= this.trigger) this.send(target);
   };
 
@@ -243,6 +244,15 @@
   };
 
   // ---------- missiles ----------
+  // Arsenal mode: now and then burn out one of the target's buildings from orbit.
+  AI.prototype.beam = function (q) {
+    const g = this.g, p = this.p, r = g.rng;
+    if (g.opts.difficulty < 1 || q.type === PT.BOT || g.friendly(p, q) || g.ticks < g.immuneUntil) return;
+    if ((p.laserAt || 0) > g.ticks || p.gold < 900000 || !r.chance(3)) return;
+    const cands = [];
+    for (const u of q.units) if (u.type <= UT.FACTORY && !this.nearOwn(u.tile, g.R.laserOut + 3)) cands.push(u.tile);
+    if (cands.length) g.build(p, UT.LASER, r.pick(cands));
+  };
   AI.prototype.strikeFromAir = function (q) {
     const g = this.g, p = this.p, r = g.rng, d = g.opts.difficulty, W = g.W;
     if (d < 1 || q.type === PT.BOT || p.cnt[UT.SILO] < 1 || g.friendly(p, q) || g.ticks < g.immuneUntil) return;
