@@ -397,9 +397,10 @@
   };
 
   // ---------- trade ----------
+  G.TRADE_MAX = 300;   // merchant ships at sea at the same time
   Game.prototype.spawnTrade = function (u, dst, path) {
     if (!u.active || !dst.active || !u.owner.alive || !dst.owner.alive || u.owner === dst.owner) return;
-    if (!this.canTrade(u.owner, dst.owner) || this.tradeCount >= 120) return;
+    if (!this.canTrade(u.owner, dst.owner) || this.tradeCount >= G.TRADE_MAX) return;
     const ship = this.newUnit(UT.TRADE, u.owner, u.water);
     ship.path = path; ship.pi = 0; ship.dstPort = dst; ship.captured = false;
     // OpenFront's payout: short hops pay little, from about 300 tiles on a ship is worth its while
@@ -409,9 +410,10 @@
   };
   Game.prototype.tickPort = function (u) {
     if ((this.ticks + u.id) % 10 !== 0) return;
-    if (this.tradeCount >= 120) return;
+    if (this.tradeCount >= G.TRADE_MAX) return;
     const ports = this.getPorts(), rng = this.rng;
-    const rate = Math.min(50, Math.round(10 * Math.pow(ports.length, 0.6)));
+    // a port sends a ship about every `rate` seconds per level: twice as often as before, so the seas are busy
+    const rate = Math.min(25, Math.round(5 * Math.pow(ports.length, 0.6)));
     let go = false;
     for (let i = 0; i < u.level && !go; i++) go = rng.chance(rate);
     if (!go) return;
