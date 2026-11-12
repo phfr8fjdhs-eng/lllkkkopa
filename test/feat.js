@@ -26,6 +26,13 @@ const out = (n) => path.join(__dirname, '..', 'build', n);
   await page.tap('#fStart');
   await page.waitForFunction(() => G.debug.game && G.debug.game.players.length > 5, null, { timeout: 20000 });
   console.log('ring map', JSON.stringify(await page.evaluate(() => { const g = G.debug.game; return { id: g.map.id, players: g.players.length - 1, audio: G.Audio.ctx && G.Audio.ctx.state }; })));
+  // spawn, let the game run a little and look at the phone layout with the sound button
+  await page.evaluate(() => { const g = G.debug.game; let t = -1; for (let i = (g.N / 2 | 0); i < g.N && t < 0; i += 7) if (g.canSpawnAt(i) && g.map.shore[i] === 0) t = i; G.debug.act({ k: 'spawn', t: t }); });
+  await page.waitForTimeout(2500);
+  await page.screenshot({ path: out('feat_m_3game.png') });
+  await page.tap('#bMenu');
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: out('feat_m_4menu.png') });
   await page.close();
 
   // ---- desktop: play on the island map with plenty of gold ----
@@ -108,10 +115,13 @@ const out = (n) => path.join(__dirname, '..', 'build', n);
   await page.waitForTimeout(400);
   await page.screenshot({ path: out('feat_d_5build.png') });
   await page.keyboard.press('Escape');
-  // hydrogen bomb on a neighbour via key 9
+  // hydrogen bomb on a neighbour: key 0 aims, Enter fires
   const tgt = await page.evaluate(() => { const g = G.debug.game, v = G.debug.view, h = g.human; const foe = g.players.filter((p) => p && p.alive && p !== h).sort((a, b) => b.tiles - a.tiles)[0]; v.cam.x = foe.nameX; v.cam.y = foe.nameY; v.cam.z = 2.5; return v.screenOf(Math.round(foe.nameY) * g.W + Math.round(foe.nameX)); });
   await page.mouse.move(tgt.x, tgt.y);
-  await page.keyboard.press('9');
+  await page.keyboard.press('0');
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: out('feat_d_5aim.png') });
+  await page.keyboard.press('Enter');
   await page.waitForFunction(() => G.debug.game.falloutCount > 500, null, { timeout: 60000 }).catch(() => {});
   await page.waitForTimeout(350);
   await page.screenshot({ path: out('feat_d_6hydro.png') });

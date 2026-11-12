@@ -6,10 +6,12 @@ const G = globalThis.G;
 const sharp = require('/opt/npm-tools/node_modules/sharp');
 (async () => {
   const maps = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'build', 'maps.json'), 'utf8'));
-  const list = maps.map((m) => m.id).concat(['zufall']);
+  const list = maps.map((m) => m.id).concat(['zufall']).concat(G.SPECIAL_MAPS.map((m) => m.id));
   for (const id of list) {
     let map;
-    if (id === 'zufall') {
+    if (G.SPECIAL_MAPS.some((m) => m.id === id)) {
+      map = G.specialMap(G.SPECIAL_MAPS.find((m) => m.id === id));
+    } else if (id === 'zufall') {
       map = G.buildMap(900, 600, G.randomClassMap(900, 600, 99), 99, { id: 'zufall', name: 'Zufall', nations: [] });
     } else {
       const m = maps.find((x) => x.id === id);

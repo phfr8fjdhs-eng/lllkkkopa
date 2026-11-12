@@ -73,6 +73,8 @@
     duell: { share: 0.37, freq: 5 },
     seen: { share: 0.74, freq: 9 }
   };
+  // plain square root, so every device builds exactly the same map
+  function hyp(x, y) { return Math.sqrt(x * x + y * y); }
   G.randomClassMap = function (W, H, seed, kind, ref) {
     const N = W * H, cls = new Uint8Array(N), e = new Float32Array(N);
     const sh = SHAPES[kind] || SHAPES.zufall, k = (ref || W) / W;
@@ -82,10 +84,10 @@
       const nx = Math.abs(u - 0.5) * 2, ny = Math.abs(v - 0.5) * 2;
       const edge = Math.max(nx, ny), n = fbm(x / sc, y / sc, 5);
       let h;
-      if (kind === 'pangaea') h = n * 0.5 + 0.62 * (1 - Math.hypot(nx, ny));
-      else if (kind === 'ring') h = n * 0.45 + 0.7 * (1 - Math.abs(Math.hypot(nx, ny * 0.92) - 0.6) * 3.4);
+      if (kind === 'pangaea') h = n * 0.5 + 0.62 * (1 - hyp(nx, ny));
+      else if (kind === 'ring') h = n * 0.45 + 0.7 * (1 - Math.abs(hyp(nx, ny * 0.92) - 0.6) * 3.4);
       else if (kind === 'duell') {
-        const dl = Math.hypot((u - 0.25) / 0.2, (v - 0.5) / 0.4), dr = Math.hypot((u - 0.75) / 0.2, (v - 0.5) / 0.4);
+        const dl = hyp((u - 0.25) / 0.2, (v - 0.5) / 0.4), dr = hyp((u - 0.75) / 0.2, (v - 0.5) / 0.4);
         h = n * 0.5 + 0.55 * (1 - Math.min(dl, dr));
       } else if (kind === 'seen') h = n - Math.max(0, edge - 0.86) * 3;
       else h = n - Math.max(0, edge - 0.74) * 1.7;

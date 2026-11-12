@@ -1,12 +1,13 @@
 (function (G) {
   'use strict';
+  const Math = G.M;   // same results on every device, see 00_util.js
   const PT = G.PT, UT = G.UT;
 
   // Computer opponents. Bots only spread and skirmish; nations also build, sail, ally and bomb.
   function AI(g, p) {
     const r = g.rng;
     this.g = g; this.p = p;
-    this.rate = r.int(40, 80); this.off = r.int(0, this.rate);
+    this.rate = p.type === PT.BOT ? r.int(80, 140) : r.int(40, 80); this.off = r.int(0, this.rate);
     if (p.type === PT.BOT) { this.trigger = r.int(60, 90) / 100; this.reserve = r.int(30, 60) / 100; }
     else { this.trigger = r.int(50, 60) / 100; this.reserve = r.int(30, 40) / 100; }
     this.expand = r.int(10, 20) / 100;
@@ -253,6 +254,11 @@
   AI.prototype.strikeFromAir = function (q) {
     const g = this.g, p = this.p, r = g.rng, d = g.opts.difficulty, W = g.W;
     if (d < 1 || q.type === PT.BOT || p.cnt[UT.SILO] < 1 || g.friendly(p, q) || g.ticks < g.immuneUntil) return;
+    // knock out an air defence first, so the big bombs get through
+    if (q.cnt[UT.SAM] > 0 && p.gold >= 1.5e6 && r.chance(2)) {
+      const s = q.units.find(function (u) { return u.type === UT.SAM && u.built; });
+      if (s && g.build(p, UT.CRUISE, s.tile)) return;
+    }
     let type = -1;
     if (d >= 2 && p.gold >= 26e6 && q.tiles > g.map.landTiles * 0.12) type = UT.MIRV;
     else if (d >= 2 && p.gold >= 6e6 && q.tiles > 3000) type = UT.HYDRO;

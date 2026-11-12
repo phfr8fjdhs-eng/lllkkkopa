@@ -1,8 +1,10 @@
 (function (G) {
   'use strict';
+  const Math = G.M;   // same results on every device, see 00_util.js
   const Game = G.Game, UT = G.UT, PT = G.PT, fmt = G.fmt;
   const BUILD_TICKS = [20, 50, 20, 100, 300, 20];   // city, defence post, port, silo, air defence, factory
   G.BUILD_TICKS = BUILD_TICKS;
+  G.MAX_LEVEL = 5;
 
   Game.prototype.cost = function (p, type) {
     if (p.type === PT.HUMAN && this.opts.infiniteGold) return 0;
@@ -14,6 +16,7 @@
       case UT.SAM: return Math.min(3e6, (c + 1) * 1.5e6);
       case UT.WARSHIP: return Math.min(1e6, (c + 1) * 250000);
       case UT.ATOM: return 750000;
+      case UT.CRUISE: return 350000;
       case UT.HYDRO: return 5e6;
       case UT.MIRV: return 25e6;
     }
@@ -226,7 +229,7 @@
       u = this.newUnit(type, p, c.port.water);
       u.hp = 1000; u.patrol = c.tile; u.shotAt = 0; u.target = null; u.path = null; u.pi = 0; u.wait = false;
       this.addUnit(u);
-      this.sail(u, c.tile, p === this.human);
+      this.sail(u, c.tile, p.type === PT.HUMAN);
     } else {
       u = this.launch(p, type, c.silo, c.tile);
     }
@@ -234,8 +237,7 @@
   };
 
   Game.prototype.canUpgrade = function (p, u) {
-    return !!u && u.active && u.owner === p && u.built &&
-      (u.type === UT.CITY || u.type === UT.PORT || u.type === UT.SILO || u.type === UT.SAM);
+    return !!u && u.active && u.owner === p && u.built && u.type <= UT.FACTORY && u.level < G.MAX_LEVEL;
   };
   Game.prototype.upgrade = function (p, u) {
     if (!this.canUpgrade(p, u)) return false;
@@ -243,6 +245,7 @@
     if (p.gold < cost) return false;
     p.gold -= cost; u.level++; p.cnt[u.type]++;
     if (u.type === UT.CITY) p.cityLv++;
+    else if (u.type === UT.DEFENSE) this.dirtyDisc(u.tile);
     else if (u.ready) u.ready.push(0);
     return true;
   };
@@ -319,7 +322,7 @@
       if (path) { u.path = path; u.pi = 0; return; }
       if (p.alive) p.troops += u.troops;
       this.removeUnit(u);
-    }, p === this.human);
+    }, p.type === PT.HUMAN);
     const q = plan.tid ? this.players[plan.tid] : null;
     if (q) {
       this.relate(q, p, -40);
@@ -463,6 +466,7 @@
         if (!v.active || v.owner === p) continue;
         const ty = v.type;
         if (ty !== UT.TRANSPORT && ty !== UT.WARSHIP && ty !== UT.TRADE) continue;
+        if (v.safeUntil > T) continue;   // just changed hands: left alone for a moment
         if (this.friendly(v.owner, p)) continue;
         if (ty === UT.TRADE && (v.captured || this.friendly(v.dstPort.owner, p))) continue;
         const dx = v.x - u.x, dy = v.y - u.y, d2 = dx * dx + dy * dy;
@@ -531,7 +535,7 @@
       if (i >= 0) was.units.splice(i, 1);
       was.cnt[UT.WARSHIP]--; by.cnt[UT.WARSHIP]++;
       tg.owner = by; by.units.push(tg);
-      tg.hp = 400; tg.target = null; tg.patrol = tg.tile; tg.shotAt = this.ticks + 30;
+      tg.hp = 400; tg.target = null; tg.patrol = tg.tile; tg.shotAt = this.ticks + 30; tg.safeUntil = this.ticks + 150;
       this.fx.push({ k: 'flag', x: tg.x, y: tg.y });
       if (was === h) this.say(by.name + ' hat dein Kriegsschiff eingenommen', 'bad');
       else if (by === h) this.say('Kriegsschiff von ' + was.name + ' eingenommen', 'good');
@@ -564,7 +568,7 @@
     const u = this.newUnit(type, p, silo.tile);
     u.dst = tile; u.sx = u.x; u.sy = u.y; u.dx = tile % W; u.dy = (tile / W) | 0;
     u.dist = Math.max(1, Math.hypot(u.dx - u.sx, u.dy - u.sy));
-    u.prog = 0; u.speed = this.R.nukeSpeed; u.tid = this.owner[tile]; u.sam = false; u.delay = 0;
+    u.prog = 0; u.speed = this.R.nukeSpeed * (type === UT.CRUISE ? 1.6 : 1); u.tid = this.owner[tile]; u.sam = false; u.delay = 0;
     this.addUnit(u);
     this.fx.push({ k: 'launch', x: u.x, y: u.y, mine: p === this.human });
     const h = this.human;
@@ -577,7 +581,7 @@
       }
       return u;
     }
-    const hit = this.tilesInDisc(u.dx, u.dy, type === UT.HYDRO ? this.R.hydroOut : this.R.atomOut);
+    const hit = this.tilesInDisc(u.dx, u.dy, type === UT.HYDRO ? this.R.hydroOut : type === UT.CRUISE ? this.R.cruiseOut : this.R.atomOut);
     for (const e of hit) {
       const q = this.players[e[0]];
       if (q === p) continue;
@@ -600,8 +604,9 @@
   };
   Game.prototype.detonate = function (u) {
     const R = this.R, type = u.type;
-    const rin = type === UT.HYDRO ? R.hydroIn : type === UT.ATOM ? R.atomIn : R.headIn;
-    const rout = type === UT.HYDRO ? R.hydroOut : type === UT.ATOM ? R.atomOut : R.headOut;
+    const rin = type === UT.HYDRO ? R.hydroIn : type === UT.ATOM ? R.atomIn : type === UT.CRUISE ? R.cruiseIn : R.headIn;
+    const rout = type === UT.HYDRO ? R.hydroOut : type === UT.ATOM ? R.atomOut : type === UT.CRUISE ? R.cruiseOut : R.headOut;
+    const clean = type === UT.CRUISE;   // a cruise missile leaves no fallout behind
     const W = this.W, H = this.H, own = this.owner, land = this.map.land, rng = this.rng, ps = this.players;
     const cx = u.dx, cy = u.dy, in2 = rin * rin, out2 = rout * rout;
     const before = new Map();
@@ -618,7 +623,7 @@
           q.troops = Math.max(0, q.troops - 5 * q.troops / Math.max(1, q.tiles));
           this.relinquish(t);
         }
-        if (!this.fallout[t]) { this.fallout[t] = 1; this.falloutCount++; this.markDirty(t); }
+        if (!clean && !this.fallout[t]) { this.fallout[t] = 1; this.falloutCount++; this.markDirty(t); }
       }
     }
     const h = this.human;
@@ -669,7 +674,7 @@
     for (let s = 0; s < u.ready.length; s++) {
       if (u.ready[s] > T) continue;
       for (const n of this.nukes) {
-        if (!n.active || n.type > UT.HYDRO || n.sam || n.delay > 0) continue;
+        if (!n.active || (n.type > UT.HYDRO && n.type !== UT.CRUISE) || n.sam || n.delay > 0) continue;
         if (n.owner === u.owner || this.friendly(n.owner, u.owner)) continue;
         if ((n.x - u.x) * (n.x - u.x) + (n.y - u.y) * (n.y - u.y) > r2) continue;
         n.sam = true; u.ready[s] = T + 75;
@@ -686,7 +691,7 @@
     const dx = n.x - u.x, dy = n.y - u.y, d = Math.hypot(dx, dy), sp = Math.max(5, 14 * this.S);
     if (d > sp) { u.x += dx / d * sp; u.y += dy / d * sp; return; }
     this.removeUnit(u);
-    if (this.rng.next() < 0.75) {
+    if (this.rng.next() < (n.type === UT.CRUISE ? 0.3 : 0.75)) {   // cruise missiles fly low and are hard to hit
       this.removeUnit(n);
       this.fx.push({ k: 'pop', x: n.x, y: n.y });
       const h = this.human;
@@ -695,6 +700,19 @@
     } else {
       n.sam = false;
     }
+  };
+
+  // Air defences that could reach a bomb on its way from the silo to the target (for the aiming preview).
+  Game.prototype.samsOnPath = function (p, sx, sy, dx, dy) {
+    const r2 = this.R.sam * this.R.sam, out = [];
+    for (const u of this.structAt.values()) {
+      if (u.type !== UT.SAM || !u.built || u.owner === p || this.friendly(u.owner, p)) continue;
+      for (let i = 0; i <= 40; i++) {
+        const x = sx + (dx - sx) * i / 40, y = sy + (dy - sy) * i / 40;
+        if ((x - u.x) * (x - u.x) + (y - u.y) * (y - u.y) <= r2) { out.push(u); break; }
+      }
+    }
+    return out;
   };
 
   Game.prototype.tickUnit = function (u) {

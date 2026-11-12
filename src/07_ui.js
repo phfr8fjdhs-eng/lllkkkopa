@@ -12,7 +12,7 @@
   }
 
   const COLORS = [[226, 68, 60], [42, 122, 226], [241, 160, 36], [150, 84, 214], [28, 170, 150], [232, 86, 160]];
-  // The number keys 1 to 0 build these, in this order, at the mouse pointer.
+  // The keys 1 to 0 and I build these, in this order, at the mouse pointer.
   const BUILD = [
     { t: UT.CITY, icon: 'city', note: 'Truppen-Limit +25K', key: '1' },
     { t: UT.PORT, icon: 'port', note: 'Handel und Kriegsschiffe', key: '2' },
@@ -21,17 +21,30 @@
     { t: UT.SILO, icon: 'silo', note: 'Startet Bomben', key: '5' },
     { t: UT.SAM, icon: 'sam', note: 'Fängt Bomben ab', key: '6' },
     { t: UT.WARSHIP, icon: 'warship', note: 'Nimmt fremde Schiffe ein', key: '7' },
-    { t: UT.ATOM, icon: 'atom', note: 'Kleiner Krater', key: '8' },
-    { t: UT.HYDRO, icon: 'hydro', note: 'Riesiger Krater', key: '9' },
-    { t: UT.MIRV, icon: 'mirv', note: 'Verwüstet ein ganzes Reich', key: '0' }
+    { t: UT.CRUISE, icon: 'cruise', note: 'Trifft genau, keine Verstrahlung', key: '8' },
+    { t: UT.ATOM, icon: 'atom', note: 'Kleiner Krater', key: '9' },
+    { t: UT.HYDRO, icon: 'hydro', note: 'Riesiger Krater', key: '0' },
+    { t: UT.MIRV, icon: 'mirv', note: 'Verwüstet ein ganzes Reich', key: 'i' }
   ];
-  const snd = function (name, gap) { G.Audio.play(name, gap); };
   const TERRAIN = ['Ebene', 'Hochland', 'Gebirge'];
+  const snd = function (name, gap) { G.Audio.play(name, gap); };
+  const plain = function (t) { return G.UNAME[t].replace('\u00AD', ''); };
+  const coin = function (n) { return '<span class="price">' + svg('gold', 13) + (n ? fmt(n) : 'gratis') + '</span>'; };
+  // What a building does at a given level, for the upgrade card.
+  function levelText(type, lv) {
+    if (type === UT.CITY) return 'Truppen-Limit +' + 25 * lv + 'K';
+    if (type === UT.PORT) return lv === 1 ? 'Schickt Handelsschiffe' : 'Schickt ' + lv + '-mal so oft Handelsschiffe';
+    if (type === UT.SILO) return lv === 1 ? '1 Rakete pro Ladung' : lv + ' Raketen pro Ladung';
+    if (type === UT.SAM) return lv === 1 ? '1 Abwehrrakete pro Ladung' : lv + ' Abwehrraketen pro Ladung';
+    if (type === UT.DEFENSE) return 'Grenze ' + (3 + 2 * lv) + '-mal zäher';
+    return lv === 1 ? 'Schickt Züge los' : 'Züge fahren ' + ((1 + lv) / 2).toLocaleString('de-CH') + '-mal so oft';
+  }
 
   let MAPS = [], maps = {}, game = null, view = null;
   let paused = false, speed = 1, acc = 0, last = 0, ratio = 0.2;
   let sel = null, radialAt = 0, modalKind = '', infoId = 0, lbOpen = false, lbAt = -99, liveAt = -99, tradeAt = 0;
   let toastTimer = 0, endShown = false, botsTouched = false;
+  let mp = null, turnLeft = 0, aim = null, joinCode = '', lobbyNote = '', goldTimer = 0;
   const chips = new Map(), asks = new Map();
   const cfg = { name: 'Spieler', color: 0, map: 'welt', diff: 1, bots: -1, nations: true, instant: false, gold: false, troops: false, tap: false, music: true, sfx: true };
   let hoverX = -1, hoverY = -1;
@@ -51,20 +64,23 @@
   }
 
   // ---------- maps ----------
-  function loadMap(id) {
+  function loadMap(id, seed) {
+    if (id === 'zufall' && seed !== undefined && maps.zufall && maps.zufall.seed !== seed) delete maps.zufall;
     if (maps[id]) return Promise.resolve(maps[id]);
     if (id === 'zufall') {
-      const seed = (Math.random() * 2e9) | 0;
+      if (seed === undefined) seed = (Math.random() * 2e9) | 0;
       maps.zufall = G.buildMap(960, 600, G.randomClassMap(960, 600, seed), seed, { id: 'zufall', name: 'Zufallskarte', nations: [] });
+      maps.zufall.seed = seed;
       return Promise.resolve(maps.zufall);
     }
     if (special(id)) {
-      // built on the next frame, so the tap on the card shows at once
+      // built a moment later, so the tap on the card shows at once
       return new Promise(function (resolve) {
         setTimeout(function () { maps[id] = maps[id] || G.specialMap(special(id)); resolve(maps[id]); }, 30);
       });
     }
     const def = MAPS.find(function (m) { return m.id === id; });
+    if (!def) return Promise.reject(new Error('Diese Karte gibt es hier nicht'));
     return new Promise(function (resolve, reject) {
       const img = new Image();
       img.onload = function () {
@@ -114,7 +130,7 @@
   }
   function closeModal() {
     $('modal').hidden = true;
-    if (modalKind === 'menu' || modalKind === 'help') setPaused(false);
+    if ((modalKind === 'menu' || modalKind === 'help') && !mp) setPaused(false);
     modalKind = '';
   }
   function setPaused(v) {
@@ -134,29 +150,42 @@
     const check = function (id, label, on) {
       return '<label class="check" for="' + id + '"><input id="' + id + '" type="checkbox"' + (on ? ' checked' : '') + '>' + label + '</label>';
     };
-    let h = '<h1>Grenzland</h1><p>Erobere die Karte. Einzelspieler gegen Bots und Nationen.</p>';
+    let h = '<h1>Grenzland <small>Version 2.1</small></h1>';
+    h += joinCode ? '<p>Du wurdest in den Raum <b class="code">' + esc(joinCode) + '</b> eingeladen. Wähle Name und Farbe.</p>' : '<p>Erobere die Karte, allein oder mit Freunden.</p>';
     h += '<div class="field"><label for="fName">Dein Name</label><input id="fName" type="text" maxlength="18" autocomplete="off" value="' + esc(cfg.name) + '"></div>';
     h += '<div class="field"><div class="lab">Farbe</div><div class="swatches" id="fColor">' + COLORS.map(function (c, i) {
       return '<button type="button" class="sw" data-i="' + i + '" aria-label="Farbe ' + (i + 1) + '" aria-pressed="' + (i === cfg.color) + '" style="background:rgb(' + c.join(',') + ')"></button>';
     }).join('') + '</div></div>';
-    h += '<div class="field" id="fMap"><div class="lab">Karte · Erde</div><div class="maprow">' + MAPS.map(function (m) {
-      return mapCard(m.id, m.name, m.nations.length + ' Nationen');
-    }).join('') + '</div><div class="lab lab2">Spezialkarten</div><div class="maprow">' + G.SPECIAL_MAPS.map(function (m) {
-      return mapCard(m.id, m.name, m.note);
-    }).join('') + mapCard('zufall', 'Zufall', 'Jedes Mal eine neue Welt') + '</div></div>';
-    h += '<div class="field"><div class="lab">Schwierigkeit</div><div class="seg" id="fDiff">' + G.DIFF_NAMES.map(function (n, i) {
-      return '<button type="button" data-i="' + i + '" aria-pressed="' + (i === cfg.diff) + '">' + n + '</button>';
-    }).join('') + '</div></div>';
-    h += '<div class="field"><label for="fBots">Bots <b id="fBotsVal">' + Math.max(0, cfg.bots) + '</b></label><input id="fBots" type="range" min="0" max="400" step="10" value="' + Math.max(0, cfg.bots) + '"></div>';
-    h += '<div class="field"><div class="lab">Optionen</div><div class="checks">' + check('fNations', 'Nationen', cfg.nations) +
-      check('fInstant', 'Sofort bauen', cfg.instant) + check('fGold', 'Unendlich Gold', cfg.gold) + check('fTroops', 'Unendlich Truppen', cfg.troops) + '</div></div>';
-    h += '<button class="btn" id="fStart" type="button">Spiel starten</button>';
+    if (joinCode) {
+      h += '<button class="btn" id="fJoin" type="button">' + svg('people', 20) + 'Beitreten</button>';
+      h += '<button class="btn ghost" id="fSolo" type="button">Lieber allein spielen</button>';
+    } else {
+      h += '<div class="field" id="fMap"><div class="lab">Karte · Erde</div><div class="maprow">' + MAPS.map(function (m) {
+        return mapCard(m.id, m.name, m.nations.length + ' Nationen');
+      }).join('') + '</div><div class="lab lab2">Spezialkarten</div><div class="maprow">' + G.SPECIAL_MAPS.map(function (m) {
+        return mapCard(m.id, m.name, m.note);
+      }).join('') + mapCard('zufall', 'Zufall', 'Jedes Mal eine neue Welt') + '</div></div>';
+      h += '<div class="field"><div class="lab">Schwierigkeit</div><div class="seg" id="fDiff">' + G.DIFF_NAMES.map(function (n, i) {
+        return '<button type="button" data-i="' + i + '" aria-pressed="' + (i === cfg.diff) + '">' + n + '</button>';
+      }).join('') + '</div></div>';
+      h += '<div class="field"><label for="fBots">Bots <b id="fBotsVal">' + Math.max(0, cfg.bots) + '</b></label><input id="fBots" type="range" min="0" max="400" step="10" value="' + Math.max(0, cfg.bots) + '"></div>';
+      h += '<div class="field"><div class="lab">Optionen</div><div class="checks">' + check('fNations', 'Nationen', cfg.nations) +
+        check('fInstant', 'Sofort bauen', cfg.instant) + check('fGold', 'Unendlich Gold', cfg.gold) + check('fTroops', 'Unendlich Truppen', cfg.troops) + '</div></div>';
+      h += '<button class="btn" id="fStart" type="button">Spiel starten</button>';
+      h += '<button class="btn alt" id="fHost" type="button">' + svg('people', 20) + 'Mit Freunden spielen</button>';
+    }
     h += '<button class="btn ghost" id="fHelp" type="button">So wird gespielt</button>';
     openModal(h, 'start');
     $('fColor').addEventListener('click', function (e) {
       const b = e.target.closest('.sw');
       if (b) { cfg.color = +b.dataset.i; press(this, b); }
     });
+    $('fHelp').addEventListener('click', function () { readForm(); showHelp(true); });
+    if (joinCode) {
+      $('fJoin').addEventListener('click', function () { readForm(); openRoom(false); });
+      $('fSolo').addEventListener('click', function () { readForm(); joinCode = ''; showStart(); });
+      return;
+    }
     $('fMap').addEventListener('click', function (e) {
       const b = e.target.closest('.mapc');
       if (!b) return;
@@ -174,7 +203,107 @@
     });
     $('fBots').addEventListener('input', function () { botsTouched = true; cfg.bots = +this.value; $('fBotsVal').textContent = this.value; });
     $('fStart').addEventListener('click', startGame);
-    $('fHelp').addEventListener('click', function () { showHelp(true); });
+    $('fHost').addEventListener('click', function () { readForm(); openRoom(true); });
+  }
+  function readForm() {
+    cfg.name = ($('fName').value || '').trim() || 'Spieler';
+    if ($('fNations')) {
+      cfg.nations = $('fNations').checked; cfg.instant = $('fInstant').checked;
+      cfg.gold = $('fGold').checked; cfg.troops = $('fTroops').checked;
+      cfg.bots = +$('fBots').value;
+    }
+    if (!botsTouched) { const keep = cfg.bots; cfg.bots = -1; saveCfg(); cfg.bots = keep; } else saveCfg();
+  }
+
+  // ---------- playing together: the room before the game ----------
+  function myId() {
+    let id = '';
+    try { id = sessionStorage.getItem('grenzland.id') || ''; } catch (e) { /* storage may be unavailable */ }
+    if (!id) { id = Math.random().toString(36).slice(2, 12); try { sessionStorage.setItem('grenzland.id', id); } catch (e) { /* ignore */ } }
+    return id;
+  }
+  function roomLink() {
+    const u = new URL(location.href);
+    u.search = ''; u.hash = '';
+    u.searchParams.set('raum', mp.code);
+    const r = new URLSearchParams(location.search).get('relay');
+    if (r) u.searchParams.set('relay', r);
+    return u.toString();
+  }
+  function openRoom(host) {
+    lobbyNote = '';
+    const me = { id: myId(), name: cfg.name, color: cfg.color };
+    mp = new G.Session(host, me, {
+      lobby: function () { if (modalKind === 'lobby') renderLobby(); },
+      status: function (text, fatal) {
+        lobbyNote = text;
+        if (modalKind === 'lobby') renderLobby(); else if (text && game) addMsg(text, fatal ? 'bad' : 'warn');
+      },
+      start: startMp,
+      desync: function () { if (game) addMsg('Die Spielstände der Geräte weichen voneinander ab. Am besten startet ihr eine neue Runde.', 'bad'); },
+      lost: function (text) { if (game) quitGame(); else { leaveRoom(); showStart(); previewMap(cfg.map); } toast(text); },
+      paused: function (v) { setPaused(v); if (game) addMsg(v ? 'Der Gastgeber hat pausiert' : 'Weiter geht es', 'info'); }
+    });
+    openModal('', 'lobby');
+    renderLobby();
+    if (host) mp.create(); else mp.join(joinCode);
+  }
+  function leaveRoom() {
+    if (mp) { mp.close(); mp = null; }
+    turnLeft = 0;
+    $('bSpeed').hidden = false; $('bPause').hidden = false;
+  }
+  function renderLobby() {
+    if (!mp) return;
+    let h = '<h2>' + (mp.code && (mp.host ? mp.up : true) ? 'Raum <span class="code">' + esc(mp.code) + '</span>' : 'Raum wird geöffnet') + '</h2>';
+    if (mp.host && mp.up) {
+      h += '<p>Schick diesen Link an deine Mitspieler. Wer ihn öffnet, landet in diesem Raum.</p>';
+      h += '<div class="linkrow"><input id="lLink" type="text" readonly value="' + esc(roomLink()) + '"><button class="tb" id="lCopy" type="button" aria-label="Link kopieren">' + svg('copy', 18) + '</button></div>';
+      if (navigator.share) h += '<button class="btn ghost" id="lShare" type="button">Link teilen</button>';
+    } else if (!mp.host) h += '<p>Der Gastgeber startet das Spiel, sobald alle da sind.</p>';
+    if (lobbyNote) h += '<p class="notes">' + esc(lobbyNote) + '</p>';
+    if (mp.players.length) {
+      h += '<div class="lab top">Im Raum · ' + mp.players.length + '</div><div class="plist">' + mp.players.map(function (p, i) {
+        return '<div><span class="dot" style="background:rgb(' + COLORS[p.color % 6].join(',') + ')"></span>' + esc(p.name) +
+          (i === 0 ? '<i>Gastgeber</i>' : '') + (p.id === mp.me.id ? '<i>du</i>' : '') + '</div>';
+      }).join('') + '</div>';
+    }
+    if (mp.host) {
+      const m = MAPS.find(function (x) { return x.id === cfg.map; });
+      h += '<p>' + esc(m ? m.name : 'Zufallskarte') + ' · ' + G.DIFF_NAMES[cfg.diff] + ' · ' + Math.max(0, cfg.bots) + ' Bots' + (cfg.nations ? ' · Nationen' : '') + '</p>';
+      h += '<button class="btn" id="lStart" type="button"' + (mp.up ? '' : ' disabled') + '>' + (mp.players.length > 1 ? 'Spiel starten' : 'Allein starten') + '</button>';
+    }
+    h += '<button class="btn ghost" id="lLeave" type="button">' + (mp.host ? 'Raum schliessen' : 'Verlassen') + '</button>';
+    $('modalCard').innerHTML = h;
+    $('lLeave').addEventListener('click', function () { leaveRoom(); showStart(); });
+    if ($('lCopy')) $('lCopy').addEventListener('click', function () {
+      const el = $('lLink');
+      el.select();
+      const done = function () { toast('Link kopiert'); };
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(el.value).then(done, function () { toast('Halte den Link gedrückt, um ihn zu kopieren'); });
+      else { try { document.execCommand('copy'); done(); } catch (e) { toast('Halte den Link gedrückt, um ihn zu kopieren'); } }
+    });
+    if ($('lShare')) $('lShare').addEventListener('click', function () {
+      navigator.share({ title: 'Grenzland', text: 'Spiel mit mir Grenzland', url: roomLink() }).catch(function () { /* closed */ });
+    });
+    if ($('lStart')) $('lStart').addEventListener('click', function () {
+      this.disabled = true;
+      mp.begin({
+        seed: (Math.random() * 2e9) | 0, map: cfg.map, mapSeed: (Math.random() * 2e9) | 0,
+        diff: cfg.diff, bots: Math.max(0, cfg.bots), nations: cfg.nations
+      });
+    });
+  }
+  function startMp(m) {
+    const me = mp.index();
+    turnLeft = 0;
+    loadMap(m.map, m.mapSeed).then(function (map) {
+      begin(map, {
+        seed: m.seed, difficulty: m.diff, bots: m.bots, nations: m.nations, spawnTicks: 300, autoSpawn: true, me: me
+      }, m.players.map(function (p) { return { name: p.name, color: COLORS[p.color % 6] }; }));
+      $('bSpeed').hidden = true; $('bPause').hidden = !mp.host;
+      addMsg(m.players.length > 1 ? m.players.length + ' Spieler sind dabei. Wählt eure Startpunkte.' : 'Du bist allein im Raum.', 'info');
+    }).catch(function (e) { toast(e.message); });
   }
 
   // Small pictures of every map for the picker.
@@ -222,8 +351,8 @@
 
   function helpHtml() {
     return '<h2>So wird gespielt</h2><ul class="help">' +
-      '<li><b>Start:</b> Tippe auf freies Land und wähle so deinen Startpunkt.</li>' +
-      '<li><b>Ausbreiten:</b> Tippe auf Land neben deinem Gebiet und dann auf <b>Angriff</b>. Der Regler unten legt fest, wie viele Truppen du schickst.</li>' +
+      '<li><b>Start:</b> Tippe auf freies Land. Damit wählst du deinen Startpunkt, und das Spiel beginnt sofort.</li>' +
+      '<li><b>Angreifen:</b> Tippe auf Land oder auf einen Gegner neben deinem Gebiet und dann auf <b>Angreifen</b>. Der Regler unten legt fest, wie viele Truppen du schickst.</li>' +
       '<li><b>Truppen:</b> Sie wachsen von selbst, am schnellsten bei gut 40 % des Limits. Mehr Land und Städte heben das Limit.</li>' +
       '<li><b>Gold:</b> Kommt laufend dazu, ausserdem durch Handel und Eroberungen. Damit baust du Städte, Häfen, Fabriken, Verteidigung und Raketen.</li>' +
       '<li><b>Fabriken:</b> Eine Fabrik verbindet sich per Gleis mit Städten, Häfen und Fabriken in der Nähe. Jeder Zug bringt an jedem Bahnhof Gold, bei Handelspartnern sogar mehr.</li>' +
@@ -231,15 +360,20 @@
       '<li><b>Allianzen:</b> Verbündete greifen sich zehn Minuten lang nicht an. Wer eine Allianz bricht, ist 30 Sekunden lang leichter zu erobern.</li>' +
       '<li><b>Einkreisen:</b> Wer ganz von einem Gegner umschlossen ist, wird sofort übernommen.</li>' +
       '<li><b>Sieg:</b> Wer 80 % des Landes hält, gewinnt.</li>' +
+      '<li><b>Bots:</b> Kleine Reiche mit langen Namen wehren sich kaum und breiten sich langsam aus. Wer eines erobert, bekommt sein Gold und eine Prämie.</li>' +
+      '<li><b>Ausbauen:</b> Tippe auf ein eigenes Gebäude und dann auf <b>Ausbau</b>. Jede Stufe macht es stärker, bis Stufe 5.</li>' +
+      '<li><b>Bomben:</b> Wähle im Baumenü eine Bombe. Die Karte zeigt dann die Flugbahn, den Einschlag, den Radius und die Reichweite jeder Flugabwehr. Erst <b>Abfeuern</b> startet sie.</li>' +
+      '<li><b>Marschflugkörper:</b> Günstig, schnell und genau. Er zerstört Gebäude in einem kleinen Umkreis, hinterlässt kein verstrahltes Land und wird nur selten abgefangen. Gut, um zuerst die Flugabwehr auszuschalten.</li>' +
+      '<li><b>Mit Freunden:</b> <b>Mit Freunden spielen</b> öffnet einen Raum. Schick den Link weiter, dann spielt ihr auf derselben Karte.</li>' +
       '<li><b>Schiffe:</b> Handelsschiffe fahren Gold von Hafen zu Hafen, beide Häfen verdienen daran. Ein <b>Kriegsschiff</b> nimmt fremde Schiffe ein, mit deren Besitzer du keine Allianz hast: Handelsschiffe samt Gold, Boote samt der Hälfte der Truppen, und besiegte Kriegsschiffe wechseln die Seite.</li>' +
       '<li><b>Züge:</b> Pro Bahnhof gibt es 10K Gold, bei Handelspartnern 25K für beide, bei Verbündeten 50K für beide.</li>' +
-      '<li><b>Karte:</b> Ziehen verschiebt, zwei Finger oder das Mausrad zoomen. Mit der Maus greift ein Linksklick direkt an, der Rechtsklick öffnet das Menü.</li>' +
+      '<li><b>Karte:</b> Ziehen verschiebt, zwei Finger oder das Mausrad zoomen.</li>' +
       '</ul><h2 class="h3">Tastenkürzel</h2><div class="keys">' +
-      BUILD.map(function (b) { return '<span><kbd>' + b.key + '</kbd>' + G.UNAME[b.t].replace('\u00AD', '') + '</span>'; }).join('') +
+      BUILD.map(function (b) { return '<span><kbd>' + b.key.toUpperCase() + '</kbd>' + plain(b.t) + '</span>'; }).join('') +
       '<span><kbd>B</kbd>Baumenü</span><span><kbd>U</kbd>Ausbauen</span><span><kbd>F</kbd>Angreifen</span><span><kbd>G</kbd>Boot schicken</span>' +
       '<span><kbd>V</kbd>Kriegsschiff hierher</span><span><kbd>R</kbd>Allianz anfragen</span><span><kbd>Q</kbd><kbd>E</kbd>Truppenanteil</span>' +
       '<span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>Karte schieben</span><span><kbd>+</kbd><kbd>−</kbd>Zoom</span><span><kbd>C</kbd>Zum eigenen Gebiet</span>' +
-      '<span><kbd>T</kbd>Tempo</span><span><kbd>M</kbd>Ton an/aus</span><span><kbd>Leertaste</kbd>Pause</span><span><kbd>Esc</kbd>Schliessen</span>' +
+      '<span><kbd>T</kbd>Tempo</span><span><kbd>M</kbd>Ton an/aus</span><span><kbd>Leertaste</kbd>Pause</span><span><kbd>Enter</kbd>Bombe abfeuern</span><span><kbd>Esc</kbd>Schliessen</span>' +
       '</div><p>Bauen und Befehle gelten für die Stelle unter dem Mauszeiger.</p>';
   }
   function showHelp(fromStart) {
@@ -247,36 +381,61 @@
   }
 
   function startGame() {
-    cfg.name = ($('fName').value || '').trim() || 'Spieler';
-    cfg.nations = $('fNations').checked; cfg.instant = $('fInstant').checked;
-    cfg.gold = $('fGold').checked; cfg.troops = $('fTroops').checked;
-    cfg.bots = +$('fBots').value;
-    if (!botsTouched) { const keep = cfg.bots; cfg.bots = -1; saveCfg(); cfg.bots = keep; } else saveCfg();
+    readForm();
     $('fStart').disabled = true; $('fStart').textContent = 'Karte wird vorbereitet';
     loadMap(cfg.map).then(function (map) {
-      game = new G.Game(map, {
+      begin(map, {
         seed: (Math.random() * 2e9) | 0, difficulty: cfg.diff, bots: cfg.bots, nations: cfg.nations,
-        instantBuild: cfg.instant, infiniteGold: cfg.gold, infiniteTroops: cfg.troops, spawnTicks: 150
-      });
-      game.setup({ name: cfg.name, color: COLORS[cfg.color] });
-      view.setMap(map); view.setGame(game); view.fit(false);
-      view.cam.z = within(Math.max(view.cw / map.W, view.ch / map.H) * 0.5, view.cam.z, 4);
-      $('modal').hidden = true; modalKind = '';
-      $('hud').hidden = false; $('spawnBar').hidden = false; $('ctrl').hidden = true; $('lb').hidden = true;
-      $('feedMsgs').innerHTML = ''; $('feedLive').innerHTML = ''; chips.clear(); asks.clear();
-      $('lbRows').innerHTML = ''; $('clock').textContent = '0:00';
-      speed = 1; $('bSpeed').textContent = '1×'; acc = 0; endShown = false; lbAt = liveAt = -99; tradeAt = 0;
-      setPaused(false);
-      view.placeNames();
-      hudTick();
+        instantBuild: cfg.instant, infiniteGold: cfg.gold, infiniteTroops: cfg.troops
+      }, { name: cfg.name, color: COLORS[cfg.color] });
     }).catch(function (e) {
       toast(e.message);
       $('fStart').disabled = false; $('fStart').textContent = 'Spiel starten';
     });
   }
+  function begin(map, opts, people) {
+    game = new G.Game(map, opts);
+    game.setup(people);
+    view.setMap(map); view.setGame(game); view.fit(false);
+    view.cam.z = within(Math.max(view.cw / map.W, view.ch / map.H) * 0.5, view.cam.z, 4);
+    $('modal').hidden = true; modalKind = '';
+    $('hud').hidden = false; $('spawnBar').hidden = false; $('ctrl').hidden = true; $('lb').hidden = true; $('aimBar').hidden = true;
+    $('feedMsgs').innerHTML = ''; $('feedLive').innerHTML = ''; chips.clear(); asks.clear();
+    $('lbRows').innerHTML = ''; $('clock').textContent = '0:00';
+    speed = 1; $('bSpeed').textContent = '1×'; acc = 0; endShown = false; lbAt = liveAt = -99; tradeAt = 0; aim = null;
+    setPaused(false);
+    view.placeNames();
+    hudTick();
+  }
+  // Every order of the player goes through here: carried out at once when playing alone,
+  // sent to the host when playing together.
+  function act(c) {
+    if (!game) return;
+    if (mp) mp.send(c);
+    else done(c, game.exec(game.human.id, c));
+  }
+  function done(c, why) {
+    if (why) { toast(why); snd('deny'); return; }
+    if (c.k === 'strike') snd(c.sea ? 'boat' : 'attack');
+    else if (c.k === 'build') { if (c.u === UT.WARSHIP) snd('ship'); else if (c.u < UT.ATOM) snd('build'); }
+    else if (c.k === 'up') snd('upgrade');
+    else if (c.k === 'ship') snd('ship');
+    else if (c.k === 'spawn') snd('tap');
+    if (c.k === 'spawn') { view.flush(); view.placeName(game.human); hudTick(); }
+    else if (c.say) toast(c.say);
+    if (modalKind === 'info') renderInfo();
+  }
+  function applyTurn(list) {
+    const me = game.human ? game.human.id : 0;
+    for (let i = 0; i < list.length; i++) {
+      const id = list[i][0] | 0, c = list[i][1], why = game.exec(id, c);
+      if (id === me) done(c, why);
+    }
+  }
   function quitGame() {
-    game = null; closeRadial(); $('sheet').hidden = true;
+    game = null; closeRadial(); $('sheet').hidden = true; stopAim();
     $('hud').hidden = true;
+    leaveRoom();
     if (cfg.map === 'zufall') delete maps.zufall;
     showStart();
     previewMap(cfg.map);
@@ -310,26 +469,40 @@
     if (!ev.length) return;
     for (let i = 0; i < ev.length; i++) {
       const e = ev[i];
-      if (e.k === 'msg') { addMsg(e.text, e.cls); if (e.cls === 'bad') snd('bad', 0.6); else if (e.cls === 'warn') snd('warn', 0.6); else if (e.cls === 'good') snd(/Allianz/.test(e.text) ? 'ally' : 'good', 0.4); }
+      if (e.k === 'msg') {
+        addMsg(e.text, e.cls);
+        if (e.cls === 'bad') snd('bad', 0.6); else if (e.cls === 'warn') snd('warn', 0.6); else if (e.cls === 'good') snd(/Allianz/.test(e.text) ? 'ally' : 'good', 0.4);
+      }
       else if (e.k === 'allyReq') {
         const from = game.players[e.from], id = e.id;
-        snd('ally');
         addAsk('q' + id, from.name + ' bietet dir eine Allianz an', 'Annehmen', 'Ablehnen',
-          function () { game.answerRequest(id, true); }, function () { game.answerRequest(id, false); });
+          function () { act({ k: 'ans', id: id, y: 1 }); }, function () { act({ k: 'ans', id: id, y: 0 }); });
       } else if (e.k === 'renew') {
         const q = game.players[e.id];
         addAsk('r' + q.id, 'Die Allianz mit ' + q.name + ' läuft bald ab', 'Verlängern', 'Auslaufen lassen',
-          function () { game.renewAlliance(h, q); }, function () { /* let it run out */ });
+          function () { act({ k: 'renew', p: q.id }); }, function () { /* let it run out */ });
       } else if (e.k === 'start') {
         $('spawnBar').hidden = true; $('ctrl').hidden = false; $('lb').hidden = false;
         const W = game.W;
         view.flyTo(h.spawnTile % W, (h.spawnTile / W) | 0, within(Math.min(view.cw, view.ch) / 70, 2.2, 6));
         addMsg('Los geht es. Breite dich aus, bevor es andere tun.', 'good');
         snd('start');
+      } else if (e.k === 'loot') {
+        if (e.by === h.id && e.gold > 0) { view.floatText(e.x, e.y, '+' + fmt(e.gold) + ' Gold'); goldPop(e.gold); }
       } else if (e.k === 'defeat') showEnd('defeat', null);
       else if (e.k === 'win') showEnd(game.players[e.id] === h ? 'win' : 'other', game.players[e.id]);
     }
     ev.length = 0;
+  }
+
+  // Show a sum of gold that just came in, right next to the gold counter.
+  function goldPop(n) {
+    const el = $('goldPop');
+    el.textContent = '+' + fmt(n);
+    el.classList.remove('go'); void el.offsetWidth; el.classList.add('go');
+    $('statGold').classList.add('flash');
+    clearTimeout(goldTimer);
+    goldTimer = setTimeout(function () { $('statGold').classList.remove('flash'); }, 1300);
   }
 
   function live() {
@@ -349,14 +522,14 @@
     };
     if (h.alive) {
       for (const a of h.out) {
-        put('o' + a.id, 'info', 'Angriff auf ' + (a.tid ? game.players[a.tid].name : 'freies Land') + ' · ' + fmtT(a.troops), function () { game.retreat(a); live(); });
+        put('o' + a.id, 'info', 'Angriff auf ' + (a.tid ? game.players[a.tid].name : 'freies Land') + ' · ' + fmtT(a.troops), function () { act({ k: 'ret', a: a.id }); });
       }
       const inc = h.inc.slice().sort(function (a, b) { return b.troops - a.troops; });
       for (let i = 0; i < inc.length && i < 3; i++) put('i' + inc[i].id, 'bad', inc[i].a.name + ' greift an · ' + fmtT(inc[i].troops), null);
       if (inc.length > 3) put('more', 'bad', '+' + (inc.length - 3) + ' weitere Angriffe', null);
       for (const u of h.units) {
         if (u.type !== UT.TRANSPORT) continue;
-        put('b' + u.id, 'info', (u.retreat ? 'Boot kehrt um · ' : 'Boot unterwegs · ') + fmtT(u.troops), function () { u.retreat = true; });
+        put('b' + u.id, 'info', (u.retreat ? 'Boot kehrt um · ' : 'Boot unterwegs · ') + fmtT(u.troops), function () { act({ k: 'bret', u: u.id }); });
       }
     }
     for (const e of chips) if (!seen.has(e[0])) { e[1].remove(); chips.delete(e[0]); }
@@ -392,10 +565,17 @@
   function hudTick() {
     const h = game.human, T = game.ticks;
     if (game.phase === 'spawn') {
-      const k = Math.min(1, T / game.spawnEnd);
-      $('spawnFill').style.width = (k * 100).toFixed(1) + '%';
-      $('spawnHint').textContent = h.spawned ? (k < 1 ? 'Tippe woanders, um den Start zu verlegen' : 'Gleich geht es los')
-        : (k < 1 ? 'Tippe auf freies Land' : 'Tippe auf freies Land, dann geht es los');
+      if (mp) {
+        let n = 0;
+        for (const q of game.humans) if (q.spawned) n++;
+        $('spawnBarLine').hidden = false;
+        $('spawnFill').style.width = (Math.min(1, T / game.spawnEnd) * 100).toFixed(1) + '%';
+        $('spawnHint').textContent = h.spawned ? 'Warte auf die anderen · ' + n + ' von ' + game.humans.length + ' bereit'
+          : 'Tippe auf freies Land · noch ' + Math.max(0, Math.ceil((game.spawnEnd - T) / 10)) + ' s';
+      } else {
+        $('spawnBarLine').hidden = true;
+        $('spawnHint').textContent = 'Tippe auf freies Land, dann geht es sofort los';
+      }
       return;
     }
     $('clock').textContent = clock((T - game.playStart) / 10);
@@ -413,6 +593,7 @@
       if (h.tradeGold > 0) { addMsg('Handel bringt ' + fmt(h.tradeGold) + ' Gold', 'good'); h.tradeGold = 0; }
     }
     if (modalKind === 'info' && T % 5 === 0) renderInfo();
+    if (aim && T % 3 === 0) refreshAim();
   }
 
   // ---------- end of game ----------
@@ -445,7 +626,7 @@
     else if (p.type === PT.NATION) {
       const r = game.relation(p, h);
       kind = 'Nation · ' + (r < -50 ? 'feindlich' : r < 0 ? 'misstrauisch' : r < 50 ? 'neutral' : 'freundlich') + ' gesinnt';
-    } else kind = 'Bot';
+    } else kind = p.type === PT.HUMAN ? 'Mitspieler' : 'Bot · wehrt sich kaum und bringt Gold, wenn du ihn eroberst';
     let s = '<div class="who"><span class="dot big" style="background:' + p.css + '"></span><div><h2>' + (p.flag ? G.flagOf(p.flag) + ' ' : '') + esc(p.name) + '</h2><p>' + kind + '</p></div></div>';
     s += '<div class="facts">' + fact('Truppen', fmtT(p.troops)) + fact('Gold', me && game.opts.infiniteGold ? '∞' : fmt(p.gold)) + fact('Gebiet', (p.tiles / den * 100).toFixed(1) + ' %') + '</div>';
     s += '<div class="facts six">' + fact('Städte', p.cnt[UT.CITY]) + fact('Häfen', p.cnt[UT.PORT]) + fact('Fabriken', p.cnt[UT.FACTORY]) +
@@ -476,8 +657,8 @@
   }
 
   function showMenu() {
-    setPaused(true);
-    openModal('<h2>Pause</h2><p>' + esc(game.map.name) + ' · ' + G.DIFF_NAMES[game.opts.difficulty] + '</p>' +
+    if (!mp) setPaused(true);
+    openModal('<h2>' + (mp ? 'Menü' : 'Pause') + '</h2><p>' + esc(game.map.name) + ' · ' + G.DIFF_NAMES[game.opts.difficulty] + '</p>' +
       '<button class="btn" data-act="resume" type="button">Weiterspielen</button>' +
       '<button class="btn ghost" data-act="help" type="button">So wird gespielt</button>' +
       '<label class="check wide" for="mMusic"><input id="mMusic" type="checkbox"' + (cfg.music ? ' checked' : '') + '>Musik</label>' +
@@ -497,25 +678,25 @@
     $('bSound').setAttribute('aria-pressed', any ? 'true' : 'false');
   }
 
-  function onModalAct(act) {
+  function onModalAct(what) {
     const h = game ? game.human : null, p = game ? game.players[infoId] : null;
-    if (act === 'start') { showStart(); return; }
-    if (act === 'close' || act === 'resume') { closeModal(); return; }
-    if (act === 'help') { showHelp(false); return; }
-    if (act === 'quit') { quitGame(); return; }
-    if (act === 'confirmBreak') { game.breakAlliance(h, p); closeModal(); return; }
-    if (act === 'ally') { toast(game.requestAlliance(h, p) ? 'Anfrage an ' + p.name + ' gesendet' : 'Gerade nicht möglich'); renderInfo(); return; }
-    if (act === 'break') {
+    if (what === 'start') { showStart(); return; }
+    if (what === 'close' || act === 'resume') { closeModal(); return; }
+    if (what === 'help') { showHelp(false); return; }
+    if (what === 'quit') { quitGame(); return; }
+    if (what === 'confirmBreak') { act({ k: 'break', p: p.id }); closeModal(); return; }
+    if (what === 'ally') { act({ k: 'ally', p: p.id, say: 'Anfrage an ' + p.name + ' gesendet' }); return; }
+    if (what === 'break') {
       openModal('<h2>Allianz brechen?</h2><p>Du wirst zum Verräter: 30 Sekunden lang verlieren Angreifer gegen dich nur halb so viele Truppen, und andere Nationen trauen dir weniger.</p>' +
         '<button class="btn danger" data-act="confirmBreak" type="button">Allianz mit ' + esc(p.name) + ' brechen</button>' +
         '<button class="btn ghost" data-act="close" type="button">Abbrechen</button>', 'confirm');
       return;
     }
-    if (act === 'troops') { if (game.donate(h, p, 'troops', h.troops * ratio)) toast('Truppen an ' + p.name + ' geschickt'); renderInfo(); return; }
-    if (act === 'gold') { if (game.donate(h, p, 'gold', Math.floor(Math.min(h.gold, 1e9) * 0.1))) toast('Gold an ' + p.name + ' geschickt'); renderInfo(); return; }
-    if (act === 'renew') { game.renewAlliance(h, p); dropAsk('r' + p.id); renderInfo(); return; }
-    if (act === 'embargo') { if (h.embargo.has(p.id)) h.embargo.delete(p.id); else h.embargo.add(p.id); renderInfo(); return; }
-    if (act === 'show') {
+    if (what === 'troops') { act({ k: 'don', p: p.id, g: 'troops', r: ratio, say: 'Truppen an ' + p.name + ' geschickt' }); return; }
+    if (what === 'gold') { act({ k: 'don', p: p.id, g: 'gold', say: 'Gold an ' + p.name + ' geschickt' }); return; }
+    if (what === 'renew') { act({ k: 'renew', p: p.id }); dropAsk('r' + p.id); return; }
+    if (what === 'embargo') { act({ k: 'emb', p: p.id, on: h.embargo.has(p.id) ? 0 : 1 }); return; }
+    if (what === 'show') {
       closeModal();
       if (p.nameSize) view.flyTo(p.nameX, p.nameY, within(26 / Math.max(1, p.nameSize) * 1.2, view.cam.z * 0.6, 8));
     }
@@ -532,7 +713,7 @@
     const a = game.actionsAt(h, tile), R = $('radial');
     sel = a; view.mark = tile;
     R.style.left = within(sx, 118, Math.max(118, view.cw - 118)) + 'px';
-    R.style.top = within(sy, 168, Math.max(168, view.ch - 215)) + 'px';
+    R.style.top = within(sy, 172, Math.max(172, view.ch - 230)) + 'px';
     let cap;
     if (!a.land) cap = 'Wasser';
     else if (a.own) cap = 'Dein Gebiet';
@@ -546,11 +727,15 @@
     const c = $('rC');
     c.dataset.mode = mode;
     c.classList.toggle('off', !mode);
-    c.innerHTML = svg(mode === 'boat' ? 'boat' : mode === 'ship' ? 'warship' : 'sword', 26) + '<span>' + (mode === 'boat' ? 'Boot' : mode === 'ship' ? 'Schiff' : 'Angriff') + '</span>';
+    c.innerHTML = svg(mode === 'boat' ? 'boat' : mode === 'ship' ? 'warship' : 'sword', 28) + '<span>' + (mode === 'boat' ? 'Boot' : mode === 'ship' ? 'Schiff' : 'Angreifen') + '</span>';
+    const near = a.own ? game.structNear(tile, 4) : null, canUp = !!near && near.owner === h && near.built;
+    $('rN').firstChild.innerHTML = svg(canUp ? 'up' : 'hammer', 22) + '<span>' + (canUp ? 'Ausbau' : 'Bauen') + '</span>';
+    if (canUp) cap = G.UNAME[near.type].replace('\u00AD', '') + ' · Stufe ' + near.level;
+    $('rCap').textContent = cap;
     $('rE').disabled = !a.boat;
     const q = a.target, allied = !!q && h.allies.has(q.id), w = $('rW');
     w.classList.toggle('danger', allied);
-    w.lastChild.textContent = allied ? 'Brechen' : 'Allianz';
+    w.firstChild.lastChild.textContent = allied ? 'Brechen' : 'Allianz';
     w.disabled = !q || (!allied && !game.canRequestAlliance(h, q));
     R.hidden = false; radialAt = performance.now();
   }
@@ -559,10 +744,10 @@
     const a = sel, h = game.human;
     if (which === 'C') {
       const mode = $('rC').dataset.mode;
-      if (mode === 'attack') { if (game.attack(h, a.tid, h.troops * ratio, -1)) snd('attack'); else { toast('Zu wenig Truppen'); snd('deny'); } }
+      if (mode === 'attack') act({ k: 'strike', t: a.tile, r: ratio });
       else if (mode === 'boat') sendBoat(a);
-      else if (mode === 'ship') moveShip(a.tile);
-      else { toast(a.why || 'Hier nicht möglich'); snd('deny'); }
+      else if (mode === 'ship') act({ k: 'ship', t: a.tile, say: 'Kriegsschiff nimmt Kurs' });
+      else toast(a.why || 'Hier nicht möglich');
     } else if (which === 'E') sendBoat(a);
     else if (which === 'N') { closeRadial(); openBuild(a.tile); return; }
     else if (which === 'S') {
@@ -572,24 +757,12 @@
     } else if (which === 'W') {
       const q = a.target;
       if (h.allies.has(q.id)) { infoId = q.id; onModalAct('break'); }
-      else askAlliance(q);
+      else act({ k: 'ally', p: q.id, say: 'Anfrage an ' + q.name + ' gesendet' });
     }
     closeRadial();
   }
-  function askAlliance(q) {
-    const ok = game.requestAlliance(game.human, q);
-    toast(ok ? 'Anfrage an ' + q.name + ' gesendet' : 'Gerade nicht möglich');
-    snd(ok ? 'ui' : 'deny');
-  }
   function sendBoat(a) {
-    const h = game.human, ok = game.sendBoat(h, a.boat, h.troops * ratio);
-    toast(ok ? 'Boot läuft aus' : 'Boot kann nicht auslaufen');
-    snd(ok ? 'boat' : 'deny');
-  }
-  function moveShip(tile) {
-    const ok = game.moveWarship(game.human, tile);
-    toast(ok ? 'Kriegsschiff nimmt Kurs' : 'Kein Schiff kann dorthin');
-    snd(ok ? 'ship' : 'deny');
+    act({ k: 'strike', t: a.tile, r: ratio, sea: 1, say: 'Boot läuft aus' });
   }
 
   // ---------- build menu ----------
@@ -599,45 +772,107 @@
     buildTile = tile;
     let html = '';
     const near = game.owner[tile] === h.id ? game.structNear(tile, 4) : null;
-    if (near && game.canUpgrade(h, near)) {
-      const cost = game.cost(h, near.type);
-      html += '<button class="item up" type="button" data-up="1"' + (h.gold >= cost ? '' : ' disabled') + '>' + svg(BUILD.find(function (b) { return b.t === near.type; }).icon, 26) +
-        '<div><b>' + G.UNAME[near.type] + ' ausbauen</b><small>Stufe ' + near.level + ' auf ' + (near.level + 1) + (h.gold >= cost ? '' : ' · zu wenig Gold') + '</small></div><em>' + (cost ? fmt(cost) : 'gratis') + '</em></button>';
+    if (near && near.owner === h && near.built) {
+      const cost = game.cost(h, near.type), max = near.level >= G.MAX_LEVEL, can = !max && h.gold >= cost;
+      let pips = '';
+      for (let i = 1; i <= G.MAX_LEVEL; i++) pips += '<i' + (i <= near.level ? ' class="on"' : '') + '></i>';
+      html += '<div class="scard"><span class="ic big">' + svg(BUILD.find(function (b) { return b.t === near.type; }).icon, 30) + '</span>' +
+        '<div class="sinfo"><b>' + G.UNAME[near.type] + '</b><div class="pips" aria-label="Stufe ' + near.level + ' von ' + G.MAX_LEVEL + '">' + pips + '</div>' +
+        '<small>Stufe ' + near.level + ': ' + levelText(near.type, near.level) + '</small>' +
+        (max ? '<small>Höchste Stufe erreicht</small>' : '<small class="next">Stufe ' + (near.level + 1) + ': ' + levelText(near.type, near.level + 1) + '</small>') + '</div>' +
+        (max ? '' : '<button class="upbtn" type="button" data-up="1"' + (can ? '' : ' disabled') + '>' + svg('up', 18) + '<span>Ausbauen</span>' + coin(cost) + '</button>') + '</div>';
     }
-    for (const b of BUILD) {
-      const c = game.buildCheck(h, b.t, tile);
-      html += '<button class="item" type="button" data-t="' + b.t + '"' + (c.ok ? '' : ' disabled') + '><kbd>' + b.key + '</kbd>' + svg(b.icon, 26) + '<b>' + G.UNAME[b.t] + '</b><em>' +
-        (c.cost ? fmt(c.cost) : 'gratis') + '</em><small>' + (c.ok ? b.note : esc(c.why)) + '</small></button>';
-    }
+    const cell = function (b) {
+      const nuke = b.t >= UT.ATOM;
+      let ok, note, cost = game.cost(h, b.t);
+      if (nuke) {
+        const s = game.readySilo(h, tile);
+        ok = s.any && h.gold >= cost;
+        note = !s.any ? 'Dafür brauchst du ein Raketensilo' : h.gold < cost ? 'Zu wenig Gold' : 'Ziel wählen und abfeuern';
+      } else {
+        const c = game.buildCheck(h, b.t, tile);
+        ok = c.ok; note = c.ok ? b.note : c.why; cost = c.cost;
+      }
+      const have = b.t < UT.ATOM ? h.cnt[b.t] : 0;
+      return '<button class="item' + (nuke ? ' nuke' : '') + '" type="button" data-t="' + b.t + '"' + (ok ? '' : ' disabled') + '><kbd>' + b.key.toUpperCase() + '</kbd>' + (have ? '<i class="own">' + have + '</i>' : '') +
+        '<span class="ic">' + svg(b.icon, 24) + '</span><b>' + G.UNAME[b.t] + '</b><small>' + esc(note) + '</small>' + coin(cost) + '</button>';
+    };
+    html += '<h3>Gebäude</h3><div class="grid">' + BUILD.filter(function (b) { return b.t <= UT.FACTORY; }).map(cell).join('') + '</div>';
+    html += '<h3>Flotte und Raketen</h3><div class="grid">' + BUILD.filter(function (b) { return b.t > UT.FACTORY; }).map(cell).join('') + '</div>';
     $('sheetBody').innerHTML = html;
+    $('purse').innerHTML = svg('gold', 15) + (game.opts.infiniteGold ? '∞' : fmt(h.gold));
     $('sheet').hidden = false;
     view.mark = tile;
     snd('open');
   }
-  // Build or launch at a tile and say what happened. Used by the menu and by the number keys.
+  // Build at a tile, or start aiming a bomb at it. Used by the menu and by the keys.
   function doBuild(t, tile) {
-    const h = game.human, c = game.buildCheck(h, t, tile);
-    if (!c.ok) { toast(G.UNAME[t].replace('\u00AD', '') + ': ' + c.why); snd('deny'); return false; }
-    const u = game.build(h, t, tile);
-    if (!u) { toast('Nicht möglich'); snd('deny'); return false; }
-    if (t >= UT.ATOM) toast(G.UNAME[t].replace('\u00AD', '') + ' gestartet');
-    else if (t === UT.WARSHIP) { toast('Kriegsschiff läuft aus'); snd('ship'); }
-    else { toast(G.UNAME[t].replace('\u00AD', '') + (game.opts.instantBuild ? ' gebaut' : ' wird gebaut')); snd('build'); }
-    return true;
+    if (t >= UT.ATOM) {
+      const h = game.human, s = game.readySilo(h, tile);
+      if (!s.any) { toast('Dafür brauchst du ein Raketensilo'); snd('deny'); return; }
+      startAim(t, tile);
+      return;
+    }
+    act({ k: 'build', u: t, t: tile, say: t === UT.WARSHIP ? 'Kriegsschiff läuft aus' : plain(t) + (game.opts.instantBuild ? ' gebaut' : ' wird gebaut') });
   }
   function doUpgrade(tile) {
-    const h = game.human, u = game.owner[tile] === h.id ? game.structNear(tile, 4) : null;
-    const ok = !!u && game.upgrade(h, u);
-    toast(ok ? G.UNAME[u.type].replace('\u00AD', '') + ' ausgebaut auf Stufe ' + u.level : 'Ausbau nicht möglich');
-    snd(ok ? 'upgrade' : 'deny');
+    const u = game.structNear(tile, 4);
+    act({ k: 'up', t: tile, say: (u ? plain(u.type) : 'Gebäude') + ' ausgebaut' });
   }
   function closeBuild() { $('sheet').hidden = true; if (view) view.mark = -1; }
   function onBuild(e) {
-    const b = e.target.closest('.item');
+    const b = e.target.closest('[data-t],[data-up]');
     if (!b || b.disabled) return;
     if (b.dataset.up) doUpgrade(buildTile);
-    else doBuild(+b.dataset.t, buildTile);
+    else {
+      const t = +b.dataset.t;
+      if (t >= UT.ATOM) closeBuild();
+      doBuild(t, buildTile);
+      if (t >= UT.ATOM) return;
+    }
     closeBuild();
+  }
+
+  // ---------- aiming a bomb ----------
+  // The map shows the flight path, the blast and every air defence in reach; a tap moves the target.
+  function startAim(type, tile) {
+    closeRadial();
+    aim = { type: type, tile: tile };
+    $('ctrl').hidden = true; $('aimBar').hidden = false;
+    $('aimIc').innerHTML = svg(BUILD.find(function (b) { return b.t === type; }).icon, 26);
+    $('aimName').textContent = G.UNAME[type].replace('­', '');
+    refreshAim();
+  }
+  function stopAim() {
+    if (!aim) return;
+    aim = null;
+    if (view) view.aim = null;
+    $('aimBar').hidden = true;
+    if (game && game.phase === 'play') $('ctrl').hidden = false;
+  }
+  function refreshAim() {
+    const h = game.human;
+    if (!h.alive) { stopAim(); return; }
+    const c = game.buildCheck(h, aim.type, aim.tile), W = game.W;
+    const silo = c.silo || game.readySilo(h, aim.tile).silo || h.units.find(function (u) { return u.type === UT.SILO && u.built; }) || null;
+    view.aim = { type: aim.type, tile: aim.tile, silo: silo, ok: c.ok };
+    let text, warn = false;
+    if (!c.ok) { text = c.why; warn = true; }
+    else {
+      const sams = aim.type === UT.MIRV || !silo ? [] : game.samsOnPath(h, silo.x, silo.y, aim.tile % W, (aim.tile / W) | 0);
+      if (sams.length && aim.type === UT.CRUISE) text = 'Flugabwehr auf dem Weg. Marschflugkörper fliegen tief und werden nur selten abgefangen.';
+      else if (sams.length) { warn = true; text = (sams.length === 1 ? 'Eine Flugabwehr liegt' : sams.length + ' Flugabwehren liegen') + ' auf dem Weg. Die Bombe wird wahrscheinlich abgefangen.'; }
+      else text = 'Tippe auf die Karte, um das Ziel zu verschieben.';
+    }
+    $('aimInfo').textContent = text;
+    $('aimInfo').classList.toggle('warn', warn);
+    $('aimGo').disabled = !c.ok;
+    $('aimCost').innerHTML = coin(c.cost);
+  }
+  function fireAim() {
+    if (!aim) return;
+    act({ k: 'build', u: aim.type, t: aim.tile, say: G.UNAME[aim.type].replace('­', '') + ' gestartet' });
+    stopAim();
   }
 
   // ---------- taps on the map ----------
@@ -648,12 +883,12 @@
     const h = game.human;
     if (game.phase === 'spawn') {
       if (!game.canSpawnAt(tile) && game.owner[tile] !== h.id) { toast(game.map.land[tile] ? 'Hier ist schon jemand' : 'Wähle Land, kein Wasser'); return; }
-      if (game.spawn(h, tile)) { view.flush(); view.placeName(h); hudTick(); snd('tap'); }
+      act({ k: 'spawn', t: tile });
       return;
     }
+    if (aim) { aim.tile = tile; refreshAim(); snd('tap'); return; }
     if (direct && h.alive && game.owner[tile] !== h.id && game.map.land[tile]) {
-      const boats = h.boats, why = game.strike(h, tile, ratio);
-      if (why) { toast(why); snd('deny'); } else snd(h.boats > boats ? 'boat' : 'attack');
+      act({ k: 'strike', t: tile, r: ratio });
       return;
     }
     snd('tap');
@@ -671,7 +906,7 @@
     document.addEventListener('keydown', function () { G.Audio.resume(); }, true);
     document.addEventListener('click', function (e) {
       const b = e.target.closest && e.target.closest('button');
-      if (b && !b.disabled && !b.closest('#radial') && !b.closest('#sheetBody')) snd('ui');
+      if (b && !b.disabled && !b.closest('#radial') && !b.closest('#sheetBody') && b.id !== 'aimGo') snd('ui');
     }, true);
     cv.addEventListener('pointerdown', function (e) {
       if (e.pointerType === 'mouse' && e.button !== 0) return;
@@ -703,14 +938,14 @@
       ptr.delete(e.pointerId);
       if (ptr.size === 0 && !moved && e.type === 'pointerup' && performance.now() - downAt < 700) {
         const r = cv.getBoundingClientRect();
-        tap(e.clientX - r.left, e.clientY - r.top, downType === 'mouse' || cfg.tap);
+        tap(e.clientX - r.left, e.clientY - r.top, cfg.tap);
       }
     };
     cv.addEventListener('pointerup', up);
     cv.addEventListener('pointercancel', up);
     cv.addEventListener('contextmenu', function (e) {
       e.preventDefault();
-      if (!game || game.phase !== 'play') return;
+      if (!game || game.phase !== 'play' || aim) return;
       const r = cv.getBoundingClientRect(), tile = view.tileAt(e.clientX - r.left, e.clientY - r.top);
       if (tile >= 0) openRadial(tile, e.clientX - r.left, e.clientY - r.top);
     });
@@ -727,43 +962,48 @@
     window.addEventListener('blur', function () { held.clear(); });
     G.heldKeys = held;
     document.addEventListener('keydown', function (e) {
-      if (e.target && e.target.tagName === 'INPUT' && e.target.type === 'text') return;
+      const el = e.target;
+      if (el && (el.tagName === 'TEXTAREA' || (el.tagName === 'INPUT' && el.type !== 'checkbox' && el.type !== 'range'))) return;
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       const k = e.key.toLowerCase();
       if (k === 'escape') {
-        if (!$('radial').hidden) closeRadial();
+        if (aim) stopAim();
+        else if (!$('radial').hidden) closeRadial();
         else if (!$('sheet').hidden) closeBuild();
-        else if (!$('modal').hidden && modalKind !== 'start' && modalKind !== 'starthelp') closeModal();
+        else if (!$('modal').hidden && modalKind !== 'start' && modalKind !== 'starthelp' && modalKind !== 'lobby') closeModal();
         return;
       }
       if (k === 'm') { const v = !(cfg.music || cfg.sfx); setSound('music', v); setSound('sfx', v); toast(v ? 'Ton an' : 'Ton aus'); return; }
       if (!game || !$('modal').hidden) return;
-      if (k === ' ') { e.preventDefault(); setPaused(!paused); return; }
-      if ('wasd'.indexOf(k) >= 0 && k.length === 1 || k.indexOf('arrow') === 0) { held.add(k); e.preventDefault(); return; }
+      if (k === ' ') { e.preventDefault(); togglePause(); return; }
+      if ((k.length === 1 && 'wasd'.indexOf(k) >= 0) || k.indexOf('arrow') === 0) { held.add(k); e.preventDefault(); return; }
       if (k === '+' || k === '=') { view.zoomAt(view.cw / 2, view.ch / 2, 1.25); return; }
       if (k === '-' || k === '_') { view.zoomAt(view.cw / 2, view.ch / 2, 0.8); return; }
       if (k === 'q') { setRatio(ratio * 100 - 5); return; }
       if (k === 'e') { setRatio(ratio * 100 + 5); return; }
       if (k === 'c' || k === 'h') { $('bHome').click(); return; }
-      if (k === 't') { $('bSpeed').click(); return; }
+      if (k === 't') { if (!mp) $('bSpeed').click(); return; }
       if (e.repeat || game.phase !== 'play' || !game.human.alive) return;
+      if (aim) { if (k === 'enter' && !$('aimGo').disabled) fireAim(); return; }
       // everything below acts on the build menu's tile, or else on the tile under the mouse pointer
       const open = !$('sheet').hidden;
       const tile = open ? buildTile : (hoverX >= 0 ? view.tileAt(hoverX, hoverY) : -1);
       const item = BUILD.find(function (b) { return b.key === k; });
-      if (tile < 0) { if (item || 'bufgvr'.indexOf(k) >= 0) toast('Zeige mit der Maus auf die Karte'); return; }
+      if (!item && 'bufgvr'.indexOf(k) < 0) return;
+      if (tile < 0) { toast('Zeige mit der Maus auf die Karte'); return; }
       const h = game.human;
-      if (item) { doBuild(item.t, tile); if (open) closeBuild(); return; }
-      if (k === 'b') { if (open) closeBuild(); else { closeRadial(); openBuild(tile); } return; }
-      if (k === 'u') { doUpgrade(tile); if (open) closeBuild(); return; }
+      closeRadial();
+      if (item) { if (open) closeBuild(); doBuild(item.t, tile); return; }
+      if (k === 'b') { if (open) closeBuild(); else openBuild(tile); return; }
+      if (k === 'u') { if (open) closeBuild(); doUpgrade(tile); return; }
       if (open) return;
-      const a = game.actionsAt(h, tile);
-      if (k === 'f') {
-        const boats = h.boats, why = game.strike(h, tile, ratio);
-        if (why) { toast(why); snd('deny'); } else snd(h.boats > boats ? 'boat' : 'attack');
-      } else if (k === 'g') { if (a.boat) sendBoat(a); else { toast(a.why || 'Kein Boot möglich'); snd('deny'); } }
-      else if (k === 'v') moveShip(tile);
-      else if (k === 'r') { if (a.target) askAlliance(a.target); else { toast('Zeige auf einen anderen Spieler'); snd('deny'); } }
+      if (k === 'f') act({ k: 'strike', t: tile, r: ratio });
+      else if (k === 'g') act({ k: 'strike', t: tile, r: ratio, sea: 1, say: 'Boot läuft aus' });
+      else if (k === 'v') act({ k: 'ship', t: tile, say: 'Kriegsschiff nimmt Kurs' });
+      else if (k === 'r') {
+        const q = game.owner[tile] && game.owner[tile] !== h.id ? game.players[game.owner[tile]] : null;
+        if (q) act({ k: 'ally', p: q.id, say: 'Anfrage an ' + q.name + ' gesendet' }); else { toast('Zeige auf einen anderen Spieler'); snd('deny'); }
+      }
     });
 
     $('rC').addEventListener('click', function () { radialAct('C'); });
@@ -780,7 +1020,9 @@
       if (b && !b.disabled) onModalAct(b.dataset.act);
     });
     $('ratio').addEventListener('input', function () { setRatio(+this.value); });
-    $('bPause').addEventListener('click', function () { setPaused(!paused); });
+    $('bPause').addEventListener('click', togglePause);
+    $('aimNo').addEventListener('click', stopAim);
+    $('aimGo').addEventListener('click', fireAim);
     $('bSpeed').addEventListener('click', function () {
       speed = speed === 1 ? 2 : speed === 2 ? 4 : 1;
       this.textContent = speed + '×';
@@ -802,6 +1044,10 @@
       if (b && game) openInfo(+b.dataset.id);
     });
   }
+  function togglePause() {
+    if (mp) { if (mp.host) { mp.setPaused(!mp.paused); setPaused(mp.paused); } return; }
+    setPaused(!paused);
+  }
   function setRatio(pct) {
     pct = within(Math.round(pct), 1, 100);
     ratio = pct / 100;
@@ -816,13 +1062,27 @@
     const dt = Math.min(200, now - last);
     last = now;
     let alpha = 1;
-    if (game && !paused) {
-      acc += dt * speed;
+    if (game && (mp ? mp.started : !paused)) {
+      const behind = mp ? mp.buf.size : 0;
+      acc += dt * (mp ? (behind > 6 ? 8 : behind > 2 ? 2 : 1) : speed);
       let n = 0;
-      while (acc >= 100 && n < 8) { game.tick(); acc -= 100; n++; }
-      if (acc >= 100) acc = 0;
+      while (acc >= 100 && n < 8 && game) {
+        if (mp) {
+          // playing together: only as far as the host's turns allow
+          if (turnLeft === 0) {
+            const turn = mp.take();
+            if (!turn) { acc = 100; break; }
+            applyTurn(turn);
+            turnLeft = G.TURN;
+          }
+          turnLeft--;
+        }
+        game.tick(); acc -= 100; n++;
+        if (mp && game.ticks % 100 === 0) mp.sum(game.ticks, game.checksum());
+      }
+      if (acc >= 100 && !(mp && n === 0)) acc = 0;
       if (n) { view.flush(); view.placeNames(); pump(); if (game) hudTick(); }
-      alpha = acc / 100;
+      alpha = Math.min(1, acc / 100);
     }
     const held = G.heldKeys;
     if (held && held.size && game && $('modal').hidden) {
@@ -838,7 +1098,7 @@
     else if (f.k === 'coin') { if (f.mine) snd(f.amt && f.amt % 5000 === 0 ? 'train' : 'coin', 0.25); }
     else if (f.k === 'flag') { if (seen) snd('flag', 0.2); }
     else if (f.k === 'launch') { if (f.mine || seen) snd('launch', 0.3); }
-    else if (seen) snd('pop', 0.15);
+    else if (f.k === 'pop' && seen) snd('pop', 0.15);
   };
 
   G.boot = function (defs) {
@@ -849,10 +1109,12 @@
     $('bMenu').innerHTML = svg('menu', 18);
     $('icTroops').innerHTML = svg('troops', 20);
     $('icGold').innerHTML = svg('gold', 20);
-    $('rN').innerHTML = svg('hammer', 22) + '<span>Bauen</span>';
-    $('rE').innerHTML = svg('boat', 22) + '<span>Boot</span>';
-    $('rS').innerHTML = svg('info', 22) + '<span>Info</span>';
-    $('rW').innerHTML = svg('ally', 22) + '<span>Allianz</span>';
+    $('rN').innerHTML = '<span class="in">' + svg('hammer', 22) + '<span>Bauen</span></span>';
+    $('rE').innerHTML = '<span class="in">' + svg('boat', 22) + '<span>Boot</span></span>';
+    $('rS').innerHTML = '<span class="in">' + svg('info', 22) + '<span>Info</span></span>';
+    $('rW').innerHTML = '<span class="in">' + svg('ally', 22) + '<span>Allianz</span></span>';
+    $('aimNo').innerHTML = svg('close', 15) + 'Abbrechen';
+    try { joinCode = (new URLSearchParams(location.search).get('raum') || '').toUpperCase().replace(/[^0-9A-Z]/g, '').slice(0, 6); } catch (e) { joinCode = ''; }
     $('sheetClose').innerHTML = svg('close', 16);
     bind();
     loadCfg();
@@ -863,6 +1125,6 @@
     previewMap(cfg.map);
     last = performance.now();
     requestAnimationFrame(frame);
-    G.debug = { get game() { return game; }, get view() { return view; }, tap: tap, cfg: cfg };
+    G.debug = { get game() { return game; }, get view() { return view; }, get mp() { return mp; }, tap: tap, cfg: cfg, act: act };
   };
 })(globalThis.G = globalThis.G || {});
