@@ -597,7 +597,7 @@
     const list = this.fxList;
     for (let i = list.length - 1; i >= 0; i--) {
       const f = list[i];
-      const dur = f.k === 'boom' ? (f.big ? 2600 : 1100) : f.k === 'text' ? 2200 : f.k === 'coin' ? 1000 : f.k === 'flag' ? 700 : 420, k = (now - f.t0) / dur;
+      const dur = f.k === 'boom' ? (f.big ? 2600 : 1100) : f.k === 'text' ? 2500 : f.k === 'coin' ? 1500 : f.k === 'flag' ? 700 : 420, k = (now - f.t0) / dur;
       if (k >= 1 || (f.k === 'coin' && !f.mine)) { list.splice(i, 1); continue; }
       const x = (f.x + 0.5) * z + ox, y = (f.y + 0.5) * z + oy, e = k * (2 - k);
       if (f.k === 'boom') {
@@ -632,20 +632,20 @@
         ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832);
         ctx.strokeStyle = 'rgba(255,255,255,' + (0.8 * (1 - k)).toFixed(3) + ')'; ctx.lineWidth = 2; ctx.stroke();
       } else if (f.k === 'text') {
-        const pop = k < 0.12 ? 0.6 + k / 0.12 * 0.5 : 1.1 - Math.min(0.1, (k - 0.12) * 0.5), fs = 26 * pop;
-        ctx.globalAlpha = k < 0.7 ? 1 : (1 - k) / 0.3;
-        ctx.font = '700 ' + fs.toFixed(1) + 'px ' + FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
-        ctx.lineWidth = 5; ctx.strokeStyle = 'rgba(16,22,29,0.9)'; ctx.strokeText(f.text, x, y - 46 * e);
-        ctx.fillStyle = '#ffd25e'; ctx.fillText(f.text, x, y - 46 * e);
+        // conquest reward: plain white, in place, fading out (as in OpenFront)
+        ctx.globalAlpha = 1 - k;
+        ctx.font = '600 17px ' + FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
+        ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(13,20,27,.75)'; ctx.strokeText(f.text, x, y + 8 * z);
+        ctx.fillStyle = '#fff'; ctx.fillText(f.text, x, y + 8 * z);
         ctx.globalAlpha = 1;
       } else if (f.k === 'coin') {
-        ctx.beginPath(); ctx.arc(x, y - 10 * e, 2 + 5 * e, 0, 6.2832);
-        ctx.strokeStyle = 'rgba(244,183,64,' + (1 - k).toFixed(3) + ')'; ctx.lineWidth = 2; ctx.stroke();
-        if (f.amt) {
-          ctx.globalAlpha = Math.min(1, 2 * (1 - k));
-          ctx.font = '700 14px ' + FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
-          ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(13,20,27,.85)'; ctx.strokeText('+' + G.fmt(f.amt), x, y - 14 - 22 * e);
-          ctx.fillStyle = '#f4b740'; ctx.fillText('+' + G.fmt(f.amt), x, y - 14 - 22 * e);
+        // income at a station or port: small text that drifts up and fades evenly
+        if (f.amt && z >= 1) {
+          const label = '+ ' + G.fmt(f.amt);
+          ctx.globalAlpha = 1 - k;
+          ctx.font = '600 ' + within(z * 2.4, 11, 14).toFixed(1) + 'px ' + FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'; ctx.lineJoin = 'round';
+          ctx.lineWidth = 2.5; ctx.strokeStyle = 'rgba(13,20,27,.7)'; ctx.strokeText(label, x, y - 10 - 18 * k);
+          ctx.fillStyle = '#ffe08a'; ctx.fillText(label, x, y - 10 - 18 * k);
           ctx.globalAlpha = 1;
         }
       } else if (f.k === 'flag') {

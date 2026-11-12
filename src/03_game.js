@@ -169,8 +169,8 @@
         }
         spots.length = 0;
       }
-      // only part of the nations take the field (half of them unless told otherwise), the rest of the world belongs to bots
-      const share = o.nationShare === undefined ? 0.5 : o.nationShare;
+      // only part of the nations take the field (three in four unless told otherwise), the rest of the world belongs to bots
+      const share = o.nationShare === undefined ? 0.75 : o.nationShare;
       if (share < 1 && list.length > 4) {
         list = list.slice();
         const keep = Math.max(4, Math.round(list.length * share));
@@ -560,7 +560,7 @@
     if (at.troops < 1) { this.endAttack(at, false); return; }
     const own = this.owner, map = this.map, mg = map.mag, W = this.W, H = this.H, aid = a.id;
     const n = at.front.size + this.rng.int(0, 5);
-    let budget = t ? within((5 * at.troops / Math.max(1, t.troops)) * 2, 0.01, 0.5) * n * 3 : n * (a.type === PT.BOT ? 1.2 : 2);
+    let budget = t ? within((5 * at.troops / Math.max(1, t.troops)) * 2, 0.01, 0.5) * n * 3 : n * (a.type === PT.BOT ? 1.4 : 2);
     const landTiles = map.landTiles;
     const lossMod = a.tiles > landTiles * 0.17 ? Math.sqrt(landTiles * 0.17 / a.tiles) : 1;
     const speedMod = a.tiles > landTiles * 0.13 ? Math.pow(landTiles * 0.13 / a.tiles, 0.6) : 1;

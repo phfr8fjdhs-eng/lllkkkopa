@@ -6,7 +6,7 @@
   const Game = G.Game, UT = G.UT;
   // Gold per station a train reaches: own station, a trade partner's, an ally's (as in OpenFront: 10K / 25K / 35K).
   // From the tenth station of its journey on a train pays 5K less per stop, but never under 5K.
-  const TRAIN_OWN = 10000, TRAIN_FOREIGN = 25000, TRAIN_ALLY = 35000, TRAIN_EVERY = 200, LINKS = 4;
+  const TRAIN_OWN = 10000, TRAIN_FOREIGN = 25000, TRAIN_ALLY = 35000, TRAIN_EVERY = 200, HOPS = 4;
   G.TRAIN_GOLD = [TRAIN_OWN, TRAIN_FOREIGN, TRAIN_ALLY];
 
   G.isStation = function (t) { return t === UT.CITY || t === UT.PORT || t === UT.FACTORY; };
@@ -93,6 +93,28 @@
       stations.push(u);
       if (u.type === UT.FACTORY) factories.push(u);
     }
+    // The network grows the way OpenFront's does: a station is only tied in if it cannot already be
+    // reached over four tracks or fewer, and a newcomer is joined to the nearest station of the
+    // network instead of always to the factory. That gives a branching web without tracks lying on
+    // top of or across each other.
+    const links = new Map(), byId = new Map();
+    for (const s of stations) byId.set(s.id, s);
+    const tie = function (e) {
+      if (!links.has(e.a.id)) links.set(e.a.id, []);
+      if (!links.has(e.b.id)) links.set(e.b.id, []);
+      links.get(e.a.id).push(e.b.id); links.get(e.b.id).push(e.a.id);
+    };
+    for (const e of this.rails) tie(e);
+    const hopsFrom = function (id) {      // how many tracks away every connected station is
+      const hop = new Map([[id, 0]]);
+      let frontier = [id];
+      while (frontier.length) {
+        const next = [];
+        for (const c of frontier) for (const n of links.get(c) || []) if (!hop.has(n)) { hop.set(n, hop.get(c) + 1); next.push(n); }
+        frontier = next;
+      }
+      return hop;
+    };
     let budget = 6, more = false;
     for (const f of factories) {
       const near = [];
@@ -102,20 +124,33 @@
         if (d <= range2) near.push({ s: s, d: d });
       }
       near.sort(function (m, n) { return m.d - n.d || m.s.id - n.s.id; });
-      for (let i = 0; i < near.length && i < LINKS; i++) {
-        const s = near[i].s, key = Math.min(f.id, s.id) + '_' + Math.max(f.id, s.id);
+      let hop = hopsFrom(f.id);
+      for (let i = 0; i < near.length; i++) {
+        const s = near[i].s, far = hop.get(s.id);
+        if (far !== undefined && far <= HOPS) continue;
+        // join it to the closest station that is already part of this factory's network
+        let from = f, bd = near[i].d;
+        if (far === undefined) for (const id of hop.keys()) {
+          const c = byId.get(id);
+          if (!c || c === f) continue;
+          const d = (c.x - s.x) * (c.x - s.x) + (c.y - s.y) * (c.y - s.y);
+          if (d < bd || (d === bd && c.id < from.id)) { bd = d; from = c; }
+        }
+        let key = Math.min(from.id, s.id) + '_' + Math.max(from.id, s.id);
+        if (this.railBad.has(key) && from !== f) { from = f; key = Math.min(f.id, s.id) + '_' + Math.max(f.id, s.id); }
         if (this.railKeys.has(key) || this.railBad.has(key)) continue;
         if (budget <= 0) { more = true; break; }
         budget--;
-        const path = this.railPath(f.tile, s.tile);
+        const path = this.railPath(from.tile, s.tile);
         if (!path) { this.railBad.add(key); continue; }
         let x0 = W, x1 = 0, y0 = this.H, y1 = 0;
         for (let j = 0; j < path.length; j++) {
           const x = path[j] % W, y = (path[j] / W) | 0;
           if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
         }
-        const e = { key: key, a: f, b: s, path: path, x0: x0, x1: x1, y0: y0, y1: y1 };
+        const e = { key: key, a: from, b: s, path: path, x0: x0, x1: x1, y0: y0, y1: y1 };
         this.rails.push(e); this.railKeys.set(key, e);
+        tie(e); hop = hopsFrom(f.id);
       }
     }
     const adj = new Map();
@@ -154,7 +189,7 @@
       const e = this.railNext(p, u, null);
       if (!e) continue;
       const t = this.newUnit(UT.TRAIN, p, u.tile);
-      t.edge = e; t.fwd = e.a === u; t.pi = t.fwd ? 0 : e.path.length - 1; t.hops = 3;
+      t.edge = e; t.fwd = e.a === u; t.pi = t.fwd ? 0 : e.path.length - 1; t.hops = 4;
       this.addUnit(t);
     }
   };
@@ -183,7 +218,8 @@
     if (h && p === h) h.trainGold = (h.trainGold || 0) + pay;
     this.fx.push({ k: 'coin', x: st.x, y: st.y, t: this.ticks, mine: p === h || q === h, amt: pay });
     if (this.fx.length > 300) this.fx.splice(0, 150);
-    const nx = --u.hops > 0 ? this.railNext(p, st, e) : null;
+    // at the end of a branch the train turns round
+    const nx = --u.hops > 0 ? (this.railNext(p, st, e) || this.railNext(p, st, null)) : null;
     if (!nx) { this.removeUnit(u); return; }
     u.edge = nx; u.fwd = nx.a === st; u.pi = u.fwd ? 0 : nx.path.length - 1;
   };

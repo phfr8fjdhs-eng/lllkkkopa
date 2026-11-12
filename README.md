@@ -26,6 +26,10 @@ Die Zahlen stammen aus dem OpenFront-Quellcode (`packages/engine-lib/src/configu
 
 ## Bau-Vorschau, Bots und Nationen
 Eine Bau-Taste zeigt das Gebäude oder die Bombe zuerst am Mauszeiger (`view.ghost`): in der Spielerfarbe, wenn es dort geht, rot mit Grund, wenn nicht. Ein Klick setzt es (Shift: mehrere), dieselbe Taste, Esc oder Rechtsklick legt es weg.
-Bot-Land ist grau (so erkennt man sie). Bots nehmen freies Land zügig bis zu ihrer kleinen Zielgrösse, greifen nur Nachbarn mit weniger als einem Drittel ihrer Truppen an (langsam, mit einem Hundertstel ihrer Truppen pro Vorstoss) und es gibt mehr davon (Vorgabe: Landfläche / 700). Von den Nationen einer Karte tritt nur die Hälfte an (`opts.nationShare`, Vorgabe 0.5).
+Bot-Land ist grau (so erkennt man sie). Bots nehmen freies Land zügig bis zu ihrer kleinen Zielgrösse, greifen nur Nachbarn mit weniger als einem Drittel ihrer Truppen an (langsam, mit einem Hundertstel ihrer Truppen pro Vorstoss) und die Vorgabe für ihre Anzahl ist Landfläche / 950. Von den Nationen einer Karte treten drei Viertel an (`opts.nationShare`, Vorgabe 0.75).
 Am Desktop liegt unten eine Bauleiste (`#hotbar`) wie in OpenFront: jedes Gebäude und jede Waffe mit Taste, Anzahl und Preis (rot, solange das Gold fehlt); ein Klick nimmt es auf. Fehlt bei der Vorschau nur das Gold, bleibt der Preis stehen und wird rot. Die Vorschau zeigt ausserdem Reichweiten: Verteidigungsposten, Flugabwehr, und bei Bomben die feindliche Flugabwehr in der Nähe.
+
+## Schienennetz und Gold-Anzeige
+Das Netz wächst nach der Regel aus OpenFronts `RailNetworkImpl`: Ein Bahnhof wird nur angeschlossen, wenn er nicht schon über höchstens vier Gleise erreichbar ist, und ein neuer Bahnhof kommt an den nächstgelegenen Bahnhof des Netzes statt immer an die Fabrik. So entsteht ein verzweigtes Netz ohne Gleise, die über- oder aufeinander liegen. Züge fahren vier Halte weit und wenden am Ende eines Astes.
+Gold-Einblendungen sind schlicht wie in OpenFront: «+ 25.0K» klein über dem Bahnhof oder Hafen, steigt auf und verblasst; die Eroberungsprämie weiss unter dem Namen des eroberten Reichs.
 

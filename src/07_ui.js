@@ -102,7 +102,7 @@
       img.src = 'data:image/png;base64,' + def.png;
     });
   }
-  function defaultBots(map) { return Math.min(400, Math.round(map.landTiles / 700 / 10) * 10); }
+  function defaultBots(map) { return Math.min(400, Math.round(map.landTiles / 950 / 10) * 10); }
   function previewMap(id) {
     loadMap(id).then(function (map) {
       if (game || cfg.map !== id) return;
@@ -507,7 +507,7 @@
         addMsg('Los geht es. Breite dich aus, bevor es andere tun.', 'good');
         snd('start');
       } else if (e.k === 'loot') {
-        if (e.by === h.id && e.gold > 0) { view.floatText(e.x, e.y, '+' + fmt(e.gold) + ' Gold'); goldPop(e.gold); }
+        if (e.by === h.id && e.gold > 0) { view.floatText(e.x, e.y, '+ ' + fmt(e.gold)); goldPop(e.gold); }
       } else if (e.k === 'defeat') showEnd('defeat', null);
       else if (e.k === 'win') showEnd(game.players[e.id] === h ? 'win' : 'other', game.players[e.id]);
     }

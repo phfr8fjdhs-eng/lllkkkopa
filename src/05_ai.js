@@ -7,7 +7,7 @@
   function AI(g, p) {
     const r = g.rng;
     this.g = g; this.p = p;
-    this.rate = p.type === PT.BOT ? r.int(50, 90) : r.int(40, 80); this.off = r.int(0, this.rate);
+    this.rate = p.type === PT.BOT ? r.int(42, 78) : r.int(40, 80); this.off = r.int(0, this.rate);
     if (p.type === PT.BOT) { this.trigger = r.int(60, 90) / 100; this.reserve = r.int(30, 60) / 100; }
     else { this.trigger = r.int(50, 60) / 100; this.reserve = r.int(30, 40) / 100; }
     this.expand = r.int(10, 20) / 100;
@@ -39,7 +39,7 @@
     const nb = g.neighbors(p);
     if (p.tiles < this.cap && nb.tn) {
       // never more than the land still missing needs (a free tile costs about ten troops)
-      const troops = Math.min((p.troops - g.maxTroops(p) * this.reserve) * 0.3, (this.cap - p.tiles) * 10, 4000);
+      const troops = Math.min((p.troops - g.maxTroops(p) * this.reserve) * 0.3, (this.cap - p.tiles) * 10, 4800);
       if (troops >= 1) g.attack(p, 0, troops, -1);
     }
     if (g.ticks < g.immuneUntil) return;
