@@ -2232,7 +2232,32 @@ body.placing #cv { cursor: crosshair; }
   // ---------- warships ----------
   Game.prototype.tickWarship = function (u) {
     const T = this.ticks, R = this.R, p = u.owner, W = this.W, map = this.map;
-    if (u.hp < 1000 && T % 10 === 0) u.hp = Math.min(1000, u.hp + 10);
+    // Repairs, as in OpenFront: a damaged ship mends slowly while a home port is within reach,
+    // heads for the nearest one once it is below three quarters of its strength, and is patched up
+    // fast when it lies at the quay (the faster, the higher the port's level).
+    let dock = u.repair;
+    if (dock && (!dock.active || dock.owner !== p || u.hp >= 1000)) dock = u.repair = null;
+    if (u.hp < 1000) {
+      if ((T + u.id) % 20 === 0) {
+        let best = null, bd = Infinity;
+        for (const v of p.units) {
+          if (v.type !== UT.PORT || !v.built || map.wcomp[v.water] !== map.wcomp[u.tile]) continue;
+          const d = (v.x - u.x) * (v.x - u.x) + (v.y - u.y) * (v.y - u.y);
+          if (d < bd) { bd = d; best = v; }
+        }
+        u.home = best;
+        if (!dock && best && u.hp < 750) {
+          dock = u.repair = best;
+          if (p === this.human) this.say('Kriegsschiff läuft zur Reparatur den Hafen an', 'warn');
+        }
+      }
+      const hm = u.home && u.home.active && u.home.owner === p ? u.home : null;
+      if (hm) {
+        const d2 = (hm.x - u.x) * (hm.x - u.x) + (hm.y - u.y) * (hm.y - u.y), heal = 150 * this.S, quay = Math.max(4, 5 * this.S);
+        if (d2 <= quay * quay) u.hp = Math.min(1000, u.hp + 1 + 5 * hm.level);
+        else if (d2 <= heal * heal) u.hp = Math.min(1000, u.hp + 1);
+      }
+    }
     if ((T + u.id) % 5 === 0) {
       let best = null, bs = Infinity;
       const r2 = R.warTarget * R.warTarget;
@@ -2265,6 +2290,12 @@ body.placing #cv { cursor: crosshair; }
       }
     }
     if (u.path && u.pi < u.path.length - 1) { u.pi++; this.setPos(u, u.path[u.pi]); return; }
+    if (dock) {
+      // on the way to the quay, or lying there until the hull is whole again
+      const d2 = (dock.x - u.x) * (dock.x - u.x) + (dock.y - u.y) * (dock.y - u.y);
+      if (d2 > 16 && !u.wait && (T + u.id) % 15 === 0 && this.pathQ.length <= 6) this.sail(u, dock.water, false);
+      return;
+    }
     if (u.wait || (tg && tg.type === UT.TRADE) || (T + u.id) % 15 !== 0 || this.pathQ.length > 6) return;
     const cx = u.patrol % W, cy = (u.patrol / W) | 0, comp = map.wcomp[u.tile], pr = R.warPatrol;
     for (let i = 0; i < 8; i++) {
@@ -2287,7 +2318,7 @@ body.placing #cv { cursor: crosshair; }
       if (d < bd) { bd = d; best = u; }
     }
     if (!best) return false;
-    best.patrol = w; best.wait = false;
+    best.patrol = w; best.wait = false; best.repair = null;
     this.sail(best, w, true);
     return true;
   };
@@ -2309,7 +2340,7 @@ body.placing #cv { cursor: crosshair; }
       if (i >= 0) was.units.splice(i, 1);
       was.cnt[UT.WARSHIP]--; by.cnt[UT.WARSHIP]++;
       tg.owner = by; by.units.push(tg);
-      tg.hp = 400; tg.target = null; tg.patrol = tg.tile; tg.shotAt = this.ticks + 30; tg.safeUntil = this.ticks + 150;
+      tg.hp = 400; tg.target = null; tg.repair = null; tg.home = null; tg.patrol = tg.tile; tg.shotAt = this.ticks + 30; tg.safeUntil = this.ticks + 150;
       this.fx.push({ k: 'flag', x: tg.x, y: tg.y });
       if (was === h) this.say(by.name + ' hat dein Kriegsschiff eingenommen', 'bad');
       else if (by === h) this.say('Kriegsschiff von ' + was.name + ' eingenommen', 'good');
@@ -3785,17 +3816,25 @@ body.placing #cv { cursor: crosshair; }
       if (u.x !== u.px || u.y !== u.py) u.ang = Math.atan2(u.y - u.py, u.x - u.px);
       const ang = u.ang || 0;
       if (ty === UT.WARSHIP) {
-        const s = ws * 0.62;
+        // a pale hull like the merchants', so it shows on any water, with the owner's colour as deck and outline
+        const s = ws * 0.78, ca = Math.cos(ang), sa = Math.sin(ang);
         hull(ctx, x, y, ang, s, 'war');
+        ctx.fillStyle = '#eef2f6'; ctx.fill();
+        ctx.lineWidth = 3.4; ctx.strokeStyle = '#10161d'; ctx.stroke();
+        ctx.lineWidth = 1.8; ctx.strokeStyle = p.cssB; ctx.stroke();
+        hull(ctx, x, y, ang, s * 0.6, 'war');
         ctx.fillStyle = p.css; ctx.fill();
-        ctx.lineWidth = 2.6; ctx.strokeStyle = '#10161d'; ctx.stroke();
-        ctx.lineWidth = 1.1; ctx.strokeStyle = '#fff'; ctx.stroke();
         ctx.fillStyle = '#10161d';
-        ctx.beginPath(); ctx.arc(x + Math.cos(ang) * s * 0.3, y + Math.sin(ang) * s * 0.3, Math.max(1.2, s * 0.2), 0, 6.2832); ctx.fill();
-        ctx.beginPath(); ctx.arc(x - Math.cos(ang) * s * 0.4, y - Math.sin(ang) * s * 0.4, Math.max(1, s * 0.16), 0, 6.2832); ctx.fill();
+        ctx.beginPath(); ctx.arc(x + ca * s * 0.3, y + sa * s * 0.3, Math.max(1.3, s * 0.17), 0, 6.2832); ctx.fill();
+        ctx.beginPath(); ctx.arc(x - ca * s * 0.38, y - sa * s * 0.38, Math.max(1.1, s * 0.14), 0, 6.2832); ctx.fill();
         if (u.hp < 1000) {
-          ctx.fillStyle = '#10161d'; ctx.fillRect(x - ws / 2, y + ws * 0.8, ws, 3);
-          ctx.fillStyle = u.hp < 400 ? '#ff6b5e' : '#63d391'; ctx.fillRect(x - ws / 2, y + ws * 0.8, ws * u.hp / 1000, 3);
+          ctx.fillStyle = '#10161d'; ctx.fillRect(x - ws / 2 - 1, y + ws * 0.85 - 1, ws + 2, 5);
+          ctx.fillStyle = u.hp < 400 ? '#ff6b5e' : u.hp < 750 ? '#f4b740' : '#63d391'; ctx.fillRect(x - ws / 2, y + ws * 0.85, ws * u.hp / 1000, 3);
+        }
+        if (u.repair) {
+          // heading for the quay or lying there: a small spanner-coloured ring
+          ctx.beginPath(); ctx.arc(x, y, s * 1.45, 0, 6.2832);
+          ctx.setLineDash([3, 3]); ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(244,183,64,.9)'; ctx.stroke(); ctx.setLineDash([]);
         }
       } else if (ty === UT.TRANSPORT) {
         hull(ctx, x, y, ang, bs * 0.62, 'boat');
@@ -4772,7 +4811,7 @@ body.placing #cv { cursor: crosshair; }
       '<li><b>Bomben:</b> Wähle im Baumenü eine Bombe. Die Karte zeigt dann die Flugbahn, den Einschlag, den Radius und die Reichweite jeder Flugabwehr. Erst <b>Abfeuern</b> startet sie.</li>' +
       '<li><b>Marschflugkörper:</b> Günstig, schnell und genau. Er zerstört Gebäude in einem kleinen Umkreis, hinterlässt kein verstrahltes Land und wird nur selten abgefangen. Gut, um zuerst die Flugabwehr auszuschalten.</li>' +
       '<li><b>Mit Freunden:</b> <b>Mit Freunden spielen</b> öffnet einen Raum. Schick den Link weiter, dann spielt ihr auf derselben Karte.</li>' +
-      '<li><b>Schiffe:</b> Handelsschiffe fahren Gold von Hafen zu Hafen, beide Häfen verdienen daran. Ein <b>Kriegsschiff</b> nimmt fremde Schiffe ein, mit deren Besitzer du keine Allianz hast: Handelsschiffe samt Gold, Boote samt der Hälfte der Truppen, und besiegte Kriegsschiffe wechseln die Seite.</li>' +
+      '<li><b>Schiffe:</b> Handelsschiffe fahren Gold von Hafen zu Hafen, beide Häfen verdienen daran. Ein <b>Kriegsschiff</b> nimmt fremde Schiffe ein, mit deren Besitzer du keine Allianz hast: Handelsschiffe samt Gold, Boote samt der Hälfte der Truppen, und besiegte Kriegsschiffe wechseln die Seite. Ein beschädigtes Kriegsschiff erholt sich langsam, solange ein eigener Hafen in der Nähe ist; unter 75 % fährt es von selbst zum nächsten eigenen Hafen und wird dort schnell repariert (je höher die Hafenstufe, desto schneller).</li>' +
       '<li><b>Züge:</b> Pro Bahnhof gibt es 10K Gold, bei Handelspartnern 25K für beide, bei Verbündeten 35K für beide. Ab dem zehnten Bahnhof einer Fahrt sinkt der Betrag um 5K pro Halt, aber nie unter 5K.</li>' +
       '<li><b>Spielmodus Arsenal:</b> Zusätzlich gibt es den <b>Satellitenstrahl</b> (600K Gold). Er braucht kein Silo, trifft drei Sekunden nach dem Abfeuern, kann nicht abgefangen werden und hinterlässt keine Verstrahlung. Danach lädt der Satellit 45 Sekunden nach.</li>' +
       '<li><b>Ausbauen:</b> Tippe auf eines deiner Gebäude, dann öffnet sich gleich die Ausbaukarte mit drei Knöpfen: eine Stufe, fünf Stufen oder so viele, wie dein Gold reicht. Städte gehen bis Stufe 100, alle anderen Gebäude bis Stufe 5. Jede Stufe kostet so viel wie ein weiteres Gebäude derselben Art (Stadt: 125K, 250K, 500K, danach je 1M) und bringt bei Städten +25K Truppen-Limit. </li>' +

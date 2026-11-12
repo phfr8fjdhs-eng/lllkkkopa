@@ -32,4 +32,5 @@ Am Desktop liegt unten eine Bauleiste (`#hotbar`) wie in OpenFront: jedes Gebäu
 ## Schienennetz und Gold-Anzeige
 Das Netz wächst nach der Regel aus OpenFronts `RailNetworkImpl`: Ein Bahnhof wird nur angeschlossen, wenn er nicht schon über höchstens vier Gleise erreichbar ist, und ein neuer Bahnhof kommt an den nächstgelegenen Bahnhof des Netzes statt immer an die Fabrik. So entsteht ein verzweigtes Netz ohne Gleise, die über- oder aufeinander liegen. Züge fahren vier Halte weit und wenden am Ende eines Astes.
 Gold-Einblendungen sind schlicht wie in OpenFront: «+ 25.0K» klein über dem Bahnhof oder Hafen, steigt auf und verblasst; die Eroberungsprämie weiss unter dem Namen des eroberten Reichs.
+Kriegsschiffe reparieren sich wie in OpenFront: +1 pro Tick, solange ein eigener Hafen in Reichweite (150) liegt; unter 75 % laufen sie den nächsten eigenen Hafen an und bekommen am Kai zusätzlich +5 pro Tick und Hafenstufe. Passives Gold entspricht OpenFront (100 pro Tick, Bots 50; Städte bringen kein Gold, nur Truppen-Limit).
 

@@ -481,17 +481,25 @@
       if (u.x !== u.px || u.y !== u.py) u.ang = Math.atan2(u.y - u.py, u.x - u.px);
       const ang = u.ang || 0;
       if (ty === UT.WARSHIP) {
-        const s = ws * 0.62;
+        // a pale hull like the merchants', so it shows on any water, with the owner's colour as deck and outline
+        const s = ws * 0.78, ca = Math.cos(ang), sa = Math.sin(ang);
         hull(ctx, x, y, ang, s, 'war');
+        ctx.fillStyle = '#eef2f6'; ctx.fill();
+        ctx.lineWidth = 3.4; ctx.strokeStyle = '#10161d'; ctx.stroke();
+        ctx.lineWidth = 1.8; ctx.strokeStyle = p.cssB; ctx.stroke();
+        hull(ctx, x, y, ang, s * 0.6, 'war');
         ctx.fillStyle = p.css; ctx.fill();
-        ctx.lineWidth = 2.6; ctx.strokeStyle = '#10161d'; ctx.stroke();
-        ctx.lineWidth = 1.1; ctx.strokeStyle = '#fff'; ctx.stroke();
         ctx.fillStyle = '#10161d';
-        ctx.beginPath(); ctx.arc(x + Math.cos(ang) * s * 0.3, y + Math.sin(ang) * s * 0.3, Math.max(1.2, s * 0.2), 0, 6.2832); ctx.fill();
-        ctx.beginPath(); ctx.arc(x - Math.cos(ang) * s * 0.4, y - Math.sin(ang) * s * 0.4, Math.max(1, s * 0.16), 0, 6.2832); ctx.fill();
+        ctx.beginPath(); ctx.arc(x + ca * s * 0.3, y + sa * s * 0.3, Math.max(1.3, s * 0.17), 0, 6.2832); ctx.fill();
+        ctx.beginPath(); ctx.arc(x - ca * s * 0.38, y - sa * s * 0.38, Math.max(1.1, s * 0.14), 0, 6.2832); ctx.fill();
         if (u.hp < 1000) {
-          ctx.fillStyle = '#10161d'; ctx.fillRect(x - ws / 2, y + ws * 0.8, ws, 3);
-          ctx.fillStyle = u.hp < 400 ? '#ff6b5e' : '#63d391'; ctx.fillRect(x - ws / 2, y + ws * 0.8, ws * u.hp / 1000, 3);
+          ctx.fillStyle = '#10161d'; ctx.fillRect(x - ws / 2 - 1, y + ws * 0.85 - 1, ws + 2, 5);
+          ctx.fillStyle = u.hp < 400 ? '#ff6b5e' : u.hp < 750 ? '#f4b740' : '#63d391'; ctx.fillRect(x - ws / 2, y + ws * 0.85, ws * u.hp / 1000, 3);
+        }
+        if (u.repair) {
+          // heading for the quay or lying there: a small spanner-coloured ring
+          ctx.beginPath(); ctx.arc(x, y, s * 1.45, 0, 6.2832);
+          ctx.setLineDash([3, 3]); ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(244,183,64,.9)'; ctx.stroke(); ctx.setLineDash([]);
         }
       } else if (ty === UT.TRANSPORT) {
         hull(ctx, x, y, ang, bs * 0.62, 'boat');

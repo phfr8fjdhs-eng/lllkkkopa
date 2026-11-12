@@ -498,7 +498,32 @@
   // ---------- warships ----------
   Game.prototype.tickWarship = function (u) {
     const T = this.ticks, R = this.R, p = u.owner, W = this.W, map = this.map;
-    if (u.hp < 1000 && T % 10 === 0) u.hp = Math.min(1000, u.hp + 10);
+    // Repairs, as in OpenFront: a damaged ship mends slowly while a home port is within reach,
+    // heads for the nearest one once it is below three quarters of its strength, and is patched up
+    // fast when it lies at the quay (the faster, the higher the port's level).
+    let dock = u.repair;
+    if (dock && (!dock.active || dock.owner !== p || u.hp >= 1000)) dock = u.repair = null;
+    if (u.hp < 1000) {
+      if ((T + u.id) % 20 === 0) {
+        let best = null, bd = Infinity;
+        for (const v of p.units) {
+          if (v.type !== UT.PORT || !v.built || map.wcomp[v.water] !== map.wcomp[u.tile]) continue;
+          const d = (v.x - u.x) * (v.x - u.x) + (v.y - u.y) * (v.y - u.y);
+          if (d < bd) { bd = d; best = v; }
+        }
+        u.home = best;
+        if (!dock && best && u.hp < 750) {
+          dock = u.repair = best;
+          if (p === this.human) this.say('Kriegsschiff läuft zur Reparatur den Hafen an', 'warn');
+        }
+      }
+      const hm = u.home && u.home.active && u.home.owner === p ? u.home : null;
+      if (hm) {
+        const d2 = (hm.x - u.x) * (hm.x - u.x) + (hm.y - u.y) * (hm.y - u.y), heal = 150 * this.S, quay = Math.max(4, 5 * this.S);
+        if (d2 <= quay * quay) u.hp = Math.min(1000, u.hp + 1 + 5 * hm.level);
+        else if (d2 <= heal * heal) u.hp = Math.min(1000, u.hp + 1);
+      }
+    }
     if ((T + u.id) % 5 === 0) {
       let best = null, bs = Infinity;
       const r2 = R.warTarget * R.warTarget;
@@ -531,6 +556,12 @@
       }
     }
     if (u.path && u.pi < u.path.length - 1) { u.pi++; this.setPos(u, u.path[u.pi]); return; }
+    if (dock) {
+      // on the way to the quay, or lying there until the hull is whole again
+      const d2 = (dock.x - u.x) * (dock.x - u.x) + (dock.y - u.y) * (dock.y - u.y);
+      if (d2 > 16 && !u.wait && (T + u.id) % 15 === 0 && this.pathQ.length <= 6) this.sail(u, dock.water, false);
+      return;
+    }
     if (u.wait || (tg && tg.type === UT.TRADE) || (T + u.id) % 15 !== 0 || this.pathQ.length > 6) return;
     const cx = u.patrol % W, cy = (u.patrol / W) | 0, comp = map.wcomp[u.tile], pr = R.warPatrol;
     for (let i = 0; i < 8; i++) {
@@ -553,7 +584,7 @@
       if (d < bd) { bd = d; best = u; }
     }
     if (!best) return false;
-    best.patrol = w; best.wait = false;
+    best.patrol = w; best.wait = false; best.repair = null;
     this.sail(best, w, true);
     return true;
   };
@@ -575,7 +606,7 @@
       if (i >= 0) was.units.splice(i, 1);
       was.cnt[UT.WARSHIP]--; by.cnt[UT.WARSHIP]++;
       tg.owner = by; by.units.push(tg);
-      tg.hp = 400; tg.target = null; tg.patrol = tg.tile; tg.shotAt = this.ticks + 30; tg.safeUntil = this.ticks + 150;
+      tg.hp = 400; tg.target = null; tg.repair = null; tg.home = null; tg.patrol = tg.tile; tg.shotAt = this.ticks + 30; tg.safeUntil = this.ticks + 150;
       this.fx.push({ k: 'flag', x: tg.x, y: tg.y });
       if (was === h) this.say(by.name + ' hat dein Kriegsschiff eingenommen', 'bad');
       else if (by === h) this.say('Kriegsschiff von ' + was.name + ' eingenommen', 'good');
