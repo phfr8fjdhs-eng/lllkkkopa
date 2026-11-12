@@ -93,6 +93,7 @@ const out = (n) => path.join(__dirname, '..', 'build', n);
   const aimAt = await page.evaluate(() => {
     const g = G.debug.game, v = G.debug.view, h = g.human, W = g.W;
     g.opts.instantBuild = true;
+    g.opts.infiniteTroops = true; h.troops = 1e6;   // a strong army, so that no bot nibbles the silo away during the test
     let far = -1;
     for (const b of h.border) { if (far < 0 || Math.abs(b % W - h.spawnTile % W) > Math.abs(far % W - h.spawnTile % W)) far = b; }
     let silo = -1;
@@ -126,12 +127,27 @@ const out = (n) => path.join(__dirname, '..', 'build', n);
   await page.screenshot({ path: out(`ui_${tag}_9flight.png`) });
   // the cruise missile: aim it at the air defence, then check what a hit does
   await page.evaluate(() => { G.debug.game.human.gold = 9e6; });
-  await page.waitForTimeout(10500);   // the silo reloads for nine seconds
+  await page.waitForTimeout(8000);
+  // do not depend on reload timing: the own silo is ready again, the hostile air defence has just fired
+  await page.evaluate(() => {
+    const g = G.debug.game, h = g.human;
+    // the atom bomb just fired may have landed close enough to take the own silo with it: put up a new one
+    if (!h.units.some((u) => u.type === G.UT.SILO)) {
+      let t = -1;
+      g.forTiles(h, (x) => { if (t < 0 && !h.border.has(x) && !g.structNear(x, g.R.structDist)) t = x; });
+      h.gold = 9e6; g.build(h, G.UT.SILO, t);
+    }
+    for (const u of g.structAt.values()) {
+      if (u.type === G.UT.SILO && u.owner === h) u.ready = u.ready.map(() => 0);
+      if (u.type === G.UT.SAM && u.owner !== h) u.ready = u.ready.map(() => g.ticks + 400);
+    }
+  });
   await page.evaluate((p) => G.debug.tap(p.x, p.y + 14, true), aimAt.foe);   // long press: the menu, not an attack
   await page.waitForTimeout(450);
   await page.click('#rN');
   await page.waitForTimeout(350);
   await page.screenshot({ path: out(`ui_${tag}_11weapons.png`) });
+  console.log('cruise button:', await page.evaluate(() => { const b = document.querySelector('.item[data-t="16"]'), g = G.debug.game, h = g.human; return (b ? b.textContent : 'none') + ' | disabled ' + (b && b.disabled) + ' | silos ' + JSON.stringify(h.units.filter((u) => u.type === G.UT.SILO).map((u) => [u.built, u.ready, g.ticks])) + ' | gold ' + Math.round(h.gold) + ' | immune ' + (g.immuneUntil - g.ticks); }));
   await page.click('.item[data-t="16"]');
   await page.waitForTimeout(400);
   await page.screenshot({ path: out(`ui_${tag}_12cruise.png`) });
