@@ -3,7 +3,7 @@
   const Math = G.M;   // same results on every device, see 00_util.js
   const PT = G.PT, UT = G.UT;
 
-  // Computer opponents. Bots only spread and skirmish; nations also build, sail, ally and bomb.
+  // Computer opponents. Bots only spread a little and are there to be conquered; nations build, sail, ally and bomb.
   function AI(g, p) {
     const r = g.rng;
     this.g = g; this.p = p;
@@ -27,27 +27,19 @@
     return !!g.attack(p, target ? target.id : 0, troops, -1);
   };
 
+  // Bots are easy prey: they never attack anyone and build nothing. They only take free land,
+  // slowly and a little at a time, and stop once they have a small realm of their own.
   AI.prototype.bot = function () {
-    const g = this.g, p = this.p, r = g.rng;
-    const nb = g.neighbors(p);
-    if (nb.tn) { this.send(null); return; }
-    const list = [];
-    for (const id of nb.ids) { const q = g.players[id]; if (q.alive && !g.friendly(p, q)) list.push(q); }
-    if (!list.length) return;
-    const traitors = list.filter(function (q) { return g.isTraitor(q); });
-    let target;
-    if (traitors.length && r.chance(2)) {
-      target = r.pick(traitors);
-    } else {
-      if (p.troops / g.maxTroops(p) < this.trigger) return;
-      if (this.enemy && this.enemy.alive && list.indexOf(this.enemy) >= 0 && !r.chance(4)) target = this.enemy;
-      else {
-        target = r.pick(list);
-        if (target.type === PT.NATION && r.chance(2)) target = r.pick(list);
-      }
+    const g = this.g, p = this.p;
+    if (!this.cap) {
+      const share = g.map.landTiles / Math.max(50, g.players.length - 1);
+      this.cap = G.within(share * 0.3, 120, 2000) * (0.6 + this.expand * 4);
     }
-    this.enemy = target;
-    this.send(target);
+    if (p.tiles >= this.cap) return;
+    if (!g.neighbors(p).tn) return;
+    // a small party each time, and never more than the land still missing needs (a free tile costs about ten troops)
+    const troops = Math.min((p.troops - g.maxTroops(p) * this.reserve) * 0.3, (this.cap - p.tiles) * 10, 500);
+    if (troops >= 1) g.attack(p, 0, troops, -1);
   };
 
   AI.prototype.nation = function () {

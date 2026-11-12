@@ -1308,12 +1308,12 @@ kbd {
     if (at.troops < 1) { this.endAttack(at, false); return; }
     const own = this.owner, map = this.map, mg = map.mag, W = this.W, H = this.H, aid = a.id;
     const n = at.front.size + this.rng.int(0, 5);
-    let budget = t ? within((5 * at.troops / Math.max(1, t.troops)) * 2, 0.01, 0.5) * n * 3 : n * (a.type === PT.BOT ? 0.7 : 2);
+    let budget = t ? within((5 * at.troops / Math.max(1, t.troops)) * 2, 0.01, 0.5) * n * 3 : n * (a.type === PT.BOT ? 0.3 : 2);
     const landTiles = map.landTiles;
     const lossMod = a.tiles > landTiles * 0.17 ? Math.sqrt(landTiles * 0.17 / a.tiles) : 1;
     const speedMod = a.tiles > landTiles * 0.13 ? Math.pow(landTiles * 0.13 / a.tiles, 0.6) : 1;
     const traitor = t && t.traitorUntil > this.ticks ? 0.5 : 1;
-    const easy = !!t && t.type === PT.BOT && a.type !== PT.BOT, botMod = easy ? 0.5 : 1;   // bots barely defend themselves
+    const easy = !!t && t.type === PT.BOT && a.type !== PT.BOT, botMod = easy ? 0.35 : 1;   // bots barely defend themselves
     const dp = t ? t.dposts : null, dr2 = this.R.defense * this.R.defense, fo = this.fallout;
     let guard = 0;
     while (budget > 0) {
@@ -1343,7 +1343,7 @@ kbd {
       if (t) {
         const tt = t.troops;
         loss = within(tt / at.troops, 0.6, 2) * mag * 0.8 * botMod * lossMod * traitor;
-        used = within(tt / (5 * at.troops), 0.2, 1.5) * speed * speedMod * (easy ? 0.6 : 1);
+        used = within(tt / (5 * at.troops), 0.2, 1.5) * speed * speedMod * (easy ? 0.45 : 1);
         t.troops = Math.max(0, tt - tt / Math.max(1, t.tiles));
       } else {
         loss = a.type === PT.BOT ? mag / 10 : mag / 5;
@@ -1356,8 +1356,9 @@ kbd {
   };
 
   // Whoever takes a player over gets its gold; a bot pays a bounty on top.
+  G.BOT_BOUNTY = 75000;
   Game.prototype.loot = function (a, t) {
-    const gold = Math.floor(t.gold) + (t.type === PT.BOT ? 50000 : 0);
+    const gold = Math.floor(t.gold) + (t.type === PT.BOT ? G.BOT_BOUNTY : 0);
     t.gold = 0; a.gold += gold; a.conquests++;
     this.emit({ k: 'loot', by: a.id, gold: gold, x: (t.x0 + t.x1) / 2, y: (t.y0 + t.y1) / 2 });
     return gold;
@@ -2615,7 +2616,7 @@ kbd {
   const Math = G.M;   // same results on every device, see 00_util.js
   const PT = G.PT, UT = G.UT;
 
-  // Computer opponents. Bots only spread and skirmish; nations also build, sail, ally and bomb.
+  // Computer opponents. Bots only spread a little and are there to be conquered; nations build, sail, ally and bomb.
   function AI(g, p) {
     const r = g.rng;
     this.g = g; this.p = p;
@@ -2639,27 +2640,19 @@ kbd {
     return !!g.attack(p, target ? target.id : 0, troops, -1);
   };
 
+  // Bots are easy prey: they never attack anyone and build nothing. They only take free land,
+  // slowly and a little at a time, and stop once they have a small realm of their own.
   AI.prototype.bot = function () {
-    const g = this.g, p = this.p, r = g.rng;
-    const nb = g.neighbors(p);
-    if (nb.tn) { this.send(null); return; }
-    const list = [];
-    for (const id of nb.ids) { const q = g.players[id]; if (q.alive && !g.friendly(p, q)) list.push(q); }
-    if (!list.length) return;
-    const traitors = list.filter(function (q) { return g.isTraitor(q); });
-    let target;
-    if (traitors.length && r.chance(2)) {
-      target = r.pick(traitors);
-    } else {
-      if (p.troops / g.maxTroops(p) < this.trigger) return;
-      if (this.enemy && this.enemy.alive && list.indexOf(this.enemy) >= 0 && !r.chance(4)) target = this.enemy;
-      else {
-        target = r.pick(list);
-        if (target.type === PT.NATION && r.chance(2)) target = r.pick(list);
-      }
+    const g = this.g, p = this.p;
+    if (!this.cap) {
+      const share = g.map.landTiles / Math.max(50, g.players.length - 1);
+      this.cap = G.within(share * 0.3, 120, 2000) * (0.6 + this.expand * 4);
     }
-    this.enemy = target;
-    this.send(target);
+    if (p.tiles >= this.cap) return;
+    if (!g.neighbors(p).tn) return;
+    // a small party each time, and never more than the land still missing needs (a free tile costs about ten troops)
+    const troops = Math.min((p.troops - g.maxTroops(p) * this.reserve) * 0.3, (this.cap - p.tiles) * 10, 500);
+    if (troops >= 1) g.attack(p, 0, troops, -1);
   };
 
   AI.prototype.nation = function () {
@@ -4494,7 +4487,7 @@ kbd {
       '<li><b>Allianzen:</b> Verbündete greifen sich zehn Minuten lang nicht an. Wer eine Allianz bricht, ist 30 Sekunden lang leichter zu erobern.</li>' +
       '<li><b>Einkreisen:</b> Wer ganz von einem Gegner umschlossen ist, wird sofort übernommen.</li>' +
       '<li><b>Sieg:</b> Wer 80 % des Landes hält, gewinnt.</li>' +
-      '<li><b>Bots:</b> Kleine Reiche mit langen Namen wehren sich kaum und breiten sich langsam aus. Wer eines erobert, bekommt sein Gold und eine Prämie.</li>' +
+      '<li><b>Bots:</b> Kleine Reiche mit langen Namen. Sie greifen niemanden an, bauen nichts, breiten sich nur langsam ein Stück aus und wehren sich kaum. Wer eines erobert, bekommt sein Gold und 75K Prämie.</li>' +
       '<li><b>Ausbauen:</b> Tippe auf ein eigenes Gebäude und dann auf <b>Ausbau</b>. Jede Stufe macht es stärker, bis Stufe 5.</li>' +
       '<li><b>Bomben:</b> Wähle im Baumenü eine Bombe. Die Karte zeigt dann die Flugbahn, den Einschlag, den Radius und die Reichweite jeder Flugabwehr. Erst <b>Abfeuern</b> startet sie.</li>' +
       '<li><b>Marschflugkörper:</b> Günstig, schnell und genau. Er zerstört Gebäude in einem kleinen Umkreis, hinterlässt kein verstrahltes Land und wird nur selten abgefangen. Gut, um zuerst die Flugabwehr auszuschalten.</li>' +
@@ -4760,7 +4753,7 @@ kbd {
     else if (p.type === PT.NATION) {
       const r = game.relation(p, h);
       kind = 'Nation · ' + (r < -50 ? 'feindlich' : r < 0 ? 'misstrauisch' : r < 50 ? 'neutral' : 'freundlich') + ' gesinnt';
-    } else kind = p.type === PT.HUMAN ? 'Mitspieler' : 'Bot · wehrt sich kaum und bringt Gold, wenn du ihn eroberst';
+    } else kind = p.type === PT.HUMAN ? 'Mitspieler' : 'Bot · greift nicht an, baut nichts und bringt 75K Gold, wenn du ihn eroberst';
     let s = '<div class="who"><span class="dot big" style="background:' + p.css + '"></span><div><h2>' + (p.flag ? G.flagOf(p.flag) + ' ' : '') + esc(p.name) + '</h2><p>' + kind + '</p></div></div>';
     s += '<div class="facts">' + fact('Truppen', fmtT(p.troops)) + fact('Gold', me && game.opts.infiniteGold ? '∞' : fmt(p.gold)) + fact('Gebiet', (p.tiles / den * 100).toFixed(1) + ' %') + '</div>';
     s += '<div class="facts six">' + fact('Städte', p.cnt[UT.CITY]) + fact('Häfen', p.cnt[UT.PORT]) + fact('Fabriken', p.cnt[UT.FACTORY]) +

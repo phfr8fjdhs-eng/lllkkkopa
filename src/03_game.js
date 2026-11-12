@@ -549,12 +549,12 @@
     if (at.troops < 1) { this.endAttack(at, false); return; }
     const own = this.owner, map = this.map, mg = map.mag, W = this.W, H = this.H, aid = a.id;
     const n = at.front.size + this.rng.int(0, 5);
-    let budget = t ? within((5 * at.troops / Math.max(1, t.troops)) * 2, 0.01, 0.5) * n * 3 : n * (a.type === PT.BOT ? 0.7 : 2);
+    let budget = t ? within((5 * at.troops / Math.max(1, t.troops)) * 2, 0.01, 0.5) * n * 3 : n * (a.type === PT.BOT ? 0.3 : 2);
     const landTiles = map.landTiles;
     const lossMod = a.tiles > landTiles * 0.17 ? Math.sqrt(landTiles * 0.17 / a.tiles) : 1;
     const speedMod = a.tiles > landTiles * 0.13 ? Math.pow(landTiles * 0.13 / a.tiles, 0.6) : 1;
     const traitor = t && t.traitorUntil > this.ticks ? 0.5 : 1;
-    const easy = !!t && t.type === PT.BOT && a.type !== PT.BOT, botMod = easy ? 0.5 : 1;   // bots barely defend themselves
+    const easy = !!t && t.type === PT.BOT && a.type !== PT.BOT, botMod = easy ? 0.35 : 1;   // bots barely defend themselves
     const dp = t ? t.dposts : null, dr2 = this.R.defense * this.R.defense, fo = this.fallout;
     let guard = 0;
     while (budget > 0) {
@@ -584,7 +584,7 @@
       if (t) {
         const tt = t.troops;
         loss = within(tt / at.troops, 0.6, 2) * mag * 0.8 * botMod * lossMod * traitor;
-        used = within(tt / (5 * at.troops), 0.2, 1.5) * speed * speedMod * (easy ? 0.6 : 1);
+        used = within(tt / (5 * at.troops), 0.2, 1.5) * speed * speedMod * (easy ? 0.45 : 1);
         t.troops = Math.max(0, tt - tt / Math.max(1, t.tiles));
       } else {
         loss = a.type === PT.BOT ? mag / 10 : mag / 5;
@@ -597,8 +597,9 @@
   };
 
   // Whoever takes a player over gets its gold; a bot pays a bounty on top.
+  G.BOT_BOUNTY = 75000;
   Game.prototype.loot = function (a, t) {
-    const gold = Math.floor(t.gold) + (t.type === PT.BOT ? 50000 : 0);
+    const gold = Math.floor(t.gold) + (t.type === PT.BOT ? G.BOT_BOUNTY : 0);
     t.gold = 0; a.gold += gold; a.conquests++;
     this.emit({ k: 'loot', by: a.id, gold: gold, x: (t.x0 + t.x1) / 2, y: (t.y0 + t.y1) / 2 });
     return gold;

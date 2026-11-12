@@ -360,7 +360,7 @@
       '<li><b>Allianzen:</b> Verbündete greifen sich zehn Minuten lang nicht an. Wer eine Allianz bricht, ist 30 Sekunden lang leichter zu erobern.</li>' +
       '<li><b>Einkreisen:</b> Wer ganz von einem Gegner umschlossen ist, wird sofort übernommen.</li>' +
       '<li><b>Sieg:</b> Wer 80 % des Landes hält, gewinnt.</li>' +
-      '<li><b>Bots:</b> Kleine Reiche mit langen Namen wehren sich kaum und breiten sich langsam aus. Wer eines erobert, bekommt sein Gold und eine Prämie.</li>' +
+      '<li><b>Bots:</b> Kleine Reiche mit langen Namen. Sie greifen niemanden an, bauen nichts, breiten sich nur langsam ein Stück aus und wehren sich kaum. Wer eines erobert, bekommt sein Gold und 75K Prämie.</li>' +
       '<li><b>Ausbauen:</b> Tippe auf ein eigenes Gebäude und dann auf <b>Ausbau</b>. Jede Stufe macht es stärker, bis Stufe 5.</li>' +
       '<li><b>Bomben:</b> Wähle im Baumenü eine Bombe. Die Karte zeigt dann die Flugbahn, den Einschlag, den Radius und die Reichweite jeder Flugabwehr. Erst <b>Abfeuern</b> startet sie.</li>' +
       '<li><b>Marschflugkörper:</b> Günstig, schnell und genau. Er zerstört Gebäude in einem kleinen Umkreis, hinterlässt kein verstrahltes Land und wird nur selten abgefangen. Gut, um zuerst die Flugabwehr auszuschalten.</li>' +
@@ -626,7 +626,7 @@
     else if (p.type === PT.NATION) {
       const r = game.relation(p, h);
       kind = 'Nation · ' + (r < -50 ? 'feindlich' : r < 0 ? 'misstrauisch' : r < 50 ? 'neutral' : 'freundlich') + ' gesinnt';
-    } else kind = p.type === PT.HUMAN ? 'Mitspieler' : 'Bot · wehrt sich kaum und bringt Gold, wenn du ihn eroberst';
+    } else kind = p.type === PT.HUMAN ? 'Mitspieler' : 'Bot · greift nicht an, baut nichts und bringt 75K Gold, wenn du ihn eroberst';
     let s = '<div class="who"><span class="dot big" style="background:' + p.css + '"></span><div><h2>' + (p.flag ? G.flagOf(p.flag) + ' ' : '') + esc(p.name) + '</h2><p>' + kind + '</p></div></div>';
     s += '<div class="facts">' + fact('Truppen', fmtT(p.troops)) + fact('Gold', me && game.opts.infiniteGold ? '∞' : fmt(p.gold)) + fact('Gebiet', (p.tiles / den * 100).toFixed(1) + ' %') + '</div>';
     s += '<div class="facts six">' + fact('Städte', p.cnt[UT.CITY]) + fact('Häfen', p.cnt[UT.PORT]) + fact('Fabriken', p.cnt[UT.FACTORY]) +
