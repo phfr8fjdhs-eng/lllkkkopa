@@ -7,7 +7,7 @@
   function AI(g, p) {
     const r = g.rng;
     this.g = g; this.p = p;
-    this.rate = p.type === PT.BOT ? r.int(80, 140) : r.int(40, 80); this.off = r.int(0, this.rate);
+    this.rate = p.type === PT.BOT ? r.int(50, 90) : r.int(40, 80); this.off = r.int(0, this.rate);
     if (p.type === PT.BOT) { this.trigger = r.int(60, 90) / 100; this.reserve = r.int(30, 60) / 100; }
     else { this.trigger = r.int(50, 60) / 100; this.reserve = r.int(30, 40) / 100; }
     this.expand = r.int(10, 20) / 100;
@@ -27,19 +27,32 @@
     return !!g.attack(p, target ? target.id : 0, troops, -1);
   };
 
-  // Bots are easy prey: they never attack anyone and build nothing. They only take free land,
-  // at a steady pace, and stop once they have a small realm of their own.
+  // Bots are easy prey and build nothing. They take free land at a steady pace until they have a
+  // small realm of their own. The only one they ever attack is a neighbour with far fewer troops
+  // than they have themselves, and then only with a small party, so the attack creeps forward.
   AI.prototype.bot = function () {
     const g = this.g, p = this.p;
     if (!this.cap) {
       const share = g.map.landTiles / Math.max(50, g.players.length - 1);
       this.cap = G.within(share * 0.5, 150, 2500) * (0.6 + this.expand * 4);
     }
-    if (p.tiles >= this.cap) return;
-    if (!g.neighbors(p).tn) return;
-    // a small party each time, and never more than the land still missing needs (a free tile costs about ten troops)
-    const troops = Math.min((p.troops - g.maxTroops(p) * this.reserve) * 0.3, (this.cap - p.tiles) * 10, 2500);
-    if (troops >= 1) g.attack(p, 0, troops, -1);
+    const nb = g.neighbors(p);
+    if (p.tiles < this.cap && nb.tn) {
+      // never more than the land still missing needs (a free tile costs about ten troops)
+      const troops = Math.min((p.troops - g.maxTroops(p) * this.reserve) * 0.3, (this.cap - p.tiles) * 10, 4000);
+      if (troops >= 1) g.attack(p, 0, troops, -1);
+    }
+    if (g.ticks < g.immuneUntil) return;
+    for (const id of nb.ids) {
+      const q = g.players[id];
+      if (!q || !q.alive || q.type === PT.BOT || g.friendly(p, q)) continue;
+      if (q.troops * 3 >= p.troops) continue;
+      // one small party at a time: nothing is added while the last one is still on its way
+      let busy = false;
+      for (const at of p.out) if (at.active && at.tid === id) { busy = true; break; }
+      if (!busy) g.attack(p, id, p.troops / 100, -1);
+      break;
+    }
   };
 
   AI.prototype.nation = function () {

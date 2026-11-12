@@ -100,7 +100,7 @@
     if (!c) {
       c = info.type === PT.NATION
         ? G.hsl((id * 137.508 + 40) % 360, 0.55 + (id % 3) * 0.07, 0.5 + (id % 4) * 0.035)
-        : G.hsl((id * 137.508) % 360, 0.34 + (id % 3) * 0.05, 0.58 + (id % 4) * 0.03);   // bots stay greyish, so they are easy to tell from nations
+        : G.hsl((id * 137.508) % 360, 0.05 + (id % 3) * 0.03, 0.46 + (id % 6) * 0.04);   // bot land is grey, in different shades, so it is easy to tell from nations
     }
     p.r = c[0]; p.g = c[1]; p.b = c[2];
     if (info.type === PT.BOT) p.troops = 10000;
@@ -559,7 +559,7 @@
     if (at.troops < 1) { this.endAttack(at, false); return; }
     const own = this.owner, map = this.map, mg = map.mag, W = this.W, H = this.H, aid = a.id;
     const n = at.front.size + this.rng.int(0, 5);
-    let budget = t ? within((5 * at.troops / Math.max(1, t.troops)) * 2, 0.01, 0.5) * n * 3 : n * (a.type === PT.BOT ? 0.8 : 2);
+    let budget = t ? within((5 * at.troops / Math.max(1, t.troops)) * 2, 0.01, 0.5) * n * 3 : n * (a.type === PT.BOT ? 1.2 : 2);
     const landTiles = map.landTiles;
     const lossMod = a.tiles > landTiles * 0.17 ? Math.sqrt(landTiles * 0.17 / a.tiles) : 1;
     const speedMod = a.tiles > landTiles * 0.13 ? Math.pow(landTiles * 0.13 / a.tiles, 0.6) : 1;

@@ -111,6 +111,24 @@ const out = (n) => path.join(__dirname, '..', 'build', n);
     return log;
   });
   console.log(JSON.stringify(res));
+  // a nation gets the menu on a tap; once an attack on it is running, a tap sends troops without the menu
+  console.log('feed attack', JSON.stringify(await page.evaluate(() => {
+    const g = G.debug.game, h = g.human, v = G.debug.view;
+    const q = g.players.find((p) => p && p.alive && p.type === G.PT.NATION && !g.friendly(h, p));
+    if (!q) return 'no nation left';
+    let t = -1; g.forTiles(q, (x) => { if (t < 0) t = x; });
+    v.fly = null; v.cam.x = t % g.W; v.cam.y = (t / g.W) | 0; v.cam.z = 4;
+    const pt = v.screenOf(t), radial = document.getElementById('radial');
+    G.debug.tap(pt.x, pt.y);
+    const menuFirst = !radial.hidden;
+    radial.hidden = true;
+    const fake = { active: true, tid: q.id, troops: 1 };
+    h.out.push(fake);
+    G.debug.tap(pt.x, pt.y);
+    const menuAgain = !radial.hidden;
+    h.out.splice(h.out.indexOf(fake), 1); radial.hidden = true;
+    return { menuFirst: menuFirst, menuWhileAttacking: menuAgain };
+  })));
   // rails close up
   await page.evaluate(() => { const g = G.debug.game, v = G.debug.view, f = g.human.units.find((u) => u.type === G.UT.FACTORY); if (f) v.flyTo(f.x, f.y, 7); });
   await page.waitForTimeout(1500);
@@ -176,6 +194,22 @@ const out = (n) => path.join(__dirname, '..', 'build', n);
   console.log(JSON.stringify(await page.evaluate((c0) => { const g = G.debug.game, h = g.human; return { defBefore: c0[1], defAfter: h.cnt[1], ratio: document.getElementById('ratioPct').textContent, fallout: g.falloutCount, audio: G.Audio.ctx && G.Audio.ctx.state, music: G.Audio.on.music }; }, c0)));
   await page.keyboard.press('m');
   console.log('after M', JSON.stringify(await page.evaluate(() => ({ on: G.Audio.on, cfg: G.debug.cfg.music }))));
+  // key 1, then a click on an existing city: it is upgraded instead of a new one being built
+  const onCity = await page.evaluate(() => {
+    const g = G.debug.game, h = g.human, v = G.debug.view, u = h.units.find((x) => x.type === G.UT.CITY && x.built);
+    h.gold = 9e8; v.fly = null; v.cam.x = u.x; v.cam.y = u.y; v.cam.z = 5;
+    return { pt: v.screenOf(u.tile), level: u.level, cities: h.units.filter((x) => x.type === G.UT.CITY).length, id: u.id };
+  });
+  await page.keyboard.press('Escape');
+  await page.mouse.move(onCity.pt.x, onCity.pt.y);
+  await page.keyboard.press('1');
+  await page.mouse.move(onCity.pt.x + 1, onCity.pt.y);
+  await page.waitForTimeout(500);
+  const upGhost = await page.evaluate(() => G.debug.view.ghost && G.debug.view.ghost.text);
+  await page.screenshot({ path: out('feat_d_7upgradeGhost.png') });
+  await page.mouse.click(onCity.pt.x, onCity.pt.y);
+  await page.waitForTimeout(400);
+  console.log('city ghost upgrade', JSON.stringify(await page.evaluate((o) => { const h = G.debug.game.human, u = h.units.find((x) => x.id === o.id); return { ghost: o.g, level: [o.level, u.level], cities: [o.cities, h.units.filter((x) => x.type === G.UT.CITY).length] }; }, Object.assign({ g: upGhost }, onCity))));
   // Shift+1 upgrades the nearest city without pointing at it exactly
   const lv = await page.evaluate(() => { const h = G.debug.game.human; h.gold = 9e8; return h.cityLv; });
   await page.keyboard.press('Shift+Digit1');

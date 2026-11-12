@@ -374,7 +374,7 @@
       '<li><b>Allianzen:</b> Verbündete greifen sich zehn Minuten lang nicht an. Wer eine Allianz bricht, ist 30 Sekunden lang leichter zu erobern.</li>' +
       '<li><b>Einkreisen:</b> Wer ganz von einem Gegner umschlossen ist, wird sofort übernommen.</li>' +
       '<li><b>Sieg:</b> Wer 80 % des Landes hält, gewinnt.</li>' +
-      '<li><b>Bots:</b> Kleine Reiche mit langen Namen. Sie greifen niemanden an, bauen nichts, nehmen sich ein Stück freies Land und wehren sich kaum. Wer eines erobert, bekommt sein Gold und 75K Prämie.</li>' +
+      '<li><b>Bots:</b> Kleine Reiche mit langen Namen. Ihr Land ist grau. Sie bauen nichts, nehmen sich ein Stück freies Land und wehren sich kaum. Angreifen tun sie nur, wer viel weniger Truppen hat als sie selbst, und auch dann nur langsam. Wer eines erobert, bekommt sein Gold und 75K Prämie.</li>' +
       '<li><b>Ausbauen:</b> Tippe auf ein eigenes Gebäude und dann auf <b>Ausbau</b>. Jede Stufe macht es stärker, bis Stufe 5.</li>' +
       '<li><b>Bomben:</b> Wähle im Baumenü eine Bombe. Die Karte zeigt dann die Flugbahn, den Einschlag, den Radius und die Reichweite jeder Flugabwehr. Erst <b>Abfeuern</b> startet sie.</li>' +
       '<li><b>Marschflugkörper:</b> Günstig, schnell und genau. Er zerstört Gebäude in einem kleinen Umkreis, hinterlässt kein verstrahltes Land und wird nur selten abgefangen. Gut, um zuerst die Flugabwehr auszuschalten.</li>' +
@@ -383,7 +383,7 @@
       '<li><b>Züge:</b> Pro Bahnhof gibt es 10K Gold, bei Handelspartnern 25K für beide, bei Verbündeten 35K für beide. Ab dem zehnten Bahnhof einer Fahrt sinkt der Betrag um 5K pro Halt, aber nie unter 5K.</li>' +
       '<li><b>Spielmodus Arsenal:</b> Zusätzlich gibt es den <b>Satellitenstrahl</b> (600K Gold). Er braucht kein Silo, trifft drei Sekunden nach dem Abfeuern, kann nicht abgefangen werden und hinterlässt keine Verstrahlung. Danach lädt der Satellit 45 Sekunden nach.</li>' +
       '<li><b>Ausbauen:</b> Tippe auf eines deiner Gebäude, dann öffnet sich gleich die Ausbaukarte mit drei Knöpfen: eine Stufe, fünf Stufen oder so viele, wie dein Gold reicht. Städte gehen bis Stufe 100, alle anderen Gebäude bis Stufe 5. Jede Stufe kostet so viel wie ein weiteres Gebäude derselben Art (Stadt: 125K, 250K, 500K, danach je 1M) und bringt bei Städten +25K Truppen-Limit. </li>' +
-      '<li><b>Tippen:</b> Ein Tipp auf freies Land oder auf einen Bot greift sofort an. Bei Nationen und Mitspielern öffnet sich das Menü, dort musst du auf Angreifen tippen. Lange drücken öffnet das Menü überall.</li>' +
+      '<li><b>Tippen:</b> Ein Tipp auf freies Land oder auf einen Bot greift sofort an. Bei Nationen und Mitspielern öffnet sich das Menü, dort musst du auf Angreifen tippen. Läuft dein Angriff auf sie schon, schickt jeder weitere Tipp auf ihr Land sofort mehr Truppen. Lange drücken öffnet das Menü überall.</li>' +
       '<li><b>Karte:</b> Ziehen verschiebt, zwei Finger oder das Mausrad zoomen.</li>' +
       '</ul><h2 class="h3">Tastenkürzel</h2><p>Die Belegung ist die von OpenFront.</p><div class="keys">' +
       BUILD.map(function (b) { return '<span><kbd>' + b.key.toUpperCase() + '</kbd>' + plain(b.t) + (b.t === UT.LASER ? ' (Arsenal)' : '') + '</span>'; }).join('') +
@@ -391,7 +391,7 @@
       '<span><kbd>K</kbd>Allianz anfragen</span><span><kbd>L</kbd>Allianz brechen</span><span><kbd>I</kbd>Spieler-Info</span>' +
       '<span><kbd>Q</kbd><kbd>E</kbd>Zoom −/+</span><span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>Karte schieben</span><span><kbd>C</kbd>Zum eigenen Gebiet</span>' +
       '<span><kbd>P</kbd>Pause</span><span><kbd>,</kbd><kbd>.</kbd>Tempo −/+</span><span><kbd>Strg</kbd>+ Klick: Baumenü</span><span>Rechtsklick: Kreismenü</span><span><kbd>Shift</kbd>+ Mausrad: Truppenanteil</span>' +
-      '<span><kbd>Esc</kbd>Schliessen</span></div><p>Eine Bau-Taste zeigt das Gebäude oder die Bombe zuerst am Mauszeiger: in deiner Farbe, wenn es dort geht, rot mit dem Grund, wenn nicht (zum Beispiel zu wenig Gold). Ein Klick setzt es, mit gedrückter <kbd>Shift</kbd>-Taste mehrere hintereinander; dieselbe Taste, <kbd>Esc</kbd> oder ein Rechtsklick legt es wieder weg.</p><p>Zusätzlich, weil es das in OpenFront nicht gibt: <kbd>U</kbd> baut das Gebäude unter dem Mauszeiger aus, <kbd>Shift</kbd> + <kbd>1</kbd>–<kbd>6</kbd> das nächste Gebäude dieser Art, <kbd>Enter</kbd> feuert im Zielmodus des Baumenüs die Bombe ab, <kbd>M</kbd> schaltet den Ton, die Leertaste pausiert ebenfalls.</p><p>' +
+      '<span><kbd>Esc</kbd>Schliessen</span></div><p>Eine Bau-Taste zeigt das Gebäude oder die Bombe zuerst am Mauszeiger: in deiner Farbe, wenn es dort geht, rot mit dem Grund, wenn nicht (zum Beispiel zu wenig Gold). Ein Klick setzt es, mit gedrückter <kbd>Shift</kbd>-Taste mehrere hintereinander. Klickst du damit auf ein eigenes Gebäude derselben Art, wird es um eine Stufe ausgebaut; dieselbe Taste, <kbd>Esc</kbd> oder ein Rechtsklick legt es wieder weg.</p><p>Zusätzlich, weil es das in OpenFront nicht gibt: <kbd>U</kbd> baut das Gebäude unter dem Mauszeiger aus, <kbd>Shift</kbd> + <kbd>1</kbd>–<kbd>6</kbd> das nächste Gebäude dieser Art, <kbd>Enter</kbd> feuert im Zielmodus des Baumenüs die Bombe ab, <kbd>M</kbd> schaltet den Ton, die Leertaste pausiert ebenfalls.</p><p>' +
       'Befehle gelten für die Stelle unter dem Mauszeiger.</p>';
   }
   function showHelp(fromStart) {
@@ -644,7 +644,7 @@
     else if (p.type === PT.NATION) {
       const r = game.relation(p, h);
       kind = 'Nation · ' + (r < -50 ? 'feindlich' : r < 0 ? 'misstrauisch' : r < 50 ? 'neutral' : 'freundlich') + ' gesinnt';
-    } else kind = p.type === PT.HUMAN ? 'Mitspieler' : 'Bot · greift nicht an, baut nichts und bringt 75K Gold, wenn du ihn eroberst';
+    } else kind = p.type === PT.HUMAN ? 'Mitspieler' : 'Bot · baut nichts, greift nur viel Schwächere langsam an und bringt 75K Gold, wenn du ihn eroberst';
     let s = '<div class="who"><span class="dot big" style="background:' + p.css + '"></span><div><h2>' + (p.flag ? G.flagOf(p.flag) + ' ' : '') + esc(p.name) + '</h2><p>' + kind + '</p></div></div>';
     s += '<div class="facts">' + fact('Truppen', fmtT(p.troops)) + fact('Gold', me && game.opts.infiniteGold ? '∞' : fmt(p.gold)) + fact('Gebiet', (p.tiles / den * 100).toFixed(1) + ' %') + '</div>';
     s += '<div class="facts six">' + fact('Städte', p.cnt[UT.CITY]) + fact('Häfen', p.cnt[UT.PORT]) + fact('Fabriken', p.cnt[UT.FACTORY]) +
@@ -952,12 +952,34 @@
     if (key === ghostKey) return;
     ghostKey = key;
     if (tile < 0) { view.ghost = null; return; }
-    const h = game.human, c = game.buildCheck(h, ghost.t, tile);
-    view.ghost = { type: ghost.t, icon: BUILD.find(function (b) { return b.t === ghost.t; }).icon, tile: tile, ok: c.ok,
+    const h = game.human, icon = BUILD.find(function (b) { return b.t === ghost.t; }).icon;
+    const up = ghostUpgrade(tile);
+    if (up) {
+      // over one of your own buildings of this kind the click upgrades it
+      const top = up.level >= G.maxLevel(up.type), cost = game.cost(h, up.type), poor = !game.opts.infiniteGold && h.gold < cost;
+      view.ghost = { type: ghost.t, icon: 'up', tile: up.tile, ok: !top && !poor,
+        text: top ? 'Höchste Stufe erreicht' : poor ? 'Zu wenig Gold für Stufe ' + (up.level + 1) : 'Ausbauen auf Stufe ' + (up.level + 1) + ' · ' + G.fmt(cost) };
+      return;
+    }
+    const c = game.buildCheck(h, ghost.t, tile);
+    view.ghost = { type: ghost.t, icon: icon, tile: tile, ok: c.ok,
       text: c.ok ? plain(ghost.t) + ' · ' + G.fmt(game.cost(h, ghost.t)) : c.why || 'Hier nicht möglich' };
   }
+  // The player's own finished building of the kind being placed, if the pointer is on it.
+  function ghostUpgrade(tile) {
+    if (!ghost || ghost.t > UT.FACTORY) return null;
+    const u = game.structNear(tile, 3);
+    return u && u.owner === game.human && u.built && u.type === ghost.t ? u : null;
+  }
   function placeGhost(tile) {
-    const h = game.human, t = ghost.t, c = game.buildCheck(h, t, tile);
+    const h = game.human, t = ghost.t, up = ghostUpgrade(tile);
+    if (up) {
+      act({ k: 'up', t: up.tile, n: 1, say: plain(t) + ' ausgebaut auf Stufe ' + (up.level + 1) });
+      ghostKey = '';
+      if (!shiftHeld) setGhost(null);
+      return;
+    }
+    const c = game.buildCheck(h, t, tile);
     if (!c.ok) { toast(plain(t) + ': ' + (c.why || 'Hier nicht möglich')); snd('deny'); return; }
     if (t >= UT.ATOM) act({ k: 'build', u: t, t: tile, say: plain(t) + ' gestartet' });
     else doBuild(t, tile);
@@ -977,7 +999,9 @@
     }
     if (aim) { aim.tile = tile; refreshAim(); snd('tap'); return; }
     const o = game.owner[tile], q = o ? game.players[o] : null;
-    if (!menu && (!q || q.type === PT.BOT) && h.alive && o !== h.id && game.map.land[tile]) {
+    // an attack that is already running is fed with one tap, whoever it is against
+    const running = !!q && h.out.some(function (at) { return at.active && at.tid === q.id; });
+    if (!menu && (!q || q.type === PT.BOT || running) && h.alive && o !== h.id && game.map.land[tile]) {
       act({ k: 'strike', t: tile, r: ratio });
       return;
     }

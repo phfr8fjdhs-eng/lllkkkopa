@@ -26,5 +26,5 @@ Die Zahlen stammen aus dem OpenFront-Quellcode (`packages/engine-lib/src/configu
 
 ## Bau-Vorschau, Bots und Nationen
 Eine Bau-Taste zeigt das Gebäude oder die Bombe zuerst am Mauszeiger (`view.ghost`): in der Spielerfarbe, wenn es dort geht, rot mit Grund, wenn nicht. Ein Klick setzt es (Shift: mehrere), dieselbe Taste, Esc oder Rechtsklick legt es weg.
-Bots bleiben gräulich (so erkennt man sie), nehmen freies Land zügig bis zu ihrer kleinen Zielgrösse und es gibt mehr davon (Vorgabe: Landfläche / 700). Von den Nationen einer Karte tritt nur die Hälfte an (`opts.nationShare`, Vorgabe 0.5).
+Bot-Land ist grau (so erkennt man sie). Bots nehmen freies Land zügig bis zu ihrer kleinen Zielgrösse, greifen nur Nachbarn mit weniger als einem Drittel ihrer Truppen an (langsam, mit einem Hundertstel ihrer Truppen pro Vorstoss) und es gibt mehr davon (Vorgabe: Landfläche / 700). Von den Nationen einer Karte tritt nur die Hälfte an (`opts.nationShare`, Vorgabe 0.5).
 
