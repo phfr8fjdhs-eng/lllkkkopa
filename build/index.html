@@ -5840,7 +5840,7 @@ body.placing #cv { cursor: crosshair; }
       if (!e.ok) continue;
       const x = (e.x + 0.5) * z + ox, y = (e.y + 0.5) * z + oy;
       if (x < -40 || y < -10 || x > cw + 40 || y > ch + 40) continue;
-      plate(x, y, '⚔ ' + fmtT(at.troops), at.want >= 1 ? '+' + fmtT(at.want) + ' unterwegs' : '', false);
+      plate(x, y, fmtT(at.troops), at.want >= 1 ? '+' + fmtT(at.want) + ' unterwegs' : '', false);
     }
     let shown = 0;
     for (const at of h.inc) {
@@ -5849,7 +5849,7 @@ body.placing #cv { cursor: crosshair; }
       if (!e.ok) continue;
       const x = (e.x + 0.5) * z + ox, y = (e.y + 0.5) * z + oy;
       if (x < -40 || y < -10 || x > cw + 40 || y > ch + 40) continue;
-      plate(x, y, '⚔ ' + fmtT(at.troops), '', true); shown++;
+      plate(x, y, fmtT(at.troops), '', true); shown++;
     }
   };
 
