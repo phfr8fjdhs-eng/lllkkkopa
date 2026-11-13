@@ -153,6 +153,7 @@
     good: function (t) { [0, 4, 7].forEach(function (s, i) { tone(sfxBus, 'sine', hz(76 + s), t + i * 0.07, 0.22, 0.1); }); },
     ally: function (t) { [0, 7, 12, 16].forEach(function (s, i) { tone(sfxBus, 'triangle', hz(67 + s), t + i * 0.08, 0.3, 0.1); }); },
     warn: function (t) { tone(sfxBus, 'square', 466, t, 0.12, 0.06); tone(sfxBus, 'square', 440, t + 0.14, 0.2, 0.06); },
+    alarm: function (t) { for (let i = 0; i < 3; i++) { tone(sfxBus, 'square', 740, t + i * 0.3, 0.13, 0.07); tone(sfxBus, 'square', 554, t + i * 0.3 + 0.14, 0.13, 0.07); } },
     bad: function (t) { tone(sfxBus, 'sawtooth', 220, t, 0.16, 0.08, 185); tone(sfxBus, 'sawtooth', 165, t + 0.15, 0.28, 0.08, 131); },
     flag: function (t) { noise(sfxBus, t, 0.09, 0.12, 'highpass', 3000); tone(sfxBus, 'triangle', 523, t + 0.05, 0.1, 0.1); tone(sfxBus, 'triangle', 784, t + 0.14, 0.2, 0.1); },
     pop: function (t) { noise(sfxBus, t, 0.16, 0.2, 'lowpass', 1400, 200); tone(sfxBus, 'sine', 160, t, 0.16, 0.2, 50); },

@@ -14,9 +14,13 @@
   }
 
   // Returns false when there cannot be a route (land, or separate bodies of water).
-  Pathfinder.prototype.start = function (src, dst) {
+  // `shy`: keep clear of the coast where there is room (warships). Tiles within three of land
+  // cost extra, so the route swings out to sea but still goes through a strait if it has to.
+  // `limit`: give up after that many tiles (`gaveUp` then tells a search that was cut short
+  // from one that found there is no way).
+  Pathfinder.prototype.start = function (src, dst, shy, limit) {
     const map = this.map, land = map.land;
-    this.state = 2;
+    this.state = 2; this.shy = !!shy; this.limit = limit || 900000; this.gaveUp = false;
     if (src < 0 || dst < 0 || land[src] || land[dst] || map.wcomp[src] !== map.wcomp[dst] || src === dst) return false;
     this.sid++; this.dst = dst; this.exp = 0; this.state = 0;
     this.heap.clear();
@@ -31,7 +35,7 @@
     const map = this.map, land = map.land, W = map.W, H = map.H;
     const sid = this.sid, gs = this.gs, from = this.from, seen = this.seen, done = this.done;
     const heap = this.heap, nb = this.nb, nc = this.nc, dst = this.dst;
-    const tx = dst % W, ty = (dst / W) | 0;
+    const tx = dst % W, ty = (dst / W) | 0, shy = this.shy, off = map.mag;   // for water, mag is the distance to land
     let used = 0;
     while (heap.n) {
       const t = heap.pop();
@@ -39,7 +43,7 @@
       done[t] = sid;
       if (t === dst) { this.state = 1; return used + 1; }
       used++;
-      if (++this.exp > 900000) { this.state = 2; return used; }
+      if (++this.exp > this.limit) { this.state = 2; this.gaveUp = true; return used; }
       const x = t % W, y = (t - x) / W, g0 = gs[t];
       const l = x > 0 && !land[t - 1], r = x < W - 1 && !land[t + 1];
       const u = y > 0 && !land[t - W], d = y < H - 1 && !land[t + W];
@@ -55,7 +59,7 @@
       for (let i = 0; i < k; i++) {
         const n = nb[i];
         if (done[n] === sid) continue;
-        const g1 = g0 + nc[i];
+        const g1 = g0 + nc[i] + (shy && off[n] < 4 ? (4 - off[n]) * 1.2 : 0);
         if (seen[n] !== sid || g1 < gs[n]) {
           seen[n] = sid; gs[n] = g1; from[n] = t;
           const ax = Math.abs(n % W - tx), ay = Math.abs(((n / W) | 0) - ty);

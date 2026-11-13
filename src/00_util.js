@@ -117,4 +117,11 @@
     };
     return [f(0), f(8), f(4)];
   };
+  // Hue of an [r, g, b] colour in degrees. Whole-number arithmetic only, so every device agrees.
+  G.hueOf = function (c) {
+    const r = c[0], g = c[1], b = c[2], mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn;
+    if (!d) return 0;
+    const h = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+    return (h * 60 + 360) % 360;
+  };
 })(globalThis.G = globalThis.G || {});

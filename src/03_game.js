@@ -9,6 +9,13 @@
   };
   G.UNAME = ['Stadt', 'Verteidigungs\u00ADposten', 'Hafen', 'Raketensilo', 'Flugabwehr', 'Fabrik', 'Kriegsschiff', 'Boot',
     'Handelsschiff', 'Zug', 'Granate', 'Abwehrrakete', 'Atombombe', 'Wasserstoff\u00ADbombe', 'MIRV', 'Sprengkopf', 'Marschflug\u00ADkörper', 'Satelliten\u00ADstrahl'];
+  // Tempo. The numbers of the simulation are OpenFront's, but its maps have two million tiles and
+  // ours are smaller (map.S is the scale of a side), so the same tiles per tick looked hectic:
+  // a ship crossed our Atlantic in 0.6 of the time, a front rolled over a country in 0.6 of the
+  // time. Everything that moves over tiles is therefore slowed by the scale of the map, which
+  // gives the pace of the original. These three factors come on top, for tuning by feel:
+  // move (ships, trains, shells), attack (how fast a front advances), growth (troops per tick).
+  G.PACE = { move: 1, attack: 1, growth: 1 };
   G.LASER_COOL = 450;   // ticks between two shots of the satellite beam (Arsenal mode)
   G.DIFF_NAMES = ['Leicht', 'Mittel', 'Schwer', 'Unmöglich'];
 
@@ -59,6 +66,9 @@
     this.human = null; this.humans = []; this.winner = null; this.names = new Set();
     this.dirty = new Int32Array(N); this.dirtyN = 0; this.dirtyFlag = new Uint8Array(N);
     this.path = new G.Pathfinder(map); this.pathCache = new Map(); this.pathQ = []; this.pathJob = null;
+    this.pathNear = new G.Pathfinder(map); this.nearQ = []; this.nearJob = null;
+    this.pace = S * G.PACE.move;          // tiles a ship or train covers per tick
+    this.attackPace = S * G.PACE.attack;  // share of OpenFront's tiles per tick a front takes
     this.R = {
       spawn: 4,
       defense: Math.max(8, Math.round(30 * S)),
@@ -98,9 +108,28 @@
     };
     let c = info.color;
     if (!c) {
-      c = info.type === PT.NATION
-        ? G.hsl((id * 137.508 + 40) % 360, 0.55 + (id % 3) * 0.07, 0.5 + (id % 4) * 0.035)
-        : G.hsl((id * 137.508) % 360, 0.05 + (id % 3) * 0.03, 0.46 + (id % 6) * 0.04);   // bot land is grey, in different shades, so it is easy to tell from nations
+      if (info.type === PT.NATION) {
+        // No nation may look like a person at the table: its hue keeps at least 32 degrees away
+        // from every human player's colour (and it is told apart from grey bots by being vivid).
+        let hue = (id * 137.508 + 40) % 360;
+        for (let k = 0; k < 12; k++) {
+          let clash = false;
+          for (const q of this.humans) {
+            const d = Math.abs(hue - G.hueOf([q.r, q.g, q.b]));
+            if (Math.min(d, 360 - d) < 32) { clash = true; break; }
+          }
+          if (!clash) break;
+          hue = (hue + 47) % 360;
+        }
+        c = G.hsl(hue, 0.55 + (id % 3) * 0.07, 0.5 + (id % 4) * 0.035);
+      } else {
+        c = G.hsl((id * 137.508) % 360, 0.05 + (id % 3) * 0.03, 0.46 + (id % 6) * 0.04);   // bot land is grey, in different shades, so it is easy to tell from nations
+      }
+    } else if (info.type === PT.HUMAN) {
+      // Two people who picked the same colour: the later one is moved round the colour wheel.
+      for (const q of this.humans) {
+        if (Math.abs(q.r - c[0]) + Math.abs(q.g - c[1]) + Math.abs(q.b - c[2]) < 60) { c = G.hsl((G.hueOf(c) + 150 + 40 * this.humans.length) % 360, 0.62, 0.52); break; }
+      }
     }
     p.r = c[0]; p.g = c[1]; p.b = c[2];
     if (info.type === PT.BOT) p.troops = 10000;
@@ -209,6 +238,7 @@
     let add = (10 + Math.pow(p.troops, 0.73) / 4) * (1 - p.troops / max);
     if (p.type === PT.BOT) add *= 0.4;
     else if (p.type === PT.NATION) add *= NATION_GROW[this.opts.difficulty];
+    add *= G.PACE.growth;
     return Math.min(p.troops + add, max) - p.troops;
   };
   Game.prototype.goldRate = function (p) { return p.type === PT.BOT ? 50 : 100; };
@@ -527,7 +557,10 @@
     a.out.push(at);
     if (t) {
       t.inc.push(at);
-      if (t === this.human && this.ticks - (a.warnAt || -999) > 300) { a.warnAt = this.ticks; this.say(a.name + ' greift dich an', 'bad'); }
+      if (t === this.human && this.ticks - (a.warnAt || -999) > 300) {
+        a.warnAt = this.ticks; this.say(a.name + ' greift dich an', 'bad');
+        this.emit({ k: 'raid', id: a.id });   // the interface sounds the alarm
+      }
     }
     this.attacks.push(at);
     if (src >= 0) this.addFront(at, src); else this.refreshFront(at);
@@ -560,7 +593,11 @@
     if (at.troops < 1) { this.endAttack(at, false); return; }
     const own = this.owner, map = this.map, mg = map.mag, W = this.W, H = this.H, aid = a.id;
     const n = at.front.size + this.rng.int(0, 5);
-    let budget = t ? within((5 * at.troops / Math.max(1, t.troops)) * 2, 0.01, 0.5) * n * 3 : n * (a.type === PT.BOT ? 1.4 : 2);
+    // What the front may take this tick. A tile that costs more than is left is paid off over the
+    // following ticks (`carry`), so a weak attack really is slow instead of taking a tile a tick
+    // regardless.
+    let budget = (t ? within((5 * at.troops / Math.max(1, t.troops)) * 2, 0.01, 0.5) * n * 3 : n * (a.type === PT.BOT ? 1.4 : 2)) * this.attackPace + (at.carry || 0);
+    if (budget <= 0) { at.carry = budget; return; }
     const landTiles = map.landTiles;
     const lossMod = a.tiles > landTiles * 0.17 ? Math.sqrt(landTiles * 0.17 / a.tiles) : 1;
     const speedMod = a.tiles > landTiles * 0.13 ? Math.pow(landTiles * 0.13 / a.tiles, 0.6) : 1;
@@ -605,6 +642,7 @@
       this.conquer(a, tile);
       if (t && t.tiles < 100) { this.finishOff(a, t); this.endAttack(at, true); return; }
     }
+    at.carry = Math.min(0, budget);
   };
 
   // Whoever takes a player over gets its gold; a bot pays a bounty on top.
@@ -829,29 +867,37 @@
   };
 
   // ---------- sea routes, worked on a little every step ----------
-  Game.prototype.requestPath = function (src, dst, cb, urgent) {
-    const job = { src: src, dst: dst, cb: cb };
-    if (urgent) this.pathQ.unshift(job); else this.pathQ.push(job);
+  Game.prototype.requestPath = function (src, dst, cb, urgent, shy, near) {
+    const job = { src: src, dst: dst, cb: cb, shy: !!shy }, q = near ? this.nearQ : this.pathQ;
+    if (urgent) q.unshift(job); else q.push(job);
   };
+  // Sea routes are worked out a slice per tick, in two lanes. A merchant's route across an ocean
+  // can take many ticks; a warship's next patrol leg is a short hop that must not queue behind it
+  // (that is what used to leave warships lying still). So short hops have a lane and a search
+  // of their own; one that turns out not to be short after all is handed to the long lane.
   Game.prototype.pathStep = function () {
-    const pf = this.path;
-    let budget = 12000;
+    this.pathLane(this.pathNear, this.nearQ, 'nearJob', 9000, 80000);
+    this.pathLane(this.path, this.pathQ, 'pathJob', 12000, 900000);
+  };
+  Game.prototype.pathLane = function (pf, queue, slot, budget, limit) {
     while (budget > 0) {
-      if (!this.pathJob) {
-        const job = this.pathQ.shift();
+      if (!this[slot]) {
+        const job = queue.shift();
         if (!job) return;
-        if (!pf.start(job.src, job.dst)) {
+        if (!pf.start(job.src, job.dst, job.shy, limit)) {
           budget -= 50;
           job.cb(job.src === job.dst && job.src >= 0 && !this.map.land[job.src] ? new Int32Array([job.src]) : null);
           continue;
         }
-        this.pathJob = job;
+        this[slot] = job;
       }
       budget -= pf.run(budget);
       if (pf.state !== 0) {
-        const job = this.pathJob;
-        this.pathJob = null;
-        job.cb(pf.state === 1 ? pf.result() : null);
+        const job = this[slot];
+        this[slot] = null;
+        if (pf.state === 1) job.cb(pf.result());
+        else if (pf.gaveUp && queue !== this.pathQ) this.pathQ.push(job);   // not a short hop: the long lane takes it
+        else job.cb(null);
       }
     }
   };

@@ -506,6 +506,11 @@
         view.flyTo(h.spawnTile % W, (h.spawnTile / W) | 0, within(Math.min(view.cw, view.ch) / 70, 2.2, 6));
         addMsg('Los geht es. Breite dich aus, bevor es andere tun.', 'good');
         snd('start');
+      } else if (e.k === 'raid') {
+        // under attack: the edge of the screen flashes red three times
+        const al = $('alarm');
+        al.classList.remove('on'); void al.offsetWidth; al.classList.add('on');
+        snd('alarm', 0.5);
       } else if (e.k === 'loot') {
         if (e.by === h.id && e.gold > 0) { view.floatText(e.x, e.y, '+ ' + fmt(e.gold)); goldPop(e.gold); }
       } else if (e.k === 'defeat') showEnd('defeat', null);

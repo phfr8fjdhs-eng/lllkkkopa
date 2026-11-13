@@ -58,9 +58,12 @@
   Game.prototype.straighten = function (raw) {
     const W = this.W, pts = [raw[0]];
     let i = 0;
+    // From each corner go as far along the searched route as a straight track over land allows.
+    // Looking from the far end backwards finds the longest stretch, so a track has as few bends
+    // as the coastline permits (halving the distance, as before, left needless kinks).
     while (i < raw.length - 1) {
-      let j = Math.min(raw.length - 1, i + 60);
-      while (j > i + 1 && !this.landLine(raw[i], raw[j])) j = i + ((j - i) >> 1);
+      let j = raw.length - 1;
+      while (j > i + 1 && !this.landLine(raw[i], raw[j])) j -= j - i > 24 ? 3 : 1;
       pts.push(raw[j]); i = j;
     }
     const out = [pts[0]];
@@ -136,6 +139,23 @@
           const d = (c.x - s.x) * (c.x - s.x) + (c.y - s.y) * (c.y - s.y);
           if (d < bd || (d === bd && c.id < from.id)) { bd = d; from = c; }
         }
+        // Two tracks must not leave a station side by side. If a station that is already tied to
+        // `from` lies almost in the same direction and nearer to the newcomer, the new track
+        // branches off there instead, so the network forks cleanly instead of fanning out.
+        for (let turn = 0; turn < 3; turn++) {
+          const vx = s.x - from.x, vy = s.y - from.y, vl = Math.sqrt(vx * vx + vy * vy) || 1;
+          let via = null, vd = vl * vl;
+          for (const id of links.get(from.id) || []) {
+            const c = byId.get(id);
+            if (!c || c === s) continue;
+            const cx = c.x - from.x, cy = c.y - from.y, cl = Math.sqrt(cx * cx + cy * cy) || 1;
+            if ((vx * cx + vy * cy) / (vl * cl) < 0.88) continue;            // more than about 28 degrees apart: fine
+            const d = (c.x - s.x) * (c.x - s.x) + (c.y - s.y) * (c.y - s.y);
+            if (d < vd || (d === vd && via && c.id < via.id)) { vd = d; via = c; }
+          }
+          if (!via) break;
+          from = via;
+        }
         let key = Math.min(from.id, s.id) + '_' + Math.max(from.id, s.id);
         if (this.railBad.has(key) && from !== f) { from = f; key = Math.min(f.id, s.id) + '_' + Math.max(f.id, s.id); }
         if (this.railKeys.has(key) || this.railBad.has(key)) continue;
@@ -199,10 +219,12 @@
     if (!e.a.active || !e.b.active || !p.alive) { this.removeUnit(u); return; }
     const end = u.fwd ? e.path.length - 1 : 0;
     if (u.pi !== end) {
-      u.pi += u.fwd ? 1 : -1;
-      this.setPos(u, e.path[u.pi]);
-      const o = this.owner[u.tile];
-      if (o && o !== p.id && !this.canTrade(p, this.players[o])) this.removeUnit(u);   // rolled into hostile land
+      for (let n = this.stride(u); n > 0 && u.pi !== end; n--) {
+        u.pi += u.fwd ? 1 : -1;
+        this.setPos(u, e.path[u.pi]);
+        const o = this.owner[u.tile];
+        if (o && o !== p.id && !this.canTrade(p, this.players[o])) { this.removeUnit(u); return; }   // rolled into hostile land
+      }
       return;
     }
     const st = u.fwd ? e.b : e.a, q = st.owner, h = this.human;

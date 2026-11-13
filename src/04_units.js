@@ -252,7 +252,7 @@
       u = this.newUnit(type, p, c.port.water);
       u.hp = 1000; u.patrol = c.tile; u.shotAt = 0; u.target = null; u.path = null; u.pi = 0; u.wait = false;
       this.addUnit(u);
-      this.sail(u, c.tile, p.type === PT.HUMAN);
+      this.sail(u, c.tile, p.type === PT.HUMAN, 'order');
     } else if (type === UT.LASER) {
       u = this.fireLaser(p, c.tile);
     } else {
@@ -395,11 +395,11 @@
       return;
     }
     if (u.retreat) {
-      if (u.pi > 0) { u.pi--; this.setPos(u, u.path[u.pi]); }
+      if (u.pi > 0) { for (let n = this.stride(u); n > 0 && u.pi > 0; n--) { u.pi--; this.setPos(u, u.path[u.pi]); } }
       else { p.troops += u.troops; this.removeUnit(u); }
       return;
     }
-    if (u.pi < u.path.length - 1) { u.pi++; this.setPos(u, u.path[u.pi]); return; }
+    if (u.pi < u.path.length - 1) { for (let n = this.stride(u); n > 0 && u.pi < u.path.length - 1; n--) { u.pi++; this.setPos(u, u.path[u.pi]); } return; }
     this.removeUnit(u);
     this.landBoat(u);
   };
@@ -455,7 +455,7 @@
     const d = u.dstPort, p = u.owner;
     if (!d.active || !d.owner.alive || (!u.captured && !this.canTrade(p, d.owner))) { this.removeUnit(u); return; }
     if (!u.path) return;
-    if (u.pi < u.path.length - 1) { u.pi++; this.setPos(u, u.path[u.pi]); return; }
+    if (u.pi < u.path.length - 1) { for (let n = this.stride(u); n > 0 && u.pi < u.path.length - 1; n--) { u.pi++; this.setPos(u, u.path[u.pi]); } return; }
     const q = d.owner, h = this.human;
     p.gold += u.gold;
     this.fx.push({ k: 'coin', x: d.x, y: d.y, t: this.ticks, mine: p === h || (q === h && !u.captured), amt: u.gold });
@@ -494,16 +494,37 @@
   };
 
   // Give a warship a new course; it holds position until the route is known.
-  Game.prototype.sail = function (u, tile, urgent) {
-    if (u.wait) return;
-    u.wait = true; u.path = null;
-    this.requestPath(u.tile, tile, (path) => {
-      u.wait = false;
-      if (u.active && path) { u.path = path; u.pi = 0; }
-    }, urgent);
+  // How many tiles a ship or train moves this tick. The pace is a fraction of a tile per tick
+  // (see G.PACE); the rest is carried in `u.mv`, which the picture also uses to glide between tiles.
+  Game.prototype.stride = function (u, rate) {
+    u.mv = (u.mv || 0) + (rate || this.pace); u.st = this.ticks;
+    let n = 0;
+    while (u.mv >= 1) { u.mv -= 1; n++; }
+    return n;
   };
-
-  // ---------- warships ----------
+  // Send a ship to a tile. The ship keeps sailing while the route is worked out: the new route
+  // starts a few tiles ahead on the old one and is spliced on there, so a change of course never
+  // makes it stop dead. A newer order replaces an older one that is still being worked out.
+  Game.prototype.sail = function (u, tile, urgent, leg) {
+    if (u.wait) return;
+    const old = u.path, lead = old && u.pi < old.length - 1 ? Math.min(old.length - 1, u.pi + 3) : -1;
+    const from = lead >= 0 ? old[lead] : u.tile, id = u.req = (u.req || 0) + 1;
+    u.wait = true; u.leg = leg || 'order';
+    if (lead < 0) u.path = null;
+    this.requestPath(from, tile, (path) => {
+      if (!u.active || u.req !== id) return;
+      u.wait = false;
+      if (!path) { if (u.path === old && lead < 0) u.path = null; return; }
+      if (lead >= 0 && u.path === old && u.pi <= lead) {
+        // keep a few tiles of wake behind the ship so the picture does not twitch at the join
+        const back = Math.max(0, u.pi - 5), keep = lead - back, j = new Int32Array(keep + path.length);
+        for (let i = 0; i < keep; i++) j[i] = old[back + i];
+        j.set(path, keep);
+        u.path = j; u.pi = u.pi - back;
+      } else if (path[0] === u.tile) { u.path = path; u.pi = 0; }
+      else u.path = null;   // sailed past the join before the route was ready: ask again from here
+    }, urgent, u.type === UT.WARSHIP, u.type === UT.WARSHIP);
+  };
   Game.prototype.tickWarship = function (u) {
     const T = this.ticks, R = this.R, p = u.owner, W = this.W, map = this.map;
     // Repairs, as in OpenFront: a damaged ship mends slowly while a home port is within reach,
@@ -532,16 +553,25 @@
         else if (d2 <= heal * heal) u.hp = Math.min(1000, u.hp + 1);
       }
     }
+    // At the quay a ship is out of the fight, as in OpenFront: it neither shoots nor is shot at
+    // until the hull is whole again (before, ships were kept at the quay for minutes under fire).
+    u.docked = !!dock && (dock.x - u.x) * (dock.x - u.x) + (dock.y - u.y) * (dock.y - u.y) <= 16;
+    if (u.docked) { u.target = null; u.hunt = null; return; }
+    // Who to go for, as in OpenFront: troop boats first, then warships, then merchants. A merchant
+    // only counts while it is inside the patrol area, so the ship is not lured away from its post.
     if ((T + u.id) % 5 === 0) {
       let best = null, bs = Infinity;
-      const r2 = R.warTarget * R.warTarget;
+      const r2 = R.warTarget * R.warTarget, p2 = R.warPatrol * R.warPatrol, pcx = u.patrol % W, pcy = (u.patrol / W) | 0;
       for (const v of this.units) {
         if (!v.active || v.owner === p) continue;
         const ty = v.type;
         if (ty !== UT.TRANSPORT && ty !== UT.WARSHIP && ty !== UT.TRADE) continue;
-        if (v.safeUntil > T) continue;   // just changed hands: left alone for a moment
+        if (v.safeUntil > T || v.docked) continue;   // just changed hands, or under repair at the quay
         if (this.friendly(v.owner, p)) continue;
-        if (ty === UT.TRADE && (v.captured || this.friendly(v.dstPort.owner, p))) continue;
+        if (ty === UT.TRADE) {
+          if (v.captured || !v.path || this.friendly(v.dstPort.owner, p) || map.wcomp[v.tile] !== map.wcomp[u.tile]) continue;
+          if ((v.x - pcx) * (v.x - pcx) + (v.y - pcy) * (v.y - pcy) > p2) continue;
+        }
         const dx = v.x - u.x, dy = v.y - u.y, d2 = dx * dx + dy * dy;
         if (d2 > r2) continue;
         const s = d2 + (ty === UT.TRANSPORT ? 0 : ty === UT.WARSHIP ? 1e7 : 2e7);
@@ -550,36 +580,78 @@
       u.target = best;
     }
     let tg = u.target;
-    if (tg && !tg.active) tg = u.target = null;
-    if (tg) {
-      if (tg.type === UT.TRADE) {
-        const dx = tg.x - u.x, dy = tg.y - u.y;
-        if (dx * dx + dy * dy <= 49) { this.captureTrade(u, tg); tg = u.target = null; }
-        else if ((T + u.id) % 10 === 0 && this.pathQ.length < 6) this.sail(u, tg.tile, false);
-      } else if (T >= u.shotAt) {
-        u.shotAt = T + 20;
-        const s = this.newUnit(UT.SHELL, p, u.tile);
-        s.target = tg;
-        this.addUnit(s);
-      }
+    if (tg && (!tg.active || tg.owner === p || tg.docked || (tg.type === UT.TRADE && tg.captured))) tg = u.target = null;
+    const hunt = !dock && !!tg && tg.type === UT.TRADE;
+    if (tg && tg.type !== UT.TRADE && T >= u.shotAt) {
+      u.shotAt = T + 20;
+      const s = this.newUnit(UT.SHELL, p, u.tile);
+      s.target = tg; s.sx = u.x; s.sy = u.y;
+      this.addUnit(s);
+      this.fx.push({ k: 'muzzle', x: u.x, y: u.y, tx: tg.x, ty: tg.y });
+      if (this.fx.length > 300) this.fx.splice(0, 150);
     }
-    if (u.path && u.pi < u.path.length - 1) { u.pi++; this.setPos(u, u.path[u.pi]); return; }
+    if (hunt) {
+      const dx = tg.x - u.x, dy = tg.y - u.y;
+      if (dx * dx + dy * dy <= 49) { this.captureTrade(u, tg); tg = u.target = null; u.hunt = null; }
+      else if (!u.wait && this.nearQ.length < 12 && (u.hunt !== tg || (T + u.id) % 10 === 0)) {
+        // Cut it off instead of trailing behind: aim for the first tile of the merchant's own
+        // route that this ship (twice as fast on the chase) reaches no later than the merchant.
+        const tp = tg.path, sp = this.pace;
+        let aim = tg.tile;
+        for (let k = 4; tp && tg.pi + k < tp.length; k += 4) {
+          const t = tp[tg.pi + k], ax = t % W - u.x, ay = ((t / W) | 0) - u.y;
+          aim = t;
+          if (Math.sqrt(ax * ax + ay * ay) / (2 * sp) <= k / sp) break;
+        }
+        u.hunt = tg;
+        this.sail(u, aim, false, 'hunt');
+      }
+    } else u.hunt = null;
+
+    // Under way. On the chase a warship makes twice its cruising speed (as in OpenFront).
+    if (u.path && u.pi < u.path.length - 1) {
+      for (let n = this.stride(u, hunt ? 2 * this.pace : this.pace); n > 0 && u.pi < u.path.length - 1; n--) { u.pi++; this.setPos(u, u.path[u.pi]); }
+    }
+    if (u.wait || hunt) return;
+    const left = u.path ? u.path.length - 1 - u.pi : 0;
     if (dock) {
-      // on the way to the quay, or lying there until the hull is whole again
+      // to the quay, and there until the hull is whole again
       const d2 = (dock.x - u.x) * (dock.x - u.x) + (dock.y - u.y) * (dock.y - u.y);
-      if (d2 > 16 && !u.wait && (T + u.id) % 15 === 0 && this.pathQ.length <= 6) this.sail(u, dock.water, false);
+      if (d2 > 16 && (u.leg !== 'dock' || left === 0) && this.nearQ.length <= 12) this.sail(u, dock.water, false, 'dock');
       return;
     }
-    if (u.wait || (tg && tg.type === UT.TRADE) || (T + u.id) % 15 !== 0 || this.pathQ.length > 6) return;
-    const cx = u.patrol % W, cy = (u.patrol / W) | 0, comp = map.wcomp[u.tile], pr = R.warPatrol;
-    for (let i = 0; i < 8; i++) {
-      const x = cx + this.rng.int(-pr, pr + 1), y = cy + this.rng.int(-pr, pr + 1);
-      if (x < 0 || y < 0 || x >= W || y >= this.H) continue;
+    // On patrol the next leg is asked for a few tiles before the end of this one, so the ship
+    // never lies still between two legs.
+    if (left > 4 && u.leg !== 'dock') return;
+    if (this.nearQ.length > 12) return;
+    const t = this.patrolPoint(u);
+    if (t >= 0) this.sail(u, t, false, 'patrol');
+  };
+
+  // The next point of a patrol. The ship sails a beat round the place it was sent to: each leg
+  // carries it about a third of the way round a ring of half the patrol range, at a varying
+  // distance from the middle, so over time it sweeps the whole area instead of darting about at
+  // random. Points close to the coast are passed over (it is a sea patrol, not a coast guard
+  // cutter); only if there is no open water at all does it settle for less.
+  Game.prototype.patrolPoint = function (u) {
+    const map = this.map, W = this.W, H = this.H, rng = this.rng, off = map.mag;   // for water: distance to land
+    const cx = u.patrol % W, cy = (u.patrol / W) | 0, comp = map.wcomp[u.tile], pr = this.R.warPatrol * 0.5;
+    const clear = Math.max(3, Math.round(7 * this.S));
+    if (u.beat === undefined) { u.beat = rng.next() * 2 * Math.PI; u.turn = rng.next() < 0.5 ? 1 : -1; }
+    let best = -1, bs = -1;
+    for (let i = 0; i < 14; i++) {
+      // the first tries follow the beat; later ones look anywhere in the area
+      const ang = i < 8 ? u.beat + u.turn * (1.7 + 0.25 * i + 0.6 * rng.next()) : rng.next() * 2 * Math.PI;
+      const rad = pr * (i < 8 ? 0.55 + 0.45 * rng.next() : rng.next());
+      const x = Math.round(cx + Math.cos(ang) * rad), y = Math.round(cy + Math.sin(ang) * rad);
+      if (x < 0 || y < 0 || x >= W || y >= H) continue;
       const t = y * W + x;
       if (map.land[t] || map.wcomp[t] !== comp) continue;
-      this.sail(u, t, false);
-      break;
+      if (off[t] >= clear) { u.beat = ang; return t; }
+      if (off[t] > bs) { bs = off[t]; best = t; }
     }
+    if (best >= 0) { const bx = best % W - cx, by = ((best / W) | 0) - cy; if (bx || by) u.beat += u.turn * 2; }
+    return best;
   };
   Game.prototype.moveWarship = function (p, tile) {
     const map = this.map, W = this.W;
@@ -592,19 +664,19 @@
       if (d < bd) { bd = d; best = u; }
     }
     if (!best) return false;
-    best.patrol = w; best.wait = false; best.repair = null;
-    this.sail(best, w, true);
+    best.patrol = w; best.wait = false; best.repair = null; best.beat = undefined; best.hunt = null; best.target = null;
+    this.sail(best, w, true, 'order');
     return true;
   };
   Game.prototype.tickShell = function (u) {
     const tg = u.target;
     if (!tg || !tg.active) { this.removeUnit(u); return; }
-    const dx = tg.x - u.x, dy = tg.y - u.y, d = Math.hypot(dx, dy), sp = 4;
+    const dx = tg.x - u.x, dy = tg.y - u.y, d = Math.hypot(dx, dy), sp = Math.max(2, 4 * this.pace);
     if (d > sp) { u.x += dx / d * sp; u.y += dy / d * sp; return; }
     this.removeUnit(u);
     const by = u.owner, h = this.human, was = tg.owner;
     if (was === by || this.friendly(was, by)) return;
-    this.fx.push({ k: 'pop', x: tg.x, y: tg.y });
+    this.fx.push({ k: 'pop', x: tg.x, y: tg.y, hit: true });
     if (tg.type === UT.WARSHIP) {
       tg.hp -= 250;
       if (tg.hp > 0) return;
@@ -615,6 +687,7 @@
       was.cnt[UT.WARSHIP]--; by.cnt[UT.WARSHIP]++;
       tg.owner = by; by.units.push(tg);
       tg.hp = 400; tg.target = null; tg.repair = null; tg.home = null; tg.patrol = tg.tile; tg.shotAt = this.ticks + 30; tg.safeUntil = this.ticks + 150;
+      tg.path = null; tg.wait = false; tg.req = (tg.req || 0) + 1; tg.beat = undefined; tg.hunt = null;
       this.fx.push({ k: 'flag', x: tg.x, y: tg.y });
       if (was === h) this.say(by.name + ' hat dein Kriegsschiff eingenommen', 'bad');
       else if (by === h) this.say('Kriegsschiff von ' + was.name + ' eingenommen', 'good');

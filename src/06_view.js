@@ -270,6 +270,7 @@
     this.drawUnits(ctx, g, z, ox, oy, alpha, now);
     this.drawFx(ctx, g, z, ox, oy, now);
     this.drawNames(ctx, g, z, ox, oy);
+    this.drawRaids(ctx, g, z, ox, oy, now);
     this.drawIncoming(ctx, g, z, ox, oy, alpha, now);
     this.drawMarks(ctx, g, z, ox, oy, now);
     if (this.aim) this.drawAim(ctx, g, z, ox, oy, now);
@@ -330,30 +331,73 @@
   };
 
   // Railways: a gravel bed, sleepers and two rails once you are close enough; a plain line from far away.
+  // The line a track is drawn along and a train rides on: the straight stretches of the route
+  // with every bend rounded off into a curve, as a chain of points in tile coordinates. Each
+  // point also knows which step of the route (`ps`) it stands for, so a train at step 17.4 of
+  // its route can be put exactly on the drawn rail instead of beside it.
+  function railGeo(e, W) {
+    const path = e.path;
+    if (e.geo && e.geo.of === path) return e.geo;
+    const c = path.pts || path, n = c.length, px = [], py = [], idx = [0];
+    for (let i = 0; i < n; i++) { px.push(c[i] % W); py.push((c[i] / W) | 0); }
+    for (let i = 1; i < n; i++) idx.push(idx[i - 1] + Math.max(Math.abs(px[i] - px[i - 1]), Math.abs(py[i] - py[i - 1])));
+    const xs = [px[0]], ys = [py[0]], ps = [0];
+    for (let i = 1; i < n - 1; i++) {
+      const ax = px[i] - px[i - 1], ay = py[i] - py[i - 1], bx = px[i + 1] - px[i], by = py[i + 1] - py[i];
+      const la = Math.hypot(ax, ay) || 1, lb = Math.hypot(bx, by) || 1;
+      const r = Math.min(7, la * 0.45, lb * 0.45);                    // how far before the corner the curve begins
+      const x0 = px[i] - ax / la * r, y0 = py[i] - ay / la * r, x1 = px[i] + bx / lb * r, y1 = py[i] + by / lb * r;
+      const p0 = idx[i] - r * (idx[i] - idx[i - 1]) / la, p1 = idx[i] + r * (idx[i + 1] - idx[i]) / lb;
+      for (let k = 0; k <= 8; k++) {
+        const t = k / 8, u = 1 - t;
+        xs.push(u * u * x0 + 2 * u * t * px[i] + t * t * x1); ys.push(u * u * y0 + 2 * u * t * py[i] + t * t * y1);
+        ps.push(p0 + (p1 - p0) * t);
+      }
+    }
+    xs.push(px[n - 1]); ys.push(py[n - 1]); ps.push(idx[n - 1]);
+    e.geo = { of: path, xs: xs, ys: ys, ps: ps, scale: idx[n - 1] > 0 ? (path.length - 1) / idx[n - 1] : 1 };
+    return e.geo;
+  }
+  // Where on the drawn rail is step `f` of the route?  Returns x, y and the direction of the rail there.
+  function railAt(geo, f, out) {
+    const ps = geo.ps, xs = geo.xs, ys = geo.ys, q = f / geo.scale;
+    let lo = 0, hi = ps.length - 1;
+    while (hi - lo > 1) { const m = (lo + hi) >> 1; if (ps[m] <= q) lo = m; else hi = m; }
+    const d = ps[hi] - ps[lo], t = d > 0 ? within((q - ps[lo]) / d, 0, 1) : 0;
+    out.x = xs[lo] + (xs[hi] - xs[lo]) * t; out.y = ys[lo] + (ys[hi] - ys[lo]) * t;
+    out.a = Math.atan2(ys[hi] - ys[lo], xs[hi] - xs[lo]);
+    return out;
+  }
+
   View.prototype.drawRails = function (ctx, g, z, ox, oy) {
     const rails = g.rails;
     if (!rails.length) return;
     const W = g.W, x0 = -ox / z - 2, y0 = -oy / z - 2, x1 = (this.cw - ox) / z + 2, y1 = (this.ch - oy) / z + 2;
     const vis = [];
-    for (const e of rails) if (!(e.x1 < x0 || e.x0 > x1 || e.y1 < y0 || e.y0 > y1)) vis.push(e);
+    for (const e of rails) if (!(e.x1 < x0 || e.x0 > x1 || e.y1 < y0 || e.y0 > y1)) vis.push(railGeo(e, W));
     if (!vis.length) return;
-    const trace = function () {
+    // `off`: the same line pushed sideways, for the two rails
+    const trace = function (off) {
       ctx.beginPath();
-      for (const e of vis) {
-        const p = e.path.pts || e.path;
-        for (let i = 0; i < p.length; i++) {
-          const x = (p[i] % W + 0.5) * z + ox, y = (((p[i] / W) | 0) + 0.5) * z + oy;
+      for (const geo of vis) {
+        const xs = geo.xs, ys = geo.ys, n = xs.length;
+        for (let i = 0; i < n; i++) {
+          let x = (xs[i] + 0.5) * z + ox, y = (ys[i] + 0.5) * z + oy;
+          if (off) {
+            const a = i > 0 ? i - 1 : 0, b = i < n - 1 ? i + 1 : n - 1;
+            const dx = xs[b] - xs[a], dy = ys[b] - ys[a], d = Math.hypot(dx, dy) || 1;
+            x += -dy / d * off; y += dx / d * off;
+          }
           if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y);
         }
       }
     };
     ctx.lineJoin = 'round'; ctx.lineCap = 'round';
-    trace();
     if (z < 2.4) {
-      // Too small for real sleepers and rails. A wide dashed line laid over a narrow base sticks
-      // out on both sides, which reads as cross-ties from a distance; a thin pale line down the
-      // middle gives it the glint of the rails. Much calmer than a dotted line.
+      // From afar: a dark bed, sleepers showing as short cross strokes on both sides of it, and
+      // one pale line for the glint of the rails.
       const base = within(z * 0.95, 1.8, 2.6);
+      trace(0);
       ctx.lineCap = 'butt';
       ctx.setLineDash([Math.max(1.1, z * 0.34), Math.max(1.7, z * 0.56)]);
       ctx.lineWidth = base * 2.15; ctx.strokeStyle = 'rgba(126,110,92,.75)'; ctx.stroke();
@@ -363,30 +407,18 @@
       ctx.lineWidth = Math.max(0.7, base * 0.38); ctx.strokeStyle = 'rgba(234,230,220,.9)'; ctx.stroke();
       return;
     }
-    ctx.lineWidth = z * 1.05; ctx.strokeStyle = 'rgba(40,34,28,.5)'; ctx.stroke();
-    ctx.lineWidth = z * 0.82; ctx.strokeStyle = '#8b8172'; ctx.stroke();
+    // Close up: gravel bed, wooden sleepers, two steel rails.
+    trace(0);
+    ctx.lineWidth = z * 1.1; ctx.strokeStyle = 'rgba(30,25,20,.55)'; ctx.stroke();
+    ctx.lineWidth = z * 0.86; ctx.strokeStyle = '#8f8676'; ctx.stroke();
     ctx.lineCap = 'butt';
-    ctx.setLineDash([z * 0.15, z * 0.33]);
-    ctx.lineWidth = z * 0.72; ctx.strokeStyle = '#4e3b28'; ctx.stroke();
+    ctx.setLineDash([z * 0.16, z * 0.3]);
+    ctx.lineWidth = z * 0.74; ctx.strokeStyle = '#4b3826'; ctx.stroke();
     ctx.setLineDash([]);
     ctx.lineCap = 'round';
-    const off = z * 0.2;
-    ctx.beginPath();
-    for (const e of vis) {
-      const p = e.path.pts || e.path;
-      for (let side = -1; side <= 1; side += 2) {
-        let lx = 0, ly = 0;
-        for (let i = 0; i < p.length; i++) {
-          const x = (p[i] % W + 0.5) * z + ox, y = (((p[i] / W) | 0) + 0.5) * z + oy;
-          if (i) {
-            const dx = x - lx, dy = y - ly, d = Math.hypot(dx, dy) || 1, nx = -dy / d * off * side, ny = dx / d * off * side;
-            ctx.moveTo(lx + nx, ly + ny); ctx.lineTo(x + nx, y + ny);
-          }
-          lx = x; ly = y;
-        }
-      }
-    }
-    ctx.lineWidth = Math.max(1, z * 0.1); ctx.strokeStyle = '#eef1f4'; ctx.stroke();
+    ctx.lineWidth = Math.max(1, z * 0.1);
+    trace(z * 0.2); ctx.strokeStyle = '#f0f3f6'; ctx.stroke();
+    trace(-z * 0.2); ctx.stroke();
   };
 
   View.prototype.drawStructures = function (ctx, g, z, ox, oy) {
@@ -426,12 +458,12 @@
       const u = us[i], ty = u.type;
       if (!u.active || !u.path || (ty !== UT.TRANSPORT && ty !== UT.WARSHIP && ty !== UT.TRADE)) continue;
       const p = u.path, end = Math.min(u.pi, p.length - 1);
-      if (end < 1) continue;
-      const hx = (u.px + (u.x - u.px) * alpha + 0.5) * z + ox, hy = (u.py + (u.y - u.py) * alpha + 0.5) * z + oy;
+      const hx = (u.vx + 0.5) * z + ox, hy = (u.vy + 0.5) * z + oy;
       if (ty === UT.TRANSPORT) {
+        if (end < 1) continue;
         const step = Math.max(1, Math.round(2.5 / z));
         ctx.beginPath();
-        for (let k = 0; k < end; k += step) {
+        for (let k = 0; k < end - 2; k += step) {
           const x = (p[k] % W + 0.5) * z + ox, y = (((p[k] / W) | 0) + 0.5) * z + oy;
           if (k) ctx.lineTo(x, y); else ctx.moveTo(x, y);
         }
@@ -445,18 +477,16 @@
         ctx.globalAlpha = 1;
         continue;
       }
-      if (hx < -60 || hy < -60 || hx > cw + 60 || hy > ch + 60 || z < 1.3) continue;
-      const len = ty === UT.WARSHIP ? 14 : 8, wide = ty === UT.WARSHIP ? 0.55 : 0.4;
-      let lx = hx, ly = hy;
-      for (let k = 0; k < 3; k++) {
-        const idx = Math.max(0, end - Math.round((k + 1) * len / 3));
-        const x = (p[idx] % W + 0.5) * z + ox, y = (((p[idx] / W) | 0) + 0.5) * z + oy;
-        ctx.beginPath(); ctx.moveTo(lx, ly); ctx.lineTo(x, y);
-        ctx.lineWidth = Math.max(1, z * wide * (1 - k * 0.22));
-        ctx.strokeStyle = 'rgba(255,255,255,' + (0.3 - k * 0.09).toFixed(2) + ')'; ctx.stroke();
-        lx = x; ly = y;
-        if (!idx) break;
-      }
+      if (hx < -60 || hy < -60 || hx > cw + 60 || hy > ch + 60 || z < 1.3 || u.st !== g.ticks) continue;
+      // A ship under way pushes two short lines of foam out from the stern, like the arms of a
+      // V. Nothing more: the long white streak belonged to a speedboat, not to a ship of war.
+      const s = ty === UT.WARSHIP ? within(4 + z * 2.2, 7, 17) * 0.95 : within(3 + z * 1.6, 5, 12) * 0.56;
+      const ca = Math.cos(u.va), sa = Math.sin(u.va), len = s * 0.75, sp = s * 0.5;
+      const bx = hx - ca * s * 0.95, by = hy - sa * s * 0.95;
+      ctx.beginPath();
+      ctx.moveTo(bx - sa * s * 0.16, by + ca * s * 0.16); ctx.lineTo(bx - ca * len - sa * sp, by - sa * len + ca * sp);
+      ctx.moveTo(bx + sa * s * 0.16, by - ca * s * 0.16); ctx.lineTo(bx - ca * len + sa * sp, by - sa * len - ca * sp);
+      ctx.lineWidth = Math.max(1, s * 0.13); ctx.strokeStyle = 'rgba(255,255,255,.2)'; ctx.stroke();
     }
   };
 
@@ -476,32 +506,167 @@
     ctx.restore();
   }
 
+  // ---------- how ships sit on the water ----------
+  // A route is a chain of tiles, eight directions only. Drawn tile by tile a ship zigzags and its
+  // bow snaps round by 45 degrees every step, which is what made the sea look nervous. So the
+  // picture glides along the route instead: the position is the average of a short stretch of
+  // the route around the ship, the heading is the direction of that stretch, and the heading
+  // is eased from frame to frame.
+  function routeAt(path, W, f, out) {
+    const n = path.length - 1;
+    if (f <= 0) { out.x = path[0] % W; out.y = (path[0] / W) | 0; return out; }
+    if (f >= n) { out.x = path[n] % W; out.y = (path[n] / W) | 0; return out; }
+    const i = f | 0, fr = f - i, a = path[i], b = path[i + 1];
+    const ax = a % W, ay = (a / W) | 0;
+    out.x = ax + (b % W - ax) * fr; out.y = ay + (((b / W) | 0) - ay) * fr;
+    return out;
+  }
+  const RA = { x: 0, y: 0 }, RB = { x: 0, y: 0 };
+  View.prototype.pose = function (g, u, alpha) {
+    const path = u.path, W = g.W;
+    let x, y, ang = u.va;
+    if (path && path.length > 1 && path[u.pi] === u.tile) {
+      const n = path.length - 1, dir = u.retreat ? -1 : 1;
+      // `mv` is the part of the next tile already covered; while the ship is under way the
+      // frame adds what the running tick will bring
+      const rate = g.pace * (u.hunt ? 2 : 1), going = u.st === g.ticks;
+      const f = within(u.pi + dir * ((u.mv || 0) + (going ? alpha * rate : 0)), 0, n);
+      const w = Math.min(3.5, f, n - f);                 // the stretch shrinks to nothing at both ends
+      let sx = 0, sy = 0;
+      for (let k = -2; k <= 2; k++) { routeAt(path, W, f + k * w * 0.5, RA); sx += RA.x; sy += RA.y; }
+      x = sx / 5; y = sy / 5;
+      const l = Math.max(1.2, w);
+      routeAt(path, W, f - l, RA); routeAt(path, W, f + l, RB);
+      if (RB.x !== RA.x || RB.y !== RA.y) ang = Math.atan2((RB.y - RA.y) * dir, (RB.x - RA.x) * dir);
+    } else {
+      x = u.px + (u.x - u.px) * alpha; y = u.py + (u.y - u.py) * alpha;
+      if (u.x !== u.px || u.y !== u.py) ang = Math.atan2(u.y - u.py, u.x - u.px);
+    }
+    if (ang === undefined) ang = 0;
+    if (u.va === undefined || u.vf !== this.frame - 1) u.va = ang;        // first sight: no easing in from nowhere
+    else {
+      let d = ang - u.va;
+      while (d > Math.PI) d -= 2 * Math.PI;
+      while (d < -Math.PI) d += 2 * Math.PI;
+      u.va += d * 0.14;
+    }
+    u.vf = this.frame; u.vx = x; u.vy = y;
+  };
+
+  // A warship, seen from above: a long grey hull with a sharp bow and a square stern, a deck in
+  // the owner's colour, a bridge amidships and two gun turrets that turn towards whatever the
+  // ship is fighting. `s` is half the length of the hull on the screen.
+  function warship(ctx, x, y, ang, s, p, aim) {
+    ctx.save();
+    ctx.translate(x, y); ctx.rotate(ang);
+    const hullPath = function (k) {
+      ctx.beginPath();
+      ctx.moveTo(-1 * s * k, -0.27 * s * k); ctx.lineTo(0.42 * s * k, -0.3 * s * k);
+      ctx.quadraticCurveTo(0.8 * s * k, -0.2 * s * k, 1.08 * s * k, 0);
+      ctx.quadraticCurveTo(0.8 * s * k, 0.2 * s * k, 0.42 * s * k, 0.3 * s * k);
+      ctx.lineTo(-1 * s * k, 0.27 * s * k); ctx.closePath();
+    };
+    hullPath(1);
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = Math.max(2.6, s * 0.3); ctx.strokeStyle = '#0d1319'; ctx.stroke();      // dark edge: shows on any water
+    ctx.fillStyle = '#9aa5b0'; ctx.fill();
+    ctx.lineWidth = Math.max(1, s * 0.11); ctx.strokeStyle = p.cssB; ctx.stroke();           // whose it is
+    hullPath(0.72);
+    ctx.fillStyle = p.css; ctx.fill();                                                       // deck
+    if (s >= 7) {
+      // bridge and funnel
+      ctx.fillStyle = '#39424c'; ctx.fillRect(-0.3 * s, -0.15 * s, 0.5 * s, 0.3 * s);
+      ctx.fillStyle = '#c9d1d9'; ctx.fillRect(-0.02 * s, -0.09 * s, 0.17 * s, 0.18 * s);
+      ctx.fillStyle = '#12181e'; ctx.beginPath(); ctx.arc(-0.2 * s, 0, 0.07 * s, 0, 6.2832); ctx.fill();
+    } else {
+      ctx.fillStyle = '#2a323b'; ctx.fillRect(-0.24 * s, -0.13 * s, 0.4 * s, 0.26 * s);
+    }
+    // turrets fore and aft; at rest the after one points astern
+    const tr = Math.max(1.2, s * 0.12), bl = s * 0.3;
+    for (let i = 0; i < 2; i++) {
+      const tx = i ? -0.66 * s : 0.56 * s, ta = aim === null ? (i ? Math.PI : 0) : aim;
+      ctx.beginPath(); ctx.moveTo(tx, 0); ctx.lineTo(tx + Math.cos(ta) * bl, Math.sin(ta) * bl);
+      ctx.lineWidth = Math.max(1, s * 0.07); ctx.strokeStyle = '#0d1319'; ctx.lineCap = 'butt'; ctx.stroke();
+      ctx.beginPath(); ctx.arc(tx, 0, tr, 0, 6.2832); ctx.fillStyle = '#20272e'; ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  // A rocket or bomb in flight, nose along `ang`. `kind`: 0 cruise missile (slim, swept wings),
+  // 1 atom bomb, 2 hydrogen bomb (stubby, tail fins).
+  function rocket(ctx, x, y, ang, len, col, kind, flame) {
+    ctx.save();
+    ctx.translate(x, y); ctx.rotate(ang);
+    const w = kind ? len * 0.34 : len * 0.17;
+    if (flame > 0) {
+      // exhaust: a flickering tongue of fire behind the tail
+      const fl = len * (kind ? 0.5 : 0.75) * (0.75 + 0.25 * flame);
+      ctx.beginPath(); ctx.moveTo(-len * 0.5, -w * 0.32); ctx.lineTo(-len * 0.5 - fl, 0); ctx.lineTo(-len * 0.5, w * 0.32); ctx.closePath();
+      ctx.fillStyle = 'rgba(255,190,70,.95)'; ctx.fill();
+      ctx.beginPath(); ctx.moveTo(-len * 0.5, -w * 0.16); ctx.lineTo(-len * 0.5 - fl * 0.55, 0); ctx.lineTo(-len * 0.5, w * 0.16); ctx.closePath();
+      ctx.fillStyle = '#fff6d8'; ctx.fill();
+    }
+    ctx.lineJoin = 'round';
+    // wings or fins first, so the body lies on top
+    ctx.beginPath();
+    if (kind === 0) {
+      ctx.moveTo(len * 0.1, 0); ctx.lineTo(-len * 0.16, -len * 0.36); ctx.lineTo(-len * 0.28, -len * 0.36); ctx.lineTo(-len * 0.12, 0);
+      ctx.lineTo(-len * 0.28, len * 0.36); ctx.lineTo(-len * 0.16, len * 0.36); ctx.closePath();
+      ctx.moveTo(-len * 0.36, 0); ctx.lineTo(-len * 0.5, -len * 0.17); ctx.lineTo(-len * 0.5, len * 0.17); ctx.closePath();
+    } else {
+      ctx.moveTo(-len * 0.2, 0); ctx.lineTo(-len * 0.5, -w * 1.05); ctx.lineTo(-len * 0.5, w * 1.05); ctx.closePath();
+    }
+    ctx.lineWidth = 2; ctx.strokeStyle = '#0d1319'; ctx.stroke();
+    ctx.fillStyle = 'rgb(' + col + ')'; ctx.fill();
+    // body with a pointed nose
+    ctx.beginPath();
+    ctx.moveTo(-len * 0.5, -w * 0.5); ctx.lineTo(len * 0.18, -w * 0.5);
+    ctx.quadraticCurveTo(len * 0.42, -w * 0.42, len * 0.5, 0);
+    ctx.quadraticCurveTo(len * 0.42, w * 0.42, len * 0.18, w * 0.5);
+    ctx.lineTo(-len * 0.5, w * 0.5); ctx.closePath();
+    ctx.lineWidth = 2; ctx.strokeStyle = '#0d1319'; ctx.stroke();
+    ctx.fillStyle = kind === 0 ? '#eef2f6' : '#d9dee4'; ctx.fill();
+    // nose cone and a band in the colour of the weapon
+    ctx.fillStyle = 'rgb(' + col + ')';
+    ctx.beginPath(); ctx.moveTo(len * 0.26, -w * 0.44); ctx.quadraticCurveTo(len * 0.43, -w * 0.36, len * 0.5, 0); ctx.quadraticCurveTo(len * 0.43, w * 0.36, len * 0.26, w * 0.44); ctx.closePath(); ctx.fill();
+    ctx.fillRect(-len * 0.3, -w * 0.5, len * 0.1, w);
+    ctx.restore();
+  }
+
   View.prototype.drawUnits = function (ctx, g, z, ox, oy, alpha, now) {
     const cw = this.cw, ch = this.ch, us = g.units;
     const ws = within(4 + z * 2.2, 7, 17), bs = within(3 + z * 1.6, 5, 12);
+    this.frame = (this.frame || 0) + 1;
+    for (let i = 0; i < us.length; i++) {
+      const u = us[i], ty = u.type;
+      if (u.active && (ty === UT.WARSHIP || ty === UT.TRANSPORT || ty === UT.TRADE)) this.pose(g, u, alpha);
+    }
     this.drawWakes(ctx, g, z, ox, oy, alpha);
     ctx.lineJoin = 'round';
     for (let i = 0; i < us.length; i++) {
       const u = us[i], ty = u.type;
       if (!u.active || ty <= UT.FACTORY) continue;
       if (ty >= UT.ATOM) { this.drawMissile(ctx, g, u, z, ox, oy, alpha, now); continue; }
-      const x = (u.px + (u.x - u.px) * alpha + 0.5) * z + ox, y = (u.py + (u.y - u.py) * alpha + 0.5) * z + oy;
+      const sea = ty === UT.WARSHIP || ty === UT.TRANSPORT || ty === UT.TRADE;
+      const x = ((sea ? u.vx : u.px + (u.x - u.px) * alpha) + 0.5) * z + ox, y = ((sea ? u.vy : u.py + (u.y - u.py) * alpha) + 0.5) * z + oy;
       if (x < -30 || y < -30 || x > cw + 30 || y > ch + 30) continue;
       const p = u.owner;
-      if (u.x !== u.px || u.y !== u.py) u.ang = Math.atan2(u.y - u.py, u.x - u.px);
-      const ang = u.ang || 0;
+      const ang = sea ? u.va : 0;
+      if (ty === UT.SHELL) {
+        // a shell: a short glowing streak along its flight, not a dot
+        const dx = u.x - u.px, dy = u.y - u.py, d = Math.hypot(dx, dy) || 1, len = within(z * 2.2, 6, 13);
+        const bx = x - dx / d * len, by = y - dy / d * len;
+        ctx.lineCap = 'round';
+        ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(x, y);
+        ctx.lineWidth = 3.6; ctx.strokeStyle = 'rgba(255,120,30,.38)'; ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(x - dx / d * len * 0.55, y - dy / d * len * 0.55); ctx.lineTo(x, y);
+        ctx.lineWidth = 1.7; ctx.strokeStyle = '#ffe9a8'; ctx.stroke();
+        ctx.beginPath(); ctx.arc(x, y, 1.5, 0, 6.2832); ctx.fillStyle = '#fff'; ctx.fill();
+        continue;
+      }
       if (ty === UT.WARSHIP) {
-        // a pale hull like the merchants', so it shows on any water, with the owner's colour as deck and outline
-        const s = ws * 0.78, ca = Math.cos(ang), sa = Math.sin(ang);
-        hull(ctx, x, y, ang, s, 'war');
-        ctx.fillStyle = '#eef2f6'; ctx.fill();
-        ctx.lineWidth = 3.4; ctx.strokeStyle = '#10161d'; ctx.stroke();
-        ctx.lineWidth = 1.8; ctx.strokeStyle = p.cssB; ctx.stroke();
-        hull(ctx, x, y, ang, s * 0.6, 'war');
-        ctx.fillStyle = p.css; ctx.fill();
-        ctx.fillStyle = '#10161d';
-        ctx.beginPath(); ctx.arc(x + ca * s * 0.3, y + sa * s * 0.3, Math.max(1.3, s * 0.17), 0, 6.2832); ctx.fill();
-        ctx.beginPath(); ctx.arc(x - ca * s * 0.38, y - sa * s * 0.38, Math.max(1.1, s * 0.14), 0, 6.2832); ctx.fill();
+        const s = ws * 0.95, tg = u.target && u.target.active && u.target.type !== UT.TRADE ? u.target : null;
+        warship(ctx, x, y, ang, s, p, tg ? Math.atan2(tg.y - u.y, tg.x - u.x) - ang : null);
         if (u.hp < 1000) {
           ctx.fillStyle = '#10161d'; ctx.fillRect(x - ws / 2 - 1, y + ws * 0.85 - 1, ws + 2, 5);
           ctx.fillStyle = u.hp < 400 ? '#ff6b5e' : u.hp < 750 ? '#f4b740' : '#63d391'; ctx.fillRect(x - ws / 2, y + ws * 0.85, ws * u.hp / 1000, 3);
@@ -533,17 +698,18 @@
           ctx.fillStyle = '#f4b740'; ctx.fillText(G.fmt(u.gold), x, y - s * 0.8);
         }
       } else {
-        ctx.beginPath(); ctx.arc(x, y, ty === UT.SHELL ? 1.6 : 2.2, 0, 6.2832);
-        ctx.fillStyle = ty === UT.SHELL ? '#10161d' : '#fff'; ctx.fill();
+        ctx.beginPath(); ctx.arc(x, y, 2.2, 0, 6.2832);
+        ctx.fillStyle = '#fff'; ctx.fill();
       }
     }
   };
 
   // An engine pulling two wagons along the track.
+  const RP = { x: 0, y: 0, a: 0 };
   View.prototype.drawTrain = function (ctx, g, u, z, ox, oy, alpha) {
-    const path = u.edge.path, n = path.length, W = g.W, dir = u.fwd ? 1 : -1, p = u.owner;
-    const moved = u.x !== u.px || u.y !== u.py;
-    const head = u.pi - (moved ? dir * (1 - alpha) : 0);
+    const n = u.edge.path.length, dir = u.fwd ? 1 : -1, p = u.owner, geo = railGeo(u.edge, g.W);
+    // glide between tiles the way ships do: `mv` is the part of the next tile already covered
+    const head = within(u.pi + dir * ((u.mv || 0) + (u.st === g.ticks ? alpha * g.pace : 0)), 0, n - 1);
     // Big enough to make out even on a map zoomed right out, where a train used to be three
     // specks melting into the track.
     const L = Math.max(9.5, z * 1.45), B = Math.max(4.5, z * 0.86);
@@ -551,12 +717,10 @@
     // so they stay separate instead of piling up when zoomed out.
     const gap = Math.max(1.55, L * 1.3 / z);
     for (let k = 2; k >= 0; k--) {
-      const f = within(head - dir * k * gap, 0, n - 1), i0 = Math.min(n - 2, Math.floor(f)), fr = f - i0;
-      if (i0 < 0) return;
-      const ax = path[i0] % W, ay = (path[i0] / W) | 0, bx = path[i0 + 1] % W, by = (path[i0 + 1] / W) | 0;
-      const x = (ax + (bx - ax) * fr + 0.5) * z + ox, y = (ay + (by - ay) * fr + 0.5) * z + oy;
+      railAt(geo, within(head - dir * k * gap, 0, n - 1), RP);
+      const x = (RP.x + 0.5) * z + ox, y = (RP.y + 0.5) * z + oy;
       ctx.save();
-      ctx.translate(x, y); ctx.rotate(Math.atan2(by - ay, bx - ax));
+      ctx.translate(x, y); ctx.rotate(RP.a);
       // dark skirt, so the carriage lifts off the track and the land underneath
       ctx.fillStyle = 'rgba(16,14,12,.5)';
       ctx.fillRect(-L / 2 - 1.2, -B / 2 - 1.2, L + 2.4, B + 2.4);
@@ -663,9 +827,18 @@
       ctx.lineTo(x, y);
     }
     ctx.strokeStyle = 'rgba(' + col + ',0.5)'; ctx.lineWidth = ty === UT.WARHEAD ? 1 : 2; ctx.stroke();
-    ctx.beginPath(); ctx.arc(x, y, ty === UT.WARHEAD ? 2 : ty === UT.ATOM || ty === UT.CRUISE ? 3.5 : 5, 0, 6.2832);
-    ctx.fillStyle = 'rgb(' + col + ')'; ctx.fill();
-    if (ty !== UT.WARHEAD) { ctx.lineWidth = 1.2; ctx.strokeStyle = '#fff'; ctx.stroke(); }
+    if (ty === UT.WARHEAD) {
+      ctx.beginPath(); ctx.arc(x, y, 2, 0, 6.2832);
+      ctx.fillStyle = 'rgb(' + col + ')'; ctx.fill();
+      return;
+    }
+    // the nose points along the arc it is flying
+    const ang = Math.atan2((ey - sy) - Math.cos(Math.PI * prog) * Math.PI * liftMax * z, ex - sx);
+    const flick = 0.5 + 0.5 * Math.sin(now / 38 + u.id);
+    if (ty === UT.CRUISE) rocket(ctx, x, y, ang, within(z * 4.2, 13, 24), col, 0, flick);
+    else if (ty === UT.ATOM) rocket(ctx, x, y, ang, within(z * 3.6, 12, 20), col, 1, flick);
+    else if (ty === UT.HYDRO) rocket(ctx, x, y, ang, within(z * 4.6, 15, 27), col, 2, flick);
+    else rocket(ctx, x, y, ang, within(z * 5, 16, 30), col, 2, flick);      // the MIRV carrier
   };
 
   View.prototype.drawFx = function (ctx, g, z, ox, oy, now) {
@@ -681,7 +854,7 @@
     const list = this.fxList;
     for (let i = list.length - 1; i >= 0; i--) {
       const f = list[i];
-      const dur = f.k === 'boom' ? (f.big ? 2600 : 1100) : f.k === 'text' ? 2500 : f.k === 'coin' ? 1500 : f.k === 'flag' ? 700 : 420, k = (now - f.t0) / dur;
+      const dur = f.k === 'boom' ? (f.big ? 2600 : 1100) : f.k === 'text' ? 2500 : f.k === 'coin' ? 1500 : f.k === 'flag' ? 700 : f.k === 'muzzle' ? 170 : 420, k = (now - f.t0) / dur;
       if (k >= 1 || (f.k === 'coin' && !f.mine)) { list.splice(i, 1); continue; }
       const x = (f.x + 0.5) * z + ox, y = (f.y + 0.5) * z + oy, e = k * (2 - k);
       if (f.k === 'boom') {
@@ -732,6 +905,23 @@
           ctx.fillStyle = '#ffe08a'; ctx.fillText(label, x, y - 10 - 18 * k);
           ctx.globalAlpha = 1;
         }
+      } else if (f.k === 'muzzle') {
+        // gun flash at the muzzle, towards the target
+        const a = Math.atan2(f.ty - f.y, f.tx - f.x), r = within(z * 2.4, 6, 13) * (1 - k * 0.5);
+        const mx = x + Math.cos(a) * r * 0.9, my = y + Math.sin(a) * r * 0.9;
+        ctx.beginPath(); ctx.arc(mx, my, r * 0.75, 0, 6.2832);
+        ctx.fillStyle = 'rgba(255,170,60,' + (0.55 * (1 - k)).toFixed(3) + ')'; ctx.fill();
+        ctx.beginPath(); ctx.arc(mx, my, r * 0.35, 0, 6.2832);
+        ctx.fillStyle = 'rgba(255,250,220,' + (1 - k).toFixed(3) + ')'; ctx.fill();
+      } else if (f.k === 'pop' && f.hit) {
+        // a shell striking home: a burst of fire, then a ring of spray
+        const r = within(z * 3, 7, 16);
+        ctx.beginPath(); ctx.arc(x, y, r * (0.4 + 0.6 * e), 0, 6.2832);
+        ctx.fillStyle = 'rgba(255,150,50,' + (0.75 * (1 - k)).toFixed(3) + ')'; ctx.fill();
+        ctx.beginPath(); ctx.arc(x, y, r * 0.3 * (1 - k), 0, 6.2832);
+        ctx.fillStyle = 'rgba(255,250,220,' + (1 - k).toFixed(3) + ')'; ctx.fill();
+        ctx.beginPath(); ctx.arc(x, y, r * (0.6 + 1.1 * e), 0, 6.2832);
+        ctx.strokeStyle = 'rgba(255,255,255,' + (0.7 * (1 - k)).toFixed(3) + ')'; ctx.lineWidth = 1.6; ctx.stroke();
       } else if (f.k === 'flag') {
         ctx.beginPath(); ctx.arc(x, y, 4 + 16 * e, 0, 6.2832);
         ctx.strokeStyle = 'rgba(244,183,64,' + (1 - k).toFixed(3) + ')'; ctx.lineWidth = 3 * (1 - k) + 1; ctx.stroke();
@@ -773,6 +963,42 @@
         ctx.strokeText(tr, x, y + fs * 0.5);
         ctx.fillText(tr, x, y + fs * 0.5);
       }
+    }
+  };
+
+  // Every attack on you is marked where it comes in: a red ring pulsing on the border with an
+  // exclamation mark in it, so the eye finds the spot at once, even far from where you are looking.
+  View.prototype.drawRaids = function (ctx, g, z, ox, oy, now) {
+    const h = g.human, W = g.W;
+    if (!h || !h.inc.length) return;
+    const k = 0.5 + 0.5 * Math.sin(now / 130);
+    for (const at of h.inc) {
+      if (!at.active || !at.front.size) continue;
+      if (at.vAt === undefined || now - at.vAt > 500) {
+        // the middle of the contested stretch of border, pinned to a tile that really is on it
+        let sx = 0, sy = 0, c = 0;
+        for (const t of at.front) { sx += t % W; sy += (t / W) | 0; if (++c >= 80) break; }
+        sx /= c; sy /= c;
+        let bd = Infinity, bx = sx, by = sy; c = 0;
+        for (const t of at.front) {
+          const x = t % W, y = (t / W) | 0, d = (x - sx) * (x - sx) + (y - sy) * (y - sy);
+          if (d < bd) { bd = d; bx = x; by = y; }
+          if (++c >= 80) break;
+        }
+        // ease towards the new spot so the mark does not jump about as the front moves
+        at.vx = at.vAt === undefined ? bx : at.vx + (bx - at.vx) * 0.5; at.vy = at.vAt === undefined ? by : at.vy + (by - at.vy) * 0.5;
+        at.vAt = now;
+      }
+      const x = (at.vx + 0.5) * z + ox, y = (at.vy + 0.5) * z + oy;
+      if (x < -30 || y < -30 || x > this.cw + 30 || y > this.ch + 30) continue;
+      const r = 9 + 3 * k;
+      ctx.beginPath(); ctx.arc(x, y, r + 5 + 9 * k, 0, 6.2832);
+      ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(255,60,48,' + (0.55 * (1 - k)).toFixed(3) + ')'; ctx.stroke();
+      ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832);
+      ctx.fillStyle = 'rgba(214,40,32,' + (0.78 + 0.2 * k).toFixed(2) + ')'; ctx.fill();
+      ctx.lineWidth = 2; ctx.strokeStyle = '#fff'; ctx.stroke();
+      ctx.font = '800 ' + (r * 1.5).toFixed(1) + 'px ' + FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#fff'; ctx.fillText('!', x, y + 0.5);
     }
   };
 

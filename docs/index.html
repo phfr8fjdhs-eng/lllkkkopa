@@ -99,6 +99,12 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .stat.gold > span { color: var(--accent); }
 .stat.gold { position: relative; }
 .stat.gold.flash b { animation: goldFlash 1.3s ease-out; }
+#alarm { position: absolute; inset: 0; pointer-events: none; opacity: 0; z-index: 3;
+  box-shadow: inset 0 0 90px 24px rgba(255,38,26,.75), inset 0 0 0 4px rgba(255,70,56,.95); }
+#alarm.on { animation: alarm 1.8s ease-out 1; }
+@keyframes alarm { 0%, 34%, 68% { opacity: 1; } 17%, 51% { opacity: .12; } 100% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { #alarm.on { animation: alarmCalm 1.8s linear 1; } }
+@keyframes alarmCalm { 0%, 70% { opacity: .7; } 100% { opacity: 0; } }
 @keyframes goldFlash { 0%, 40% { color: #ffd25e; transform: scale(1.18); transform-origin: left center; } 100% { color: var(--ink); transform: none; } }
 #goldPop { position: absolute; left: 30px; top: -2px; font: 600 14px var(--display); color: #ffe08a; text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8); opacity: 0; pointer-events: none; white-space: nowrap; }
 #goldPop.go { animation: goldUp 1.8s ease-out; }
@@ -329,6 +335,7 @@ body.placing #cv { cursor: crosshair; }
 <body>
 <div id="app">
   <canvas id="cv"></canvas>
+  <div id="alarm" aria-hidden="true"></div>
   <div id="hud" hidden>
     <div id="lb" class="panel">
       <button id="lbHead" type="button" aria-expanded="false"><span>Rangliste</span><span id="lbCount"></span></button>
@@ -502,6 +509,13 @@ body.placing #cv { cursor: crosshair; }
       return Math.round(255 * (l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1))));
     };
     return [f(0), f(8), f(4)];
+  };
+  // Hue of an [r, g, b] colour in degrees. Whole-number arithmetic only, so every device agrees.
+  G.hueOf = function (c) {
+    const r = c[0], g = c[1], b = c[2], mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn;
+    if (!d) return 0;
+    const h = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+    return (h * 60 + 360) % 360;
   };
 })(globalThis.G = globalThis.G || {});
 
@@ -711,9 +725,13 @@ body.placing #cv { cursor: crosshair; }
   }
 
   // Returns false when there cannot be a route (land, or separate bodies of water).
-  Pathfinder.prototype.start = function (src, dst) {
+  // `shy`: keep clear of the coast where there is room (warships). Tiles within three of land
+  // cost extra, so the route swings out to sea but still goes through a strait if it has to.
+  // `limit`: give up after that many tiles (`gaveUp` then tells a search that was cut short
+  // from one that found there is no way).
+  Pathfinder.prototype.start = function (src, dst, shy, limit) {
     const map = this.map, land = map.land;
-    this.state = 2;
+    this.state = 2; this.shy = !!shy; this.limit = limit || 900000; this.gaveUp = false;
     if (src < 0 || dst < 0 || land[src] || land[dst] || map.wcomp[src] !== map.wcomp[dst] || src === dst) return false;
     this.sid++; this.dst = dst; this.exp = 0; this.state = 0;
     this.heap.clear();
@@ -728,7 +746,7 @@ body.placing #cv { cursor: crosshair; }
     const map = this.map, land = map.land, W = map.W, H = map.H;
     const sid = this.sid, gs = this.gs, from = this.from, seen = this.seen, done = this.done;
     const heap = this.heap, nb = this.nb, nc = this.nc, dst = this.dst;
-    const tx = dst % W, ty = (dst / W) | 0;
+    const tx = dst % W, ty = (dst / W) | 0, shy = this.shy, off = map.mag;   // for water, mag is the distance to land
     let used = 0;
     while (heap.n) {
       const t = heap.pop();
@@ -736,7 +754,7 @@ body.placing #cv { cursor: crosshair; }
       done[t] = sid;
       if (t === dst) { this.state = 1; return used + 1; }
       used++;
-      if (++this.exp > 900000) { this.state = 2; return used; }
+      if (++this.exp > this.limit) { this.state = 2; this.gaveUp = true; return used; }
       const x = t % W, y = (t - x) / W, g0 = gs[t];
       const l = x > 0 && !land[t - 1], r = x < W - 1 && !land[t + 1];
       const u = y > 0 && !land[t - W], d = y < H - 1 && !land[t + W];
@@ -752,7 +770,7 @@ body.placing #cv { cursor: crosshair; }
       for (let i = 0; i < k; i++) {
         const n = nb[i];
         if (done[n] === sid) continue;
-        const g1 = g0 + nc[i];
+        const g1 = g0 + nc[i] + (shy && off[n] < 4 ? (4 - off[n]) * 1.2 : 0);
         if (seen[n] !== sid || g1 < gs[n]) {
           seen[n] = sid; gs[n] = g1; from[n] = t;
           const ax = Math.abs(n % W - tx), ay = Math.abs(((n / W) | 0) - ty);
@@ -795,6 +813,13 @@ body.placing #cv { cursor: crosshair; }
   };
   G.UNAME = ['Stadt', 'Verteidigungs\u00ADposten', 'Hafen', 'Raketensilo', 'Flugabwehr', 'Fabrik', 'Kriegsschiff', 'Boot',
     'Handelsschiff', 'Zug', 'Granate', 'Abwehrrakete', 'Atombombe', 'Wasserstoff\u00ADbombe', 'MIRV', 'Sprengkopf', 'Marschflug\u00ADkörper', 'Satelliten\u00ADstrahl'];
+  // Tempo. The numbers of the simulation are OpenFront's, but its maps have two million tiles and
+  // ours are smaller (map.S is the scale of a side), so the same tiles per tick looked hectic:
+  // a ship crossed our Atlantic in 0.6 of the time, a front rolled over a country in 0.6 of the
+  // time. Everything that moves over tiles is therefore slowed by the scale of the map, which
+  // gives the pace of the original. These three factors come on top, for tuning by feel:
+  // move (ships, trains, shells), attack (how fast a front advances), growth (troops per tick).
+  G.PACE = { move: 1, attack: 1, growth: 1 };
   G.LASER_COOL = 450;   // ticks between two shots of the satellite beam (Arsenal mode)
   G.DIFF_NAMES = ['Leicht', 'Mittel', 'Schwer', 'Unmöglich'];
 
@@ -845,6 +870,9 @@ body.placing #cv { cursor: crosshair; }
     this.human = null; this.humans = []; this.winner = null; this.names = new Set();
     this.dirty = new Int32Array(N); this.dirtyN = 0; this.dirtyFlag = new Uint8Array(N);
     this.path = new G.Pathfinder(map); this.pathCache = new Map(); this.pathQ = []; this.pathJob = null;
+    this.pathNear = new G.Pathfinder(map); this.nearQ = []; this.nearJob = null;
+    this.pace = S * G.PACE.move;          // tiles a ship or train covers per tick
+    this.attackPace = S * G.PACE.attack;  // share of OpenFront's tiles per tick a front takes
     this.R = {
       spawn: 4,
       defense: Math.max(8, Math.round(30 * S)),
@@ -884,9 +912,28 @@ body.placing #cv { cursor: crosshair; }
     };
     let c = info.color;
     if (!c) {
-      c = info.type === PT.NATION
-        ? G.hsl((id * 137.508 + 40) % 360, 0.55 + (id % 3) * 0.07, 0.5 + (id % 4) * 0.035)
-        : G.hsl((id * 137.508) % 360, 0.05 + (id % 3) * 0.03, 0.46 + (id % 6) * 0.04);   // bot land is grey, in different shades, so it is easy to tell from nations
+      if (info.type === PT.NATION) {
+        // No nation may look like a person at the table: its hue keeps at least 32 degrees away
+        // from every human player's colour (and it is told apart from grey bots by being vivid).
+        let hue = (id * 137.508 + 40) % 360;
+        for (let k = 0; k < 12; k++) {
+          let clash = false;
+          for (const q of this.humans) {
+            const d = Math.abs(hue - G.hueOf([q.r, q.g, q.b]));
+            if (Math.min(d, 360 - d) < 32) { clash = true; break; }
+          }
+          if (!clash) break;
+          hue = (hue + 47) % 360;
+        }
+        c = G.hsl(hue, 0.55 + (id % 3) * 0.07, 0.5 + (id % 4) * 0.035);
+      } else {
+        c = G.hsl((id * 137.508) % 360, 0.05 + (id % 3) * 0.03, 0.46 + (id % 6) * 0.04);   // bot land is grey, in different shades, so it is easy to tell from nations
+      }
+    } else if (info.type === PT.HUMAN) {
+      // Two people who picked the same colour: the later one is moved round the colour wheel.
+      for (const q of this.humans) {
+        if (Math.abs(q.r - c[0]) + Math.abs(q.g - c[1]) + Math.abs(q.b - c[2]) < 60) { c = G.hsl((G.hueOf(c) + 150 + 40 * this.humans.length) % 360, 0.62, 0.52); break; }
+      }
     }
     p.r = c[0]; p.g = c[1]; p.b = c[2];
     if (info.type === PT.BOT) p.troops = 10000;
@@ -995,6 +1042,7 @@ body.placing #cv { cursor: crosshair; }
     let add = (10 + Math.pow(p.troops, 0.73) / 4) * (1 - p.troops / max);
     if (p.type === PT.BOT) add *= 0.4;
     else if (p.type === PT.NATION) add *= NATION_GROW[this.opts.difficulty];
+    add *= G.PACE.growth;
     return Math.min(p.troops + add, max) - p.troops;
   };
   Game.prototype.goldRate = function (p) { return p.type === PT.BOT ? 50 : 100; };
@@ -1313,7 +1361,10 @@ body.placing #cv { cursor: crosshair; }
     a.out.push(at);
     if (t) {
       t.inc.push(at);
-      if (t === this.human && this.ticks - (a.warnAt || -999) > 300) { a.warnAt = this.ticks; this.say(a.name + ' greift dich an', 'bad'); }
+      if (t === this.human && this.ticks - (a.warnAt || -999) > 300) {
+        a.warnAt = this.ticks; this.say(a.name + ' greift dich an', 'bad');
+        this.emit({ k: 'raid', id: a.id });   // the interface sounds the alarm
+      }
     }
     this.attacks.push(at);
     if (src >= 0) this.addFront(at, src); else this.refreshFront(at);
@@ -1346,7 +1397,11 @@ body.placing #cv { cursor: crosshair; }
     if (at.troops < 1) { this.endAttack(at, false); return; }
     const own = this.owner, map = this.map, mg = map.mag, W = this.W, H = this.H, aid = a.id;
     const n = at.front.size + this.rng.int(0, 5);
-    let budget = t ? within((5 * at.troops / Math.max(1, t.troops)) * 2, 0.01, 0.5) * n * 3 : n * (a.type === PT.BOT ? 1.4 : 2);
+    // What the front may take this tick. A tile that costs more than is left is paid off over the
+    // following ticks (`carry`), so a weak attack really is slow instead of taking a tile a tick
+    // regardless.
+    let budget = (t ? within((5 * at.troops / Math.max(1, t.troops)) * 2, 0.01, 0.5) * n * 3 : n * (a.type === PT.BOT ? 1.4 : 2)) * this.attackPace + (at.carry || 0);
+    if (budget <= 0) { at.carry = budget; return; }
     const landTiles = map.landTiles;
     const lossMod = a.tiles > landTiles * 0.17 ? Math.sqrt(landTiles * 0.17 / a.tiles) : 1;
     const speedMod = a.tiles > landTiles * 0.13 ? Math.pow(landTiles * 0.13 / a.tiles, 0.6) : 1;
@@ -1391,6 +1446,7 @@ body.placing #cv { cursor: crosshair; }
       this.conquer(a, tile);
       if (t && t.tiles < 100) { this.finishOff(a, t); this.endAttack(at, true); return; }
     }
+    at.carry = Math.min(0, budget);
   };
 
   // Whoever takes a player over gets its gold; a bot pays a bounty on top.
@@ -1615,29 +1671,37 @@ body.placing #cv { cursor: crosshair; }
   };
 
   // ---------- sea routes, worked on a little every step ----------
-  Game.prototype.requestPath = function (src, dst, cb, urgent) {
-    const job = { src: src, dst: dst, cb: cb };
-    if (urgent) this.pathQ.unshift(job); else this.pathQ.push(job);
+  Game.prototype.requestPath = function (src, dst, cb, urgent, shy, near) {
+    const job = { src: src, dst: dst, cb: cb, shy: !!shy }, q = near ? this.nearQ : this.pathQ;
+    if (urgent) q.unshift(job); else q.push(job);
   };
+  // Sea routes are worked out a slice per tick, in two lanes. A merchant's route across an ocean
+  // can take many ticks; a warship's next patrol leg is a short hop that must not queue behind it
+  // (that is what used to leave warships lying still). So short hops have a lane and a search
+  // of their own; one that turns out not to be short after all is handed to the long lane.
   Game.prototype.pathStep = function () {
-    const pf = this.path;
-    let budget = 12000;
+    this.pathLane(this.pathNear, this.nearQ, 'nearJob', 9000, 80000);
+    this.pathLane(this.path, this.pathQ, 'pathJob', 12000, 900000);
+  };
+  Game.prototype.pathLane = function (pf, queue, slot, budget, limit) {
     while (budget > 0) {
-      if (!this.pathJob) {
-        const job = this.pathQ.shift();
+      if (!this[slot]) {
+        const job = queue.shift();
         if (!job) return;
-        if (!pf.start(job.src, job.dst)) {
+        if (!pf.start(job.src, job.dst, job.shy, limit)) {
           budget -= 50;
           job.cb(job.src === job.dst && job.src >= 0 && !this.map.land[job.src] ? new Int32Array([job.src]) : null);
           continue;
         }
-        this.pathJob = job;
+        this[slot] = job;
       }
       budget -= pf.run(budget);
       if (pf.state !== 0) {
-        const job = this.pathJob;
-        this.pathJob = null;
-        job.cb(pf.state === 1 ? pf.result() : null);
+        const job = this[slot];
+        this[slot] = null;
+        if (pf.state === 1) job.cb(pf.result());
+        else if (pf.gaveUp && queue !== this.pathQ) this.pathQ.push(job);   // not a short hop: the long lane takes it
+        else job.cb(null);
       }
     }
   };
@@ -1986,7 +2050,7 @@ body.placing #cv { cursor: crosshair; }
       u = this.newUnit(type, p, c.port.water);
       u.hp = 1000; u.patrol = c.tile; u.shotAt = 0; u.target = null; u.path = null; u.pi = 0; u.wait = false;
       this.addUnit(u);
-      this.sail(u, c.tile, p.type === PT.HUMAN);
+      this.sail(u, c.tile, p.type === PT.HUMAN, 'order');
     } else if (type === UT.LASER) {
       u = this.fireLaser(p, c.tile);
     } else {
@@ -2129,11 +2193,11 @@ body.placing #cv { cursor: crosshair; }
       return;
     }
     if (u.retreat) {
-      if (u.pi > 0) { u.pi--; this.setPos(u, u.path[u.pi]); }
+      if (u.pi > 0) { for (let n = this.stride(u); n > 0 && u.pi > 0; n--) { u.pi--; this.setPos(u, u.path[u.pi]); } }
       else { p.troops += u.troops; this.removeUnit(u); }
       return;
     }
-    if (u.pi < u.path.length - 1) { u.pi++; this.setPos(u, u.path[u.pi]); return; }
+    if (u.pi < u.path.length - 1) { for (let n = this.stride(u); n > 0 && u.pi < u.path.length - 1; n--) { u.pi++; this.setPos(u, u.path[u.pi]); } return; }
     this.removeUnit(u);
     this.landBoat(u);
   };
@@ -2189,7 +2253,7 @@ body.placing #cv { cursor: crosshair; }
     const d = u.dstPort, p = u.owner;
     if (!d.active || !d.owner.alive || (!u.captured && !this.canTrade(p, d.owner))) { this.removeUnit(u); return; }
     if (!u.path) return;
-    if (u.pi < u.path.length - 1) { u.pi++; this.setPos(u, u.path[u.pi]); return; }
+    if (u.pi < u.path.length - 1) { for (let n = this.stride(u); n > 0 && u.pi < u.path.length - 1; n--) { u.pi++; this.setPos(u, u.path[u.pi]); } return; }
     const q = d.owner, h = this.human;
     p.gold += u.gold;
     this.fx.push({ k: 'coin', x: d.x, y: d.y, t: this.ticks, mine: p === h || (q === h && !u.captured), amt: u.gold });
@@ -2228,16 +2292,37 @@ body.placing #cv { cursor: crosshair; }
   };
 
   // Give a warship a new course; it holds position until the route is known.
-  Game.prototype.sail = function (u, tile, urgent) {
-    if (u.wait) return;
-    u.wait = true; u.path = null;
-    this.requestPath(u.tile, tile, (path) => {
-      u.wait = false;
-      if (u.active && path) { u.path = path; u.pi = 0; }
-    }, urgent);
+  // How many tiles a ship or train moves this tick. The pace is a fraction of a tile per tick
+  // (see G.PACE); the rest is carried in `u.mv`, which the picture also uses to glide between tiles.
+  Game.prototype.stride = function (u, rate) {
+    u.mv = (u.mv || 0) + (rate || this.pace); u.st = this.ticks;
+    let n = 0;
+    while (u.mv >= 1) { u.mv -= 1; n++; }
+    return n;
   };
-
-  // ---------- warships ----------
+  // Send a ship to a tile. The ship keeps sailing while the route is worked out: the new route
+  // starts a few tiles ahead on the old one and is spliced on there, so a change of course never
+  // makes it stop dead. A newer order replaces an older one that is still being worked out.
+  Game.prototype.sail = function (u, tile, urgent, leg) {
+    if (u.wait) return;
+    const old = u.path, lead = old && u.pi < old.length - 1 ? Math.min(old.length - 1, u.pi + 3) : -1;
+    const from = lead >= 0 ? old[lead] : u.tile, id = u.req = (u.req || 0) + 1;
+    u.wait = true; u.leg = leg || 'order';
+    if (lead < 0) u.path = null;
+    this.requestPath(from, tile, (path) => {
+      if (!u.active || u.req !== id) return;
+      u.wait = false;
+      if (!path) { if (u.path === old && lead < 0) u.path = null; return; }
+      if (lead >= 0 && u.path === old && u.pi <= lead) {
+        // keep a few tiles of wake behind the ship so the picture does not twitch at the join
+        const back = Math.max(0, u.pi - 5), keep = lead - back, j = new Int32Array(keep + path.length);
+        for (let i = 0; i < keep; i++) j[i] = old[back + i];
+        j.set(path, keep);
+        u.path = j; u.pi = u.pi - back;
+      } else if (path[0] === u.tile) { u.path = path; u.pi = 0; }
+      else u.path = null;   // sailed past the join before the route was ready: ask again from here
+    }, urgent, u.type === UT.WARSHIP, u.type === UT.WARSHIP);
+  };
   Game.prototype.tickWarship = function (u) {
     const T = this.ticks, R = this.R, p = u.owner, W = this.W, map = this.map;
     // Repairs, as in OpenFront: a damaged ship mends slowly while a home port is within reach,
@@ -2266,16 +2351,25 @@ body.placing #cv { cursor: crosshair; }
         else if (d2 <= heal * heal) u.hp = Math.min(1000, u.hp + 1);
       }
     }
+    // At the quay a ship is out of the fight, as in OpenFront: it neither shoots nor is shot at
+    // until the hull is whole again (before, ships were kept at the quay for minutes under fire).
+    u.docked = !!dock && (dock.x - u.x) * (dock.x - u.x) + (dock.y - u.y) * (dock.y - u.y) <= 16;
+    if (u.docked) { u.target = null; u.hunt = null; return; }
+    // Who to go for, as in OpenFront: troop boats first, then warships, then merchants. A merchant
+    // only counts while it is inside the patrol area, so the ship is not lured away from its post.
     if ((T + u.id) % 5 === 0) {
       let best = null, bs = Infinity;
-      const r2 = R.warTarget * R.warTarget;
+      const r2 = R.warTarget * R.warTarget, p2 = R.warPatrol * R.warPatrol, pcx = u.patrol % W, pcy = (u.patrol / W) | 0;
       for (const v of this.units) {
         if (!v.active || v.owner === p) continue;
         const ty = v.type;
         if (ty !== UT.TRANSPORT && ty !== UT.WARSHIP && ty !== UT.TRADE) continue;
-        if (v.safeUntil > T) continue;   // just changed hands: left alone for a moment
+        if (v.safeUntil > T || v.docked) continue;   // just changed hands, or under repair at the quay
         if (this.friendly(v.owner, p)) continue;
-        if (ty === UT.TRADE && (v.captured || this.friendly(v.dstPort.owner, p))) continue;
+        if (ty === UT.TRADE) {
+          if (v.captured || !v.path || this.friendly(v.dstPort.owner, p) || map.wcomp[v.tile] !== map.wcomp[u.tile]) continue;
+          if ((v.x - pcx) * (v.x - pcx) + (v.y - pcy) * (v.y - pcy) > p2) continue;
+        }
         const dx = v.x - u.x, dy = v.y - u.y, d2 = dx * dx + dy * dy;
         if (d2 > r2) continue;
         const s = d2 + (ty === UT.TRANSPORT ? 0 : ty === UT.WARSHIP ? 1e7 : 2e7);
@@ -2284,36 +2378,78 @@ body.placing #cv { cursor: crosshair; }
       u.target = best;
     }
     let tg = u.target;
-    if (tg && !tg.active) tg = u.target = null;
-    if (tg) {
-      if (tg.type === UT.TRADE) {
-        const dx = tg.x - u.x, dy = tg.y - u.y;
-        if (dx * dx + dy * dy <= 49) { this.captureTrade(u, tg); tg = u.target = null; }
-        else if ((T + u.id) % 10 === 0 && this.pathQ.length < 6) this.sail(u, tg.tile, false);
-      } else if (T >= u.shotAt) {
-        u.shotAt = T + 20;
-        const s = this.newUnit(UT.SHELL, p, u.tile);
-        s.target = tg;
-        this.addUnit(s);
-      }
+    if (tg && (!tg.active || tg.owner === p || tg.docked || (tg.type === UT.TRADE && tg.captured))) tg = u.target = null;
+    const hunt = !dock && !!tg && tg.type === UT.TRADE;
+    if (tg && tg.type !== UT.TRADE && T >= u.shotAt) {
+      u.shotAt = T + 20;
+      const s = this.newUnit(UT.SHELL, p, u.tile);
+      s.target = tg; s.sx = u.x; s.sy = u.y;
+      this.addUnit(s);
+      this.fx.push({ k: 'muzzle', x: u.x, y: u.y, tx: tg.x, ty: tg.y });
+      if (this.fx.length > 300) this.fx.splice(0, 150);
     }
-    if (u.path && u.pi < u.path.length - 1) { u.pi++; this.setPos(u, u.path[u.pi]); return; }
+    if (hunt) {
+      const dx = tg.x - u.x, dy = tg.y - u.y;
+      if (dx * dx + dy * dy <= 49) { this.captureTrade(u, tg); tg = u.target = null; u.hunt = null; }
+      else if (!u.wait && this.nearQ.length < 12 && (u.hunt !== tg || (T + u.id) % 10 === 0)) {
+        // Cut it off instead of trailing behind: aim for the first tile of the merchant's own
+        // route that this ship (twice as fast on the chase) reaches no later than the merchant.
+        const tp = tg.path, sp = this.pace;
+        let aim = tg.tile;
+        for (let k = 4; tp && tg.pi + k < tp.length; k += 4) {
+          const t = tp[tg.pi + k], ax = t % W - u.x, ay = ((t / W) | 0) - u.y;
+          aim = t;
+          if (Math.sqrt(ax * ax + ay * ay) / (2 * sp) <= k / sp) break;
+        }
+        u.hunt = tg;
+        this.sail(u, aim, false, 'hunt');
+      }
+    } else u.hunt = null;
+
+    // Under way. On the chase a warship makes twice its cruising speed (as in OpenFront).
+    if (u.path && u.pi < u.path.length - 1) {
+      for (let n = this.stride(u, hunt ? 2 * this.pace : this.pace); n > 0 && u.pi < u.path.length - 1; n--) { u.pi++; this.setPos(u, u.path[u.pi]); }
+    }
+    if (u.wait || hunt) return;
+    const left = u.path ? u.path.length - 1 - u.pi : 0;
     if (dock) {
-      // on the way to the quay, or lying there until the hull is whole again
+      // to the quay, and there until the hull is whole again
       const d2 = (dock.x - u.x) * (dock.x - u.x) + (dock.y - u.y) * (dock.y - u.y);
-      if (d2 > 16 && !u.wait && (T + u.id) % 15 === 0 && this.pathQ.length <= 6) this.sail(u, dock.water, false);
+      if (d2 > 16 && (u.leg !== 'dock' || left === 0) && this.nearQ.length <= 12) this.sail(u, dock.water, false, 'dock');
       return;
     }
-    if (u.wait || (tg && tg.type === UT.TRADE) || (T + u.id) % 15 !== 0 || this.pathQ.length > 6) return;
-    const cx = u.patrol % W, cy = (u.patrol / W) | 0, comp = map.wcomp[u.tile], pr = R.warPatrol;
-    for (let i = 0; i < 8; i++) {
-      const x = cx + this.rng.int(-pr, pr + 1), y = cy + this.rng.int(-pr, pr + 1);
-      if (x < 0 || y < 0 || x >= W || y >= this.H) continue;
+    // On patrol the next leg is asked for a few tiles before the end of this one, so the ship
+    // never lies still between two legs.
+    if (left > 4 && u.leg !== 'dock') return;
+    if (this.nearQ.length > 12) return;
+    const t = this.patrolPoint(u);
+    if (t >= 0) this.sail(u, t, false, 'patrol');
+  };
+
+  // The next point of a patrol. The ship sails a beat round the place it was sent to: each leg
+  // carries it about a third of the way round a ring of half the patrol range, at a varying
+  // distance from the middle, so over time it sweeps the whole area instead of darting about at
+  // random. Points close to the coast are passed over (it is a sea patrol, not a coast guard
+  // cutter); only if there is no open water at all does it settle for less.
+  Game.prototype.patrolPoint = function (u) {
+    const map = this.map, W = this.W, H = this.H, rng = this.rng, off = map.mag;   // for water: distance to land
+    const cx = u.patrol % W, cy = (u.patrol / W) | 0, comp = map.wcomp[u.tile], pr = this.R.warPatrol * 0.5;
+    const clear = Math.max(3, Math.round(7 * this.S));
+    if (u.beat === undefined) { u.beat = rng.next() * 2 * Math.PI; u.turn = rng.next() < 0.5 ? 1 : -1; }
+    let best = -1, bs = -1;
+    for (let i = 0; i < 14; i++) {
+      // the first tries follow the beat; later ones look anywhere in the area
+      const ang = i < 8 ? u.beat + u.turn * (1.7 + 0.25 * i + 0.6 * rng.next()) : rng.next() * 2 * Math.PI;
+      const rad = pr * (i < 8 ? 0.55 + 0.45 * rng.next() : rng.next());
+      const x = Math.round(cx + Math.cos(ang) * rad), y = Math.round(cy + Math.sin(ang) * rad);
+      if (x < 0 || y < 0 || x >= W || y >= H) continue;
       const t = y * W + x;
       if (map.land[t] || map.wcomp[t] !== comp) continue;
-      this.sail(u, t, false);
-      break;
+      if (off[t] >= clear) { u.beat = ang; return t; }
+      if (off[t] > bs) { bs = off[t]; best = t; }
     }
+    if (best >= 0) { const bx = best % W - cx, by = ((best / W) | 0) - cy; if (bx || by) u.beat += u.turn * 2; }
+    return best;
   };
   Game.prototype.moveWarship = function (p, tile) {
     const map = this.map, W = this.W;
@@ -2326,19 +2462,19 @@ body.placing #cv { cursor: crosshair; }
       if (d < bd) { bd = d; best = u; }
     }
     if (!best) return false;
-    best.patrol = w; best.wait = false; best.repair = null;
-    this.sail(best, w, true);
+    best.patrol = w; best.wait = false; best.repair = null; best.beat = undefined; best.hunt = null; best.target = null;
+    this.sail(best, w, true, 'order');
     return true;
   };
   Game.prototype.tickShell = function (u) {
     const tg = u.target;
     if (!tg || !tg.active) { this.removeUnit(u); return; }
-    const dx = tg.x - u.x, dy = tg.y - u.y, d = Math.hypot(dx, dy), sp = 4;
+    const dx = tg.x - u.x, dy = tg.y - u.y, d = Math.hypot(dx, dy), sp = Math.max(2, 4 * this.pace);
     if (d > sp) { u.x += dx / d * sp; u.y += dy / d * sp; return; }
     this.removeUnit(u);
     const by = u.owner, h = this.human, was = tg.owner;
     if (was === by || this.friendly(was, by)) return;
-    this.fx.push({ k: 'pop', x: tg.x, y: tg.y });
+    this.fx.push({ k: 'pop', x: tg.x, y: tg.y, hit: true });
     if (tg.type === UT.WARSHIP) {
       tg.hp -= 250;
       if (tg.hp > 0) return;
@@ -2349,6 +2485,7 @@ body.placing #cv { cursor: crosshair; }
       was.cnt[UT.WARSHIP]--; by.cnt[UT.WARSHIP]++;
       tg.owner = by; by.units.push(tg);
       tg.hp = 400; tg.target = null; tg.repair = null; tg.home = null; tg.patrol = tg.tile; tg.shotAt = this.ticks + 30; tg.safeUntil = this.ticks + 150;
+      tg.path = null; tg.wait = false; tg.req = (tg.req || 0) + 1; tg.beat = undefined; tg.hunt = null;
       this.fx.push({ k: 'flag', x: tg.x, y: tg.y });
       if (was === h) this.say(by.name + ' hat dein Kriegsschiff eingenommen', 'bad');
       else if (by === h) this.say('Kriegsschiff von ' + was.name + ' eingenommen', 'good');
@@ -2682,9 +2819,12 @@ body.placing #cv { cursor: crosshair; }
   Game.prototype.straighten = function (raw) {
     const W = this.W, pts = [raw[0]];
     let i = 0;
+    // From each corner go as far along the searched route as a straight track over land allows.
+    // Looking from the far end backwards finds the longest stretch, so a track has as few bends
+    // as the coastline permits (halving the distance, as before, left needless kinks).
     while (i < raw.length - 1) {
-      let j = Math.min(raw.length - 1, i + 60);
-      while (j > i + 1 && !this.landLine(raw[i], raw[j])) j = i + ((j - i) >> 1);
+      let j = raw.length - 1;
+      while (j > i + 1 && !this.landLine(raw[i], raw[j])) j -= j - i > 24 ? 3 : 1;
       pts.push(raw[j]); i = j;
     }
     const out = [pts[0]];
@@ -2760,6 +2900,23 @@ body.placing #cv { cursor: crosshair; }
           const d = (c.x - s.x) * (c.x - s.x) + (c.y - s.y) * (c.y - s.y);
           if (d < bd || (d === bd && c.id < from.id)) { bd = d; from = c; }
         }
+        // Two tracks must not leave a station side by side. If a station that is already tied to
+        // `from` lies almost in the same direction and nearer to the newcomer, the new track
+        // branches off there instead, so the network forks cleanly instead of fanning out.
+        for (let turn = 0; turn < 3; turn++) {
+          const vx = s.x - from.x, vy = s.y - from.y, vl = Math.sqrt(vx * vx + vy * vy) || 1;
+          let via = null, vd = vl * vl;
+          for (const id of links.get(from.id) || []) {
+            const c = byId.get(id);
+            if (!c || c === s) continue;
+            const cx = c.x - from.x, cy = c.y - from.y, cl = Math.sqrt(cx * cx + cy * cy) || 1;
+            if ((vx * cx + vy * cy) / (vl * cl) < 0.88) continue;            // more than about 28 degrees apart: fine
+            const d = (c.x - s.x) * (c.x - s.x) + (c.y - s.y) * (c.y - s.y);
+            if (d < vd || (d === vd && via && c.id < via.id)) { vd = d; via = c; }
+          }
+          if (!via) break;
+          from = via;
+        }
         let key = Math.min(from.id, s.id) + '_' + Math.max(from.id, s.id);
         if (this.railBad.has(key) && from !== f) { from = f; key = Math.min(f.id, s.id) + '_' + Math.max(f.id, s.id); }
         if (this.railKeys.has(key) || this.railBad.has(key)) continue;
@@ -2823,10 +2980,12 @@ body.placing #cv { cursor: crosshair; }
     if (!e.a.active || !e.b.active || !p.alive) { this.removeUnit(u); return; }
     const end = u.fwd ? e.path.length - 1 : 0;
     if (u.pi !== end) {
-      u.pi += u.fwd ? 1 : -1;
-      this.setPos(u, e.path[u.pi]);
-      const o = this.owner[u.tile];
-      if (o && o !== p.id && !this.canTrade(p, this.players[o])) this.removeUnit(u);   // rolled into hostile land
+      for (let n = this.stride(u); n > 0 && u.pi !== end; n--) {
+        u.pi += u.fwd ? 1 : -1;
+        this.setPos(u, e.path[u.pi]);
+        const o = this.owner[u.tile];
+        if (o && o !== p.id && !this.canTrade(p, this.players[o])) { this.removeUnit(u); return; }   // rolled into hostile land
+      }
       return;
     }
     const st = u.fwd ? e.b : e.a, q = st.owner, h = this.human;
@@ -3351,6 +3510,7 @@ body.placing #cv { cursor: crosshair; }
     good: function (t) { [0, 4, 7].forEach(function (s, i) { tone(sfxBus, 'sine', hz(76 + s), t + i * 0.07, 0.22, 0.1); }); },
     ally: function (t) { [0, 7, 12, 16].forEach(function (s, i) { tone(sfxBus, 'triangle', hz(67 + s), t + i * 0.08, 0.3, 0.1); }); },
     warn: function (t) { tone(sfxBus, 'square', 466, t, 0.12, 0.06); tone(sfxBus, 'square', 440, t + 0.14, 0.2, 0.06); },
+    alarm: function (t) { for (let i = 0; i < 3; i++) { tone(sfxBus, 'square', 740, t + i * 0.3, 0.13, 0.07); tone(sfxBus, 'square', 554, t + i * 0.3 + 0.14, 0.13, 0.07); } },
     bad: function (t) { tone(sfxBus, 'sawtooth', 220, t, 0.16, 0.08, 185); tone(sfxBus, 'sawtooth', 165, t + 0.15, 0.28, 0.08, 131); },
     flag: function (t) { noise(sfxBus, t, 0.09, 0.12, 'highpass', 3000); tone(sfxBus, 'triangle', 523, t + 0.05, 0.1, 0.1); tone(sfxBus, 'triangle', 784, t + 0.14, 0.2, 0.1); },
     pop: function (t) { noise(sfxBus, t, 0.16, 0.2, 'lowpass', 1400, 200); tone(sfxBus, 'sine', 160, t, 0.16, 0.2, 50); },
@@ -3658,6 +3818,7 @@ body.placing #cv { cursor: crosshair; }
     this.drawUnits(ctx, g, z, ox, oy, alpha, now);
     this.drawFx(ctx, g, z, ox, oy, now);
     this.drawNames(ctx, g, z, ox, oy);
+    this.drawRaids(ctx, g, z, ox, oy, now);
     this.drawIncoming(ctx, g, z, ox, oy, alpha, now);
     this.drawMarks(ctx, g, z, ox, oy, now);
     if (this.aim) this.drawAim(ctx, g, z, ox, oy, now);
@@ -3718,30 +3879,73 @@ body.placing #cv { cursor: crosshair; }
   };
 
   // Railways: a gravel bed, sleepers and two rails once you are close enough; a plain line from far away.
+  // The line a track is drawn along and a train rides on: the straight stretches of the route
+  // with every bend rounded off into a curve, as a chain of points in tile coordinates. Each
+  // point also knows which step of the route (`ps`) it stands for, so a train at step 17.4 of
+  // its route can be put exactly on the drawn rail instead of beside it.
+  function railGeo(e, W) {
+    const path = e.path;
+    if (e.geo && e.geo.of === path) return e.geo;
+    const c = path.pts || path, n = c.length, px = [], py = [], idx = [0];
+    for (let i = 0; i < n; i++) { px.push(c[i] % W); py.push((c[i] / W) | 0); }
+    for (let i = 1; i < n; i++) idx.push(idx[i - 1] + Math.max(Math.abs(px[i] - px[i - 1]), Math.abs(py[i] - py[i - 1])));
+    const xs = [px[0]], ys = [py[0]], ps = [0];
+    for (let i = 1; i < n - 1; i++) {
+      const ax = px[i] - px[i - 1], ay = py[i] - py[i - 1], bx = px[i + 1] - px[i], by = py[i + 1] - py[i];
+      const la = Math.hypot(ax, ay) || 1, lb = Math.hypot(bx, by) || 1;
+      const r = Math.min(7, la * 0.45, lb * 0.45);                    // how far before the corner the curve begins
+      const x0 = px[i] - ax / la * r, y0 = py[i] - ay / la * r, x1 = px[i] + bx / lb * r, y1 = py[i] + by / lb * r;
+      const p0 = idx[i] - r * (idx[i] - idx[i - 1]) / la, p1 = idx[i] + r * (idx[i + 1] - idx[i]) / lb;
+      for (let k = 0; k <= 8; k++) {
+        const t = k / 8, u = 1 - t;
+        xs.push(u * u * x0 + 2 * u * t * px[i] + t * t * x1); ys.push(u * u * y0 + 2 * u * t * py[i] + t * t * y1);
+        ps.push(p0 + (p1 - p0) * t);
+      }
+    }
+    xs.push(px[n - 1]); ys.push(py[n - 1]); ps.push(idx[n - 1]);
+    e.geo = { of: path, xs: xs, ys: ys, ps: ps, scale: idx[n - 1] > 0 ? (path.length - 1) / idx[n - 1] : 1 };
+    return e.geo;
+  }
+  // Where on the drawn rail is step `f` of the route?  Returns x, y and the direction of the rail there.
+  function railAt(geo, f, out) {
+    const ps = geo.ps, xs = geo.xs, ys = geo.ys, q = f / geo.scale;
+    let lo = 0, hi = ps.length - 1;
+    while (hi - lo > 1) { const m = (lo + hi) >> 1; if (ps[m] <= q) lo = m; else hi = m; }
+    const d = ps[hi] - ps[lo], t = d > 0 ? within((q - ps[lo]) / d, 0, 1) : 0;
+    out.x = xs[lo] + (xs[hi] - xs[lo]) * t; out.y = ys[lo] + (ys[hi] - ys[lo]) * t;
+    out.a = Math.atan2(ys[hi] - ys[lo], xs[hi] - xs[lo]);
+    return out;
+  }
+
   View.prototype.drawRails = function (ctx, g, z, ox, oy) {
     const rails = g.rails;
     if (!rails.length) return;
     const W = g.W, x0 = -ox / z - 2, y0 = -oy / z - 2, x1 = (this.cw - ox) / z + 2, y1 = (this.ch - oy) / z + 2;
     const vis = [];
-    for (const e of rails) if (!(e.x1 < x0 || e.x0 > x1 || e.y1 < y0 || e.y0 > y1)) vis.push(e);
+    for (const e of rails) if (!(e.x1 < x0 || e.x0 > x1 || e.y1 < y0 || e.y0 > y1)) vis.push(railGeo(e, W));
     if (!vis.length) return;
-    const trace = function () {
+    // `off`: the same line pushed sideways, for the two rails
+    const trace = function (off) {
       ctx.beginPath();
-      for (const e of vis) {
-        const p = e.path.pts || e.path;
-        for (let i = 0; i < p.length; i++) {
-          const x = (p[i] % W + 0.5) * z + ox, y = (((p[i] / W) | 0) + 0.5) * z + oy;
+      for (const geo of vis) {
+        const xs = geo.xs, ys = geo.ys, n = xs.length;
+        for (let i = 0; i < n; i++) {
+          let x = (xs[i] + 0.5) * z + ox, y = (ys[i] + 0.5) * z + oy;
+          if (off) {
+            const a = i > 0 ? i - 1 : 0, b = i < n - 1 ? i + 1 : n - 1;
+            const dx = xs[b] - xs[a], dy = ys[b] - ys[a], d = Math.hypot(dx, dy) || 1;
+            x += -dy / d * off; y += dx / d * off;
+          }
           if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y);
         }
       }
     };
     ctx.lineJoin = 'round'; ctx.lineCap = 'round';
-    trace();
     if (z < 2.4) {
-      // Too small for real sleepers and rails. A wide dashed line laid over a narrow base sticks
-      // out on both sides, which reads as cross-ties from a distance; a thin pale line down the
-      // middle gives it the glint of the rails. Much calmer than a dotted line.
+      // From afar: a dark bed, sleepers showing as short cross strokes on both sides of it, and
+      // one pale line for the glint of the rails.
       const base = within(z * 0.95, 1.8, 2.6);
+      trace(0);
       ctx.lineCap = 'butt';
       ctx.setLineDash([Math.max(1.1, z * 0.34), Math.max(1.7, z * 0.56)]);
       ctx.lineWidth = base * 2.15; ctx.strokeStyle = 'rgba(126,110,92,.75)'; ctx.stroke();
@@ -3751,30 +3955,18 @@ body.placing #cv { cursor: crosshair; }
       ctx.lineWidth = Math.max(0.7, base * 0.38); ctx.strokeStyle = 'rgba(234,230,220,.9)'; ctx.stroke();
       return;
     }
-    ctx.lineWidth = z * 1.05; ctx.strokeStyle = 'rgba(40,34,28,.5)'; ctx.stroke();
-    ctx.lineWidth = z * 0.82; ctx.strokeStyle = '#8b8172'; ctx.stroke();
+    // Close up: gravel bed, wooden sleepers, two steel rails.
+    trace(0);
+    ctx.lineWidth = z * 1.1; ctx.strokeStyle = 'rgba(30,25,20,.55)'; ctx.stroke();
+    ctx.lineWidth = z * 0.86; ctx.strokeStyle = '#8f8676'; ctx.stroke();
     ctx.lineCap = 'butt';
-    ctx.setLineDash([z * 0.15, z * 0.33]);
-    ctx.lineWidth = z * 0.72; ctx.strokeStyle = '#4e3b28'; ctx.stroke();
+    ctx.setLineDash([z * 0.16, z * 0.3]);
+    ctx.lineWidth = z * 0.74; ctx.strokeStyle = '#4b3826'; ctx.stroke();
     ctx.setLineDash([]);
     ctx.lineCap = 'round';
-    const off = z * 0.2;
-    ctx.beginPath();
-    for (const e of vis) {
-      const p = e.path.pts || e.path;
-      for (let side = -1; side <= 1; side += 2) {
-        let lx = 0, ly = 0;
-        for (let i = 0; i < p.length; i++) {
-          const x = (p[i] % W + 0.5) * z + ox, y = (((p[i] / W) | 0) + 0.5) * z + oy;
-          if (i) {
-            const dx = x - lx, dy = y - ly, d = Math.hypot(dx, dy) || 1, nx = -dy / d * off * side, ny = dx / d * off * side;
-            ctx.moveTo(lx + nx, ly + ny); ctx.lineTo(x + nx, y + ny);
-          }
-          lx = x; ly = y;
-        }
-      }
-    }
-    ctx.lineWidth = Math.max(1, z * 0.1); ctx.strokeStyle = '#eef1f4'; ctx.stroke();
+    ctx.lineWidth = Math.max(1, z * 0.1);
+    trace(z * 0.2); ctx.strokeStyle = '#f0f3f6'; ctx.stroke();
+    trace(-z * 0.2); ctx.stroke();
   };
 
   View.prototype.drawStructures = function (ctx, g, z, ox, oy) {
@@ -3814,12 +4006,12 @@ body.placing #cv { cursor: crosshair; }
       const u = us[i], ty = u.type;
       if (!u.active || !u.path || (ty !== UT.TRANSPORT && ty !== UT.WARSHIP && ty !== UT.TRADE)) continue;
       const p = u.path, end = Math.min(u.pi, p.length - 1);
-      if (end < 1) continue;
-      const hx = (u.px + (u.x - u.px) * alpha + 0.5) * z + ox, hy = (u.py + (u.y - u.py) * alpha + 0.5) * z + oy;
+      const hx = (u.vx + 0.5) * z + ox, hy = (u.vy + 0.5) * z + oy;
       if (ty === UT.TRANSPORT) {
+        if (end < 1) continue;
         const step = Math.max(1, Math.round(2.5 / z));
         ctx.beginPath();
-        for (let k = 0; k < end; k += step) {
+        for (let k = 0; k < end - 2; k += step) {
           const x = (p[k] % W + 0.5) * z + ox, y = (((p[k] / W) | 0) + 0.5) * z + oy;
           if (k) ctx.lineTo(x, y); else ctx.moveTo(x, y);
         }
@@ -3833,18 +4025,16 @@ body.placing #cv { cursor: crosshair; }
         ctx.globalAlpha = 1;
         continue;
       }
-      if (hx < -60 || hy < -60 || hx > cw + 60 || hy > ch + 60 || z < 1.3) continue;
-      const len = ty === UT.WARSHIP ? 14 : 8, wide = ty === UT.WARSHIP ? 0.55 : 0.4;
-      let lx = hx, ly = hy;
-      for (let k = 0; k < 3; k++) {
-        const idx = Math.max(0, end - Math.round((k + 1) * len / 3));
-        const x = (p[idx] % W + 0.5) * z + ox, y = (((p[idx] / W) | 0) + 0.5) * z + oy;
-        ctx.beginPath(); ctx.moveTo(lx, ly); ctx.lineTo(x, y);
-        ctx.lineWidth = Math.max(1, z * wide * (1 - k * 0.22));
-        ctx.strokeStyle = 'rgba(255,255,255,' + (0.3 - k * 0.09).toFixed(2) + ')'; ctx.stroke();
-        lx = x; ly = y;
-        if (!idx) break;
-      }
+      if (hx < -60 || hy < -60 || hx > cw + 60 || hy > ch + 60 || z < 1.3 || u.st !== g.ticks) continue;
+      // A ship under way pushes two short lines of foam out from the stern, like the arms of a
+      // V. Nothing more: the long white streak belonged to a speedboat, not to a ship of war.
+      const s = ty === UT.WARSHIP ? within(4 + z * 2.2, 7, 17) * 0.95 : within(3 + z * 1.6, 5, 12) * 0.56;
+      const ca = Math.cos(u.va), sa = Math.sin(u.va), len = s * 0.75, sp = s * 0.5;
+      const bx = hx - ca * s * 0.95, by = hy - sa * s * 0.95;
+      ctx.beginPath();
+      ctx.moveTo(bx - sa * s * 0.16, by + ca * s * 0.16); ctx.lineTo(bx - ca * len - sa * sp, by - sa * len + ca * sp);
+      ctx.moveTo(bx + sa * s * 0.16, by - ca * s * 0.16); ctx.lineTo(bx - ca * len + sa * sp, by - sa * len - ca * sp);
+      ctx.lineWidth = Math.max(1, s * 0.13); ctx.strokeStyle = 'rgba(255,255,255,.2)'; ctx.stroke();
     }
   };
 
@@ -3864,32 +4054,167 @@ body.placing #cv { cursor: crosshair; }
     ctx.restore();
   }
 
+  // ---------- how ships sit on the water ----------
+  // A route is a chain of tiles, eight directions only. Drawn tile by tile a ship zigzags and its
+  // bow snaps round by 45 degrees every step, which is what made the sea look nervous. So the
+  // picture glides along the route instead: the position is the average of a short stretch of
+  // the route around the ship, the heading is the direction of that stretch, and the heading
+  // is eased from frame to frame.
+  function routeAt(path, W, f, out) {
+    const n = path.length - 1;
+    if (f <= 0) { out.x = path[0] % W; out.y = (path[0] / W) | 0; return out; }
+    if (f >= n) { out.x = path[n] % W; out.y = (path[n] / W) | 0; return out; }
+    const i = f | 0, fr = f - i, a = path[i], b = path[i + 1];
+    const ax = a % W, ay = (a / W) | 0;
+    out.x = ax + (b % W - ax) * fr; out.y = ay + (((b / W) | 0) - ay) * fr;
+    return out;
+  }
+  const RA = { x: 0, y: 0 }, RB = { x: 0, y: 0 };
+  View.prototype.pose = function (g, u, alpha) {
+    const path = u.path, W = g.W;
+    let x, y, ang = u.va;
+    if (path && path.length > 1 && path[u.pi] === u.tile) {
+      const n = path.length - 1, dir = u.retreat ? -1 : 1;
+      // `mv` is the part of the next tile already covered; while the ship is under way the
+      // frame adds what the running tick will bring
+      const rate = g.pace * (u.hunt ? 2 : 1), going = u.st === g.ticks;
+      const f = within(u.pi + dir * ((u.mv || 0) + (going ? alpha * rate : 0)), 0, n);
+      const w = Math.min(3.5, f, n - f);                 // the stretch shrinks to nothing at both ends
+      let sx = 0, sy = 0;
+      for (let k = -2; k <= 2; k++) { routeAt(path, W, f + k * w * 0.5, RA); sx += RA.x; sy += RA.y; }
+      x = sx / 5; y = sy / 5;
+      const l = Math.max(1.2, w);
+      routeAt(path, W, f - l, RA); routeAt(path, W, f + l, RB);
+      if (RB.x !== RA.x || RB.y !== RA.y) ang = Math.atan2((RB.y - RA.y) * dir, (RB.x - RA.x) * dir);
+    } else {
+      x = u.px + (u.x - u.px) * alpha; y = u.py + (u.y - u.py) * alpha;
+      if (u.x !== u.px || u.y !== u.py) ang = Math.atan2(u.y - u.py, u.x - u.px);
+    }
+    if (ang === undefined) ang = 0;
+    if (u.va === undefined || u.vf !== this.frame - 1) u.va = ang;        // first sight: no easing in from nowhere
+    else {
+      let d = ang - u.va;
+      while (d > Math.PI) d -= 2 * Math.PI;
+      while (d < -Math.PI) d += 2 * Math.PI;
+      u.va += d * 0.14;
+    }
+    u.vf = this.frame; u.vx = x; u.vy = y;
+  };
+
+  // A warship, seen from above: a long grey hull with a sharp bow and a square stern, a deck in
+  // the owner's colour, a bridge amidships and two gun turrets that turn towards whatever the
+  // ship is fighting. `s` is half the length of the hull on the screen.
+  function warship(ctx, x, y, ang, s, p, aim) {
+    ctx.save();
+    ctx.translate(x, y); ctx.rotate(ang);
+    const hullPath = function (k) {
+      ctx.beginPath();
+      ctx.moveTo(-1 * s * k, -0.27 * s * k); ctx.lineTo(0.42 * s * k, -0.3 * s * k);
+      ctx.quadraticCurveTo(0.8 * s * k, -0.2 * s * k, 1.08 * s * k, 0);
+      ctx.quadraticCurveTo(0.8 * s * k, 0.2 * s * k, 0.42 * s * k, 0.3 * s * k);
+      ctx.lineTo(-1 * s * k, 0.27 * s * k); ctx.closePath();
+    };
+    hullPath(1);
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = Math.max(2.6, s * 0.3); ctx.strokeStyle = '#0d1319'; ctx.stroke();      // dark edge: shows on any water
+    ctx.fillStyle = '#9aa5b0'; ctx.fill();
+    ctx.lineWidth = Math.max(1, s * 0.11); ctx.strokeStyle = p.cssB; ctx.stroke();           // whose it is
+    hullPath(0.72);
+    ctx.fillStyle = p.css; ctx.fill();                                                       // deck
+    if (s >= 7) {
+      // bridge and funnel
+      ctx.fillStyle = '#39424c'; ctx.fillRect(-0.3 * s, -0.15 * s, 0.5 * s, 0.3 * s);
+      ctx.fillStyle = '#c9d1d9'; ctx.fillRect(-0.02 * s, -0.09 * s, 0.17 * s, 0.18 * s);
+      ctx.fillStyle = '#12181e'; ctx.beginPath(); ctx.arc(-0.2 * s, 0, 0.07 * s, 0, 6.2832); ctx.fill();
+    } else {
+      ctx.fillStyle = '#2a323b'; ctx.fillRect(-0.24 * s, -0.13 * s, 0.4 * s, 0.26 * s);
+    }
+    // turrets fore and aft; at rest the after one points astern
+    const tr = Math.max(1.2, s * 0.12), bl = s * 0.3;
+    for (let i = 0; i < 2; i++) {
+      const tx = i ? -0.66 * s : 0.56 * s, ta = aim === null ? (i ? Math.PI : 0) : aim;
+      ctx.beginPath(); ctx.moveTo(tx, 0); ctx.lineTo(tx + Math.cos(ta) * bl, Math.sin(ta) * bl);
+      ctx.lineWidth = Math.max(1, s * 0.07); ctx.strokeStyle = '#0d1319'; ctx.lineCap = 'butt'; ctx.stroke();
+      ctx.beginPath(); ctx.arc(tx, 0, tr, 0, 6.2832); ctx.fillStyle = '#20272e'; ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  // A rocket or bomb in flight, nose along `ang`. `kind`: 0 cruise missile (slim, swept wings),
+  // 1 atom bomb, 2 hydrogen bomb (stubby, tail fins).
+  function rocket(ctx, x, y, ang, len, col, kind, flame) {
+    ctx.save();
+    ctx.translate(x, y); ctx.rotate(ang);
+    const w = kind ? len * 0.34 : len * 0.17;
+    if (flame > 0) {
+      // exhaust: a flickering tongue of fire behind the tail
+      const fl = len * (kind ? 0.5 : 0.75) * (0.75 + 0.25 * flame);
+      ctx.beginPath(); ctx.moveTo(-len * 0.5, -w * 0.32); ctx.lineTo(-len * 0.5 - fl, 0); ctx.lineTo(-len * 0.5, w * 0.32); ctx.closePath();
+      ctx.fillStyle = 'rgba(255,190,70,.95)'; ctx.fill();
+      ctx.beginPath(); ctx.moveTo(-len * 0.5, -w * 0.16); ctx.lineTo(-len * 0.5 - fl * 0.55, 0); ctx.lineTo(-len * 0.5, w * 0.16); ctx.closePath();
+      ctx.fillStyle = '#fff6d8'; ctx.fill();
+    }
+    ctx.lineJoin = 'round';
+    // wings or fins first, so the body lies on top
+    ctx.beginPath();
+    if (kind === 0) {
+      ctx.moveTo(len * 0.1, 0); ctx.lineTo(-len * 0.16, -len * 0.36); ctx.lineTo(-len * 0.28, -len * 0.36); ctx.lineTo(-len * 0.12, 0);
+      ctx.lineTo(-len * 0.28, len * 0.36); ctx.lineTo(-len * 0.16, len * 0.36); ctx.closePath();
+      ctx.moveTo(-len * 0.36, 0); ctx.lineTo(-len * 0.5, -len * 0.17); ctx.lineTo(-len * 0.5, len * 0.17); ctx.closePath();
+    } else {
+      ctx.moveTo(-len * 0.2, 0); ctx.lineTo(-len * 0.5, -w * 1.05); ctx.lineTo(-len * 0.5, w * 1.05); ctx.closePath();
+    }
+    ctx.lineWidth = 2; ctx.strokeStyle = '#0d1319'; ctx.stroke();
+    ctx.fillStyle = 'rgb(' + col + ')'; ctx.fill();
+    // body with a pointed nose
+    ctx.beginPath();
+    ctx.moveTo(-len * 0.5, -w * 0.5); ctx.lineTo(len * 0.18, -w * 0.5);
+    ctx.quadraticCurveTo(len * 0.42, -w * 0.42, len * 0.5, 0);
+    ctx.quadraticCurveTo(len * 0.42, w * 0.42, len * 0.18, w * 0.5);
+    ctx.lineTo(-len * 0.5, w * 0.5); ctx.closePath();
+    ctx.lineWidth = 2; ctx.strokeStyle = '#0d1319'; ctx.stroke();
+    ctx.fillStyle = kind === 0 ? '#eef2f6' : '#d9dee4'; ctx.fill();
+    // nose cone and a band in the colour of the weapon
+    ctx.fillStyle = 'rgb(' + col + ')';
+    ctx.beginPath(); ctx.moveTo(len * 0.26, -w * 0.44); ctx.quadraticCurveTo(len * 0.43, -w * 0.36, len * 0.5, 0); ctx.quadraticCurveTo(len * 0.43, w * 0.36, len * 0.26, w * 0.44); ctx.closePath(); ctx.fill();
+    ctx.fillRect(-len * 0.3, -w * 0.5, len * 0.1, w);
+    ctx.restore();
+  }
+
   View.prototype.drawUnits = function (ctx, g, z, ox, oy, alpha, now) {
     const cw = this.cw, ch = this.ch, us = g.units;
     const ws = within(4 + z * 2.2, 7, 17), bs = within(3 + z * 1.6, 5, 12);
+    this.frame = (this.frame || 0) + 1;
+    for (let i = 0; i < us.length; i++) {
+      const u = us[i], ty = u.type;
+      if (u.active && (ty === UT.WARSHIP || ty === UT.TRANSPORT || ty === UT.TRADE)) this.pose(g, u, alpha);
+    }
     this.drawWakes(ctx, g, z, ox, oy, alpha);
     ctx.lineJoin = 'round';
     for (let i = 0; i < us.length; i++) {
       const u = us[i], ty = u.type;
       if (!u.active || ty <= UT.FACTORY) continue;
       if (ty >= UT.ATOM) { this.drawMissile(ctx, g, u, z, ox, oy, alpha, now); continue; }
-      const x = (u.px + (u.x - u.px) * alpha + 0.5) * z + ox, y = (u.py + (u.y - u.py) * alpha + 0.5) * z + oy;
+      const sea = ty === UT.WARSHIP || ty === UT.TRANSPORT || ty === UT.TRADE;
+      const x = ((sea ? u.vx : u.px + (u.x - u.px) * alpha) + 0.5) * z + ox, y = ((sea ? u.vy : u.py + (u.y - u.py) * alpha) + 0.5) * z + oy;
       if (x < -30 || y < -30 || x > cw + 30 || y > ch + 30) continue;
       const p = u.owner;
-      if (u.x !== u.px || u.y !== u.py) u.ang = Math.atan2(u.y - u.py, u.x - u.px);
-      const ang = u.ang || 0;
+      const ang = sea ? u.va : 0;
+      if (ty === UT.SHELL) {
+        // a shell: a short glowing streak along its flight, not a dot
+        const dx = u.x - u.px, dy = u.y - u.py, d = Math.hypot(dx, dy) || 1, len = within(z * 2.2, 6, 13);
+        const bx = x - dx / d * len, by = y - dy / d * len;
+        ctx.lineCap = 'round';
+        ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(x, y);
+        ctx.lineWidth = 3.6; ctx.strokeStyle = 'rgba(255,120,30,.38)'; ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(x - dx / d * len * 0.55, y - dy / d * len * 0.55); ctx.lineTo(x, y);
+        ctx.lineWidth = 1.7; ctx.strokeStyle = '#ffe9a8'; ctx.stroke();
+        ctx.beginPath(); ctx.arc(x, y, 1.5, 0, 6.2832); ctx.fillStyle = '#fff'; ctx.fill();
+        continue;
+      }
       if (ty === UT.WARSHIP) {
-        // a pale hull like the merchants', so it shows on any water, with the owner's colour as deck and outline
-        const s = ws * 0.78, ca = Math.cos(ang), sa = Math.sin(ang);
-        hull(ctx, x, y, ang, s, 'war');
-        ctx.fillStyle = '#eef2f6'; ctx.fill();
-        ctx.lineWidth = 3.4; ctx.strokeStyle = '#10161d'; ctx.stroke();
-        ctx.lineWidth = 1.8; ctx.strokeStyle = p.cssB; ctx.stroke();
-        hull(ctx, x, y, ang, s * 0.6, 'war');
-        ctx.fillStyle = p.css; ctx.fill();
-        ctx.fillStyle = '#10161d';
-        ctx.beginPath(); ctx.arc(x + ca * s * 0.3, y + sa * s * 0.3, Math.max(1.3, s * 0.17), 0, 6.2832); ctx.fill();
-        ctx.beginPath(); ctx.arc(x - ca * s * 0.38, y - sa * s * 0.38, Math.max(1.1, s * 0.14), 0, 6.2832); ctx.fill();
+        const s = ws * 0.95, tg = u.target && u.target.active && u.target.type !== UT.TRADE ? u.target : null;
+        warship(ctx, x, y, ang, s, p, tg ? Math.atan2(tg.y - u.y, tg.x - u.x) - ang : null);
         if (u.hp < 1000) {
           ctx.fillStyle = '#10161d'; ctx.fillRect(x - ws / 2 - 1, y + ws * 0.85 - 1, ws + 2, 5);
           ctx.fillStyle = u.hp < 400 ? '#ff6b5e' : u.hp < 750 ? '#f4b740' : '#63d391'; ctx.fillRect(x - ws / 2, y + ws * 0.85, ws * u.hp / 1000, 3);
@@ -3921,17 +4246,18 @@ body.placing #cv { cursor: crosshair; }
           ctx.fillStyle = '#f4b740'; ctx.fillText(G.fmt(u.gold), x, y - s * 0.8);
         }
       } else {
-        ctx.beginPath(); ctx.arc(x, y, ty === UT.SHELL ? 1.6 : 2.2, 0, 6.2832);
-        ctx.fillStyle = ty === UT.SHELL ? '#10161d' : '#fff'; ctx.fill();
+        ctx.beginPath(); ctx.arc(x, y, 2.2, 0, 6.2832);
+        ctx.fillStyle = '#fff'; ctx.fill();
       }
     }
   };
 
   // An engine pulling two wagons along the track.
+  const RP = { x: 0, y: 0, a: 0 };
   View.prototype.drawTrain = function (ctx, g, u, z, ox, oy, alpha) {
-    const path = u.edge.path, n = path.length, W = g.W, dir = u.fwd ? 1 : -1, p = u.owner;
-    const moved = u.x !== u.px || u.y !== u.py;
-    const head = u.pi - (moved ? dir * (1 - alpha) : 0);
+    const n = u.edge.path.length, dir = u.fwd ? 1 : -1, p = u.owner, geo = railGeo(u.edge, g.W);
+    // glide between tiles the way ships do: `mv` is the part of the next tile already covered
+    const head = within(u.pi + dir * ((u.mv || 0) + (u.st === g.ticks ? alpha * g.pace : 0)), 0, n - 1);
     // Big enough to make out even on a map zoomed right out, where a train used to be three
     // specks melting into the track.
     const L = Math.max(9.5, z * 1.45), B = Math.max(4.5, z * 0.86);
@@ -3939,12 +4265,10 @@ body.placing #cv { cursor: crosshair; }
     // so they stay separate instead of piling up when zoomed out.
     const gap = Math.max(1.55, L * 1.3 / z);
     for (let k = 2; k >= 0; k--) {
-      const f = within(head - dir * k * gap, 0, n - 1), i0 = Math.min(n - 2, Math.floor(f)), fr = f - i0;
-      if (i0 < 0) return;
-      const ax = path[i0] % W, ay = (path[i0] / W) | 0, bx = path[i0 + 1] % W, by = (path[i0 + 1] / W) | 0;
-      const x = (ax + (bx - ax) * fr + 0.5) * z + ox, y = (ay + (by - ay) * fr + 0.5) * z + oy;
+      railAt(geo, within(head - dir * k * gap, 0, n - 1), RP);
+      const x = (RP.x + 0.5) * z + ox, y = (RP.y + 0.5) * z + oy;
       ctx.save();
-      ctx.translate(x, y); ctx.rotate(Math.atan2(by - ay, bx - ax));
+      ctx.translate(x, y); ctx.rotate(RP.a);
       // dark skirt, so the carriage lifts off the track and the land underneath
       ctx.fillStyle = 'rgba(16,14,12,.5)';
       ctx.fillRect(-L / 2 - 1.2, -B / 2 - 1.2, L + 2.4, B + 2.4);
@@ -4051,9 +4375,18 @@ body.placing #cv { cursor: crosshair; }
       ctx.lineTo(x, y);
     }
     ctx.strokeStyle = 'rgba(' + col + ',0.5)'; ctx.lineWidth = ty === UT.WARHEAD ? 1 : 2; ctx.stroke();
-    ctx.beginPath(); ctx.arc(x, y, ty === UT.WARHEAD ? 2 : ty === UT.ATOM || ty === UT.CRUISE ? 3.5 : 5, 0, 6.2832);
-    ctx.fillStyle = 'rgb(' + col + ')'; ctx.fill();
-    if (ty !== UT.WARHEAD) { ctx.lineWidth = 1.2; ctx.strokeStyle = '#fff'; ctx.stroke(); }
+    if (ty === UT.WARHEAD) {
+      ctx.beginPath(); ctx.arc(x, y, 2, 0, 6.2832);
+      ctx.fillStyle = 'rgb(' + col + ')'; ctx.fill();
+      return;
+    }
+    // the nose points along the arc it is flying
+    const ang = Math.atan2((ey - sy) - Math.cos(Math.PI * prog) * Math.PI * liftMax * z, ex - sx);
+    const flick = 0.5 + 0.5 * Math.sin(now / 38 + u.id);
+    if (ty === UT.CRUISE) rocket(ctx, x, y, ang, within(z * 4.2, 13, 24), col, 0, flick);
+    else if (ty === UT.ATOM) rocket(ctx, x, y, ang, within(z * 3.6, 12, 20), col, 1, flick);
+    else if (ty === UT.HYDRO) rocket(ctx, x, y, ang, within(z * 4.6, 15, 27), col, 2, flick);
+    else rocket(ctx, x, y, ang, within(z * 5, 16, 30), col, 2, flick);      // the MIRV carrier
   };
 
   View.prototype.drawFx = function (ctx, g, z, ox, oy, now) {
@@ -4069,7 +4402,7 @@ body.placing #cv { cursor: crosshair; }
     const list = this.fxList;
     for (let i = list.length - 1; i >= 0; i--) {
       const f = list[i];
-      const dur = f.k === 'boom' ? (f.big ? 2600 : 1100) : f.k === 'text' ? 2500 : f.k === 'coin' ? 1500 : f.k === 'flag' ? 700 : 420, k = (now - f.t0) / dur;
+      const dur = f.k === 'boom' ? (f.big ? 2600 : 1100) : f.k === 'text' ? 2500 : f.k === 'coin' ? 1500 : f.k === 'flag' ? 700 : f.k === 'muzzle' ? 170 : 420, k = (now - f.t0) / dur;
       if (k >= 1 || (f.k === 'coin' && !f.mine)) { list.splice(i, 1); continue; }
       const x = (f.x + 0.5) * z + ox, y = (f.y + 0.5) * z + oy, e = k * (2 - k);
       if (f.k === 'boom') {
@@ -4120,6 +4453,23 @@ body.placing #cv { cursor: crosshair; }
           ctx.fillStyle = '#ffe08a'; ctx.fillText(label, x, y - 10 - 18 * k);
           ctx.globalAlpha = 1;
         }
+      } else if (f.k === 'muzzle') {
+        // gun flash at the muzzle, towards the target
+        const a = Math.atan2(f.ty - f.y, f.tx - f.x), r = within(z * 2.4, 6, 13) * (1 - k * 0.5);
+        const mx = x + Math.cos(a) * r * 0.9, my = y + Math.sin(a) * r * 0.9;
+        ctx.beginPath(); ctx.arc(mx, my, r * 0.75, 0, 6.2832);
+        ctx.fillStyle = 'rgba(255,170,60,' + (0.55 * (1 - k)).toFixed(3) + ')'; ctx.fill();
+        ctx.beginPath(); ctx.arc(mx, my, r * 0.35, 0, 6.2832);
+        ctx.fillStyle = 'rgba(255,250,220,' + (1 - k).toFixed(3) + ')'; ctx.fill();
+      } else if (f.k === 'pop' && f.hit) {
+        // a shell striking home: a burst of fire, then a ring of spray
+        const r = within(z * 3, 7, 16);
+        ctx.beginPath(); ctx.arc(x, y, r * (0.4 + 0.6 * e), 0, 6.2832);
+        ctx.fillStyle = 'rgba(255,150,50,' + (0.75 * (1 - k)).toFixed(3) + ')'; ctx.fill();
+        ctx.beginPath(); ctx.arc(x, y, r * 0.3 * (1 - k), 0, 6.2832);
+        ctx.fillStyle = 'rgba(255,250,220,' + (1 - k).toFixed(3) + ')'; ctx.fill();
+        ctx.beginPath(); ctx.arc(x, y, r * (0.6 + 1.1 * e), 0, 6.2832);
+        ctx.strokeStyle = 'rgba(255,255,255,' + (0.7 * (1 - k)).toFixed(3) + ')'; ctx.lineWidth = 1.6; ctx.stroke();
       } else if (f.k === 'flag') {
         ctx.beginPath(); ctx.arc(x, y, 4 + 16 * e, 0, 6.2832);
         ctx.strokeStyle = 'rgba(244,183,64,' + (1 - k).toFixed(3) + ')'; ctx.lineWidth = 3 * (1 - k) + 1; ctx.stroke();
@@ -4161,6 +4511,42 @@ body.placing #cv { cursor: crosshair; }
         ctx.strokeText(tr, x, y + fs * 0.5);
         ctx.fillText(tr, x, y + fs * 0.5);
       }
+    }
+  };
+
+  // Every attack on you is marked where it comes in: a red ring pulsing on the border with an
+  // exclamation mark in it, so the eye finds the spot at once, even far from where you are looking.
+  View.prototype.drawRaids = function (ctx, g, z, ox, oy, now) {
+    const h = g.human, W = g.W;
+    if (!h || !h.inc.length) return;
+    const k = 0.5 + 0.5 * Math.sin(now / 130);
+    for (const at of h.inc) {
+      if (!at.active || !at.front.size) continue;
+      if (at.vAt === undefined || now - at.vAt > 500) {
+        // the middle of the contested stretch of border, pinned to a tile that really is on it
+        let sx = 0, sy = 0, c = 0;
+        for (const t of at.front) { sx += t % W; sy += (t / W) | 0; if (++c >= 80) break; }
+        sx /= c; sy /= c;
+        let bd = Infinity, bx = sx, by = sy; c = 0;
+        for (const t of at.front) {
+          const x = t % W, y = (t / W) | 0, d = (x - sx) * (x - sx) + (y - sy) * (y - sy);
+          if (d < bd) { bd = d; bx = x; by = y; }
+          if (++c >= 80) break;
+        }
+        // ease towards the new spot so the mark does not jump about as the front moves
+        at.vx = at.vAt === undefined ? bx : at.vx + (bx - at.vx) * 0.5; at.vy = at.vAt === undefined ? by : at.vy + (by - at.vy) * 0.5;
+        at.vAt = now;
+      }
+      const x = (at.vx + 0.5) * z + ox, y = (at.vy + 0.5) * z + oy;
+      if (x < -30 || y < -30 || x > this.cw + 30 || y > this.ch + 30) continue;
+      const r = 9 + 3 * k;
+      ctx.beginPath(); ctx.arc(x, y, r + 5 + 9 * k, 0, 6.2832);
+      ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(255,60,48,' + (0.55 * (1 - k)).toFixed(3) + ')'; ctx.stroke();
+      ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832);
+      ctx.fillStyle = 'rgba(214,40,32,' + (0.78 + 0.2 * k).toFixed(2) + ')'; ctx.fill();
+      ctx.lineWidth = 2; ctx.strokeStyle = '#fff'; ctx.stroke();
+      ctx.font = '800 ' + (r * 1.5).toFixed(1) + 'px ' + FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#fff'; ctx.fillText('!', x, y + 0.5);
     }
   };
 
@@ -5067,6 +5453,11 @@ body.placing #cv { cursor: crosshair; }
         view.flyTo(h.spawnTile % W, (h.spawnTile / W) | 0, within(Math.min(view.cw, view.ch) / 70, 2.2, 6));
         addMsg('Los geht es. Breite dich aus, bevor es andere tun.', 'good');
         snd('start');
+      } else if (e.k === 'raid') {
+        // under attack: the edge of the screen flashes red three times
+        const al = $('alarm');
+        al.classList.remove('on'); void al.offsetWidth; al.classList.add('on');
+        snd('alarm', 0.5);
       } else if (e.k === 'loot') {
         if (e.by === h.id && e.gold > 0) { view.floatText(e.x, e.y, '+ ' + fmt(e.gold)); goldPop(e.gold); }
       } else if (e.k === 'defeat') showEnd('defeat', null);
