@@ -377,6 +377,7 @@
     this.drawFx(ctx, g, z, ox, oy, now);
     this.drawNames(ctx, g, z, ox, oy);
     this.drawRaids(ctx, g, z, ox, oy, now);
+    this.drawFronts(ctx, g, z, ox, oy, now);
     this.drawIncoming(ctx, g, z, ox, oy, alpha, now);
     this.drawMarks(ctx, g, z, ox, oy, now);
     if (this.aim) this.drawAim(ctx, g, z, ox, oy, now);
@@ -532,7 +533,7 @@
     const gh = this.ghost, W = g.W, R = g.R, h = g.human;
     if (gh.tile < 0 || !h) return;
     const x = (gh.tile % W + 0.5) * z + ox, y = (((gh.tile / W) | 0) + 0.5) * z + oy;
-    const s = within(5 + z * 3, 9, 22) * 1.5, t = gh.type, bad = !gh.ok;
+    const s = within(6 + z * 3, 15, 25) * 1.4, t = gh.type, bad = !gh.ok;
     const rout = t === UT.HYDRO ? R.hydroOut : t === UT.ATOM ? R.atomOut : t === UT.CRUISE ? R.cruiseOut : t === UT.LASER ? R.laserOut : 0;
     const rin = t === UT.HYDRO ? R.hydroIn : t === UT.ATOM ? R.atomIn : t === UT.CRUISE ? R.cruiseIn : t === UT.LASER ? R.laserIn : 0;
     if (t >= UT.ATOM && t !== UT.LASER) {
@@ -552,6 +553,25 @@
         ctx.beginPath(); ctx.arc(x, y, reach * z, 0, 6.2832);
         ctx.fillStyle = 'rgba(255,255,255,.07)'; ctx.fill();
         ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(255,255,255,.6)'; ctx.stroke();
+      }
+      // Railways: a factory ties in every station (city, port, factory) within its reach, and a
+      // new city or port is tied to a factory in reach. Shown before the building is placed.
+      if (t === UT.FACTORY || t === UT.CITY || t === UT.PORT) {
+        const gx = gh.tile % W, gy = (gh.tile / W) | 0, rr = R.rail * R.rail;
+        if (t === UT.FACTORY) {
+          ctx.beginPath(); ctx.arc(x, y, R.rail * z, 0, 6.2832);
+          ctx.fillStyle = 'rgba(255,214,120,.06)'; ctx.fill();
+          ctx.setLineDash([8, 6]); ctx.lineWidth = 1.6; ctx.strokeStyle = 'rgba(255,214,120,.85)'; ctx.stroke(); ctx.setLineDash([]);
+        }
+        ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(255,214,120,.9)';
+        if (!bad) for (const u of h.units) {
+          if (!u.built || !(t === UT.FACTORY ? G.isStation(u.type) : u.type === UT.FACTORY)) continue;
+          const dx = u.x - gx, dy = u.y - gy;
+          if (dx * dx + dy * dy > rr) continue;
+          const ux = (u.x + 0.5) * z + ox, uy = (u.y + 0.5) * z + oy;
+          ctx.setLineDash([3, 4]); ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(ux, uy); ctx.stroke(); ctx.setLineDash([]);
+          ctx.beginPath(); ctx.arc(ux, uy, s / 2 + 2, 0, 6.2832); ctx.stroke();
+        }
       }
       // the room this building keeps free around itself
       ctx.beginPath(); ctx.arc(x, y, R.structDist * z, 0, 6.2832);
@@ -666,7 +686,7 @@
   };
 
   View.prototype.drawStructures = function (ctx, g, z, ox, oy) {
-    const s = within(5 + z * 3, 9, 22), cw = this.cw, ch = this.ch, T = g.ticks;
+    const s = within(6 + z * 3, 15, 25), cw = this.cw, ch = this.ch, T = g.ticks;
     for (const u of g.structAt.values()) {
       const x = (u.x + 0.5) * z + ox, y = (u.y + 0.5) * z + oy;
       if (x < -s || y < -s || x > cw + s || y > ch + s) continue;
@@ -714,10 +734,27 @@
         ctx.lineTo(hx, hy);
         // The route a boat has sailed is background information: faint enough not to compete
         // with borders and buildings, still clear enough to follow.
-        ctx.globalAlpha = 0.38;
-        ctx.lineWidth = Math.max(1.3, z * 0.8); ctx.strokeStyle = u.owner.css; ctx.stroke();
-        ctx.globalAlpha = 0.16;
-        ctx.lineWidth = Math.max(0.5, z * 0.24); ctx.strokeStyle = '#fff'; ctx.stroke();
+        // The course of a troop boat is worth seeing at a glance: a dark edge, the owner's
+        // colour on top, a light core. What lies ahead is dashed, and a ring marks the landing.
+        ctx.globalAlpha = 0.55;
+        ctx.lineWidth = Math.max(3.2, z * 1.3); ctx.strokeStyle = 'rgba(8,14,22,1)'; ctx.stroke();
+        ctx.globalAlpha = 0.95;
+        ctx.lineWidth = Math.max(2, z * 0.9); ctx.strokeStyle = u.owner.cssB || u.owner.css; ctx.stroke();
+        ctx.globalAlpha = 0.5;
+        ctx.lineWidth = Math.max(0.7, z * 0.26); ctx.strokeStyle = '#fff'; ctx.stroke();
+        if (!u.retreat && end < p.length - 1) {
+          ctx.beginPath(); ctx.moveTo(hx, hy);
+          for (let k = end + 2; k < p.length; k += step) ctx.lineTo((p[k] % W + 0.5) * z + ox, (((p[k] / W) | 0) + 0.5) * z + oy);
+          const lt = p[p.length - 1], lx = (lt % W + 0.5) * z + ox, ly = (((lt / W) | 0) + 0.5) * z + oy;
+          ctx.lineTo(lx, ly);
+          ctx.setLineDash([6, 5]);
+          ctx.globalAlpha = 0.5; ctx.lineWidth = Math.max(3, z * 1.1); ctx.strokeStyle = 'rgba(8,14,22,1)'; ctx.stroke();
+          ctx.globalAlpha = 0.9; ctx.lineWidth = Math.max(1.6, z * 0.6); ctx.strokeStyle = u.owner.cssB || u.owner.css; ctx.stroke();
+          ctx.setLineDash([]);
+          ctx.beginPath(); ctx.arc(lx, ly, Math.max(5, z * 1.6), 0, 6.2832);
+          ctx.globalAlpha = 0.9; ctx.lineWidth = 3.5; ctx.strokeStyle = 'rgba(8,14,22,1)'; ctx.stroke();
+          ctx.lineWidth = 2; ctx.strokeStyle = u.owner.cssB || u.owner.css; ctx.stroke();
+        }
         ctx.globalAlpha = 1;
         continue;
       }
@@ -838,42 +875,54 @@
 
   // A rocket or bomb in flight, nose along `ang`. `kind`: 0 cruise missile (slim, swept wings),
   // 1 atom bomb, 2 hydrogen bomb (stubby, tail fins).
-  function rocket(ctx, x, y, ang, len, col, kind, flame) {
+  // A missile seen from above. No outline and no toy colours: a slim body of dull metal that catches
+  // the light along its back, small fins, a narrow band in the colour of the weapon, a glowing
+  // exhaust and a position light that blinks. kind 0: cruise missile with wings, 1/2: ballistic.
+  function rocket(ctx, x, y, ang, len, col, kind, flame, blink) {
     ctx.save();
     ctx.translate(x, y); ctx.rotate(ang);
-    const w = kind ? len * 0.34 : len * 0.17;
+    const w = kind ? len * 0.2 : len * 0.12, tail = -len * 0.5;
     if (flame > 0) {
-      // exhaust: a flickering tongue of fire behind the tail
-      const fl = len * (kind ? 0.5 : 0.75) * (0.75 + 0.25 * flame);
-      ctx.beginPath(); ctx.moveTo(-len * 0.5, -w * 0.32); ctx.lineTo(-len * 0.5 - fl, 0); ctx.lineTo(-len * 0.5, w * 0.32); ctx.closePath();
-      ctx.fillStyle = 'rgba(255,190,70,.95)'; ctx.fill();
-      ctx.beginPath(); ctx.moveTo(-len * 0.5, -w * 0.16); ctx.lineTo(-len * 0.5 - fl * 0.55, 0); ctx.lineTo(-len * 0.5, w * 0.16); ctx.closePath();
-      ctx.fillStyle = '#fff6d8'; ctx.fill();
+      // exhaust: a soft glow with a white-hot core, flickering in length
+      const fl = len * (kind ? 0.9 : 0.6) * (0.7 + 0.3 * flame);
+      const gr = ctx.createRadialGradient(tail, 0, 0, tail - fl * 0.35, 0, fl);
+      gr.addColorStop(0, 'rgba(255,250,230,.95)'); gr.addColorStop(0.25, 'rgba(255,196,96,.7)'); gr.addColorStop(0.6, 'rgba(' + col + ',.28)'); gr.addColorStop(1, 'rgba(' + col + ',0)');
+      ctx.fillStyle = gr;
+      ctx.beginPath(); ctx.ellipse(tail - fl * 0.4, 0, fl, w * 1.5 + fl * 0.16, 0, 0, 6.2832); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(tail, -w * 0.3); ctx.lineTo(tail - fl * 0.55, 0); ctx.lineTo(tail, w * 0.3); ctx.closePath();
+      ctx.fillStyle = 'rgba(255,252,240,.95)'; ctx.fill();
     }
-    ctx.lineJoin = 'round';
-    // wings or fins first, so the body lies on top
+    // fins or wings, dark, under the body
     ctx.beginPath();
     if (kind === 0) {
-      ctx.moveTo(len * 0.1, 0); ctx.lineTo(-len * 0.16, -len * 0.36); ctx.lineTo(-len * 0.28, -len * 0.36); ctx.lineTo(-len * 0.12, 0);
-      ctx.lineTo(-len * 0.28, len * 0.36); ctx.lineTo(-len * 0.16, len * 0.36); ctx.closePath();
-      ctx.moveTo(-len * 0.36, 0); ctx.lineTo(-len * 0.5, -len * 0.17); ctx.lineTo(-len * 0.5, len * 0.17); ctx.closePath();
+      ctx.moveTo(len * 0.06, 0); ctx.lineTo(-len * 0.14, -len * 0.3); ctx.lineTo(-len * 0.22, -len * 0.3); ctx.lineTo(-len * 0.1, 0);
+      ctx.lineTo(-len * 0.22, len * 0.3); ctx.lineTo(-len * 0.14, len * 0.3); ctx.closePath();
+      ctx.moveTo(-len * 0.38, 0); ctx.lineTo(tail, -len * 0.13); ctx.lineTo(tail, len * 0.13); ctx.closePath();
     } else {
-      ctx.moveTo(-len * 0.2, 0); ctx.lineTo(-len * 0.5, -w * 1.05); ctx.lineTo(-len * 0.5, w * 1.05); ctx.closePath();
+      ctx.moveTo(-len * 0.26, 0); ctx.lineTo(tail, -w * 1.25); ctx.lineTo(tail + len * 0.05, 0); ctx.lineTo(tail, w * 1.25); ctx.closePath();
     }
-    ctx.lineWidth = 2; ctx.strokeStyle = '#0d1319'; ctx.stroke();
-    ctx.fillStyle = 'rgb(' + col + ')'; ctx.fill();
-    // body with a pointed nose
+    ctx.fillStyle = '#20262d'; ctx.fill();
+    // the body: a long ogive
     ctx.beginPath();
-    ctx.moveTo(-len * 0.5, -w * 0.5); ctx.lineTo(len * 0.18, -w * 0.5);
-    ctx.quadraticCurveTo(len * 0.42, -w * 0.42, len * 0.5, 0);
-    ctx.quadraticCurveTo(len * 0.42, w * 0.42, len * 0.18, w * 0.5);
-    ctx.lineTo(-len * 0.5, w * 0.5); ctx.closePath();
-    ctx.lineWidth = 2; ctx.strokeStyle = '#0d1319'; ctx.stroke();
-    ctx.fillStyle = kind === 0 ? '#eef2f6' : '#d9dee4'; ctx.fill();
-    // nose cone and a band in the colour of the weapon
-    ctx.fillStyle = 'rgb(' + col + ')';
-    ctx.beginPath(); ctx.moveTo(len * 0.26, -w * 0.44); ctx.quadraticCurveTo(len * 0.43, -w * 0.36, len * 0.5, 0); ctx.quadraticCurveTo(len * 0.43, w * 0.36, len * 0.26, w * 0.44); ctx.closePath(); ctx.fill();
-    ctx.fillRect(-len * 0.3, -w * 0.5, len * 0.1, w);
+    ctx.moveTo(tail, -w * 0.5); ctx.lineTo(len * 0.12, -w * 0.5);
+    ctx.quadraticCurveTo(len * 0.4, -w * 0.4, len * 0.5, 0);
+    ctx.quadraticCurveTo(len * 0.4, w * 0.4, len * 0.12, w * 0.5);
+    ctx.lineTo(tail, w * 0.5); ctx.closePath();
+    const bg = ctx.createLinearGradient(0, -w * 0.5, 0, w * 0.5);
+    bg.addColorStop(0, '#59626c'); bg.addColorStop(0.35, '#c9d0d8'); bg.addColorStop(0.55, '#8d96a0'); bg.addColorStop(1, '#2c333b');
+    ctx.fillStyle = bg; ctx.fill();
+    ctx.lineWidth = 0.8; ctx.strokeStyle = 'rgba(10,14,18,.75)'; ctx.stroke();
+    // a narrow band says which weapon it is
+    ctx.fillStyle = 'rgba(' + col + ',.95)';
+    ctx.fillRect(-len * 0.05, -w * 0.5, len * 0.06, w);
+    if (kind === 2) ctx.fillRect(-len * 0.2, -w * 0.5, len * 0.035, w);
+    // position light
+    if (blink) {
+      const lr = Math.max(1.4, len * 0.07);
+      const lg = ctx.createRadialGradient(len * 0.3, 0, 0, len * 0.3, 0, lr * 4);
+      lg.addColorStop(0, 'rgba(255,255,255,1)'); lg.addColorStop(0.25, 'rgba(255,90,70,.85)'); lg.addColorStop(1, 'rgba(255,60,40,0)');
+      ctx.fillStyle = lg; ctx.beginPath(); ctx.arc(len * 0.3, 0, lr * 4, 0, 6.2832); ctx.fill();
+    }
     ctx.restore();
   }
 
@@ -1054,16 +1103,36 @@
     const sx = (u.sx + 0.5) * z + ox, sy = (u.sy + 0.5) * z + oy;
     const ex = (u.dx + 0.5) * z + ox, ey = (u.dy + 0.5) * z + oy;
     if (Math.max(sx, ex) < -80 || Math.min(sx, ex) > this.cw + 80 || Math.max(sy, ey) < -200 || Math.min(sy, ey) > this.ch + 80) return;
-    ctx.beginPath();
-    const steps = ty === UT.WARHEAD ? 6 : 14;
+    const steps = ty === UT.WARHEAD ? 6 : 22;
     let x = sx, y = sy;
-    ctx.moveTo(sx, sy);
-    for (let i = 1; i <= steps; i++) {
-      const q = prog * i / steps;
-      x = sx + (ex - sx) * q; y = sy + (ey - sy) * q - Math.sin(Math.PI * q) * liftMax * z;
-      ctx.lineTo(x, y);
+    if (ty === UT.WARHEAD) {
+      ctx.beginPath(); ctx.moveTo(sx, sy);
+      for (let i = 1; i <= steps; i++) {
+        const q = prog * i / steps;
+        x = sx + (ex - sx) * q; y = sy + (ey - sy) * q - Math.sin(Math.PI * q) * liftMax * z;
+        ctx.lineTo(x, y);
+      }
+      ctx.strokeStyle = 'rgba(' + col + ',0.5)'; ctx.lineWidth = 1; ctx.stroke();
+    } else {
+      // The trail is smoke, not a drawn line: it thins out and fades the older it is, and only
+      // the last stretch behind the engine still glows in the colour of the weapon.
+      ctx.lineCap = 'round';
+      let px = sx, py = sy;
+      for (let i = 1; i <= steps; i++) {
+        const f = i / steps, q = prog * f;
+        x = sx + (ex - sx) * q; y = sy + (ey - sy) * q - Math.sin(Math.PI * q) * liftMax * z;
+        ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(x, y);
+        ctx.strokeStyle = 'rgba(232,235,240,' + (0.07 + 0.5 * f * f).toFixed(3) + ')';
+        ctx.lineWidth = 0.8 + 2.6 * (1 - f) + (f > 0.9 ? 0.6 : 0); ctx.stroke();
+        if (f > 0.8) { ctx.strokeStyle = 'rgba(' + col + ',' + ((f - 0.8) * 3.6).toFixed(3) + ')'; ctx.lineWidth = 1.6; ctx.stroke(); }
+        px = x; py = y;
+      }
+      ctx.lineCap = 'butt';
+      // its shadow runs along the ground below, so the height of the arc can be read
+      const gx = sx + (ex - sx) * prog, gy = sy + (ey - sy) * prog, hgt = Math.sin(Math.PI * prog);
+      ctx.beginPath(); ctx.ellipse(gx, gy, 3 + 2.5 * hgt, 1.6 + 1.2 * hgt, 0, 0, 6.2832);
+      ctx.fillStyle = 'rgba(0,0,0,' + (0.3 - 0.16 * hgt).toFixed(3) + ')'; ctx.fill();
     }
-    ctx.strokeStyle = 'rgba(' + col + ',0.5)'; ctx.lineWidth = ty === UT.WARHEAD ? 1 : 2; ctx.stroke();
     if (ty === UT.WARHEAD) {
       ctx.beginPath(); ctx.arc(x, y, 2, 0, 6.2832);
       ctx.fillStyle = 'rgb(' + col + ')'; ctx.fill();
@@ -1072,10 +1141,13 @@
     // the nose points along the arc it is flying
     const ang = Math.atan2((ey - sy) - Math.cos(Math.PI * prog) * Math.PI * liftMax * z, ex - sx);
     const flick = 0.5 + 0.5 * Math.sin(now / 38 + u.id);
-    if (ty === UT.CRUISE) rocket(ctx, x, y, ang, within(z * 4.2, 13, 24), col, 0, flick);
-    else if (ty === UT.ATOM) rocket(ctx, x, y, ang, within(z * 3.6, 12, 20), col, 1, flick);
-    else if (ty === UT.HYDRO) rocket(ctx, x, y, ang, within(z * 4.6, 15, 27), col, 2, flick);
-    else rocket(ctx, x, y, ang, within(z * 5, 16, 30), col, 2, flick);      // the MIRV carrier
+    // higher up it is nearer to the eye: it grows towards the top of the arc
+    const up = 1 + 0.35 * Math.sin(Math.PI * prog) * (ty === UT.CRUISE ? 0.3 : 1);
+    const blink = (now + u.id * 137) % 620 < 150;
+    if (ty === UT.CRUISE) rocket(ctx, x, y, ang, within(z * 4.2, 13, 24) * up, col, 0, flick, blink);
+    else if (ty === UT.ATOM) rocket(ctx, x, y, ang, within(z * 3.6, 12, 20) * up, col, 1, flick, blink);
+    else if (ty === UT.HYDRO) rocket(ctx, x, y, ang, within(z * 4.6, 15, 27) * up, col, 2, flick, blink);
+    else rocket(ctx, x, y, ang, within(z * 5, 16, 30) * up, col, 2, flick, blink);      // the MIRV carrier
   };
 
   // A warship that is destroyed: white flash, fireball, shock ring, a second blast from the magazine,
@@ -1293,6 +1365,69 @@
       ctx.lineWidth = 2; ctx.strokeStyle = '#fff'; ctx.stroke();
       ctx.font = '800 ' + (r * 1.5).toFixed(1) + 'px ' + FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillStyle = '#fff'; ctx.fillText('!', x, y + 0.5);
+    }
+  };
+
+  // ---------- the fronts ----------
+  // Where the player is fighting, a small plate on the border says how many troops are in the
+  // fight and how many are still on the march there. Attacks on the player get a red plate.
+  View.prototype.frontSpot = function (g, at, now) {
+    const map = this.fronts || (this.fronts = new Map());
+    let e = map.get(at.id);
+    if (e && now - e.at < 500) return e;
+    if (!e) { e = { x: 0, y: 0, ok: false, at: 0 }; map.set(at.id, e); }
+    e.at = now; e.ok = false;
+    const W = g.W;
+    let tx, ty, n = 0;
+    if (at.near >= 0) { tx = at.near % W; ty = (at.near / W) | 0; }
+    else {
+      let sx = 0, sy = 0;
+      for (const t of at.front) { sx += t % W; sy += (t / W) | 0; if (++n >= 4000) break; }
+      if (!n) return e;
+      tx = sx / n; ty = sy / n;
+    }
+    let bd = 1e18; n = 0;
+    for (const t of at.front) {
+      const x = t % W, y = (t / W) | 0, d = (x - tx) * (x - tx) + (y - ty) * (y - ty);
+      if (d < bd) { bd = d; e.x = x; e.y = y; e.ok = true; }
+      if (++n >= 20000) break;
+    }
+    return e;
+  };
+  View.prototype.drawFronts = function (ctx, g, z, ox, oy, now) {
+    const h = g.human;
+    if (!h || !h.alive || g.phase !== 'play') return;
+    const cw = this.cw, ch = this.ch, fmtT = G.fmtTroops;
+    if (this.fronts && this.fronts.size > 64) this.fronts.clear();
+    const plate = function (x, y, a, b, bad) {
+      ctx.font = '700 12px ' + FONT; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+      const wa = ctx.measureText(a).width, wb = b ? ctx.measureText(b).width + 8 : 0, w = wa + wb + 16, hh = 20;
+      const px = within(x - w / 2, 4, cw - w - 4), py = y - hh - 9;
+      ctx.beginPath(); ctx.moveTo(x - 5, py + hh - 0.5); ctx.lineTo(x, py + hh + 6); ctx.lineTo(x + 5, py + hh - 0.5); ctx.closePath();
+      ctx.fillStyle = bad ? 'rgba(120,22,16,.94)' : 'rgba(13,20,27,.92)'; ctx.fill();
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(px, py, w, hh, 6); else ctx.rect(px, py, w, hh);
+      ctx.fill();
+      ctx.lineWidth = 1; ctx.strokeStyle = bad ? 'rgba(255,150,140,.8)' : 'rgba(255,255,255,.35)'; ctx.stroke();
+      ctx.fillStyle = '#fff'; ctx.fillText(a, px + 8, py + hh / 2 + 0.5);
+      if (b) { ctx.fillStyle = '#ffd27a'; ctx.fillText(b, px + 8 + wa + 8, py + hh / 2 + 0.5); }
+    };
+    for (const at of h.out) {
+      if (!at.active) continue;
+      const e = this.frontSpot(g, at, now);
+      if (!e.ok) continue;
+      const x = (e.x + 0.5) * z + ox, y = (e.y + 0.5) * z + oy;
+      if (x < -40 || y < -10 || x > cw + 40 || y > ch + 40) continue;
+      plate(x, y, '⚔ ' + fmtT(at.troops), at.want >= 1 ? '+' + fmtT(at.want) + ' unterwegs' : '', false);
+    }
+    let shown = 0;
+    for (const at of h.inc) {
+      if (!at.active || at.troops < 1 || shown >= 4) continue;
+      const e = this.frontSpot(g, at, now);
+      if (!e.ok) continue;
+      const x = (e.x + 0.5) * z + ox, y = (e.y + 0.5) * z + oy;
+      if (x < -40 || y < -10 || x > cw + 40 || y > ch + 40) continue;
+      plate(x, y, '⚔ ' + fmtT(at.troops), '', true); shown++;
     }
   };
 

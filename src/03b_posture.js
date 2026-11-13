@@ -19,7 +19,8 @@
   const Game = G.Game, within = G.within;
   const SH = 4, CS = 1 << SH;             // cell size in tiles
   const FLOW = 5;                         // ticks between two steps of marching
-  const BASE = 40;                        // ticks to cross one cell of open ground
+  const BASE = 30;                        // ticks to cross one cell of open ground
+  const HAND = 4;                         // an order has at hand what stands within so many cells of the spot
   const RAIL = 0.2;                       // a railway makes a cell that much quicker to cross
   const M_MIN = 0.2, M_MAX = 6;           // range of the weight a person can give a cell
   G.POST = { cell: CS, flow: FLOW, mMin: M_MIN, mMax: M_MAX };
@@ -161,7 +162,19 @@
     if (at.want < 1) { at.want = 0; return; }
     const c = this.postCellOfAttack(at);
     if (!c) { at.want = 0; return; }
-    const got = this.postTake(a, c, at.want);
+    // at hand: the cell at the spot and the cells around it, nearest first
+    const cells = a.post.cells, CW = this.CW, cx = c.id % CW;
+    let got = this.postTake(a, c, at.want);
+    for (let r = 1; r <= HAND && at.want - got >= 1; r++) {
+      for (let dy = -r; dy <= r && at.want - got >= 1; dy++) {
+        for (let dx = -r; dx <= r; dx++) {
+          if ((dy > -r && dy < r && dx > -r && dx < r) || cx + dx < 0 || cx + dx >= CW) continue;      // only the ring
+          const o = cells.get(c.id + dy * CW + dx);
+          if (o && o.u > 0) got += this.postTake(a, o, at.want - got);
+          if (at.want - got < 1) break;
+        }
+      }
+    }
     if (got <= 0) return;
     at.want -= got;
     this.feedAttack(at, got);
@@ -177,14 +190,18 @@
     for (const o of p.out) if (o.active && o.want > 0) pend += o.want;
     const want = Math.min(p.troops * ratio, Math.max(0, p.troops - pend));
     const H = p.post.H, T = p.troops, real = function (c) { return H > 0 ? c.u / H * T : 0; };   // read only: the display must not touch the game
-    res.now = Math.min(want, real(g));
+    const CW = this.CW, gx = g.id % CW, gy = (g.id - gx) / CW;
+    const near = function (c) { const x = c.id % CW, y = (c.id - x) / CW; return Math.abs(x - gx) <= HAND && Math.abs(y - gy) <= HAND; };
+    let hand = 0;
+    for (const c of p.post.cells.values()) if (near(c)) hand += real(c);
+    res.now = Math.min(want, hand);
     res.later = want - res.now;
     if (res.later < 1) { res.later = 0; return res; }
     // everything thins by the same share; how far away does 85% of what is needed stand?
     this.postDijkstra(p, [g]);
     const list = [];
     let all = 0;
-    for (const c of p.post.cells.values()) { if (c === g || !(c.d < 1e17)) continue; all += real(c); list.push(c); }
+    for (const c of p.post.cells.values()) { if (near(c) || !(c.d < 1e17)) continue; all += real(c); list.push(c); }
     list.sort(function (x, y) { return x.d - y.d || x.id - y.id; });
     let acc = 0, eta = 0;
     for (let i = 0; i < list.length; i++) {

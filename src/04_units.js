@@ -534,7 +534,8 @@
     let dock = u.repair;
     if (dock && (!dock.active || dock.owner !== p || u.hp >= 1000)) dock = u.repair = null;
     if (u.hp < 1000) {
-      if ((T + u.id) % 20 === 0) {
+      // looked at every two seconds; a ship that is badly hit and not yet bound for a port looks at once
+      if ((T + u.id) % 20 === 0 || (!dock && u.hp < 750 && (T + u.id) % 3 === 0)) {
         let best = null, bd = Infinity;
         for (const v of p.units) {
           if (v.type !== UT.PORT || !v.built || map.wcomp[v.water] !== map.wcomp[u.tile]) continue;
@@ -544,6 +545,7 @@
         u.home = best;
         if (!dock && best && u.hp < 750) {
           dock = u.repair = best;
+          u.target = null; u.hunt = null;      // repairs come before prizes: the chase is broken off
           if (p === this.human) this.say('Kriegsschiff läuft zur Reparatur den Hafen an', 'warn');
         }
       }
@@ -661,7 +663,7 @@
     let best = null, bd = Infinity;
     for (const u of p.units) {
       if (u.type !== UT.WARSHIP || map.wcomp[u.tile] !== map.wcomp[w]) continue;
-      const d = (u.x - w % W) * (u.x - w % W) + (u.y - ((w / W) | 0)) * (u.y - ((w / W) | 0));
+      const d = (u.x - w % W) * (u.x - w % W) + (u.y - ((w / W) | 0)) * (u.y - ((w / W) | 0)) + (u.repair ? 1e9 : 0);   // a ship under repair is the last to be sent
       if (d < bd) { bd = d; best = u; }
     }
     if (!best) return false;

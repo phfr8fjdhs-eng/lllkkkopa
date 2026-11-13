@@ -201,6 +201,19 @@ input[type=range] { width: 100%; height: 30px; margin: 0; accent-color: var(--ac
 .upbtn:active:not(:disabled) { transform: scale(.96); }
 
 /* aiming a bomb */
+#peek { position: absolute; left: 50%; top: 8px; transform: translateX(-50%); padding: 7px 12px 8px; min-width: 230px; max-width: min(92vw, 420px); pointer-events: none; }
+.pkTop { display: flex; align-items: center; gap: 8px; }
+.pkTop i { width: 11px; height: 11px; border-radius: 50%; border: 1.5px solid rgba(255, 255, 255, 0.8); flex: none; }
+.pkTop b { font: 700 16px var(--display); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pkTop em { margin-left: auto; padding: 1px 8px; font: 600 11.5px var(--display); font-style: normal; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; white-space: nowrap; }
+.pkTop em.good { color: #7fe0a4; border-color: rgba(127, 224, 164, 0.5); }
+.pkTop em.bad { color: var(--bad); border-color: rgba(255, 107, 94, 0.6); }
+.pkNum, .pkHas { display: flex; flex-wrap: wrap; gap: 3px 14px; margin-top: 5px; font: 600 14px var(--display); font-variant-numeric: tabular-nums; }
+.pkNum span, .pkHas span { display: inline-flex; align-items: center; gap: 4px; }
+.pkNum .gold { color: var(--accent); }
+.pkHas { font-size: 13px; color: var(--muted); }
+.pkHas svg { color: var(--ink); }
+.pkHas .none { font-weight: 500; }
 #commit { min-height: 16px; margin-top: 2px; font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
 #commit b { color: var(--ink); font-weight: 600; }
 #netBar { pointer-events: auto; padding: 10px 12px 12px; border-color: rgba(255, 150, 120, 0.55); }
@@ -361,6 +374,7 @@ body.placing #cv { cursor: crosshair; }
       <button id="bSound" class="tb" type="button" aria-label="Ton aus" aria-pressed="true"></button>
       <button id="bMenu" class="tb" type="button" aria-label="Menü"></button>
     </div>
+    <div id="peek" class="panel" hidden></div>
     <div id="spawnBar" class="panel">
       <strong>Wähle deinen Startpunkt</strong>
       <span id="spawnHint">Tippe auf freies Land</span>

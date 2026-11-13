@@ -42,7 +42,7 @@ const out = (n) => path.join(__dirname, '..', 'build', n);
     return null;
   });
   console.log('target', target);
-  await tapAt(target.x, target.y);   // free land is attacked at once
+  if (mobile) await tapAt(target.x, target.y); else await page.mouse.dblclick(target.x, target.y);   // free land is attacked at once (mouse: double click)
   await page.waitForTimeout(3500);
   await page.screenshot({ path: out(`shot_${tag}_6attack.png`) });
   // fast-forward the simulation a little so there is something to look at

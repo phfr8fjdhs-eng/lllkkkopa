@@ -122,7 +122,7 @@ const out = (n) => path.join(__dirname, '..', 'build', n);
     G.debug.tap(pt.x, pt.y);
     const menuFirst = !radial.hidden;
     radial.hidden = true;
-    const fake = { active: true, tid: q.id, troops: 1 };
+    const fake = { active: true, tid: q.id, troops: 1, a: h, want: 0, cell: -1, near: -1, front: new Set(), heap: new G.Heap(8), id: -1 };
     h.out.push(fake);
     G.debug.tap(pt.x, pt.y);
     const menuAgain = !radial.hidden;

@@ -287,7 +287,7 @@
   // Called every turn of a nation: pick a target and fire as often as the silos allow.
   AI.prototype.nuke = function () {
     const g = this.g, p = this.p, r = g.rng;
-    if (p.cnt[UT.SILO] < 1 || g.ticks < g.immuneUntil) return;
+    if (p.cnt[UT.SILO] < 1 || g.ticks < g.immuneUntil || g.ticks - g.playStart < G.NUKE_PEACE) return;
     if (g.opts.difficulty === 0 && !r.chance(3)) return;   // the easiest nations fire less often
     const q = this.nukeTarget();
     if (!q) return;

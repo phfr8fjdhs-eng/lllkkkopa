@@ -435,14 +435,15 @@
       '<li><b>Spielmodus Arsenal:</b> Zusätzlich gibt es den <b>Satellitenstrahl</b> (600K Gold). Er braucht kein Silo, trifft drei Sekunden nach dem Abfeuern, kann nicht abgefangen werden und hinterlässt keine Verstrahlung. Danach lädt der Satellit 45 Sekunden nach.</li>' +
       '<li><b>Ausbauen:</b> Tippe auf eines deiner Gebäude, dann öffnet sich gleich die Ausbaukarte mit drei Knöpfen: eine Stufe, fünf Stufen oder so viele, wie dein Gold reicht. Städte gehen bis Stufe 100, alle anderen Gebäude bis Stufe 5. Jede Stufe kostet so viel wie ein weiteres Gebäude derselben Art (Stadt: 125K, 250K, 500K, danach je 1M) und bringt bei Städten +25K Truppen-Limit. </li>' +
       '<li><b>Eroberung:</b> Wer ein Reich ganz einnimmt, bekommt dessen Gold (bei Mitspielern die Hälfte) und dazu eine Prämie nach Landgrösse: 60 Gold für jedes Feld, das das Reich zu seiner grössten Zeit hatte. Bots bringen zusätzlich 25K. Die Summe steht in der Spieler-Info.</li>' +
-      '<li><b>Tippen:</b> Ein Tipp auf freies Land oder auf einen Bot greift sofort an. Bei Nationen und Mitspielern öffnet sich das Menü, dort musst du auf Angreifen tippen. Läuft dein Angriff auf sie schon, schickt jeder weitere Tipp auf ihr Land sofort mehr Truppen. Lange drücken öffnet das Menü überall.</li>' +
+      '<li><b>Maus:</b> Ein einfacher Klick schaut sich nur um (Karte ziehen). Ein Doppelklick greift an, der Rechtsklick öffnet das Kreismenü. Fährst du über ein fremdes Reich, steht oben, was es hat.</li>' +
+      '<li><b>Tippen (Handy):</b> Ein Tipp auf freies Land oder auf einen Bot greift sofort an. Bei Nationen und Mitspielern öffnet sich das Menü, dort musst du auf Angreifen tippen. Läuft dein Angriff auf sie schon, schickt jeder weitere Tipp auf ihr Land sofort mehr Truppen. Lange drücken öffnet das Menü überall.</li>' +
       '<li><b>Karte:</b> Ziehen verschiebt, zwei Finger oder das Mausrad zoomen.</li>' +
       '</ul><h2 class="h3">Tastenkürzel</h2><p>Die Belegung ist die von OpenFront.</p><div class="keys">' +
       BUILD.map(function (b) { return '<span><kbd>' + b.key.toUpperCase() + '</kbd>' + plain(b.t) + (b.t === UT.LASER ? ' (Arsenal)' : '') + '</span>'; }).join('') +
       '<span><kbd>G</kbd>Angreifen</span><span><kbd>B</kbd>Boot schicken</span><span><kbd>T</kbd><kbd>Y</kbd>Truppenanteil −/+ 10 %</span>' +
       '<span><kbd>K</kbd>Allianz anfragen</span><span><kbd>L</kbd>Allianz brechen</span><span><kbd>I</kbd>Spieler-Info</span>' +
       '<span><kbd>Q</kbd><kbd>E</kbd>Zoom −/+</span><span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>Karte schieben</span><span><kbd>C</kbd>Zum eigenen Gebiet</span>' +
-      '<span><kbd>P</kbd>Pause</span><span><kbd>,</kbd><kbd>.</kbd>Tempo −/+</span><span><kbd>Strg</kbd>+ Klick: Baumenü</span><span>Rechtsklick: Kreismenü</span><span><kbd>Shift</kbd>+ Mausrad: Truppenanteil</span>' +
+      '<span><kbd>P</kbd>Pause</span><span><kbd>,</kbd><kbd>.</kbd>Tempo −/+</span><span><kbd>Strg</kbd>+ Klick: Baumenü</span><span>Doppelklick: Angreifen</span><span>Rechtsklick: Kreismenü</span><span><kbd>N</kbd>Aufstellung</span><span><kbd>Shift</kbd>+ Mausrad: Truppenanteil</span>' +
       '<span><kbd>Esc</kbd>Schliessen</span></div><p>Eine Bau-Taste zeigt das Gebäude oder die Bombe zuerst am Mauszeiger: in deiner Farbe, wenn es dort geht, rot, wenn nicht. Fehlt nur das Gold, bleibt der Preis stehen und wird rot; sonst steht der Grund dabei. Bei Bomben siehst du schon beim Zielen die Flugbahn vom Silo (rot, wo gegnerische Flugabwehr sie erreicht), den Sprengradius und die Reichweite jeder Flugabwehr: die gegnerische violett, deine eigene grün. Fliegt eine Bombe auf dein Land zu, wird die Reichweite deiner eigenen Flugabwehr ebenfalls eingeblendet. Ein Klick setzt es, mit gedrückter <kbd>Shift</kbd>-Taste mehrere hintereinander. Klickst du damit auf ein eigenes Gebäude derselben Art, wird es um eine Stufe ausgebaut; dieselbe Taste, <kbd>Esc</kbd> oder ein Rechtsklick legt es wieder weg.</p><p>Zusätzlich, weil es das in OpenFront nicht gibt: <kbd>U</kbd> baut das Gebäude unter dem Mauszeiger aus, <kbd>Shift</kbd> + <kbd>1</kbd>–<kbd>6</kbd> das nächste Gebäude dieser Art, <kbd>Enter</kbd> feuert im Zielmodus des Baumenüs die Bombe ab, <kbd>M</kbd> schaltet den Ton, die Leertaste pausiert ebenfalls.</p><p>' +
       'Befehle gelten für die Stelle unter dem Mauszeiger.</p>';
   }
@@ -471,6 +472,7 @@
     $('modal').hidden = true; modalKind = '';
     $('hud').hidden = false; $('spawnBar').hidden = false; $('ctrl').hidden = true; $('lb').hidden = true; $('aimBar').hidden = true;
     netOn = false; stroke = null; netQueue.clear(); lastTile = -1; commitAt = -99; view.net.on = false; view.net.edit.clear(); view.net.w = 0; view.net.at = -1e9;
+    $('peek').hidden = true;
     $('bNet').hidden = true; $('bNet').setAttribute('aria-pressed', 'false'); $('netBar').hidden = true; $('commit').textContent = '';
     $('feedMsgs').innerHTML = ''; $('feedLive').innerHTML = ''; chips.clear(); asks.clear();
     $('lbRows').innerHTML = ''; $('clock').textContent = '0:00';
@@ -686,7 +688,7 @@
       $('sGold').textContent = game.opts.infiniteGold ? '∞' : fmt(h.gold);
       $('sGoldSub').textContent = '+' + fmt(game.goldRate(h) * 10) + '/s';
       $('ratioTroops').textContent = fmtT(h.troops * ratio);
-      if (T - commitAt >= 3) { commitAt = T; showCommit(); }
+      if (T - commitAt >= 3) { commitAt = T; showCommit(); showPeek(); }
     }
     if (T - lbAt >= 10) { lbAt = T; leaderboard(); }
     if (T - liveAt >= 3) { liveAt = T; live(); }
@@ -1097,6 +1099,31 @@
     const s = netOn || aim ? '' : commitText(tile);
     if (el.textContent !== s) el.textContent = s;
   }
+  // The mouse over another realm: a strip at the top says who it is and what it has.
+  const PEEK = [[UT.CITY, 'city'], [UT.PORT, 'port'], [UT.FACTORY, 'factory'], [UT.DEFENSE, 'defense'], [UT.SAM, 'sam'], [UT.SILO, 'silo'], [UT.WARSHIP, 'warship']];
+  function showPeek() {
+    const el = $('peek');
+    if (!el) return;
+    let q = null;
+    const h = game.human;
+    if (hoverX >= 0 && game.phase === 'play' && $('modal').hidden && !netOn) {
+      const t = view.tileAt(hoverX, hoverY), o = t >= 0 ? game.owner[t] : 0;
+      if (o && o !== h.id && game.players[o].alive) q = game.players[o];
+    }
+    if (!q) { if (!el.hidden) { el.hidden = true; el.dataset.id = ''; } return; }
+    const den = Math.max(1, game.map.landTiles - game.falloutCount);
+    let tag = q.type === PT.BOT ? 'Bot' : q.type === PT.NATION ? 'Nation' : 'Mitspieler', cls = '';
+    if (h.allies.has(q.id)) { tag = 'Verbündet'; cls = 'good'; }
+    else if (h.out.some(function (a) { return a.active && a.tid === q.id; }) || h.inc.some(function (a) { return a.active && a.a === q; })) { tag = 'Im Krieg'; cls = 'bad'; }
+    let s = '<div class="pkTop"><i style="background:' + q.css + '"></i><b>' + (q.flag ? G.flagOf(q.flag) + ' ' : '') + esc(q.name) + '</b><em class="' + cls + '">' + tag + '</em></div>' +
+      '<div class="pkNum"><span>' + svg('troops', 14) + fmtT(q.troops) + '</span><span class="gold">' + svg('gold', 14) + fmt(q.gold) + '</span><span>' + (q.tiles / den * 100).toFixed(1) + '% Land</span></div><div class="pkHas">';
+    let any = false;
+    for (const e of PEEK) { const n = q.cnt[e[0]]; if (n > 0) { any = true; s += '<span title="' + G.UNAME[e[0]].replace('\u00AD', '') + '">' + svg(e[1], 15) + n + '</span>'; } }
+    if (!any) s += '<span class="none">keine Gebäude</span>';
+    s += '</div>';
+    if (el.dataset.html !== s) { el.innerHTML = s; el.dataset.html = s; }
+    el.hidden = false;
+  }
   function strikeAt(tile, extra) {
     const c = { k: 'strike', t: tile, r: ratio };
     if (extra) for (const k in extra) c[k] = extra[k];
@@ -1171,7 +1198,22 @@
     flushNet();
   }
 
-  function tap(sx, sy, menu) {
+  // Double click with the mouse: attack what is there (over land, or by boat where there is no
+  // border), or open the upgrade card of an own building.
+  function dbl(sx, sy) {
+    if (!game || game.phase !== 'play' || aim || ghost || netOn) return;
+    const tile = view.tileAt(sx, sy), h = game.human;
+    if (tile < 0 || !h.alive) return;
+    closeRadial();
+    if (game.owner[tile] === h.id) {
+      const u = game.structNear(tile, 3);
+      if (u && u.owner === h && u.built) openBuild(u.tile);
+      return;
+    }
+    if (!game.map.land[tile]) return;
+    strikeAt(tile);
+  }
+  function tap(sx, sy, menu, mouse) {
     if (!game) return;
     const tile = view.tileAt(sx, sy);
     if (tile < 0) return;
@@ -1183,6 +1225,9 @@
       return;
     }
     if (aim) { aim.tile = tile; refreshAim(); snd('tap'); return; }
+    // With a mouse a single click only looks around. A double click attacks, the right button
+    // opens the circle menu. Touch keeps its taps: there is no second button on a screen.
+    if (mouse) return;
     const o = game.owner[tile], q = o ? game.players[o] : null;
     // an attack that is already running is fed with one tap, whoever it is against
     const running = !!q && h.out.some(function (at) { return at.active && at.tid === q.id; });
@@ -1275,11 +1320,17 @@
           if (t >= 0) { closeRadial(); openBuild(t); }
           return;
         }
-        tap(e.clientX - r.left, e.clientY - r.top, performance.now() - downAt > 400);
+        tap(e.clientX - r.left, e.clientY - r.top, performance.now() - downAt > 400, e.pointerType === 'mouse');
       }
     };
     cv.addEventListener('pointerup', up);
     cv.addEventListener('pointercancel', up);
+    cv.addEventListener('dblclick', function (e) {
+      if (downType !== 'mouse') return;
+      const r = cv.getBoundingClientRect();
+      dbl(e.clientX - r.left, e.clientY - r.top);
+    });
+    cv.addEventListener('pointerleave', function (e) { if (e.pointerType === 'mouse') { hoverX = -1; hoverY = -1; } });
     cv.addEventListener('contextmenu', function (e) {
       e.preventDefault();
       if (ghost) { setGhost(null); return; }

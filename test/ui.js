@@ -39,9 +39,20 @@ const out = (n) => path.join(__dirname, '..', 'build', n);
     return null;
   });
   const target = await freeSpot();
-  await tapAt(target.x, target.y);
+  if (mobile) await tapAt(target.x, target.y);
+  else {
+    // with a mouse a single click only looks around; the double click attacks, the right button opens the menu
+    await page.mouse.click(target.x, target.y);
+    await page.waitForTimeout(450);
+    must(await page.evaluate(() => document.getElementById('radial').hidden && G.debug.game.human.out.length === 0), 'a single click with the mouse does nothing');
+    await page.mouse.click(target.x, target.y, { button: 'right' });
+    await page.waitForTimeout(300);
+    must(await page.evaluate(() => !document.getElementById('radial').hidden), 'the right button opens the circle menu');
+    await page.keyboard.press('Escape');
+    await page.mouse.dblclick(target.x, target.y);
+  }
   await page.waitForTimeout(450);
-  must(await page.evaluate(() => document.getElementById('radial').hidden && G.debug.game.human.out.length === 1), 'a tap on free land attacks at once');
+  must(await page.evaluate(() => document.getElementById('radial').hidden && G.debug.game.human.out.length === 1), mobile ? 'a tap on free land attacks at once' : 'a double click attacks');
   // a nation is never attacked by a tap alone: the menu opens and waits for Angreifen
   const nat = await page.evaluate(() => {
     const g = G.debug.game, v = G.debug.view, q = g.players.find((p) => p && p.alive && p.type === G.PT.NATION && p.nameSize);
@@ -74,7 +85,7 @@ const out = (n) => path.join(__dirname, '..', 'build', n);
     const g = G.debug.game, v = G.debug.view, h = g.human;
     return v.screenOf(h.spawnTile);
   });
-  await tapAt(own.x, own.y);
+  if (mobile) await tapAt(own.x, own.y); else await page.mouse.click(own.x, own.y, { button: 'right' });
   await page.waitForTimeout(450);
   await page.click('#rN');
   await page.waitForTimeout(400);
@@ -82,7 +93,7 @@ const out = (n) => path.join(__dirname, '..', 'build', n);
   await page.click('.item[data-t="0"]');
   await page.waitForFunction(() => G.debug.game.human.cityLv === 1, null, { timeout: 8000 });
   await page.waitForTimeout(300);
-  await tapAt(own.x, own.y);
+  if (mobile) await tapAt(own.x, own.y); else await page.mouse.dblclick(own.x, own.y);
   await page.waitForTimeout(450);
   must(await page.evaluate(() => !document.getElementById('sheet').hidden && document.getElementById('radial').hidden && !!document.querySelector('.upbtn')), 'a tap on an own building opens its upgrade card at once');
   await page.screenshot({ path: out(`ui_${tag}_6upgrade.png`) });

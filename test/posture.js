@@ -61,8 +61,8 @@ const ok = (c, msg) => { if (!c) { console.log('FAIL', msg); process.exitCode = 
     ok(Math.abs(sum(g, h) - h.troops) < 1e-6 * h.troops, 'still adds up');
     // an order at the dense end has much at hand, at the thin end little
     const tileOfCell = (c) => { const cx = c.id % g.CW, cy = (c.id - cx) / g.CW; return (cy * 16 + 8) * g.W + cx * 16 + 8; };
-    const ie = g.commitInfo(h, tileOfCell(east[0]), 0.3), iw = g.commitInfo(h, tileOfCell(west[0]), 0.3);
-    ok(ie.now > iw.now * 2 && iw.later > 0 && iw.eta > 0, 'at hand: dense ' + Math.round(ie.now) + ' (rest ' + Math.round(ie.later) + ' in ' + ie.eta.toFixed(0) + ' s), thin ' + Math.round(iw.now) + ' (rest ' + Math.round(iw.later) + ' in ' + iw.eta.toFixed(0) + ' s)');
+    const ie = g.commitInfo(h, tileOfCell(east[0]), 1), iw = g.commitInfo(h, tileOfCell(west[0]), 1);
+    ok(ie.later > 0 && iw.later > 0 && iw.eta > 0 && Math.abs(ie.now + ie.later - h.troops) < 1, 'at hand (the cells around the spot), the far end has to march: dense end ' + Math.round(ie.now) + ' (rest ' + Math.round(ie.later) + ' in ' + ie.eta.toFixed(0) + ' s), thin end ' + Math.round(iw.now) + ' (rest ' + Math.round(iw.later) + ' in ' + iw.eta.toFixed(0) + ' s)');
     ok(wshare < share2, 'the far end thinned out');
     // an order against a neighbour: part at once, the rest arrives
     g.immuneUntil = 0;
@@ -70,10 +70,10 @@ const ok = (c, msg) => { if (!c) { console.log('FAIL', msg); process.exitCode = 
     let target = -1;
     for (const id of nb.ids) { const q = g.players[id]; for (let k = 0; k < 4000 && target < 0; k++) { const tt = (q.y0 + ((k * 7919) % (q.y1 - q.y0 + 1))) * g.W + q.x0 + ((k * 104729) % (q.x1 - q.x0 + 1)); if (g.owner[tt] === id) target = tt; } if (target >= 0) break; }
     if (target >= 0) {
-      const pool = h.troops, info = g.commitInfo(h, target, 0.5);
-      ok(g.exec(h.id, { k: 'strike', t: target, r: 0.5 }) === '', 'order: attack with half the army');
+      const pool = h.troops, info = g.commitInfo(h, target, 1);
+      ok(g.exec(h.id, { k: 'strike', t: target, r: 1 }) === '', 'order: attack with the whole army');
       const at = h.out.find((a) => a.tid === g.owner[target]);
-      ok(!!at && at.want > 0 && Math.abs((pool - h.troops) - info.now) < 0.02 * pool + 5, 'only what stood there went at once (' + Math.round(pool - h.troops) + ' of ' + Math.round(pool * 0.5) + '), ' + Math.round(at ? at.want : 0) + ' on the march');
+      ok(!!at && at.want > 0 && Math.abs((pool - h.troops) - info.now) < 0.02 * pool + 5, 'only what stood there went at once (' + Math.round(pool - h.troops) + ' of ' + Math.round(pool) + '), ' + Math.round(at ? at.want : 0) + ' on the march');
       const w0 = at.want;
       step(20);
       ok(!at.active || at.want < w0, 'the rest keeps arriving: ' + Math.round(w0) + ' -> ' + Math.round(at.want));

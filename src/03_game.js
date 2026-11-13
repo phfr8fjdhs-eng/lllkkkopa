@@ -25,7 +25,8 @@
   G.TERRAIN = {
     speed: [1, 1, 1, 1.5, 0.9, 1.3, 2.6, 1.8],
     loss: [1, 1, 1, 1.25, 1, 1.1, 1.5, 1.25],
-    riverSpeed: 4, riverLoss: 2, greatSpeed: 6, greatLoss: 3
+    riverSpeed: 4, riverLoss: 2, greatSpeed: 6, greatLoss: 3,
+    free: 0.15          // how much of all that counts on land nobody holds
   };
   G.LASER_COOL = 450;   // ticks between two shots of the satellite beam (Arsenal mode)
   G.DIFF_NAMES = ['Leicht', 'Mittel', 'Schwer', 'Unmöglich'];
@@ -147,7 +148,7 @@
     p.r = c[0]; p.g = c[1]; p.b = c[2];
     if (info.type === PT.BOT) p.troops = 10000;
     else if (info.type === PT.NATION) p.troops = NATION_START[o.difficulty] * p.strength;
-    else p.troops = o.infiniteTroops ? 1e6 : 25000;
+    else { p.troops = o.infiniteTroops ? 1e6 : 25000; p.gold = G.START_GOLD; }   // a person starts with a purse, enough for the first buildings
     this.players.push(p);
     return p;
   };
@@ -662,13 +663,21 @@
             (y > 0 && own[tile - W] === aid) || (y < H - 1 && own[tile + W] === aid))) continue;
       this.addFront(at, tile);
       const m = mg[tile];
-      let mag = m < 10 ? 80 : m < 20 ? 100 : 120, speed = m < 10 ? 16.5 : m < 20 ? 20 : 25;
+      // what the ground adds, as factors over open lowland
+      let gl = m < 10 ? 1 : m < 20 ? 1.25 : 1.5, gs = m < 10 ? 1 : m < 20 ? 1.2121 : 1.5152;
       if (cov) {
         const c = cov[tile], f = ft[tile];
-        mag *= TR.loss[c]; speed *= TR.speed[c];
-        if (f & 2) { mag *= TR.greatLoss; speed *= TR.greatSpeed; }
-        else if (f & 1) { mag *= TR.riverLoss; speed *= TR.riverSpeed; }
+        gl *= TR.loss[c]; gs *= TR.speed[c];
+        if (f & 2) { gl *= TR.greatLoss; gs *= TR.greatSpeed; }
+        else if (f & 1) { gl *= TR.riverLoss; gs *= TR.riverSpeed; }
       }
+      // Ground only counts for as much as it is defended. Empty land is taken almost as fast in
+      // the mountains as on the plain; against a realm it weighs less the more the attacker
+      // outnumbers it, and (for a realm with a posture) the thinner the troops stand right there.
+      const pc = tp ? tp.cells.get(this.cellOf(tile)) : null, pd = pc ? this.postDens(t, pc) : 1;
+      let hold = TR.free;
+      if (t) { hold = within(1.15 - 0.33 * at.troops / Math.max(1, t.troops), 0.15, 1); if (pd < 1) hold *= pd; }
+      let mag = 80 * (1 + (gl - 1) * hold), speed = 16.5 * (1 + (gs - 1) * hold);
       if (dp && dp.length) {
         for (let i = 0; i < dp.length; i++) {
           const dx = dp[i].x - x, dy = dp[i].y - y;
@@ -681,11 +690,10 @@
         const tt = t.troops;
         loss = within(tt / at.troops, 0.6, 2) * mag * 0.8 * botMod * lossMod * traitor;
         used = within(tt / (5 * at.troops), 0.2, 1.5) * speed * speedMod * (easy ? 0.45 : 1);
-        const pc = tp ? tp.cells.get(this.cellOf(tile)) : null;
         if (pc) {
           // the defender has a posture: dense ground is slower to take and costs more, and the
           // troops standing there lose fewer of their number; thin ground falls fast but nobody dies
-          this.postEffect(this.postDens(t, pc), m >= 10 || (cov && (TR.speed[cov[tile]] > 1.2 || (ft[tile] & 3))), fx);
+          this.postEffect(pd, m >= 10 || (cov && (TR.speed[cov[tile]] > 1.2 || (ft[tile] & 3))), fx);
           loss *= fx.bleed; used *= fx.brake;
           this.postTake(t, pc, tt / Math.max(1, t.tiles) * fx.keep);
         } else t.troops = Math.max(0, tt - tt / Math.max(1, t.tiles));
@@ -702,7 +710,9 @@
 
   // Whoever takes a player over gets its gold; a bot pays a bounty on top.
   // On top comes a reward by size: so much gold for every tile the conquered realm held at its largest.
-  G.BOT_BOUNTY = 25000;
+  G.BOT_BOUNTY = 60000;
+  G.START_GOLD = 250000;
+  G.NUKE_PEACE = 6000;    // ticks after the start in which no nation fires a bomb (ten minutes)
   G.LAND_GOLD = 60;
   Game.prototype.bounty = function (t) {
     return Math.round(Math.max(t.peak || 0, t.tiles) * G.LAND_GOLD) + (t.type === PT.BOT ? G.BOT_BOUNTY : 0);
