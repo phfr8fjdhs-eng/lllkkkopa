@@ -63,6 +63,7 @@
   const cfg = { name: 'Spieler', color: 0, map: 'erde', diff: 1, bots: -1, nations: true, instant: false, gold: false, troops: false, tap: false, music: true, sfx: true, mode: 'klassisch' };
   const MODES = [['klassisch', 'Klassisch', 'Das Spiel wie gewohnt.'], ['arsenal', 'Arsenal', 'Zusätzliche Waffe: der Satellitenstrahl. Er kommt aus dem All, braucht kein Silo und lässt sich nicht abfangen. Auch die Nationen setzen ihn ein.']];
   let hoverX = -1, hoverY = -1;
+  const RES = G.VARIANT === 'rohstoffe';   // this page is the game version «Rohstoffe» (src/03c_res.js)
   let ghost = null, ghostKey = '', shiftHeld = false;   // the thing a build key is about to place
   const special = function (id) { return G.SPECIAL_MAPS.find(function (m) { return m.id === id; }); };
 
@@ -123,7 +124,12 @@
       let cls, cost;
       return layer(def.png, def.w, def.h).then(function (a) { cls = a; return layer(def.mag, def.w, def.h); })
         .then(function (a) { cost = a; return layer(def.hgt, def.w >> 1, def.h >> 1); })
-        .then(function (hgt) { maps[id] = G.buildWorld(def, cls, cost, hgt); return maps[id]; });
+        .then(function (hgt) {
+          const map = G.buildWorld(def, cls, cost, hgt);
+          // version «Rohstoffe»: the build adds a fourth picture, the country of every piece of land
+          if (!def.ctry || !G.attachCountries) { maps[id] = map; return map; }
+          return layer(def.ctry.png, def.ctry.w, def.ctry.h).then(function (cells) { G.attachCountries(map, def.ctry, cells); maps[id] = map; return map; });
+        });
     }
     return new Promise(function (resolve, reject) {
       const img = new Image();
@@ -194,8 +200,8 @@
     const check = function (id, label, on) {
       return '<label class="check" for="' + id + '"><input id="' + id + '" type="checkbox"' + (on ? ' checked' : '') + '>' + label + '</label>';
     };
-    let h = '<h1>Grenzland <small>Version 2.1</small></h1>';
-    h += joinCode ? '<p>Du wurdest in den Raum <b class="code">' + esc(joinCode) + '</b> eingeladen. Wähle Name und Farbe.</p>' : '<p>Erobere die Karte, allein oder mit Freunden.</p>';
+    let h = '<h1>Grenzland <small>' + (RES ? 'Rohstoffe' : 'Version 2.1') + '</small></h1>';
+    h += joinCode ? '<p>Du wurdest in den Raum <b class="code">' + esc(joinCode) + '</b> eingeladen. Wähle Name und Farbe.</p>' : (RES ? '<p>Jedes Land hat eigene Rohstoffe und eine eigene Fabrikware. Klicke auf ein Land, um zu sehen, was es bringt. Gilt auf der Karte «Erde».</p>' : '<p>Erobere die Karte, allein oder mit Freunden.</p>');
     h += '<div class="field"><label for="fName">Dein Name</label><input id="fName" type="text" maxlength="18" autocomplete="off" value="' + esc(cfg.name) + '"></div>';
     h += '<div class="field"><div class="lab">Farbe</div><div class="swatches" id="fColor">' + COLORS.map(function (c, i) {
       return '<button type="button" class="sw" data-i="' + i + '" aria-label="Farbe ' + (i + 1) + '" aria-pressed="' + (i === cfg.color) + '" style="background:rgb(' + c.join(',') + ')"></button>';
@@ -345,7 +351,7 @@
       this.disabled = true;
       mp.begin({
         seed: (Math.random() * 2e9) | 0, map: cfg.map, mapSeed: (Math.random() * 2e9) | 0,
-        diff: cfg.diff, bots: Math.max(0, cfg.bots), nations: cfg.nations, arsenal: cfg.mode === 'arsenal'
+        diff: cfg.diff, bots: Math.max(0, cfg.bots), nations: cfg.nations, arsenal: cfg.mode === 'arsenal', res: RES
       });
     });
   }
@@ -354,7 +360,7 @@
     turnLeft = 0;
     loadMap(m.map, m.mapSeed).then(function (map) {
       begin(map, {
-        seed: m.seed, difficulty: m.diff, bots: m.bots, nations: m.nations, arsenal: !!m.arsenal, spawnTicks: 300, autoSpawn: true, me: me
+        seed: m.seed, difficulty: m.diff, bots: m.bots, nations: m.nations, arsenal: !!m.arsenal, res: !!m.res, spawnTicks: 300, autoSpawn: true, me: me
       }, m.players.map(function (p) { return { name: p.name, color: COLORS[p.color % 6] }; }));
       $('bSpeed').hidden = true; $('bPause').hidden = !mp.host;
       addMsg(m.players.length > 1 ? m.players.length + ' Spieler sind dabei. Wählt eure Startpunkte.' : 'Du bist allein im Raum.', 'info');
@@ -456,7 +462,7 @@
     $('fStart').disabled = true; $('fStart').textContent = 'Karte wird vorbereitet';
     loadMap(cfg.map).then(function (map) {
       begin(map, {
-        seed: (Math.random() * 2e9) | 0, difficulty: cfg.diff, bots: cfg.bots, nations: cfg.nations, arsenal: cfg.mode === 'arsenal',
+        seed: (Math.random() * 2e9) | 0, difficulty: cfg.diff, bots: cfg.bots, nations: cfg.nations, arsenal: cfg.mode === 'arsenal', res: RES,
         instantBuild: cfg.instant, infiniteGold: cfg.gold, infiniteTroops: cfg.troops
       }, { name: cfg.name, color: COLORS[cfg.color] });
     }).catch(function (e) {
@@ -468,6 +474,10 @@
     game = new G.Game(map, opts);
     game.setup(people);
     view.setMap(map); view.setGame(game); view.fit(false);
+    landC = 0; view.resSel = 0; view.resSigns = true; renderLand();
+    if (!RES && opts.res) setTimeout(function () { addMsg('Dieser Raum spielt die Version «Rohstoffe». Öffne den Einladungslink, sonst läuft dein Spiel auseinander.', 'bad'); }, 50);
+    $('statGold').classList.toggle('res', game.res);
+    if (RES && !game.res) setTimeout(function () { addMsg(opts.res ? 'Rohstoffe gibt es nur auf der Karte «Erde». Diese Runde läuft klassisch.' : 'Dieser Raum spielt ohne Rohstoffe.', 'info'); }, 50);
     view.cam.z = within(Math.max(view.cw / map.W, view.ch / map.H) * 0.5, view.cam.z, 4);
     $('modal').hidden = true; modalKind = '';
     $('hud').hidden = false; $('spawnBar').hidden = false; $('ctrl').hidden = true; $('lb').hidden = true; $('aimBar').hidden = true;
@@ -567,6 +577,9 @@
         const al = $('alarm');
         al.classList.remove('on'); void al.offsetWidth; al.classList.add('on');
         snd('alarm', 0.5);
+      } else if (e.k === 'mono') {
+        const k = game.map.countries[e.c];
+        addMsg('Monopol in ' + k.name + ': Rohstoffe bringen dort 50 % mehr.', 'good'); snd('good', 0.4);
       } else if (e.k === 'loot') {
         if (e.by === h.id && e.gold > 0) { view.floatText(e.x, e.y, '+ ' + fmt(e.gold)); goldPop(e.gold); }
       } else if (e.k === 'defeat') { setNet(false); $('bNet').hidden = true; showEnd('defeat', null); }
@@ -688,7 +701,7 @@
       $('sGold').textContent = game.opts.infiniteGold ? '∞' : fmt(h.gold);
       $('sGoldSub').textContent = '+' + fmt(game.goldRate(h) * 10) + '/s';
       $('ratioTroops').textContent = fmtT(h.troops * ratio);
-      if (T - commitAt >= 3) { commitAt = T; showCommit(); showPeek(); }
+      if (T - commitAt >= 3) { commitAt = T; showCommit(); showPeek(); if (game.res) renderLand(); }
     }
     if (T - lbAt >= 10) { lbAt = T; leaderboard(); }
     if (T - liveAt >= 3) { liveAt = T; live(); }
@@ -1124,6 +1137,71 @@
     if (el.dataset.html !== s) { el.innerHTML = s; el.dataset.html = s; }
     el.hidden = false;
   }
+
+  // ---------- version «Rohstoffe»: the card of a country, the income sheet ----------
+  let landC = 0;
+  const perSec = function (v) { return '+' + fmt(v * 10) + '/s'; };
+  function setLand(tile) {
+    const k = game && game.res && tile >= 0 && game.map.land[tile] ? G.countryAt(game.map, tile) : null;
+    landC = k ? k.id : 0;
+    view.resSel = landC;
+    renderLand();
+  }
+  function renderLand() {
+    const el = $('land');
+    if (!el) return;
+    if (!game || !game.res || !landC) { if (!el.hidden) { el.hidden = true; el.dataset.html = ''; } return; }
+    const k = game.map.countries[landC], h = game.human, ps = game.players, R = G.RES;
+    // who holds how much of it
+    const owners = [];
+    let taken = 0;
+    for (let i = 1; i < ps.length; i++) { const p = ps[i], n = p.alive && p.own ? p.own[landC] : 0; if (n > 0) { owners.push([n, p]); taken += n; } }
+    owners.sort(function (a, b) { return b[0] - a[0] || a[1].id - b[1].id; });
+    const pct = function (n) { const v = n / Math.max(1, k.tiles) * 100; return (v > 0 && v < 1 ? '<1' : Math.round(v)) + ' %'; };
+    let s = '<div class="ldTop"><b>' + (k.iso ? G.flagOf(k.iso) + ' ' : '') + esc(k.name) + '</b><button id="landX" class="ldX" type="button" aria-label="Schliessen">×</button></div>';
+    if (!owners.length) s += '<p class="ldFree">Noch frei. Das gibt es hier zu holen:</p>';
+    else {
+      s += '<div class="ldOwn">' + owners.slice(0, 3).map(function (o) {
+        return '<span><i style="background:' + o[1].css + '"></i>' + (o[1] === h ? 'Du' : esc(o[1].name)) + ' ' + pct(o[0]) + '</span>';
+      }).join('') + (owners.length > 3 ? '<span>+' + (owners.length - 3) + ' weitere</span>' : '') + (taken < k.tiles * 0.995 ? '<span class="free">frei ' + pct(k.tiles - taken) + '</span>' : '') + '</div>';
+    }
+    s += '<div class="ldSec">Rohstoffe <small>ganzes Land</small></div>';
+    for (const r of k.raw) { const g = G.RAW[r]; s += '<div class="ldRow"><span>' + g[1] + '</span><b>' + g[0] + '</b><em>' + perSec(Math.floor(g[2] * k.f / 100)) + '</em></div>'; }
+    const w = G.WARE[k.ware];
+    s += '<div class="ldSec">Fabriken stellen her <small>pro Stufe</small></div><div class="ldRow"><span>' + w[1] + '</span><b>' + w[0] + '</b><em>' + perSec(w[2]) + '</em></div>';
+    const mine = h.alive && h.own ? h.own[landC] : 0, lv = h.alive && h.fac ? h.fac[landC] : 0;
+    if (mine > 0 || lv > 0) {
+      const r = game.resOf(h, landC, lv);
+      s += '<div class="ldYou"><div><span>Dein Anteil ' + pct(mine) + '</span><b>' + perSec(r[0]) + '</b></div>' +
+        '<div><span>Fabrikstufen ' + Math.min(lv, R.FACTORY_CAP) + ' von ' + R.FACTORY_CAP + '</span><b>' + perSec(r[1]) + '</b></div></div>';
+      s += r[2] ? '<p class="ldNote good">Monopol: Rohstoffe bringen hier 50 % mehr.</p>' : '<p class="ldNote">Ab 90 % des Landes: Monopol, 50 % mehr.</p>';
+    } else s += '<p class="ldNote">Land bringt die Rohstoffe anteilig. Ab 90 %: Monopol, 50 % mehr.</p>';
+    if (el.dataset.html !== s) { el.innerHTML = s; el.dataset.html = s; }
+    el.hidden = false;
+  }
+  function showIncome() {
+    const h = game.human, cs = game.map.countries, rows = [];
+    for (let c = 1; c < cs.length; c++) {
+      const lv = h.fac ? h.fac[c] : 0;
+      if (!(h.own && h.own[c]) && !lv) continue;
+      const r = game.resOf(h, c, lv);
+      if (r[0] + r[1] > 0) rows.push([r[0] + r[1], cs[c], r, h.own ? h.own[c] : 0]);
+    }
+    rows.sort(function (a, b) { return b[0] - a[0] || a[1].id - b[1].id; });
+    let s = '<h2>Einnahmen</h2><div class="facts">' + fact('Grundeinkommen', perSec(100)) + fact('Rohstoffe', perSec(h.resRaw | 0)) + fact('Fabrikwaren', perSec(h.resWare | 0)) + '</div>';
+    if (!rows.length) s += '<p class="notes">Noch kein Land mit Rohstoffen. Klicke auf ein Land, um zu sehen, was es dort gibt.</p>';
+    else {
+      s += '<div class="incList"><div class="incRow head"><b>Land</b><span>Anteil</span><span>Rohstoffe</span><span>Fabriken</span></div>' + rows.slice(0, 14).map(function (r) {
+        const k = r[1];
+        return '<div class="incRow"><b>' + (k.iso ? G.flagOf(k.iso) + ' ' : '') + esc(k.name) + '</b><span' + (r[2][2] ? ' class="mono" title="Monopol">★ ' : '>') + Math.round(r[3] / Math.max(1, k.tiles) * 100) + ' %</span>' +
+          '<span>' + perSec(r[2][0]) + '</span><span>' + perSec(r[2][1]) + '</span></div>';
+      }).join('') + '</div>';
+      if (rows.length > 14) s += '<p class="notes">und ' + (rows.length - 14) + ' weitere Länder</p>';
+    }
+    s += '<p class="notes">Land bringt die Rohstoffe seines Landes anteilig, ab 90 % Besitz als Monopol (★) 50 % mehr. Eine Fabrik stellt die Ware des Landes her, in dem sie steht; pro Land zählen ' + G.RES.FACTORY_CAP + ' Stufen. Taste R blendet die Rohstoff-Zeichen aus und ein.</p>' +
+      '<button class="btn" data-act="resume" type="button">Weiterspielen</button>';
+    openModal(s, 'help');
+  }
   function strikeAt(tile, extra) {
     const c = { k: 'strike', t: tile, r: ratio };
     if (extra) for (const k in extra) c[k] = extra[k];
@@ -1219,6 +1297,7 @@
     if (tile < 0) return;
     const h = game.human;
     if (ghost && game.phase === 'play' && h.alive) { placeGhost(tile); return; }
+    if (game.res && !aim) setLand(tile);   // version «Rohstoffe»: every click shows the card of the country
     if (game.phase === 'spawn') {
       if (!game.canSpawnAt(tile) && game.owner[tile] !== h.id) { toast(game.map.land[tile] ? 'Hier ist schon jemand' : 'Wähle Land, kein Wasser'); return; }
       act({ k: 'spawn', t: tile });
@@ -1276,6 +1355,11 @@
     });
     cv.addEventListener('pointermove', function (e) {
       if (e.pointerType === 'mouse') { const r = cv.getBoundingClientRect(); hoverX = e.clientX - r.left; hoverY = e.clientY - r.top; }
+      // version «Rohstoffe»: while the start point is being chosen the card follows the mouse
+      if (e.pointerType === 'mouse' && game && game.res && game.phase === 'spawn' && ptr.size === 0) {
+        const t = view.tileAt(hoverX, hoverY), k = t >= 0 && game.map.land[t] ? G.countryAt(game.map, t) : null;
+        if (k && k.id !== landC) setLand(t);
+      }
       const p = ptr.get(e.pointerId);
       if (!p) return;
       if (netOn && e.pointerType === 'mouse') { const r = cv.getBoundingClientRect(); view.net.brush = { x: e.clientX - r.left, y: e.clientY - r.top, r: 38, less: netLess }; }
@@ -1368,6 +1452,7 @@
       if (!game || !$('modal').hidden) return;
       // The layout follows OpenFront's default keys.
       if (k === 'p' || k === ' ') { e.preventDefault(); togglePause(); return; }
+      if (k === 'r' && game.res) { view.resSigns = !view.resSigns; toast(view.resSigns ? 'Rohstoff-Zeichen an' : 'Rohstoff-Zeichen aus'); return; }
       if ((k.length === 1 && 'wasd'.indexOf(k) >= 0) || k.indexOf('arrow') === 0) { held.add(k); e.preventDefault(); return; }
       // Shift with a building's number upgrades one of that kind: the nearest to the pointer that can still grow
       if (e.shiftKey && /^Digit[1-6]$/.test(e.code || '')) {
@@ -1429,6 +1514,8 @@
       if (b && !b.disabled) onModalAct(b.dataset.act);
     });
     $('ratio').addEventListener('input', function () { setRatio(+this.value); });
+    $('statGold').addEventListener('click', function () { if (game && game.res && game.phase === 'play' && game.human.alive) showIncome(); });
+    $('land').addEventListener('click', function (e) { if (e.target.id === 'landX') { landC = 0; view.resSel = 0; renderLand(); } });
     $('bPause').addEventListener('click', togglePause);
     $('bNet').addEventListener('click', function () { setNet(!netOn); });
     $('netDone').addEventListener('click', function () { setNet(false); });

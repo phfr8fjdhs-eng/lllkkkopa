@@ -75,6 +75,7 @@
     this.portList = null; this.tradeCount = 0;
     this.rails = []; this.railKeys = new Map(); this.railAdj = new Map(); this.railDirty = false; this.railAt = 0; this.railBad = new Set();
     this.requests = []; this.events = []; this.fx = [];
+    this.res = !!(this.opts.res && map.ctile);   // version «Rohstoffe»: countries pay for their raw materials
     this.human = null; this.humans = []; this.winner = null; this.names = new Set();
     this.dirty = new Int32Array(N); this.dirtyN = 0; this.dirtyFlag = new Uint8Array(N);
     this.sea = map.sea || (map.sea = new G.SeaGraph(map));   // built once per map, shared by every game on it
@@ -256,7 +257,8 @@
     add *= G.PACE.growth;
     return Math.min(p.troops + add, max) - p.troops;
   };
-  Game.prototype.goldRate = function (p) { return p.type === PT.BOT ? 50 : 100; };
+  // In the version «Rohstoffe» the land and the factories of a player pay on top (src/03c_res.js).
+  Game.prototype.goldRate = function (p) { return (p.type === PT.BOT ? 50 : 100) + (this.res ? p.resRate | 0 : 0); };
 
   // ---------- territory ----------
   Game.prototype.markDirty = function (t) {
@@ -285,6 +287,7 @@
     if (prev === id) return;
     if (prev) { const q = this.players[prev]; q.tiles--; q.border.delete(t); q.lastChange = this.ticks; if (q.post) this.postLose(q, t); }
     own[t] = id; p.tiles++; p.lastChange = this.ticks;
+    if (this.res) this.resMove(prev, id, t);
     if (p.post) this.postGain(p, t);
     if (p.tiles > p.peak) p.peak = p.tiles;   // the largest it has ever been decides what its conquest pays
     if (this.fallout[t]) { this.fallout[t] = 0; this.falloutCount--; }
@@ -301,6 +304,7 @@
     if (!prev) return;
     const q = this.players[prev];
     q.tiles--; q.border.delete(t); q.lastChange = this.ticks; own[t] = 0;
+    if (this.res) this.resMove(prev, 0, t);
     if (q.post) this.postLose(q, t);
     this.fixAround(t);
     if (this.structAt.size) { const u = this.structAt.get(t); if (u) this.removeUnit(u); }
@@ -896,6 +900,7 @@
       }
       return;
     }
+    if (this.res && this.ticks % G.RES.EVERY === 0) this.resTick();
     for (let i = 1; i < n; i++) {
       const p = ps[i];
       if (!p.alive) continue;

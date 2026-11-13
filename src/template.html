@@ -201,6 +201,44 @@ input[type=range] { width: 100%; height: 30px; margin: 0; accent-color: var(--ac
 .upbtn:active:not(:disabled) { transform: scale(.96); }
 
 /* aiming a bomb */
+/* version «Rohstoffe»: the card of a country */
+#land { position: absolute; right: 8px; top: 56px; width: min(74vw, 262px); padding: 9px 12px 10px; }
+.ldTop { display: flex; align-items: center; gap: 8px; }
+.ldTop b { flex: 1; font: 700 19px/1.15 var(--display); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ldX { width: 26px; height: 26px; margin: -3px -5px -3px 0; padding: 0; border: 0; border-radius: 8px; font: 500 20px/1 var(--body); color: var(--muted); background: none; cursor: pointer; }
+.ldX:hover { color: var(--ink); background: rgba(255, 255, 255, 0.08); }
+.ldFree { margin: 3px 0 0; font-size: 13px; color: var(--good); }
+.ldOwn { display: flex; flex-wrap: wrap; gap: 2px 10px; margin-top: 4px; font: 600 13px var(--display); }
+.ldOwn span { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.ldOwn i { width: 9px; height: 9px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, 0.8); }
+.ldOwn .free { color: var(--muted); }
+.ldSec { display: flex; justify-content: space-between; align-items: baseline; margin: 9px 0 3px; padding-top: 7px; border-top: 1px solid var(--line); font: 600 11.5px var(--display); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.ldSec small { font-size: 11px; letter-spacing: 0; text-transform: none; }
+.ldRow { display: flex; align-items: center; gap: 8px; padding: 2px 0; font: 600 15px var(--display); }
+.ldRow span { width: 20px; text-align: center; font-size: 15px; }
+.ldRow b { flex: 1; font-weight: 600; }
+.ldRow em { font-style: normal; color: var(--accent); font-variant-numeric: tabular-nums; }
+.ldYou { margin-top: 9px; padding: 6px 9px; background: rgba(255, 255, 255, 0.06); border-radius: 9px; font: 600 13.5px var(--display); }
+.ldYou div { display: flex; justify-content: space-between; gap: 8px; }
+.ldYou b { color: var(--accent); font-variant-numeric: tabular-nums; }
+.ldNote { margin: 7px 0 0; font-size: 12px; line-height: 1.3; color: var(--muted); }
+.ldNote.good { color: var(--good); }
+.incList { margin-top: 12px; }
+.incRow { display: grid; grid-template-columns: 1fr 62px 78px 78px; gap: 6px; align-items: center; padding: 5px 0; border-top: 1px solid var(--line); font: 600 14px var(--display); font-variant-numeric: tabular-nums; }
+.incRow b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.incRow.head { border-top: 0; padding-bottom: 2px; font-size: 11.5px; letter-spacing: .06em; text-transform: uppercase; }
+.incRow.head b, .incRow.head span { color: var(--muted); font-weight: 600; }
+.incRow .mono { color: var(--good); }
+.incRow span { text-align: right; color: var(--accent); white-space: nowrap; }
+.incRow span:nth-child(2) { color: var(--muted); }
+.incRow span.mono:nth-child(2) { color: var(--good); }
+@media (max-width: 640px) {
+  #land { left: 8px; right: auto; top: 200px; width: min(62vw, 240px); padding: 7px 10px 8px; }
+  .ldNote { display: none; }
+  .ldRow { font-size: 14px; padding: 1px 0; }
+  .ldSec { margin: 6px 0 2px; padding-top: 5px; }
+}
+#statGold.res { cursor: pointer; }
 #peek { position: absolute; left: 50%; top: 8px; transform: translateX(-50%); padding: 7px 12px 8px; min-width: 230px; max-width: min(92vw, 420px); pointer-events: none; }
 .pkTop { display: flex; align-items: center; gap: 8px; }
 .pkTop i { width: 11px; height: 11px; border-radius: 50%; border: 1.5px solid rgba(255, 255, 255, 0.8); flex: none; }
@@ -375,6 +413,7 @@ body.placing #cv { cursor: crosshair; }
       <button id="bMenu" class="tb" type="button" aria-label="Menü"></button>
     </div>
     <div id="peek" class="panel" hidden></div>
+    <div id="land" class="panel" hidden></div>
     <div id="spawnBar" class="panel">
       <strong>Wähle deinen Startpunkt</strong>
       <span id="spawnHint">Tippe auf freies Land</span>

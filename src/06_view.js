@@ -73,7 +73,7 @@
   const COVER_RGB = [[0, 0, 0], [178, 205, 134], [208, 214, 146], [112, 154, 98], [230, 213, 164], [180, 181, 158], [241, 246, 249], [132, 168, 150]];
   function worldColors(map) {
     const W = map.W, H = map.H, N = map.N, hw = map.hw, hh = map.hh, hgt = map.hgt;
-    const cover = map.cover, feat = map.feat, mag = map.mag, land = map.land, snowBit = map.snow;
+    const cover = map.cover, feat = map.feat, mag = map.mag, land = map.land, snowBit = map.snow, ct = map.ctile || null;
     // relief at half resolution: height in metres, slope towards the light, squeezed by tanh
     const lum2 = new Float32Array(hw * hh), e = new Float32Array(hw * hh);
     for (let i = 0; i < e.length; i++) { const v = hgt[i] / 255; e[i] = v * v * 8850; }
@@ -110,6 +110,10 @@
         const l = (lum2[y0 * hw + x0] * (1 - tx) + lum2[y0 * hw + x1] * tx) * (1 - ty) + (lum2[y1 * hw + x0] * (1 - tx) + lum2[y1 * hw + x1] * tx) * ty;
         r *= l; g *= l; b *= l;
         if (f & 1) { r = r * 0.25 + 96 * 0.75; g = g * 0.25 + 160 * 0.75; b = b * 0.25 + 212 * 0.75; }   // a river
+        if (ct) {                                                    // version «Rohstoffe»: a country border, darker ground
+          const c = ct[i];
+          if ((x < W - 1 && ct[i + 1] && ct[i + 1] !== c) || (y < H - 1 && ct[i + W] && ct[i + W] !== c)) { r *= 0.62; g *= 0.62; b *= 0.62; }
+        }
         out[i] = pack(r > 255 ? 255 : r | 0, g > 255 ? 255 : g | 0, b > 255 ? 255 : b | 0);
       }
     }
@@ -375,6 +379,7 @@
     this.drawStructures(ctx, g, z, ox, oy);
     this.drawUnits(ctx, g, z, ox, oy, alpha, now);
     this.drawFx(ctx, g, z, ox, oy, now);
+    if (g.res && this.resSigns) this.drawRes(ctx, g, z, ox, oy);
     this.drawNames(ctx, g, z, ox, oy);
     this.drawRaids(ctx, g, z, ox, oy, now);
     this.drawFronts(ctx, g, z, ox, oy, now);
@@ -1298,6 +1303,30 @@
     }
   };
 
+  // Version «Rohstoffe»: every country that is large enough on the screen shows the signs of its raw
+  // materials and of its factory good on a small plate, so one sees at a glance what is worth taking.
+  View.prototype.drawRes = function (ctx, g, z, ox, oy) {
+    const cs = g.map.countries, cw = this.cw, ch = this.ch, sel = this.resSel || 0;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    for (let c = 1; c < cs.length; c++) {
+      const k = cs[c];
+      if (!k.tiles) continue;
+      const size = Math.sqrt(k.tiles) * z;                 // roughly how wide the country is on the screen
+      if (size < 76 && c !== sel) continue;
+      const x = k.x * z + ox, y = k.y * z + oy;
+      if (x < -80 || y < -30 || x > cw + 80 || y > ch + 30) continue;
+      const fs = c === sel ? 15 : size < 110 ? 11 : 13;
+      if (!k.signs) { k.signs = k.raw.map(function (r) { return G.RAW[r][1]; }).join('') + ' ' + G.WARE[k.ware][1]; }
+      ctx.font = fs + 'px ' + FONT;
+      const w = ctx.measureText(k.signs).width + fs * 0.9, hh = fs * 1.55, py = y + (c === sel ? 0 : Math.min(26, size * 0.16));
+      ctx.fillStyle = c === sel ? 'rgba(12,21,32,0.92)' : 'rgba(12,21,32,0.62)';
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(x - w / 2, py - hh / 2, w, hh, hh / 2); else ctx.rect(x - w / 2, py - hh / 2, w, hh);
+      ctx.fill();
+      if (c === sel) { ctx.lineWidth = 1.5; ctx.strokeStyle = '#f4b740'; ctx.stroke(); }
+      ctx.fillStyle = '#fff'; ctx.fillText(k.signs, x, py + 0.5);
+    }
+  };
   View.prototype.drawNames = function (ctx, g, z, ox, oy) {
     const ps = g.players, h = g.human, cw = this.cw, ch = this.ch, T = g.ticks;
     let leader = null;

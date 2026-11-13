@@ -14,6 +14,7 @@ Alle Tests liegen in `test/` und laufen mit `node test/<name>.js`. Ohne Browser:
 | `human.js` | ein Skript führt alle Aktionen des menschlichen Spielers aus |
 | `sea.js [karte] [routen]` | Seerouten über den Seegraphen, jedes Feld geprüft |
 | `erde.js [ticks] [bots]` | die Erde ohne Browser, Tempo und Speicher (`node --max-old-space-size=4096`) |
+| `res.js [ticks] [bots]` | Version «Rohstoffe» auf der Erde: Länder, Zählung, Einkommen, Gleichlauf (`node --max-old-space-size=4096`) |
 | `prof.js` | zeigt, woher langsame Ticks kommen |
 | `ui.js`, `feat.js`, `play.js`, `rail.js`, `rich.js`, `shot.js`, `aufstellung.js` | Browser: Bedienung, neue Funktionen, Durchlauf, Gleise, Gebäude und Raketen, Bilder, Netz; Bilder landen in `build/` |
 | `net.js` | zwei Browser spielen über einen lokalen Vermittler zusammen |

@@ -9,7 +9,7 @@ Echtzeit-Eroberungsspiel im Browser, Nachbau von OpenFront, als eine einzige HTM
 
 ## Arbeitsablauf
 1. Nur `src/` ändern, nie `build/index.html` oder `docs/index.html` von Hand.
-2. `python3 tools/build.py` schreibt `build/index.html`; danach nach `docs/index.html` kopieren (GitHub Pages liefert `/docs` auf `main`). Beide mitcommitten.
+2. `python3 tools/build.py` schreibt `build/index.html` (klassisch) und `build/rohstoffe.html` (Version «Rohstoffe»); danach nach `docs/index.html` und `docs/rohstoffe/index.html` kopieren (GitHub Pages liefert `/docs` auf `main`). Alle vier mitcommitten.
 3. Passenden Test laufen lassen, dann pushen. Es arbeiten mehrere Leute: vor dem Push den aktuellen `main` holen.
 
 ## Feste Regeln
@@ -25,6 +25,7 @@ Echtzeit-Eroberungsspiel im Browser, Nachbau von OpenFront, als eine einzige HTM
 | `01_map.js` | 270 | Karten laden und erzeugen, `G.SPECIAL_MAPS`, `G.COVER`, Gelände |
 | `02_path.js` | 270 | Seerouten (A*), `G.SeaGraph` |
 | `03_game.js` | 1100 | Spielkern `G.Game`, Spielertypen `PT`, Einheiten `UT`, Eroberung und Angriff (`conquer`, `attack`, `tickAttack`), Konstanten `G.TERRAIN`, `G.PACE`, `G.START_GOLD`, `G.BOT_BOUNTY`, `G.LAND_GOLD`, `G.NUKE_PEACE`, `pathLane` |
+| `03c_res.js` | 190 | nur Version «Rohstoffe»: `G.RAW`, `G.WARE`, Ländertabelle, `attachCountries`, `resTick`, `resOf`; im klassischen Build nicht enthalten |
 | `03b_posture.js` | 330 | Aufstellung (Truppen-Netz): `postEffect`, `HAND` |
 | `04_units.js` | 980 | Gebäude und Ausbau (`G.MAX_LEVEL`, `G.BUILD_TICKS`), Bomben, Flugabwehr (`G.CRUISE_RANGE`), Kriegsschiffe (`tickWarship`, `patrolPoint`, `shipboom`, `G.WARSHIP_CAPTURE`) |
 | `04b_rail.js` | 250 | Fabrik, Schienen, Züge: `straighten` |
@@ -44,6 +45,7 @@ Weitere Ordner: `tools/` (Bauen und Kartenerzeugung, Python), `test/` (Tests, No
 | Netz, Marsch, Dichte und ihre Wirkung | `aufstellung.md` |
 | Erdkarte, Daten, Lizenzen der Daten, Gelände | `erde.md` |
 | Mehrspieler, Vermittler | `mehrspieler.md` |
+| Version «Rohstoffe»: Länder, Preise, Länderkarte | `rohstoffe.md` |
 | Herkunft der Zahlen, Abweichungen von OpenFront | `openfront-abgleich.md` |
 | Welcher Test wofür | `tests.md` |
 | Was wann und warum geändert wurde | `aenderungen.md` |
@@ -51,4 +53,5 @@ Weitere Ordner: `tools/` (Bauen und Kartenerzeugung, Python), `test/` (Tests, No
 ## Welcher Test
 - Regeln und Zahlen: `node test/sim.js`, `node test/all.js`
 - Gleichlauf auf allen Geräten: `node test/det.js`, `node test/posture.js`
+- Version «Rohstoffe»: `node --max-old-space-size=4096 test/res.js`
 - Bedienung im Browser: `node test/ui.js` (braucht Playwright und Chrome)
