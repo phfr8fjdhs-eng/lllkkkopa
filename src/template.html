@@ -106,11 +106,12 @@ button { font: inherit; color: inherit; cursor: pointer; }
 @keyframes alarm { 0%, 34%, 68% { opacity: 1; } 17%, 51% { opacity: .12; } 100% { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { #alarm.on { animation: alarmCalm 1.8s linear 1; } }
 @keyframes alarmCalm { 0%, 70% { opacity: .7; } 100% { opacity: 0; } }
-@keyframes goldFlash { 0%, 40% { color: #ffd25e; transform: scale(1.18); transform-origin: left center; } 100% { color: var(--ink); transform: none; } }
-#goldPop { position: absolute; left: 30px; top: -2px; font: 600 14px var(--display); color: #ffe08a; text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8); opacity: 0; pointer-events: none; white-space: nowrap; }
+@keyframes goldFlash { 0%, 40% { color: #fff; transform: scale(1.18); transform-origin: left center; } 100% { color: var(--ink); transform: none; } }
+#goldPop { position: absolute; left: 30px; top: -2px; font: 600 14px var(--display); color: #fff; text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8); opacity: 0; pointer-events: none; white-space: nowrap; }
 #goldPop.go { animation: goldUp 1.8s ease-out; }
 @keyframes goldUp { 0% { opacity: 0; transform: translateY(6px) scale(.7); } 15% { opacity: 1; transform: translateY(-14px) scale(1.15); } 70% { opacity: 1; transform: translateY(-30px) scale(1); } 100% { opacity: 0; transform: translateY(-44px); } }
 .stat b { display: block; font: 700 21px/1 var(--display); font-variant-numeric: tabular-nums; }
+#sGoldSub { color: var(--ink); }
 .stat small { display: block; margin-top: 2px; color: var(--muted); font-size: 11.5px; white-space: nowrap; }
 .ratio { display: grid; grid-template-columns: auto 1fr 46px; align-items: center; gap: 10px; margin-top: 4px; font-size: 13px; color: var(--muted); }
 .ratio b { color: var(--ink); font: 700 16px var(--display); }

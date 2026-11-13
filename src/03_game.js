@@ -124,26 +124,29 @@
     let c = info.color;
     if (!c) {
       if (info.type === PT.NATION) {
-        // No nation may look like a person at the table: its hue keeps at least 32 degrees away
-        // from every human player's colour (and it is told apart from grey bots by being vivid).
-        let hue = (id * 137.508 + 40) % 360;
-        for (let k = 0; k < 12; k++) {
-          let clash = false;
-          for (const q of this.humans) {
-            const d = Math.abs(hue - G.hueOf([q.r, q.g, q.b]));
-            if (Math.min(d, 360 - d) < 32) { clash = true; break; }
-          }
-          if (!clash) break;
-          hue = (hue + 47) % 360;
+        // Nations take their colour from one fixed, matt palette (G.PALETTE), in its order, and
+        // only when every colour of it is in use are further shades made from it. A colour too
+        // close to a person at the table is passed over, so nobody is mistaken for a player.
+        const P = G.PALETTE, used = this.palUsed || (this.palUsed = 0);
+        const near = (c) => { for (const q of this.humans) if (Math.abs(q.r - c[0]) + Math.abs(q.g - c[1]) + Math.abs(q.b - c[2]) < 54) return true; return false; };
+        let k = used;
+        c = null;
+        for (let n = 0; n < P.length && !c; n++, k++) {
+          const base = P[k % P.length], round = (k / P.length) | 0;
+          // later rounds: the same colours a step lighter, then a step darker, and so on
+          const sh = round === 0 ? 0 : (round % 2 ? 1 : -1) * 13 * ((round + 1) >> 1);
+          const cand = [within(base[0] + sh, 40, 235), within(base[1] + sh, 40, 235), within(base[2] + sh, 40, 235)];
+          if (!near(cand)) c = cand;
         }
-        c = G.hsl(hue, 0.55 + (id % 3) * 0.07, 0.5 + (id % 4) * 0.035);
+        if (!c) c = P[k % P.length].slice();
+        this.palUsed = k;
       } else {
-        c = G.hsl((id * 137.508) % 360, 0.05 + (id % 3) * 0.03, 0.46 + (id % 6) * 0.04);   // bot land is grey, in different shades, so it is easy to tell from nations
+        c = G.hsl((id * 137.508) % 360, 0.04 + (id % 3) * 0.02, 0.56 + (id % 6) * 0.03);   // bot land is a pale grey, in different shades: it recedes, and is easy to tell from nations
       }
     } else if (info.type === PT.HUMAN) {
       // Two people who picked the same colour: the later one is moved round the colour wheel.
       for (const q of this.humans) {
-        if (Math.abs(q.r - c[0]) + Math.abs(q.g - c[1]) + Math.abs(q.b - c[2]) < 60) { c = G.hsl((G.hueOf(c) + 150 + 40 * this.humans.length) % 360, 0.62, 0.52); break; }
+        if (Math.abs(q.r - c[0]) + Math.abs(q.g - c[1]) + Math.abs(q.b - c[2]) < 60) { c = G.hsl((G.hueOf(c) + 150 + 40 * this.humans.length) % 360, 0.46, 0.56); break; }
       }
     }
     p.r = c[0]; p.g = c[1]; p.b = c[2];
@@ -714,6 +717,15 @@
 
   // Whoever takes a player over gets its gold; a bot pays a bounty on top.
   // On top comes a reward by size: so much gold for every tile the conquered realm held at its largest.
+  // The colours of the nations: matt, medium-light, spread round the colour wheel in three tones
+  // (clear, pale, dusty). Ordered so that the first ones handed out differ the most.
+  G.PALETTE = (function () {
+    const hues = [4, 24, 42, 58, 78, 104, 134, 158, 176, 194, 212, 232, 256, 282, 308, 334];
+    const tones = [[0.36, 0.63], [0.28, 0.71], [0.30, 0.54]];
+    const out = [];
+    for (let t = 0; t < tones.length; t++) for (let i = 0; i < hues.length; i++) out.push(G.hsl(hues[(i * 7 + t * 5) % hues.length], tones[t][0], tones[t][1]));
+    return out;
+  })();
   G.BOT_BOUNTY = 60000;
   G.START_GOLD = 250000;
   G.NUKE_PEACE = 6000;    // ticks after the start in which no nation fires a bomb (ten minutes)

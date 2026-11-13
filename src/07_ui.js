@@ -11,7 +11,7 @@
     return '<svg viewBox="0 0 24 24" width="' + size + '" height="' + size + '" aria-hidden="true"><path fill="currentColor" d="' + ICON[name] + '"/></svg>';
   }
 
-  const COLORS = [[226, 68, 60], [42, 122, 226], [241, 160, 36], [150, 84, 214], [28, 170, 150], [232, 86, 160]];
+  const COLORS = [[208, 92, 84], [84, 128, 200], [216, 164, 80], [146, 112, 196], [70, 160, 148], [206, 112, 160]];   // matt, but a touch stronger than the nations' palette
   // The keys are OpenFront's defaults (1 city, 2 factory, 3 port ... 0 MIRV); the two weapons OpenFront
   // does not have sit on free letters. They build at the mouse pointer.
   const BUILD = [

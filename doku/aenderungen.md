@@ -28,8 +28,18 @@ Patrouille (`tickWarship`, `patrolPoint`, nach `WarshipExecution.ts` in OpenFron
 - **Gegner unter der Maus:** Leiste oben mit Name, Stand (Bot, Nation, verbündet, im Krieg), Truppen, Gold, Landanteil und Zahl der Gebäude und Kriegsschiffe (`showPeek`).
 - **Front-Schilder:** an der Grenze steht pro eigenem Angriff die Zahl der Truppen im Kampf und «+ unterwegs», Angriffe auf einen selbst in Rot (`drawFronts`). Ohne Schwert-Zeichen davor (am 13.11.2026 entfernt, Emoji sehen auf jedem Gerät anders aus).
 - **Truppenboote:** gefahrene Route kräftig mit dunklem Rand, der Rest gestrichelt bis zum Landepunkt mit Ring.
-- **Gebäude-Icons:** mindestens 15 px, auch ganz herausgezoomt.
+- **Gebäude-Icons:** (überholt, siehe «Übersichtlichkeit») mindestens 15 px, auch ganz herausgezoomt.
 - **Raketen:** schlanker Metallkörper ohne Umriss, glühender Abgasstrahl, blinkendes Positionslicht, Rauchspur, die nach hinten verblasst, Schatten am Boden, wächst zum Scheitel der Bahn.
 - **Fabrik-Vorschau:** Schienenradius als Kreis, dazu Linien zu den Stationen in Reichweite (bei Stadt und Hafen: zur Fabrik in Reichweite).
 - **Kriegsschiffe:** unter 75 % Rumpf wird die Jagd sofort abgebrochen und der Hafen angelaufen (vorher erst beim nächsten 2-Sekunden-Takt); ein Schiff in Reparatur wird als letztes für einen Marschbefehl genommen.
 - **Geld am Anfang:** Menschen starten mit 250K Gold (`G.START_GOLD`), ein eroberter Bot bringt 60K statt 25K (`G.BOT_BOUNTY`), Nationen feuern in den ersten 10 Minuten keine Bomben (`G.NUKE_PEACE`).
+
+## Übersichtlichkeit (13.11.2026, spät)
+Ziel: die Karte so ruhig wie in OpenFront. Alles in `06_view.js`, die Palette in `03_game.js`.
+- **Palette:** Nationen nehmen ihre Farbe aus einer festen, matten Liste (`G.PALETTE`, 48 Farben: 16 Farbtöne in drei Tönungen, Sättigung 0.28–0.36). Erst wenn alle vergeben sind, kommen dieselben Farben eine Stufe heller, dann dunkler. Bots sind blasses Grau. Die sechs Spielerfarben sind ebenfalls matt, eine Spur kräftiger.
+- **Gelände und Wasser:** eine ruhige Wasserfarbe mit wenig Tiefenverlauf, Landfarben ein Viertel Richtung Grau und Richtung mittlere Helligkeit (`calm`), Relief halbiert. Besetztes Land zeigt das Gelände nur noch als Hauch.
+- **Grenzen:** Landfarbe × 0.72; die eigene Grenze ist fast weiss.
+- **Namen:** keine Flaggen (`G.flagOf` liefert nichts), Menschen schwarz, Nationen dunkelgrau, Bots heller grau. Gezeichnet wird nur, was auf dem Bildschirm gross genug ist (Nation 10.5 px, Bot 13 px), die Grössten zuerst, höchstens 60, und keiner über einen schon gezeichneten.
+- **Gebäude:** jede Art hat eine eigene Form (`shape`): Stadt Sechseck, Hafen Fünfeck, Fabrik Quadrat, Verteidigungsposten Schild, Flugabwehr Kreis, Silo Dreieck. Nah (Zoom ≥ 2.2) mit Zeichen und Stufe, mittel nur die Form, fern (< 1.1) kleine Formen, wobei Gebäude desselben Besitzers im selben 15-px-Feld zu einer Form mit Zahl werden. Eigene haben einen weissen Rand, fremde einen hellen in ihrer Farbe. Neues Stadt-Zeichen (Hochhaus mit Fenstern statt Balken).
+- **Aus der Ferne weggelassen:** fremde Züge und Handelsschiffe; fremde Kriegsschiffe und Boote sind ein Punkt; Schienen eine dünne Linie; Bootsrouten voll nur für die eigenen; Reichweite fremder Verteidigungsposten nur, solange man mit dem Besitzer kämpft.
+- **Gold:** Einkommen und Gold-Meldungen auf der Karte weiss statt gelb.
