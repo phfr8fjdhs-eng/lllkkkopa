@@ -928,7 +928,7 @@
     html += '<h3>Flotte und Raketen</h3><div class="grid">' + BUILD.filter(function (b) { return b.t > UT.FACTORY && (b.t !== UT.LASER || game.opts.arsenal); }).map(cell).join('') + '</div>';
     $('sheetBody').innerHTML = html;
     $('purse').innerHTML = svg('gold', 15) + (game.opts.infiniteGold ? '∞' : fmt(h.gold));
-    $('sheet').hidden = false;
+    $('sheet').hidden = false; sheetAt = performance.now();
     view.mark = tile;
     snd('open');
   }
@@ -963,8 +963,12 @@
     view.mark = best.tile;
     setTimeout(function () { if (view && view.mark === best.tile && $('sheet').hidden) view.mark = -1; }, 900);
   }
+  // The tap that opens the card must not also press a button of it: on a phone the browser sends a click
+  // to whatever lies under the finger after the touch, and that is the card by then.
+  let sheetAt = 0;
   function closeBuild() { $('sheet').hidden = true; if (view) view.mark = -1; }
   function onBuild(e) {
+    if (performance.now() - sheetAt < 350) return;
     const b = e.target.closest('[data-t],[data-up]');
     if (!b || b.disabled) return;
     if (b.dataset.up) doUpgrade(buildTile, +b.dataset.up);
@@ -1367,7 +1371,7 @@
     $('rW').addEventListener('click', function () { radialAct('W'); });
     $('sheetBody').addEventListener('click', onBuild);
     $('sheetClose').addEventListener('click', closeBuild);
-    $('sheet').addEventListener('click', function (e) { if (e.target === this) closeBuild(); });
+    $('sheet').addEventListener('click', function (e) { if (e.target === this && performance.now() - sheetAt >= 350) closeBuild(); });
     $('modal').addEventListener('click', function (e) {
       if (e.target === this && (modalKind === 'info' || modalKind === 'menu' || modalKind === 'help' || modalKind === 'confirm')) { closeModal(); return; }
       const b = e.target.closest('[data-act]');
