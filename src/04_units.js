@@ -4,10 +4,11 @@
   const Game = G.Game, UT = G.UT, PT = G.PT, fmt = G.fmt;
   const BUILD_TICKS = [20, 50, 50, 100, 300, 20];   // city, defence post, port, silo, air defence, factory
   G.BUILD_TICKS = BUILD_TICKS;
-  G.MAX_LEVEL = 5;
+  G.WARSHIP_CAPTURE = false;
+  G.MAX_LEVEL = 100;
   G.CITY_MAX_LEVEL = 100;
-  // Cities grow up to level 100, every other building up to level 5.
-  G.maxLevel = function (type) { return type === UT.CITY ? G.CITY_MAX_LEVEL : G.MAX_LEVEL; };
+  // Every building can be upgraded up to level 100.
+  G.maxLevel = function (type) { return G.MAX_LEVEL; };
 
   // Price of the next one of a kind. As in OpenFront every level of a building counts like a
   // building of its own, so an upgrade costs what the next new one would (cities: 125K, 250K,
@@ -680,7 +681,14 @@
     if (tg.type === UT.WARSHIP) {
       tg.hp -= 250;
       if (tg.hp > 0) return;
-      if (!by.alive || by.cnt[UT.WARSHIP] >= 8) { this.removeUnit(tg); return; }   // a full fleet sinks it instead
+      // a beaten warship blows up and sinks (set G.WARSHIP_CAPTURE = true for the old behaviour: the victor takes it over)
+      if (!G.WARSHIP_CAPTURE || !by.alive || by.cnt[UT.WARSHIP] >= 8) {
+        this.fx.push({ k: 'shipboom', x: tg.x, y: tg.y, a: tg.ang || 0 });
+        this.removeUnit(tg);
+        if (was === h) this.say('Dein Kriegsschiff wurde von ' + by.name + ' versenkt', 'bad');
+        else if (by === h) this.say('Kriegsschiff von ' + was.name + ' versenkt', 'good');
+        return;
+      }
       // a beaten warship strikes its colours and sails on for the victor
       const i = was.units.indexOf(tg);
       if (i >= 0) was.units.splice(i, 1);
@@ -813,7 +821,10 @@
     }
     for (const v of this.units) {
       if (!v.active || v.type >= UT.SHELL) continue;
-      if ((v.x - cx) * (v.x - cx) + (v.y - cy) * (v.y - cy) <= out2) this.removeUnit(v);
+      if ((v.x - cx) * (v.x - cx) + (v.y - cy) * (v.y - cy) <= out2) {
+        if (v.type === UT.WARSHIP) this.fx.push({ k: 'shipboom', x: v.x, y: v.y, a: 0 });
+        this.removeUnit(v);
+      }
     }
     this.fx.push({ k: 'boom', x: cx, y: cy, r: rout, big: type === UT.HYDRO, head: type === UT.WARHEAD, beam: type === UT.LASER });
     if (this.fx.length > 300) this.fx.splice(0, 150);

@@ -59,6 +59,7 @@
     const g = this.g, p = this.p, r = g.rng;
     this.embargoes();
     this.construct();
+    this.nuke();
     const nb = g.neighbors(p);
     if (nb.tn) { this.send(null); if (r.chance(2)) return; }
     const list = [];
@@ -71,7 +72,6 @@
     }
     const target = this.choose(list);
     if (!target) { this.overseas(); return; }
-    this.strikeFromAir(target);
     if (g.opts.arsenal) this.beam(target);
     if (p.troops / g.maxTroops(p) >= this.trigger) this.send(target);
   };
@@ -204,11 +204,16 @@
       const ports = p.units.filter(function (u) { return u.type === UT.PORT && u.built; });
       if (ports.length && g.build(p, UT.WARSHIP, r.pick(ports).water)) return;
     }
-    if (d >= 1 && c[UT.SILO] < 1 && can(UT.SILO, 1.2)) {
+    // every nation gets a silo, richer ones more of them and with more missiles per load
+    if (c[UT.SILO] < 1 + (d >= 2 ? 1 : 0) && can(UT.SILO, 1.2)) {
       const t = this.tileOf(p, true);
       if (t >= 0 && g.build(p, UT.SILO, t)) return;
     }
-    if (d >= 2 && c[UT.SAM] < 1 && c[UT.CITY] > 0 && can(UT.SAM, 1.2)) {
+    if (c[UT.SILO] >= 1 && p.gold >= 4e6 && c[UT.SILO] < 2 + 2 * d) {
+      const silo = p.units.find(function (u) { return u.type === UT.SILO && u.built && g.canUpgrade(p, u); });
+      if (silo && g.upgrade(p, silo)) return;
+    }
+    if (d >= 1 && c[UT.SAM] < 1 && c[UT.CITY] > 0 && can(UT.SAM, 1.2)) {
       const t = this.tileOf(p, true);
       if (t >= 0 && g.build(p, UT.SAM, t)) return;
     }
@@ -266,19 +271,42 @@
     for (const u of q.units) if (u.type <= UT.FACTORY && !this.nearOwn(u.tile, g.R.laserOut + 3)) cands.push(u.tile);
     if (cands.length) g.build(p, UT.LASER, r.pick(cands));
   };
+  // Whom to bomb: anybody who is not a bot or a friend, wherever they live (a bomb has no range).
+  // The more a nation dislikes someone, and the bigger and more human they are, the likelier the choice.
+  AI.prototype.nukeTarget = function () {
+    const g = this.g, p = this.p, r = g.rng;
+    let best = null, bs = -Infinity;
+    for (let i = 1; i < g.players.length; i++) {
+      const o = g.players[i];
+      if (!o || o === p || !o.alive || o.type === PT.BOT || g.friendly(p, o)) continue;
+      const s = -g.relation(p, o) + o.tiles / Math.max(1, g.map.landTiles) * 150 + (o.type === PT.HUMAN ? 25 : 0) + r.next() * 40;
+      if (s > bs) { bs = s; best = o; }
+    }
+    return best;
+  };
+  // Called every turn of a nation: pick a target and fire as often as the silos allow.
+  AI.prototype.nuke = function () {
+    const g = this.g, p = this.p, r = g.rng;
+    if (p.cnt[UT.SILO] < 1 || g.ticks < g.immuneUntil) return;
+    if (g.opts.difficulty === 0 && !r.chance(3)) return;   // the easiest nations fire less often
+    const q = this.nukeTarget();
+    if (!q) return;
+    for (let i = 0; i < 4; i++) if (!this.strikeFromAir(q)) break;
+  };
+  // Returns true when a missile was launched.
   AI.prototype.strikeFromAir = function (q) {
     const g = this.g, p = this.p, r = g.rng, d = g.opts.difficulty, W = g.W;
-    if (d < 1 || q.type === PT.BOT || p.cnt[UT.SILO] < 1 || g.friendly(p, q) || g.ticks < g.immuneUntil) return;
+    if (q.type === PT.BOT || p.cnt[UT.SILO] < 1 || g.friendly(p, q) || g.ticks < g.immuneUntil) return false;
     // knock out an air defence first, so the big bombs get through
     if (q.cnt[UT.SAM] > 0 && p.gold >= 1.5e6 && r.chance(2)) {
       const s = q.units.find(function (u) { return u.type === UT.SAM && u.built; });
-      if (s && g.build(p, UT.CRUISE, s.tile)) return;
+      if (s && g.build(p, UT.CRUISE, s.tile)) return true;
     }
     let type = -1;
     if (d >= 2 && p.gold >= 26e6 && q.tiles > g.map.landTiles * 0.12) type = UT.MIRV;
     else if (d >= 2 && p.gold >= 6e6 && q.tiles > 3000) type = UT.HYDRO;
     else if (p.gold >= 1e6) type = UT.ATOM;
-    if (type < 0) return;
+    if (type < 0) return false;
     const rad = type === UT.HYDRO ? g.R.hydroOut : g.R.atomOut;
     const cands = [];
     for (const u of q.units) if (u.type <= UT.FACTORY) cands.push(u.tile);
@@ -294,7 +322,7 @@
       }
       if (s > bs) { bs = s; best = t; }
     }
-    if (best >= 0) g.build(p, type, best);
+    return best >= 0 && !!g.build(p, type, best);
   };
   // Nobody left to fight over land: pick a rival across the water, bomb it and land troops there.
   AI.prototype.rival = function () {
@@ -317,7 +345,6 @@
     const g = this.g, p = this.p, r = g.rng;
     const q = this.rival();
     if (!q) { if (r.chance(4)) this.boat(); return; }
-    this.strikeFromAir(q);
     if (p.boats >= 2 || !r.chance(2) || p.troops / g.maxTroops(p) < this.trigger * 0.8) return;
     for (let i = 0; i < 12; i++) {
       const t = this.tileOf(q, false);

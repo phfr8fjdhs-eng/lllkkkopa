@@ -1802,10 +1802,11 @@ body.placing #cv { cursor: crosshair; }
   const Game = G.Game, UT = G.UT, PT = G.PT, fmt = G.fmt;
   const BUILD_TICKS = [20, 50, 50, 100, 300, 20];   // city, defence post, port, silo, air defence, factory
   G.BUILD_TICKS = BUILD_TICKS;
-  G.MAX_LEVEL = 5;
+  G.WARSHIP_CAPTURE = false;
+  G.MAX_LEVEL = 100;
   G.CITY_MAX_LEVEL = 100;
-  // Cities grow up to level 100, every other building up to level 5.
-  G.maxLevel = function (type) { return type === UT.CITY ? G.CITY_MAX_LEVEL : G.MAX_LEVEL; };
+  // Every building can be upgraded up to level 100.
+  G.maxLevel = function (type) { return G.MAX_LEVEL; };
 
   // Price of the next one of a kind. As in OpenFront every level of a building counts like a
   // building of its own, so an upgrade costs what the next new one would (cities: 125K, 250K,
@@ -2478,7 +2479,14 @@ body.placing #cv { cursor: crosshair; }
     if (tg.type === UT.WARSHIP) {
       tg.hp -= 250;
       if (tg.hp > 0) return;
-      if (!by.alive || by.cnt[UT.WARSHIP] >= 8) { this.removeUnit(tg); return; }   // a full fleet sinks it instead
+      // a beaten warship blows up and sinks (set G.WARSHIP_CAPTURE = true for the old behaviour: the victor takes it over)
+      if (!G.WARSHIP_CAPTURE || !by.alive || by.cnt[UT.WARSHIP] >= 8) {
+        this.fx.push({ k: 'shipboom', x: tg.x, y: tg.y, a: tg.ang || 0 });
+        this.removeUnit(tg);
+        if (was === h) this.say('Dein Kriegsschiff wurde von ' + by.name + ' versenkt', 'bad');
+        else if (by === h) this.say('Kriegsschiff von ' + was.name + ' versenkt', 'good');
+        return;
+      }
       // a beaten warship strikes its colours and sails on for the victor
       const i = was.units.indexOf(tg);
       if (i >= 0) was.units.splice(i, 1);
@@ -2611,7 +2619,10 @@ body.placing #cv { cursor: crosshair; }
     }
     for (const v of this.units) {
       if (!v.active || v.type >= UT.SHELL) continue;
-      if ((v.x - cx) * (v.x - cx) + (v.y - cy) * (v.y - cy) <= out2) this.removeUnit(v);
+      if ((v.x - cx) * (v.x - cx) + (v.y - cy) * (v.y - cy) <= out2) {
+        if (v.type === UT.WARSHIP) this.fx.push({ k: 'shipboom', x: v.x, y: v.y, a: 0 });
+        this.removeUnit(v);
+      }
     }
     this.fx.push({ k: 'boom', x: cx, y: cy, r: rout, big: type === UT.HYDRO, head: type === UT.WARHEAD, beam: type === UT.LASER });
     if (this.fx.length > 300) this.fx.splice(0, 150);
@@ -3069,6 +3080,7 @@ body.placing #cv { cursor: crosshair; }
     const g = this.g, p = this.p, r = g.rng;
     this.embargoes();
     this.construct();
+    this.nuke();
     const nb = g.neighbors(p);
     if (nb.tn) { this.send(null); if (r.chance(2)) return; }
     const list = [];
@@ -3081,7 +3093,6 @@ body.placing #cv { cursor: crosshair; }
     }
     const target = this.choose(list);
     if (!target) { this.overseas(); return; }
-    this.strikeFromAir(target);
     if (g.opts.arsenal) this.beam(target);
     if (p.troops / g.maxTroops(p) >= this.trigger) this.send(target);
   };
@@ -3214,11 +3225,16 @@ body.placing #cv { cursor: crosshair; }
       const ports = p.units.filter(function (u) { return u.type === UT.PORT && u.built; });
       if (ports.length && g.build(p, UT.WARSHIP, r.pick(ports).water)) return;
     }
-    if (d >= 1 && c[UT.SILO] < 1 && can(UT.SILO, 1.2)) {
+    // every nation gets a silo, richer ones more of them and with more missiles per load
+    if (c[UT.SILO] < 1 + (d >= 2 ? 1 : 0) && can(UT.SILO, 1.2)) {
       const t = this.tileOf(p, true);
       if (t >= 0 && g.build(p, UT.SILO, t)) return;
     }
-    if (d >= 2 && c[UT.SAM] < 1 && c[UT.CITY] > 0 && can(UT.SAM, 1.2)) {
+    if (c[UT.SILO] >= 1 && p.gold >= 4e6 && c[UT.SILO] < 2 + 2 * d) {
+      const silo = p.units.find(function (u) { return u.type === UT.SILO && u.built && g.canUpgrade(p, u); });
+      if (silo && g.upgrade(p, silo)) return;
+    }
+    if (d >= 1 && c[UT.SAM] < 1 && c[UT.CITY] > 0 && can(UT.SAM, 1.2)) {
       const t = this.tileOf(p, true);
       if (t >= 0 && g.build(p, UT.SAM, t)) return;
     }
@@ -3276,19 +3292,42 @@ body.placing #cv { cursor: crosshair; }
     for (const u of q.units) if (u.type <= UT.FACTORY && !this.nearOwn(u.tile, g.R.laserOut + 3)) cands.push(u.tile);
     if (cands.length) g.build(p, UT.LASER, r.pick(cands));
   };
+  // Whom to bomb: anybody who is not a bot or a friend, wherever they live (a bomb has no range).
+  // The more a nation dislikes someone, and the bigger and more human they are, the likelier the choice.
+  AI.prototype.nukeTarget = function () {
+    const g = this.g, p = this.p, r = g.rng;
+    let best = null, bs = -Infinity;
+    for (let i = 1; i < g.players.length; i++) {
+      const o = g.players[i];
+      if (!o || o === p || !o.alive || o.type === PT.BOT || g.friendly(p, o)) continue;
+      const s = -g.relation(p, o) + o.tiles / Math.max(1, g.map.landTiles) * 150 + (o.type === PT.HUMAN ? 25 : 0) + r.next() * 40;
+      if (s > bs) { bs = s; best = o; }
+    }
+    return best;
+  };
+  // Called every turn of a nation: pick a target and fire as often as the silos allow.
+  AI.prototype.nuke = function () {
+    const g = this.g, p = this.p, r = g.rng;
+    if (p.cnt[UT.SILO] < 1 || g.ticks < g.immuneUntil) return;
+    if (g.opts.difficulty === 0 && !r.chance(3)) return;   // the easiest nations fire less often
+    const q = this.nukeTarget();
+    if (!q) return;
+    for (let i = 0; i < 4; i++) if (!this.strikeFromAir(q)) break;
+  };
+  // Returns true when a missile was launched.
   AI.prototype.strikeFromAir = function (q) {
     const g = this.g, p = this.p, r = g.rng, d = g.opts.difficulty, W = g.W;
-    if (d < 1 || q.type === PT.BOT || p.cnt[UT.SILO] < 1 || g.friendly(p, q) || g.ticks < g.immuneUntil) return;
+    if (q.type === PT.BOT || p.cnt[UT.SILO] < 1 || g.friendly(p, q) || g.ticks < g.immuneUntil) return false;
     // knock out an air defence first, so the big bombs get through
     if (q.cnt[UT.SAM] > 0 && p.gold >= 1.5e6 && r.chance(2)) {
       const s = q.units.find(function (u) { return u.type === UT.SAM && u.built; });
-      if (s && g.build(p, UT.CRUISE, s.tile)) return;
+      if (s && g.build(p, UT.CRUISE, s.tile)) return true;
     }
     let type = -1;
     if (d >= 2 && p.gold >= 26e6 && q.tiles > g.map.landTiles * 0.12) type = UT.MIRV;
     else if (d >= 2 && p.gold >= 6e6 && q.tiles > 3000) type = UT.HYDRO;
     else if (p.gold >= 1e6) type = UT.ATOM;
-    if (type < 0) return;
+    if (type < 0) return false;
     const rad = type === UT.HYDRO ? g.R.hydroOut : g.R.atomOut;
     const cands = [];
     for (const u of q.units) if (u.type <= UT.FACTORY) cands.push(u.tile);
@@ -3304,7 +3343,7 @@ body.placing #cv { cursor: crosshair; }
       }
       if (s > bs) { bs = s; best = t; }
     }
-    if (best >= 0) g.build(p, type, best);
+    return best >= 0 && !!g.build(p, type, best);
   };
   // Nobody left to fight over land: pick a rival across the water, bomb it and land troops there.
   AI.prototype.rival = function () {
@@ -3327,7 +3366,6 @@ body.placing #cv { cursor: crosshair; }
     const g = this.g, p = this.p, r = g.rng;
     const q = this.rival();
     if (!q) { if (r.chance(4)) this.boat(); return; }
-    this.strikeFromAir(q);
     if (p.boats >= 2 || !r.chance(2) || p.troops / g.maxTroops(p) < this.trigger * 0.8) return;
     for (let i = 0; i < 12; i++) {
       const t = this.tileOf(q, false);
@@ -3745,9 +3783,38 @@ body.placing #cv { cursor: crosshair; }
     while (c0 > 0 && c1 - c0 + 1 < best * 4 && full(c0 - 1)) c0--;
     while (c1 < gw - 1 && c1 - c0 + 1 < best * 4 && full(c1 + 1)) c1++;
     const rw = (c1 - c0 + 1) * st, rh = best * st;
-    p.nameSize = Math.min(rh * 0.42, rw / (Math.max(4, p.name.length) * 0.5));
-    p.nameX = p.x0 + (c0 + c1 + 1) / 2 * st;
-    p.nameY = p.y0 + (r0 + by + 1) / 2 * st;
+    let size = Math.min(rh * 0.42, rw / (Math.max(4, p.name.length) * 0.5));
+    let nx = p.x0 + (c0 + c1 + 1) / 2 * st, ny = p.y0 + (r0 + by + 1) / 2 * st;
+    // The rectangle above was found on a coarse grid. Check the label against the real tiles: every
+    // spot the two lines of text cover must belong to this player (so never sea, never a neighbour).
+    // Shrink and nudge until it fits; the label then always sits inside the territory.
+    const H = g.H, chars = Math.max(4, p.name.length) + 4;   // the extra characters leave room for flag, crown, alliance sign
+    const fits = function (x, y, sz) {
+      const hw = chars * 0.29 * sz, ys = [-0.86, -0.36, 0.5, 0.87], n = Math.max(2, Math.min(9, Math.ceil(hw * 2)));
+      for (let a = 0; a < ys.length; a++) {
+        const ty = Math.floor(y + ys[a] * sz);
+        if (ty < 0 || ty >= H) return false;
+        for (let b = 0; b <= n; b++) {
+          const tx = Math.floor(x - hw + 2 * hw * b / n);
+          if (tx < 0 || tx >= W || own[ty * W + tx] !== id) return false;
+        }
+      }
+      return true;
+    };
+    let ok = false;
+    for (let tries = 0; tries < 14 && !ok; tries++) {
+      const hw = chars * 0.29 * size;
+      for (let o = 0; o < 9 && !ok; o++) {
+        const ox = ((o % 3) - 1) * hw * 0.3, oy = (((o / 3) | 0) - 1) * size * 0.4;
+        if (fits(nx + ox, ny + oy, size)) { nx += ox; ny += oy; ok = true; }
+      }
+      if (!ok) size *= 0.85;
+    }
+    if (!ok) {   // too small for any label: keep it on the centre tile of the largest block
+      size = Math.min(size, 1.5);
+      if (own[Math.floor(ny) * W + Math.floor(nx)] !== id) { nx = p.x0 + (c0 + c1 + 1) / 2 * st; ny = p.y0 + (r0 + by + 1) / 2 * st; }
+    }
+    p.nameSize = size; p.nameX = nx; p.nameY = ny;
   };
 
   // ---------- camera ----------
@@ -3814,6 +3881,7 @@ body.placing #cv { cursor: crosshair; }
     const g = this.game;
     if (!g) return;
     this.drawRails(ctx, g, z, ox, oy);
+    this.drawReach(ctx, g, z, ox, oy);
     this.drawStructures(ctx, g, z, ox, oy);
     this.drawUnits(ctx, g, z, ox, oy, alpha, now);
     this.drawFx(ctx, g, z, ox, oy, now);
@@ -3823,6 +3891,27 @@ body.placing #cv { cursor: crosshair; }
     this.drawMarks(ctx, g, z, ox, oy, now);
     if (this.aim) this.drawAim(ctx, g, z, ox, oy, now);
     if (this.ghost) this.drawGhost(ctx, g, z, ox, oy);
+  };
+
+  // The ground a defence post covers and the sky an air defence guards, drawn around the building at all
+  // times so nobody has to tap it to learn how far it reaches. Own and allied ones are drawn clearly,
+  // those of others fainter.
+  View.prototype.drawReach = function (ctx, g, z, ox, oy) {
+    const h = g.human, cw = this.cw, ch = this.ch;
+    for (const u of g.structAt.values()) {
+      if (!u.built || (u.type !== UT.DEFENSE && u.type !== UT.SAM)) continue;
+      const own = h && (u.owner === h || h.allies.has(u.owner.id));
+      const rad = u.type === UT.DEFENSE ? g.R.defense : g.samRange(u);
+      const x = (u.x + 0.5) * z + ox, y = (u.y + 0.5) * z + oy, r = rad * z;
+      if (r < 6 || x < -r || y < -r || x > cw + r || y > ch + r) continue;
+      if (u.type === UT.SAM && !own) continue;   // enemy air defence only shows while a bomb is being aimed
+      const p = u.owner, col = u.type === UT.DEFENSE ? p.r + ',' + p.g + ',' + p.b : '197,139,255';
+      ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832);
+      ctx.fillStyle = 'rgba(' + col + ',' + (own ? 0.10 : 0.05) + ')'; ctx.fill();
+      ctx.setLineDash([7, 6]); ctx.lineWidth = own ? 2 : 1.4;
+      ctx.strokeStyle = u.type === UT.DEFENSE ? 'rgba(255,255,255,' + (own ? 0.75 : 0.4) + ')' : 'rgba(197,139,255,0.8)';
+      ctx.stroke(); ctx.setLineDash([]);
+    }
   };
 
   // What a build key is about to place, shown under the mouse pointer: in the player's colour when it
@@ -4389,6 +4478,54 @@ body.placing #cv { cursor: crosshair; }
     else rocket(ctx, x, y, ang, within(z * 5, 16, 30), col, 2, flick);      // the MIRV carrier
   };
 
+  // A warship that is destroyed: white flash, fireball, shock ring, a second blast from the magazine,
+  // burning debris thrown out in an arc and a column of smoke. Every part is driven by k (0..1).
+  View.prototype.drawShipBoom = function (ctx, f, x, y, z, k) {
+    const u = within(z * 4.5, 16, 40), seed = (f.x * 73 + f.y * 151) | 0;
+    const rnd = function (i) { const v = Math.sin(seed * 12.9898 + i * 78.233) * 43758.5453; return v - Math.floor(v); };
+    // smoke first, so the fire is on top of it
+    for (let i = 0; i < 7; i++) {
+      const t0 = 0.12 + i * 0.05, kk = (k - t0) / (1 - t0);
+      if (kk <= 0) continue;
+      const sx = x + (rnd(i) - 0.5) * u * 1.4, sy = y - kk * u * (1.4 + rnd(i + 9)), r = u * (0.35 + 0.8 * kk);
+      ctx.beginPath(); ctx.arc(sx, sy, r, 0, 6.2832);
+      ctx.fillStyle = 'rgba(52,56,62,' + (0.5 * (1 - kk)).toFixed(3) + ')'; ctx.fill();
+    }
+    // main blast
+    if (k < 0.5) {
+      const kk = k / 0.5, e = kk * (2 - kk), r = u * (0.5 + 1.5 * e);
+      if (kk < 0.25) {
+        ctx.beginPath(); ctx.arc(x, y, r * 1.6, 0, 6.2832);
+        ctx.fillStyle = 'rgba(255,255,255,' + (0.9 * (1 - kk / 0.25)).toFixed(3) + ')'; ctx.fill();
+      }
+      ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832);
+      ctx.fillStyle = 'rgba(255,140,40,' + (0.85 * (1 - kk)).toFixed(3) + ')'; ctx.fill();
+      ctx.beginPath(); ctx.arc(x, y, r * 0.55, 0, 6.2832);
+      ctx.fillStyle = 'rgba(255,236,160,' + (0.95 * (1 - kk)).toFixed(3) + ')'; ctx.fill();
+    }
+    // magazine goes up a moment later
+    if (k > 0.14 && k < 0.6) {
+      const kk = (k - 0.14) / 0.46, e = kk * (2 - kk), r = u * (0.4 + 1.1 * e);
+      ctx.beginPath(); ctx.arc(x + u * 0.5, y - u * 0.2, r, 0, 6.2832);
+      ctx.fillStyle = 'rgba(255,170,60,' + (0.8 * (1 - kk)).toFixed(3) + ')'; ctx.fill();
+      ctx.beginPath(); ctx.arc(x + u * 0.5, y - u * 0.2, r * 0.45, 0, 6.2832);
+      ctx.fillStyle = 'rgba(255,250,220,' + (0.95 * (1 - kk)).toFixed(3) + ')'; ctx.fill();
+    }
+    // shock ring on the water
+    ctx.beginPath(); ctx.ellipse(x, y, u * (0.6 + 3.2 * k), u * (0.35 + 1.8 * k), 0, 0, 6.2832);
+    ctx.strokeStyle = 'rgba(255,255,255,' + (0.8 * (1 - k)).toFixed(3) + ')'; ctx.lineWidth = 2.5 * (1 - k) + 0.5; ctx.stroke();
+    // burning debris on arcs
+    for (let i = 0; i < 14; i++) {
+      const ang = rnd(i + 20) * 6.2832, sp = u * (1.2 + 2.6 * rnd(i + 40)), kk = Math.min(1, k * 1.25);
+      const dx = Math.cos(ang) * sp * kk, dy = Math.sin(ang) * sp * 0.55 * kk - Math.sin(Math.PI * kk) * u * (0.8 + 1.4 * rnd(i + 60));
+      ctx.globalAlpha = Math.max(0, 1 - kk);
+      ctx.fillStyle = i % 3 ? '#ffb347' : '#3c4048';
+      const sz = Math.max(1.5, u * (0.1 + 0.12 * rnd(i + 80)));
+      ctx.fillRect(x + dx - sz / 2, y + dy - sz / 2, sz, sz);
+    }
+    ctx.globalAlpha = 1;
+  };
+
   View.prototype.drawFx = function (ctx, g, z, ox, oy, now) {
     const cw = this.cw, ch = this.ch;
     while (g.fx.length) {
@@ -4402,7 +4539,7 @@ body.placing #cv { cursor: crosshair; }
     const list = this.fxList;
     for (let i = list.length - 1; i >= 0; i--) {
       const f = list[i];
-      const dur = f.k === 'boom' ? (f.big ? 2600 : 1100) : f.k === 'text' ? 2500 : f.k === 'coin' ? 1500 : f.k === 'flag' ? 700 : f.k === 'muzzle' ? 170 : 420, k = (now - f.t0) / dur;
+      const dur = f.k === 'shipboom' ? 2000 : f.k === 'boom' ? (f.big ? 2600 : 1100) : f.k === 'text' ? 2500 : f.k === 'coin' ? 1500 : f.k === 'flag' ? 700 : f.k === 'muzzle' ? 170 : 420, k = (now - f.t0) / dur;
       if (k >= 1 || (f.k === 'coin' && !f.mine)) { list.splice(i, 1); continue; }
       const x = (f.x + 0.5) * z + ox, y = (f.y + 0.5) * z + oy, e = k * (2 - k);
       if (f.k === 'boom') {
@@ -4436,6 +4573,8 @@ body.placing #cv { cursor: crosshair; }
         ctx.fillStyle = 'rgba(255,250,225,' + ((1 - k) * (1 - k)).toFixed(3) + ')'; ctx.fill();
         ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832);
         ctx.strokeStyle = 'rgba(255,255,255,' + (0.8 * (1 - k)).toFixed(3) + ')'; ctx.lineWidth = 2; ctx.stroke();
+      } else if (f.k === 'shipboom') {
+        this.drawShipBoom(ctx, f, x, y, z, k);
       } else if (f.k === 'text') {
         // conquest reward: plain white, in place, fading out (as in OpenFront)
         ctx.globalAlpha = 1 - k;
@@ -6228,6 +6367,7 @@ body.placing #cv { cursor: crosshair; }
   // Sounds for things that happen on the map.
   G.onFx = function (f, seen) {
     if (f.k === 'boom') { if (f.beam) { if (seen) snd('laser', 0.2); } else if (f.big) snd('hydro', 0.3); else if (seen || !f.head) snd(f.head ? 'head' : 'boom', 0.12); }
+    else if (f.k === 'shipboom') { if (seen) snd('boom', 0.15); }
     else if (f.k === 'coin') { if (f.mine) snd(f.amt && f.amt % 5000 === 0 ? 'train' : 'coin', 0.25); }
     else if (f.k === 'flag') { if (seen) snd('flag', 0.2); }
     else if (f.k === 'launch') { if (f.mine || seen) snd('launch', 0.3); }

@@ -106,7 +106,7 @@ const out = (n) => path.join(__dirname, '..', 'build', n);
       const w2 = g.newUnit(UT.WARSHIP, foe, ws.tile); w2.hp = 250; w2.patrol = ws.tile; w2.shotAt = 1e9; w2.target = null; w2.path = null; w2.pi = 0; w2.wait = false; g.addUnit(w2);
       const before = h.cnt[UT.WARSHIP];
       for (let i = 0; i < 200; i++) g.tick();
-      log.boatTaken = !b.active; log.warTaken = w2.owner === h; log.warCount = [before, h.cnt[UT.WARSHIP]]; log.w2 = { hp: w2.hp, active: w2.active, owner: w2.owner.name, foe: foe.name, foeAlive: foe.alive, d: Math.hypot(w2.x - ws.x, w2.y - ws.y), wsActive: ws.active, tg: ws.target && ws.target.type };
+      log.boatTaken = !b.active; log.warTaken = w2.owner === h; log.warSunk = !w2.active; log.warCount = [before, h.cnt[UT.WARSHIP]]; log.w2 = { hp: w2.hp, active: w2.active, owner: w2.owner.name, foe: foe.name, foeAlive: foe.alive, d: Math.hypot(w2.x - ws.x, w2.y - ws.y), wsActive: ws.active, tg: ws.target && ws.target.type };
     }
     return log;
   });

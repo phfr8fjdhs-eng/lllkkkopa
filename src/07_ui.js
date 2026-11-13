@@ -1281,6 +1281,7 @@
   // Sounds for things that happen on the map.
   G.onFx = function (f, seen) {
     if (f.k === 'boom') { if (f.beam) { if (seen) snd('laser', 0.2); } else if (f.big) snd('hydro', 0.3); else if (seen || !f.head) snd(f.head ? 'head' : 'boom', 0.12); }
+    else if (f.k === 'shipboom') { if (seen) snd('boom', 0.15); }
     else if (f.k === 'coin') { if (f.mine) snd(f.amt && f.amt % 5000 === 0 ? 'train' : 'coin', 0.25); }
     else if (f.k === 'flag') { if (seen) snd('flag', 0.2); }
     else if (f.k === 'launch') { if (f.mine || seen) snd('launch', 0.3); }
