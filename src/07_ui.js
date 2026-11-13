@@ -504,6 +504,7 @@
     if (c.k === 'strike') snd(c.sea ? 'boat' : 'attack');
     else if (c.k === 'build') { if (c.u === UT.WARSHIP) snd('ship'); else if (c.u < UT.ATOM) snd('build'); }
     else if (c.k === 'up') snd('upgrade');
+    else if (c.k === 'dig') snd(game.dg && game.dg.lv[c.d] > 1 ? 'upgrade' : 'build');
     else if (c.k === 'ship') snd('ship');
     else if (c.k === 'spawn') snd('tap');
     if (c.k === 'spawn') { view.flush(); view.placeName(game.human); hudTick(); }
@@ -579,7 +580,10 @@
         snd('alarm', 0.5);
       } else if (e.k === 'dep') {
         const d = game.map.deposits[e.d], say = G.RAW[d.raw][0] + ' in ' + game.map.countries[d.c].name;
-        if (e.won) { addMsg('Vorkommen erobert: ' + say + ' (' + perSec(d.gold) + ')', 'good'); snd('good', 0.4); }
+        if (e.won) {
+          const dk = G.digOf(d.raw), dl = game.dg ? game.dg.lv[e.d] : 0;
+          addMsg('Vorkommen erobert: ' + say + (dl ? ' mit ' + dk[0] + ' (Stufe ' + dl + ')' : ', dort fehlt noch: ' + dk[0]), 'good'); snd('good', 0.4);
+        }
         else addMsg('Vorkommen verloren: ' + say, 'warn');
       } else if (e.k === 'loot') {
         if (e.by === h.id && e.gold > 0) { view.floatText(e.x, e.y, '+ ' + fmt(e.gold)); goldPop(e.gold); }
@@ -1171,10 +1175,19 @@
         return '<span><i style="background:' + o[1].css + '"></i>' + (o[1] === h ? 'Du' : esc(o[1].name)) + ' ' + pct(o[0]) + '</span>';
       }).join('') + (owners.length > 2 ? '<span class="free">+' + (owners.length - 2) + ' weitere</span>' : taken < k.tiles * 0.995 ? '<span class="free">frei ' + pct(k.tiles - taken) + '</span>' : '') + '</div>';
     }
-    s += '<div class="ldSec">Abbauen <small>Vorkommen</small></div>';
+    s += '<div class="ldSec">Abbauen und ernten <small>erst die Anlage bringt Gold</small></div>';
     for (const i of k.deps) {
-      const d = game.map.deposits[i], g = G.RAW[d.raw], o = game.owner[d.t], q = o ? ps[o] : null;
-      s += '<button class="ldRow" type="button" data-dep="' + i + '">' + resSvg(d.raw, 22) + '<b>' + g[0] + '<small' + (q === h ? ' class="good"' : '') + '>' + (!q ? 'frei' : q === h ? 'gehört dir' : esc(q.name)) + '</small></b><em>' + perSec(d.gold) + '</em></button>';
+      const d = game.map.deposits[i], g = G.RAW[d.raw], o = game.owner[d.t], q = o ? ps[o] : null, dk = G.digOf(d.raw);
+      const dl = game.dg ? game.dg.lv[i] : 0, ready = dl > 0 && game.ticks >= game.dg.at[i], mine = q === h && h.alive;
+      const plant = dl ? dk[0] + (ready ? ' Stufe ' + dl : ' im Bau') : 'ohne ' + dk[0];   // short: the card is narrow on a phone
+      const sub = !q ? 'frei' : (mine ? (dl ? '' : 'dein · ') : esc(q.name) + ' · ') + plant;
+      s += '<button class="ldRow" type="button" data-dep="' + i + '">' + resSvg(d.raw, 22) + '<b>' + g[0] + '<small' + (mine ? ' class="good"' : '') + '>' + sub + '</small></b>' +
+        (ready ? '<em>' + perSec(game.digGold(i)) + '</em>' : '<em class="pot">' + perSec(d.gold) + '</em>') + '</button>';
+      if (mine && (!dl || ready) && dl < R.DIG_CAP) {      // build the plant, or make it one level better
+        const c = game.digCheck(h, i);
+        s += '<button class="ldDig' + (h.gold < c.cost ? ' poor' : '') + '" type="button" data-dig="' + i + '">' +
+          '<span>' + (dl ? 'Auf Stufe ' + (dl + 1) + ' ausbauen' : dk[0] + ' bauen') + '<small>' + dk[1] + ' ' + perSec(dl ? Math.floor(d.gold / 2) : d.gold) + '</small></span><i>' + fmt(c.cost) + '</i></button>';
+      }
     }
     const w = G.WARE[k.ware], lv = h.alive && h.fac ? h.fac[landC] : 0;
     s += '<div class="ldSec">Herstellen <small>jede Fabrik im Land</small></div><div class="ldRow">' + resSvg('fabrik', 22) + '<b>' + w[0] +
@@ -1184,7 +1197,7 @@
   }
   function showIncome() {
     const h = game.human, cs = game.map.countries, deps = game.map.deposits, raw = new Int32Array(cs.length), rows = [];
-    for (const d of deps) if (game.owner[d.t] === h.id) raw[d.c] += d.gold;
+    for (let i = 0; i < deps.length; i++) if (game.owner[deps[i].t] === h.id) raw[deps[i].c] += game.digGold(i);
     for (let c = 1; c < cs.length; c++) {
       const ware = h.fac && h.fac[c] ? game.wareOf(c, h.fac[c]) : 0;
       if (raw[c] + ware > 0) rows.push([raw[c] + ware, cs[c], raw[c], ware]);
@@ -1199,7 +1212,7 @@
       }).join('') + '</div>';
       if (rows.length > 14) s += '<p class="notes">und ' + (rows.length - 14) + ' weitere Länder</p>';
     }
-    s += '<p class="notes"><b>Abbauen:</b> Ein Vorkommen bringt Gold, solange dir sein Feld gehört. <b>Herstellen:</b> Jede Fabrik stellt die Ware des Landes her, in dem sie steht; pro Land zählen ' + G.RES.FACTORY_CAP + ' Stufen.</p>' +
+    s += '<p class="notes"><b>Abbauen und ernten:</b> Ein Vorkommen bringt erst Gold, wenn du darauf eine Anlage gebaut hast: Mine, Bohrturm, Staudamm, Holzfällerei, Farm, Plantage, Viehhof oder Fischerei. Klicke dazu auf das Land. <b>Herstellen:</b> Jede Fabrik stellt die Ware des Landes her, in dem sie steht; pro Land zählen ' + G.RES.FACTORY_CAP + ' Stufen.</p>' +
       '<button class="btn" data-act="resume" type="button">Weiterspielen</button>';
     openModal(s, 'help');
   }
@@ -1518,6 +1531,13 @@
     $('statGold').addEventListener('click', function () { if (game && game.res && game.phase === 'play' && game.human.alive) showIncome(); });
     $('land').addEventListener('click', function (e) {
       if (e.target.id === 'landX') { landC = 0; view.resSel = 0; renderLand(); return; }
+      const dg = e.target.closest('[data-dig]');          // build the plant on a deposit, or make it better
+      if (dg) {
+        const i = +dg.dataset.dig, k = G.digOf(game.map.deposits[i].raw);
+        act({ k: 'dig', d: i, say: k[0] + (game.dg && game.dg.lv[i] ? ' wird ausgebaut' : ' wird gebaut') });
+        renderLand();
+        return;
+      }
       const b = e.target.closest('[data-dep]');           // a deposit in the list: fly to its spot
       if (b) { const d = game.map.deposits[+b.dataset.dep]; view.flyTo(d.x, d.y, Math.max(view.cam.z, 4)); }
     });

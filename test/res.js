@@ -44,7 +44,8 @@ const fail = (m) => { console.error('FAIL', m); process.exit(1); };
     // right after the income was counted it is exactly: deposits held plus factory levels (five per country at most)
     g.resTick();
     const raw = new Int32Array(g.players.length), ware = new Int32Array(g.players.length), lv = new Map();
-    for (const d of deps) raw[g.owner[d.t]] += d.gold;
+    // a deposit pays only through a finished plant: yield at level 1, half as much again per level after
+    deps.forEach((d, i) => { if (g.dg && g.dg.lv[i] && g.ticks >= g.dg.at[i]) raw[g.owner[d.t]] += Math.floor(d.gold * (1 + g.dg.lv[i]) / 2); });
     for (const u of g.structAt.values()) if (u.type === G.UT.FACTORY && u.built && u.active) { const key = u.owner.id + ':' + map.ctile[u.tile]; lv.set(key, (lv.get(key) || 0) + u.level); }
     for (const [key, n] of lv) { const [id, c] = key.split(':').map(Number); ware[id] += Math.min(n, 5) * cs[c].wareGold; }
     for (let i = 1; i < g.players.length; i++) {
@@ -71,6 +72,32 @@ const fail = (m) => { console.error('FAIL', m); process.exit(1); };
   const a = make();
   if (!a.res && !process.env.NORES) fail('rules not switched on');
   const la = run(a);
+  if (a.res) {
+    // every raw material has a kind of plant, the nations have built some, and the rules of one plant hold
+    for (const raw of Object.keys(G.RAW)) if (!G.digOf(raw)) fail('no plant for ' + raw);
+    const built = a.dg ? Array.from(a.dg.lv).filter((v) => v > 0).length : 0;
+    console.log('plants:', built, 'of', deps.length, 'deposits');
+    if (!built) fail('no nation built a plant');
+    const i = deps.findIndex((d, j) => a.owner[d.t] && a.players[a.owner[d.t]].type === G.PT.NATION && !a.dg.lv[j]);
+    if (i >= 0) {
+      const d = deps[i], p = a.players[a.owner[d.t]], other = a.players.find((q) => q && q.alive && q !== p);
+      if (a.digCheck(other, i).ok) fail('a plant on a deposit of someone else');
+      p.gold = 1e9;
+      const c1 = a.digCheck(p, i), before = p.gold;
+      if (!c1.ok || c1.cost !== d.gold * 800) fail('price of a plant ' + c1.cost);
+      if (!a.dig(p, i) || a.dg.lv[i] !== 1 || p.gold !== before - c1.cost) fail('building a plant');
+      if (a.digGold(i) !== 0 || a.digCheck(p, i).ok) fail('a plant under construction');
+      a.ticks = a.dg.at[i];
+      if (a.digGold(i) !== d.gold) fail('yield at level 1: ' + a.digGold(i) + ' of ' + d.gold);
+      const c2 = a.digCheck(p, i);
+      if (!c2.ok || c2.cost !== d.gold * 1600) fail('price of level 2 ' + c2.cost);
+      a.dig(p, i);
+      if (a.digGold(i) !== Math.floor(d.gold * 3 / 2)) fail('yield at level 2');
+      for (let n = 0; n < 9; n++) a.dig(p, i);
+      if (a.dg.lv[i] !== G.RES.DIG_CAP) fail('level cap ' + a.dg.lv[i]);
+      console.log('plant on', d.raw, 'in', cs[d.c].name, 'ok: level', a.dg.lv[i], 'pays', a.digGold(i), 'of', d.gold);
+    }
+  }
   map.sea = null;
   const lb = run(make());
   for (let i = 0; i < la.length; i++) if (la[i] !== lb[i]) fail('the two copies differ at tick ' + (i + 1) * 500);

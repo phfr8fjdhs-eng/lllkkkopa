@@ -1329,6 +1329,23 @@
       ctx.fillStyle = '#f6f1e4'; ctx.fill();
       ctx.lineWidth = mine ? 3 : 1.6; ctx.strokeStyle = mine ? '#35c46a' : d.c === sel ? '#f4b740' : 'rgba(12,21,32,0.85)'; ctx.stroke();
       drawIcon(ctx, d.raw, x, y, r * 1.36);
+      // The plant: its level in a small round badge in the colour of the holder; a dashed ring while it
+      // is being built. Your own deposit without a plant gets an amber badge with a plus.
+      const lv = g.dg ? g.dg.lv[i] : 0, o = g.owner[d.t];
+      if (lv || mine) {
+        const bx = x + r * 0.8, by = y + r * 0.8, built = lv && g.ticks >= g.dg.at[i];
+        if (lv && !built) {
+          ctx.save(); ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.arc(x, y, r + 4, 0, 6.2832);
+          ctx.lineWidth = 2; ctx.strokeStyle = '#f4b740'; ctx.stroke(); ctx.restore();
+        }
+        ctx.beginPath(); ctx.arc(bx, by, 6.5, 0, 6.2832);
+        ctx.fillStyle = lv ? (o && g.players[o] ? g.players[o].css : '#888') : '#f4b740'; ctx.fill();
+        ctx.lineWidth = 1.5; ctx.strokeStyle = '#fff'; ctx.stroke();
+        ctx.font = '700 10px ' + FONT;
+        ctx.lineWidth = 2.5; ctx.strokeStyle = 'rgba(12,21,32,0.9)';
+        const t = lv ? String(lv) : '+';
+        ctx.strokeText(t, bx, by + 0.5); ctx.fillStyle = '#fff'; ctx.fillText(t, bx, by + 0.5);
+      }
       if (names || d.c === sel) {
         const label = G.RAW[d.raw][0];
         ctx.font = '600 11.5px ' + FONT;

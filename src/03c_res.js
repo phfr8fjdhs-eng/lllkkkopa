@@ -9,7 +9,9 @@
   G.RES = {
     FACTORY_CAP: 5,              // factory levels per country that still find buyers
     EVERY: 10,                   // income is counted anew every so many ticks
-    ZOOM: 3                      // from this zoom on the map shows deposits and factory goods
+    ZOOM: 3,                     // from this zoom on the map shows deposits and factory goods
+    DIG_CAP: 5,                  // levels of the plant on a deposit
+    DIG_COST: 800                // a plant costs what its deposit pays in this many ticks (80 s); every further level costs one more such sum
   };
 
   // Two kinds of goods. Raw materials are dug up at a deposit: a spot on the map, and whoever
@@ -27,6 +29,19 @@
     chem: ['Chemie', 160], schmuck: ['Schmuck', 150], stahl: ['Stahl', 140], schoko: ['Schokolade', 130], textil: ['Textilien', 100],
     moebel: ['Möbel', 100], papier: ['Papier', 100], getraenk: ['Getränke', 90], lebens: ['Lebensmittel', 90], zement: ['Baustoffe', 80]
   };
+  // A deposit pays nothing by itself: a plant has to be built on it, and what kind depends on the
+  // material. id: [name of the plant, what it does, ticks to build].
+  G.DIG = {
+    mine: ['Mine', 'Abbau', 60], bohr: ['Bohrturm', 'Förderung', 80], damm: ['Staudamm', 'Stromerzeugung', 120],
+    wald: ['Holzfällerei', 'Einschlag', 40], farm: ['Farm', 'Ernte', 30], plantage: ['Plantage', 'Ernte', 40],
+    hof: ['Viehhof', 'Zucht', 40], fang: ['Fischerei', 'Fang', 40]
+  };
+  G.DIG_OF = {
+    oel: 'bohr', gas: 'bohr', kohle: 'mine', eisen: 'mine', kupfer: 'mine', gold: 'mine', edel: 'mine', uran: 'mine', lith: 'mine', selt: 'mine',
+    wasser: 'damm', holz: 'wald', korn: 'farm', vieh: 'hof', fisch: 'fang',
+    kaffee: 'plantage', kakao: 'plantage', baumw: 'plantage', frucht: 'plantage', wein: 'plantage'
+  };
+  G.digOf = function (raw) { return G.DIG[G.DIG_OF[raw]]; };
   // The signs of the raw materials, drawn by hand on a 24 x 24 grid: layers of [colour, path]. The
   // map draws them on the canvas, the country card as SVG. `fabrik` is the sign of the factory goods.
   const dot = function (x, y, r) { return 'M' + (x - r) + ' ' + y + 'a' + r + ' ' + r + ' 0 1 0 ' + 2 * r + ' 0a' + r + ' ' + r + ' 0 1 0 ' + -2 * r + ' 0z'; };
@@ -171,16 +186,72 @@
   };
   // What the factory levels of one player in one country pay per tick.
   Game.prototype.wareOf = function (c, levels) { return Math.min(levels, G.RES.FACTORY_CAP) * this.map.countries[c].wareGold; };
+
+  // ---------- the plants on the deposits ----------
+  // Per deposit the level of its plant (0: none yet) and the tick it is finished. A plant belongs to
+  // whoever holds the spot, like any building: if the spot is taken, the plant goes with it.
+  Game.prototype.digs = function () {
+    const n = this.map.deposits.length;
+    return this.dg || (this.dg = { lv: new Uint8Array(n), at: new Int32Array(n) });
+  };
+  // What the plant of deposit i pays per tick: the yield of the deposit at level 1, half as much
+  // again for every level after. Nothing while there is no plant or it is still being built.
+  Game.prototype.digGold = function (i) {
+    const dg = this.dg;
+    if (!dg || !dg.lv[i] || this.ticks < dg.at[i]) return 0;
+    return Math.floor(this.map.deposits[i].gold * (1 + dg.lv[i]) / 2);
+  };
+  // May this player build the plant on deposit i, or make it one level better? Also gives the price.
+  Game.prototype.digCheck = function (p, i) {
+    const res = { ok: false, why: '', cost: 0, lv: 0 }, deps = this.map.deposits;
+    if (!this.res || !p.alive || this.phase !== 'play' || !(i >= 0 && i < deps.length)) { res.why = 'Nicht möglich'; return res; }
+    const d = deps[i], dg = this.digs(), lv = dg.lv[i], k = G.digOf(d.raw);
+    res.lv = lv;
+    res.cost = p.type === PT.HUMAN && this.opts.infiniteGold ? 0 : d.gold * G.RES.DIG_COST * (lv + 1);
+    if (this.owner[d.t] !== p.id) res.why = 'Das Vorkommen gehört dir nicht';
+    else if (lv && this.ticks < dg.at[i]) res.why = k[0] + ' wird noch gebaut';
+    else if (lv >= G.RES.DIG_CAP) res.why = 'Höchste Stufe erreicht';
+    else if (p.gold < res.cost) res.why = 'Zu wenig Gold';
+    else res.ok = true;
+    return res;
+  };
+  Game.prototype.dig = function (p, i) {
+    const c = this.digCheck(p, i);
+    if (!c.ok) return false;
+    const dg = this.digs();
+    p.gold -= c.cost; dg.lv[i]++;
+    if (c.lv === 0) dg.at[i] = this.ticks + (this.opts.instantBuild ? 0 : G.digOf(this.map.deposits[i].raw)[2]);
+    return true;
+  };
+  // For the nations: build the plant on the best deposit of their own that has none, and only when
+  // they are well off, make a plant one level better (up to level 3).
+  Game.prototype.digAuto = function (p) {
+    const deps = this.map.deposits, own = this.owner, dg = this.digs();
+    let pick = -1, pv = -1;
+    for (let i = 0; i < deps.length; i++) {
+      const d = deps[i], lv = dg.lv[i];
+      if (own[d.t] !== p.id || lv >= 3 || (lv && this.ticks < dg.at[i])) continue;
+      if (p.gold < d.gold * G.RES.DIG_COST * (lv + 1) * (lv ? 4 : 1.3)) continue;
+      const v = lv ? d.gold : d.gold * 100;              // new plants before better ones
+      if (v > pv) { pv = v; pick = i; }
+    }
+    return pick >= 0 && this.dig(p, pick);
+  };
   Game.prototype.resTick = function () {
     const ps = this.players, n = this.map.countries.length, h = this.human, deps = this.map.deposits, own = this.owner;
     for (let i = 1; i < ps.length; i++) { const p = ps[i]; p.resRaw = 0; p.resWare = 0; if (p.fac) p.fac.fill(0); }
     const held = this.depHeld || (this.depHeld = new Uint16Array(deps.length));
+    const dg = this.dg;
     for (let i = 0; i < deps.length; i++) {
       const d = deps[i], o = own[d.t];
-      if (o) ps[o].resRaw += d.gold;
+      if (o) ps[o].resRaw += this.digGold(i);
       if (o !== held[i]) {                                 // tell the player about a deposit won or lost
         if (h && (o === h.id || held[i] === h.id) && this.phase === 'play') this.emit({ k: 'dep', d: i, won: o === h.id });
         held[i] = o;
+      }
+      if (dg && o && h && o === h.id && dg.lv[i] && dg.at[i] <= this.ticks && dg.at[i] > this.ticks - G.RES.EVERY && this.phase === 'play') {
+        const k = G.digOf(d.raw);                          // the plant was finished since the last count
+        this.say(k[0] + ' in ' + this.map.countries[d.c].name + ' fertig: ' + k[1] + ' läuft', 'good');
       }
     }
     for (const u of this.structAt.values()) {

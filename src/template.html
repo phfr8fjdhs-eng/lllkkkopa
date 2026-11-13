@@ -222,6 +222,12 @@ button.ldRow:hover { background: rgba(255, 255, 255, 0.07); }
 .ldRow b small { display: block; margin-top: 1px; font: 500 12px var(--display); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ldRow b small.good { color: var(--good); }
 .ldRow em { font-style: normal; color: var(--accent); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ldRow em.pot { color: var(--muted); }
+.ldDig { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; margin: 1px 0 5px; padding: 7px 10px; box-sizing: border-box; border: 1px solid var(--good); border-radius: 8px; font: 600 13px var(--display); color: var(--ink); background: rgba(53, 196, 106, 0.14); text-align: left; cursor: pointer; }
+.ldDig:hover { background: rgba(53, 196, 106, 0.24); }
+.ldDig span small { display: block; margin-top: 1px; font: 500 11.5px var(--display); color: var(--muted); }
+.ldDig i { flex: none; font-style: normal; color: var(--accent); font-variant-numeric: tabular-nums; }
+.ldDig.poor { border-color: var(--line); background: rgba(255, 255, 255, 0.05); color: var(--muted); }
 .incList { margin-top: 12px; }
 .incRow { display: grid; grid-template-columns: 1fr 84px 84px; gap: 6px; align-items: center; padding: 5px 0; border-top: 1px solid var(--line); font: 600 14px var(--display); font-variant-numeric: tabular-nums; }
 .incRow b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

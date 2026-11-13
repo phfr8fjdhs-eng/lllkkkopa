@@ -1083,6 +1083,12 @@
         const n = c.n >= 1 && c.n <= 100 ? Math.floor(c.n) : 1;
         return u && this.upgradeBy(p, u, n) > 0 ? '' : 'Ausbau nicht möglich';
       }
+      case 'dig': {                                           // version «Rohstoffe»: a plant on a deposit, or a better one
+        const i = Math.floor(+c.d);
+        if (!this.res || !(i >= 0 && i < this.map.deposits.length)) return 'Nicht möglich';
+        const chk = this.digCheck(p, i);
+        return chk.ok && this.dig(p, i) ? '' : chk.why || 'Nicht möglich';
+      }
       case 'mesh': return this.postPaint && this.postPaint(p, c.c, c.v) ? '' : 'Nicht möglich';
       case 'even': return this.postReset && this.postReset(p) ? '' : 'Nicht möglich';
       case 'ret': { for (const a of p.out) if (a.id === c.a) { this.retreat(a); return ''; } return 'Nicht möglich'; }

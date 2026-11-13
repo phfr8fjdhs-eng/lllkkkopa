@@ -187,6 +187,7 @@
   AI.prototype.construct = function () {
     const g = this.g, p = this.p, r = g.rng, c = p.cnt, d = g.opts.difficulty;
     const can = function (t, margin) { return p.gold >= g.cost(p, t) * (margin || 1); };
+    if (g.res && g.digAuto(p)) return;              // version «Rohstoffe»: a nation works its deposits too
     if (c[UT.PORT] < 1 && can(UT.PORT)) {
       const t = this.coastTile();
       if (t >= 0 && g.build(p, UT.PORT, t)) return;
