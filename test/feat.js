@@ -186,6 +186,21 @@ const out = (n) => path.join(__dirname, '..', 'build', n);
   await page.waitForTimeout(300);
   await page.mouse.move(tgt.x + 1, tgt.y + 1);
   await page.waitForTimeout(400);
+  // put an own and a hostile air defence into the picture, so both kinds of reach show while aiming
+  await page.evaluate(() => {
+    const g = G.debug.game, h = g.human, v = G.debug.view;
+    g.opts.instantBuild = true;
+    const foe = g.players.filter((p) => p && p.alive && p !== h).sort((a, b) => b.tiles - a.tiles)[0];
+    const put = (p, near) => { let t = -1, bd = 1e18; g.forTiles(p, (x) => { if (p.border.has(x) || g.structNear(x, g.R.structDist)) return; const d = (x % g.W - near.x) ** 2 + ((x / g.W | 0) - near.y) ** 2; if (d < bd) { bd = d; t = x; } }); p.gold = 1e9; return t >= 0 && g.build(p, G.UT.SAM, t); };
+    put(foe, { x: foe.nameX + 12, y: foe.nameY });
+    put(h, { x: foe.nameX, y: foe.nameY });
+    v.cam.z = 1.6;
+  });
+  const tgt2 = await page.evaluate(() => { const g = G.debug.game, v = G.debug.view, h = g.human; const foe = g.players.filter((p) => p && p.alive && p !== h).sort((a, b) => b.tiles - a.tiles)[0]; return v.screenOf(Math.round(foe.nameY) * g.W + Math.round(foe.nameX)); });
+  tgt.x = tgt2.x; tgt.y = tgt2.y;
+  await page.mouse.move(tgt.x + 1, tgt.y + 1);
+  await page.waitForTimeout(500);
+  console.log('bomb ghost', JSON.stringify(await page.evaluate(() => { const gh = G.debug.view.ghost; return gh && { ok: gh.ok, silo: !!gh.silo, text: gh.text }; })));
   await page.screenshot({ path: out('feat_d_5aim.png') });
   await page.mouse.click(tgt.x, tgt.y);
   await page.waitForFunction(() => G.debug.game.falloutCount > 500, null, { timeout: 60000 }).catch(() => {});

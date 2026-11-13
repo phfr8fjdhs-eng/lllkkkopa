@@ -56,3 +56,7 @@ Patrouille (`tickWarship`, `patrolPoint`, nach `WarshipExecution.ts` in OpenFron
 **Stufe 100.** Alle Gebäude lassen sich bis Stufe 100 ausbauen.
 **Nationen und Bomben.** Vorher feuerten Nationen nur auf Nachbarn, und die wählten sie meist unter den Bots (die nie beschossen werden); auf «Leicht» bauten sie gar kein Silo. Jetzt hat jede Nation ein Silo (reiche bauen aus), wählt ihr Ziel über `AI.nukeTarget` (Abneigung, Grösse, Mensch) unabhängig von der Nachbarschaft und feuert bis zu vier Raketen pro Zug, so viele wie die Silos laden. «Leicht» feuert seltener.
 **Namen.** Jeder Name wird gegen die echten Felder geprüft (`placeName`): alle Felder unter beiden Textzeilen müssen dem Spieler gehören, sonst wird er verkleinert oder verschoben. Er liegt also immer im Land.
+
+## Bomben-Darstellung wie in OpenFront
+Die Werte stammen aus OpenFronts `render-settings.json`: dünne, langsam drehende Strichringe (12/6), drei Farben nach Zugehörigkeit (grün eigen, gelb verbündet, rot feindlich), Zielkreis beim Zielen weiss (gelb, wenn ein Verbündeter getroffen würde), Flugbahn weiss gestrichelt und rot durchgezogen, wo feindliche Flugabwehr sie erreicht, mit Kreisen an den Übergängen und einem Kreuz am ersten Abfangpunkt. Beim Zielen (Bau-Taste oder Zielmodus) sind Flugbahn und alle Flugabwehr-Reichweiten sichtbar; fliegt eine Bombe auf das eigene Land, erscheinen die eigenen Reichweiten. Jede Bombe in der Luft zeigt ihre zwei Sprengkreise. Die Explosion ist ein Feuerball mit Farbverlauf und Druckwelle.
+
