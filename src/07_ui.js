@@ -53,6 +53,9 @@
 
   let MAPS = [], maps = {}, game = null, view = null;
   let paused = false, speed = 1, acc = 0, last = 0, ratio = 0.2;
+  // Aufstellung: the editing mode of the net (see 03b_posture.js)
+  let netOn = false, netLess = false, stroke = null, netTimer = 0, lastTile = -1, commitAt = -99;
+  const netQueue = new Map();
   let sel = null, radialAt = 0, modalKind = '', infoId = 0, lbOpen = false, lbAt = -99, liveAt = -99, tradeAt = 0;
   let toastTimer = 0, endShown = false, botsTouched = false;
   let mp = null, turnLeft = 0, aim = null, joinCode = '', lobbyNote = '', goldTimer = 0;
@@ -467,6 +470,8 @@
     view.cam.z = within(Math.max(view.cw / map.W, view.ch / map.H) * 0.5, view.cam.z, 4);
     $('modal').hidden = true; modalKind = '';
     $('hud').hidden = false; $('spawnBar').hidden = false; $('ctrl').hidden = true; $('lb').hidden = true; $('aimBar').hidden = true;
+    netOn = false; stroke = null; netQueue.clear(); lastTile = -1; commitAt = -99; view.net.on = false; view.net.edit.clear(); view.net.w = 0; view.net.at = -1e9;
+    $('bNet').hidden = true; $('bNet').setAttribute('aria-pressed', 'false'); $('netBar').hidden = true; $('commit').textContent = '';
     $('feedMsgs').innerHTML = ''; $('feedLive').innerHTML = ''; chips.clear(); asks.clear();
     $('lbRows').innerHTML = ''; $('clock').textContent = '0:00';
     speed = 1; $('bSpeed').textContent = '1×'; acc = 0; endShown = false; lbAt = liveAt = -99; tradeAt = 0; aim = null;
@@ -482,6 +487,7 @@
     else done(c, game.exec(game.human.id, c));
   }
   function done(c, why) {
+    if (c.k === 'mesh' || c.k === 'even') return;
     if (why) { toast(why); snd('deny'); return; }
     if (c.k === 'strike') snd(c.sea ? 'boat' : 'attack');
     else if (c.k === 'build') { if (c.u === UT.WARSHIP) snd('ship'); else if (c.u < UT.ATOM) snd('build'); }
@@ -549,7 +555,7 @@
         addAsk('r' + q.id, 'Die Allianz mit ' + q.name + ' läuft bald ab', 'Verlängern', 'Auslaufen lassen',
           function () { act({ k: 'renew', p: q.id }); }, function () { /* let it run out */ });
       } else if (e.k === 'start') {
-        $('spawnBar').hidden = true; $('ctrl').hidden = false; $('lb').hidden = false;
+        $('spawnBar').hidden = true; $('ctrl').hidden = false; $('lb').hidden = false; $('bNet').hidden = !h.post;
         const W = game.W;
         view.flyTo(h.spawnTile % W, (h.spawnTile / W) | 0, within(Math.min(view.cw, view.ch) / 70, 2.2, 6));
         addMsg('Los geht es. Breite dich aus, bevor es andere tun.', 'good');
@@ -561,7 +567,7 @@
         snd('alarm', 0.5);
       } else if (e.k === 'loot') {
         if (e.by === h.id && e.gold > 0) { view.floatText(e.x, e.y, '+ ' + fmt(e.gold)); goldPop(e.gold); }
-      } else if (e.k === 'defeat') showEnd('defeat', null);
+      } else if (e.k === 'defeat') { setNet(false); $('bNet').hidden = true; showEnd('defeat', null); }
       else if (e.k === 'win') showEnd(game.players[e.id] === h ? 'win' : 'other', game.players[e.id]);
     }
     ev.length = 0;
@@ -594,7 +600,7 @@
     };
     if (h.alive) {
       for (const a of h.out) {
-        put('o' + a.id, 'info', 'Angriff auf ' + (a.tid ? game.players[a.tid].name : 'freies Land') + ' · ' + fmtT(a.troops), function () { act({ k: 'ret', a: a.id }); });
+        put('o' + a.id, 'info', 'Angriff auf ' + (a.tid ? game.players[a.tid].name : 'freies Land') + ' · ' + fmtT(a.troops) + (a.want >= 1 ? ' · +' + fmtT(a.want) + ' unterwegs' : ''), function () { act({ k: 'ret', a: a.id }); });
       }
       const inc = h.inc.slice().sort(function (a, b) { return b.troops - a.troops; });
       for (let i = 0; i < inc.length && i < 3; i++) put('i' + inc[i].id, 'bad', inc[i].a.name + ' greift an · ' + fmtT(inc[i].troops), null);
@@ -680,6 +686,7 @@
       $('sGold').textContent = game.opts.infiniteGold ? '∞' : fmt(h.gold);
       $('sGoldSub').textContent = '+' + fmt(game.goldRate(h) * 10) + '/s';
       $('ratioTroops').textContent = fmtT(h.troops * ratio);
+      if (T - commitAt >= 3) { commitAt = T; showCommit(); }
     }
     if (T - lbAt >= 10) { lbAt = T; leaderboard(); }
     if (T - liveAt >= 3) { liveAt = T; live(); }
@@ -839,7 +846,7 @@
     const a = sel, h = game.human;
     if (which === 'C') {
       const mode = $('rC').dataset.mode;
-      if (mode === 'attack') act({ k: 'strike', t: a.tile, r: ratio });
+      if (mode === 'attack') strikeAt(a.tile);
       else if (mode === 'boat') sendBoat(a);
       else if (mode === 'ship') act({ k: 'ship', t: a.tile, say: 'Kriegsschiff nimmt Kurs' });
       else toast(a.why || 'Hier nicht möglich');
@@ -973,7 +980,7 @@
   // ---------- aiming a bomb ----------
   // The map shows the flight path, the blast and every air defence in reach; a tap moves the target.
   function startAim(type, tile) {
-    closeRadial();
+    closeRadial(); setNet(false);
     aim = { type: type, tile: tile };
     $('ctrl').hidden = true; $('aimBar').hidden = false;
     $('aimIc').innerHTML = svg(BUILD.find(function (b) { return b.t === type; }).icon, 26);
@@ -1068,6 +1075,98 @@
     if (!shiftHeld) setGhost(null);   // hold Shift to place several in a row
   }
 
+  // ---------- Aufstellung ----------
+  // An order to attack over land: says beforehand how much is at hand and how much has to march.
+  function commitText(tile) {
+    const h = game.human;
+    if (!h.post || tile < 0 || game.owner[tile] === h.id || !game.map.land[tile]) return '';
+    const a = game.actionsAt(h, tile);
+    if (!a.canAttack) return '';
+    const i = game.commitInfo(h, tile, ratio);
+    if (i.now + i.later < 1) return '';
+    return fmtT(i.now) + ' sofort' + (i.later >= 1 ? ' · ' + fmtT(i.later) + ' unterwegs · ca. ' + Math.max(1, Math.round(i.eta)) + ' s' : '');
+  }
+  function showCommit() {
+    const el = $('commit');
+    if (!el) return;
+    const tile = hoverX >= 0 ? view.tileAt(hoverX, hoverY) : lastTile;
+    const s = netOn || aim ? '' : commitText(tile);
+    if (el.textContent !== s) el.textContent = s;
+  }
+  function strikeAt(tile, extra) {
+    const c = { k: 'strike', t: tile, r: ratio };
+    if (extra) for (const k in extra) c[k] = extra[k];
+    lastTile = tile;
+    if (!c.sea && !c.say) { const s = commitText(tile); if (s.indexOf('unterwegs') >= 0) c.say = s; }
+    act(c);
+  }
+  function setNet(on) {
+    on = !!on && !!game && game.phase === 'play' && game.human.alive && !!game.human.post;
+    if (on === netOn) return;
+    netOn = on; view.net.on = on; view.net.dirty = true; view.net.brush = null;
+    endStroke(false);
+    $('bNet').setAttribute('aria-pressed', on ? 'true' : 'false');
+    $('netBar').hidden = !on;
+    $('netHint').textContent = window.matchMedia && window.matchMedia('(pointer: coarse)').matches
+      ? 'Mit einem Finger über dein Land ziehen. Zwei Finger verschieben die Karte.'
+      : 'Mit gedrückter Maustaste über dein Land ziehen. Umschalt + ziehen verschiebt die Karte.';
+    if (on) { stopAim(); setGhost(null); closeRadial(); $('ctrl').hidden = true; }
+    else if (game && game.phase === 'play' && !aim) $('ctrl').hidden = false;
+  }
+  function setBrush(less) {
+    netLess = less;
+    $('netMore').classList.toggle('on', !less); $('netLess').classList.toggle('on', less);
+  }
+  function flushNet() {
+    if (!netQueue.size || !game) return;
+    let ids = [], vals = [];
+    for (const e of netQueue) {
+      ids.push(e[0]); vals.push(Math.round(e[1] * 1000) / 1000);
+      if (ids.length >= 400) { act({ k: 'mesh', c: ids, v: vals }); ids = []; vals = []; }
+    }
+    if (ids.length) act({ k: 'mesh', c: ids, v: vals });
+    netQueue.clear();
+  }
+  // One dab of the brush at a point of the screen: the cells under it are weighed up (or down),
+  // strongest in the middle. The brush has a fixed size on the screen, so zoomed out it is coarse.
+  function stamp(sx, sy) {
+    const h = game.human, post = h.post, CS = G.POST.cell, c = view.cam, now = performance.now();
+    const wx = (sx - view.cw / 2) / c.z + c.x, wy = (sy - view.ch / 2) / c.z + c.y, R = stroke.r / c.z;
+    const cx0 = Math.max(0, Math.floor((wx - R) / CS)), cx1 = Math.min(game.CW - 1, Math.floor((wx + R) / CS));
+    const cy0 = Math.max(0, Math.floor((wy - R) / CS)), cy1 = Math.min(game.CH - 1, Math.floor((wy + R) / CS));
+    const reach = R + CS * 0.5;
+    for (let cy = cy0; cy <= cy1; cy++) {
+      for (let cx = cx0; cx <= cx1; cx++) {
+        const id = cy * game.CW + cx, cell = post.cells.get(id);
+        if (!cell) continue;
+        const dx = (cx + 0.5) * CS - wx, dy = (cy + 0.5) * CS - wy, d = Math.sqrt(dx * dx + dy * dy);
+        const inside = wx >= cx * CS && wx < cx * CS + CS && wy >= cy * CS && wy < cy * CS + CS;
+        let f = 1 - d / reach;
+        if (inside && f < 0.6) f = 0.6;
+        if (f <= 0) continue;
+        const e = view.net.edit.get(id), cur = e ? e.m : cell.m;
+        if (!stroke.orig.has(id)) stroke.orig.set(id, cur);
+        const k = 1 + 0.2 * f, m = within(netLess ? cur / k : cur * k, G.POST.mMin, G.POST.mMax);
+        view.net.edit.set(id, { m: m, at: now });
+        netQueue.set(id, m);
+      }
+    }
+    view.net.dirty = true;
+    stroke.sx = sx; stroke.sy = sy;
+  }
+  function endStroke(keep) {
+    if (!stroke) return;
+    if (!keep && stroke.started) {
+      // a second finger came down: this was a pinch, not a stroke. Put everything back.
+      const now = performance.now();
+      for (const e of stroke.orig) { view.net.edit.set(e[0], { m: e[1], at: now }); netQueue.set(e[0], e[1]); }
+      view.net.dirty = true;
+    }
+    stroke = null; view.net.brush = null;
+    clearInterval(netTimer); netTimer = 0;
+    flushNet();
+  }
+
   function tap(sx, sy, menu) {
     if (!game) return;
     const tile = view.tileAt(sx, sy);
@@ -1084,7 +1183,7 @@
     // an attack that is already running is fed with one tap, whoever it is against
     const running = !!q && h.out.some(function (at) { return at.active && at.tid === q.id; });
     if (!menu && (!q || q.type === PT.BOT || running) && h.alive && o !== h.id && game.map.land[tile]) {
-      act({ k: 'strike', t: tile, r: ratio });
+      strikeAt(tile);
       return;
     }
     snd('tap');
@@ -1117,11 +1216,32 @@
       if (ptr.size === 1) { moved = false; downAt = performance.now(); downX = e.clientX; downY = e.clientY; downType = e.pointerType; }
       else moved = true;
       view.fly = null;
+      if (netOn) {
+        // one finger draws on the net, two move the map. A touch only starts to draw after a
+        // moment, so the first finger of a pinch leaves no mark.
+        if (ptr.size === 1 && !e.shiftKey) {
+          const touch = e.pointerType !== 'mouse';
+          stroke = { t0: downAt, started: false, touch: touch, r: touch ? 46 : 38, sx: 0, sy: 0, orig: new Map() };
+        } else endStroke(false);
+      }
     });
     cv.addEventListener('pointermove', function (e) {
       if (e.pointerType === 'mouse') { const r = cv.getBoundingClientRect(); hoverX = e.clientX - r.left; hoverY = e.clientY - r.top; }
       const p = ptr.get(e.pointerId);
       if (!p) return;
+      if (netOn && e.pointerType === 'mouse') { const r = cv.getBoundingClientRect(); view.net.brush = { x: e.clientX - r.left, y: e.clientY - r.top, r: 38, less: netLess }; }
+      if (stroke && ptr.size === 1) {
+        const r = cv.getBoundingClientRect(), sx = e.clientX - r.left, sy = e.clientY - r.top;
+        p.x = e.clientX; p.y = e.clientY;
+        if (!stroke.started) {
+          if (stroke.touch && performance.now() - stroke.t0 < 70) return;
+          stroke.started = true;
+          netTimer = setInterval(flushNet, 200);
+          stamp(sx, sy);
+        } else if (Math.hypot(sx - stroke.sx, sy - stroke.sy) >= stroke.r * 0.4) stamp(sx, sy);
+        view.net.brush = { x: sx, y: sy, r: stroke.r, less: netLess };
+        return;
+      }
       if (ptr.size === 1) {
         if (!moved && Math.hypot(e.clientX - downX, e.clientY - downY) > 7) moved = true;
         if (moved) view.pan(e.clientX - p.x, e.clientY - p.y);
@@ -1137,6 +1257,12 @@
     const up = function (e) {
       if (!ptr.has(e.pointerId)) return;
       ptr.delete(e.pointerId);
+      if (stroke) {
+        if (e.type === 'pointerup' && !stroke.started) { const r = cv.getBoundingClientRect(); stroke.started = true; stamp(e.clientX - r.left, e.clientY - r.top); }   // a tap is one dab
+        endStroke(e.type === 'pointerup');
+        return;
+      }
+      if (netOn) return;
       if (ptr.size === 0 && !moved && e.type === 'pointerup' && performance.now() - downAt < 1500) {
         const r = cv.getBoundingClientRect();
         shiftHeld = e.shiftKey;
@@ -1176,6 +1302,7 @@
       const k = e.key.toLowerCase();
       if (k === 'escape') {
         if (ghost) setGhost(null);
+        else if (netOn) setNet(false);
         else if (aim) stopAim();
         else if (!$('radial').hidden) closeRadial();
         else if (!$('sheet').hidden) closeBuild();
@@ -1199,6 +1326,7 @@
       if (k === 't') { setRatio(ratio * 100 - 10); return; }
       if (k === 'y') { setRatio(ratio * 100 + 10); return; }
       if (k === 'c') { $('bHome').click(); return; }
+      if (k === 'n') { setNet(!netOn); return; }
       if (k === '.' || k === ',') { if (!mp) setSpeed(k === '.' ? 1 : -1); return; }
       if (e.repeat || game.phase !== 'play' || !game.human.alive) return;
       if (aim) { if (k === 'enter' && !$('aimGo').disabled) fireAim(); return; }
@@ -1222,7 +1350,7 @@
       if (k === 'u') { if (open) closeBuild(); doUpgrade(tile); return; }
       if (open) return;
       const q = game.owner[tile] && game.owner[tile] !== h.id ? game.players[game.owner[tile]] : null;
-      if (k === 'g') act({ k: 'strike', t: tile, r: ratio });
+      if (k === 'g') strikeAt(tile);
       else if (k === 'b') act({ k: 'strike', t: tile, r: ratio, sea: 1, say: 'Boot läuft aus' });
       else if (k === 'i') openInfo(q ? q.id : h.id);
       else if (!q) { toast('Zeige auf einen anderen Spieler'); snd('deny'); }
@@ -1247,6 +1375,11 @@
     });
     $('ratio').addEventListener('input', function () { setRatio(+this.value); });
     $('bPause').addEventListener('click', togglePause);
+    $('bNet').addEventListener('click', function () { setNet(!netOn); });
+    $('netDone').addEventListener('click', function () { setNet(false); });
+    $('netMore').addEventListener('click', function () { setBrush(false); });
+    $('netLess').addEventListener('click', function () { setBrush(true); });
+    $('netEven').addEventListener('click', function () { netQueue.clear(); view.net.edit.clear(); view.net.dirty = true; act({ k: 'even' }); toast('Aufstellung ausgeglichen'); });
     $('aimNo').addEventListener('click', stopAim);
     $('aimGo').addEventListener('click', fireAim);
     $('bSpeed').addEventListener('click', function () { setSpeed(0); });
@@ -1344,6 +1477,7 @@
     view = new G.View($('cv'));
     $('bPause').innerHTML = svg('pause', 18);
     $('bHome').innerHTML = svg('home', 18);
+    $('bNet').innerHTML = svg('net', 18);
     $('bMenu').innerHTML = svg('menu', 18);
     $('icTroops').innerHTML = svg('troops', 20);
     $('icGold').innerHTML = svg('gold', 20);

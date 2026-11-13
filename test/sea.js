@@ -2,7 +2,7 @@
 // node test/sea.js [map] [routes]
 const path = require('path');
 const src = path.join(__dirname, '..', 'src');
-for (const f of ['00_util.js', '01_map.js', '02_path.js', '03_game.js', '04_units.js', '04b_rail.js', '05_ai.js']) require(path.join(src, f));
+for (const f of ['00_util.js', '01_map.js', '02_path.js', '03_game.js', '03b_posture.js', '04_units.js', '04b_rail.js', '05_ai.js']) require(path.join(src, f));
 const G = globalThis.G, loadMap = require('./load.js');
 (async () => {
   const id = process.argv[2] || 'erde';

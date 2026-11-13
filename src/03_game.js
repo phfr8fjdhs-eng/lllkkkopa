@@ -116,8 +116,9 @@
       out: [], inc: [], allies: new Map(), embargo: new Set(), reqCd: new Map(),
       rel: info.type === PT.NATION ? new Map() : null,
       traitorUntil: -1, betrayals: 0, lastChange: 0, lastCluster: 0, ai: null,
-      nameX: 0, nameY: 0, nameSize: 0, tradeGold: 0, conquests: 0, cc: null, ccAt: -1
+      nameX: 0, nameY: 0, nameSize: 0, tradeGold: 0, conquests: 0, cc: null, ccAt: -1, post: null
     };
+    if (info.type === PT.HUMAN && this.postInit) this.postInit(p);
     let c = info.color;
     if (!c) {
       if (info.type === PT.NATION) {
@@ -281,8 +282,9 @@
   Game.prototype.conquer = function (p, t) {
     const own = this.owner, prev = own[t], id = p.id;
     if (prev === id) return;
-    if (prev) { const q = this.players[prev]; q.tiles--; q.border.delete(t); q.lastChange = this.ticks; }
+    if (prev) { const q = this.players[prev]; q.tiles--; q.border.delete(t); q.lastChange = this.ticks; if (q.post) this.postLose(q, t); }
     own[t] = id; p.tiles++; p.lastChange = this.ticks;
+    if (p.post) this.postGain(p, t);
     if (p.tiles > p.peak) p.peak = p.tiles;   // the largest it has ever been decides what its conquest pays
     if (this.fallout[t]) { this.fallout[t] = 0; this.falloutCount--; }
     const W = this.W, x = t % W, y = (t - x) / W;
@@ -298,6 +300,7 @@
     if (!prev) return;
     const q = this.players[prev];
     q.tiles--; q.border.delete(t); q.lastChange = this.ticks; own[t] = 0;
+    if (q.post) this.postLose(q, t);
     this.fixAround(t);
     if (this.structAt.size) { const u = this.structAt.get(t); if (u) this.removeUnit(u); }
   };
@@ -508,6 +511,7 @@
   function Attack(id, a, tid, troops, t) {
     this.id = id; this.a = a; this.tid = tid; this.troops = troops;
     this.heap = new G.Heap(128); this.front = new Set(); this.active = true; this.start = t;
+    this.want = 0; this.cell = -1; this.near = -1;   // posture: troops ordered but still on the march, and where they gather
   }
 
   Game.prototype.addFront = function (at, tile) {
@@ -539,51 +543,73 @@
   };
 
   // Send troops against a player (tid) or against free land (tid 0). src is a landing tile, or -1.
-  Game.prototype.attack = function (a, tid, troops, src) {
+  // near: the tile the order was given at. For a realm with a posture the troops are then drawn
+  // from the cell at that spot; what is not at hand marches there and joins as it arrives.
+  Game.prototype.attack = function (a, tid, troops, src, near) {
     if (!a.alive || this.phase !== 'play') return null;
     const t = tid ? this.players[tid] : null;
     if (t) {
       if (t === a || !t.alive || this.friendly(a, t)) return null;
       if (this.ticks < this.immuneUntil) return null;
     }
+    const stream = !!a.post && src < 0 && near >= 0;
+    if (stream) { for (const o of a.out) if (o.active && o.want > 0) troops = Math.min(troops, a.troops - o.want); }
     troops = Math.min(troops, a.troops);
     if (troops < 1) return null;
-    a.troops -= troops;
-    if (t) {
-      for (const inc of a.inc.slice()) {
-        if (!inc.active || inc.a !== t) continue;
-        if (inc.troops > troops) { inc.troops -= troops; return null; }
-        troops -= inc.troops;
-        this.endAttack(inc, false);
+    if (!stream) {
+      a.troops -= troops;
+      if (t) {
+        troops = this.meetIncoming(a, t, troops);
+        if (troops < 1) return null;
       }
-      if (troops < 1) return null;
-      this.relate(t, a, -80);
     }
+    if (t) this.relate(t, a, -80);
     let at = null;
     for (const o of a.out) if (o.active && o.tid === tid) { at = o; break; }
-    if (at) {
-      at.troops += troops;
-      if (src >= 0) this.addFront(at, src);
-      return at;
-    }
-    at = new Attack(++this.attackSeq, a, tid, troops, this.ticks);
-    a.out.push(at);
-    if (t) {
-      t.inc.push(at);
-      if (t === this.human && this.ticks - (a.warnAt || -999) > 300) {
-        a.warnAt = this.ticks; this.say(a.name + ' greift dich an', 'bad');
-        this.emit({ k: 'raid', id: a.id });   // the interface sounds the alarm
+    if (!at) {
+      at = new Attack(++this.attackSeq, a, tid, 0, this.ticks);
+      a.out.push(at);
+      if (t) {
+        t.inc.push(at);
+        if (t === this.human && this.ticks - (a.warnAt || -999) > 300) {
+          a.warnAt = this.ticks; this.say(a.name + ' greift dich an', 'bad');
+          this.emit({ k: 'raid', id: a.id });   // the interface sounds the alarm
+        }
       }
+      this.attacks.push(at);
+      if (src < 0) this.refreshFront(at);
     }
-    this.attacks.push(at);
-    if (src >= 0) this.addFront(at, src); else this.refreshFront(at);
+    if (src >= 0) this.addFront(at, src);
+    if (stream) {
+      const c = this.postGather(a, near);
+      at.near = near; at.cell = c ? c.id : -1; at.want += troops;
+      this.postDrain(at);
+    } else at.troops += troops;
     return at;
+  };
+  // Troops sent against someone who is attacking us first meet that attack, one for one.
+  Game.prototype.meetIncoming = function (a, t, troops) {
+    for (const inc of a.inc.slice()) {
+      if (!inc.active || inc.a !== t) continue;
+      if (inc.troops > troops) { inc.troops -= troops; return 0; }
+      troops -= inc.troops;
+      this.endAttack(inc, false);
+    }
+    return troops;
+  };
+  Game.prototype.feedAttack = function (at, troops) {
+    if (at.tid) troops = this.meetIncoming(at.a, this.players[at.tid], troops);
+    at.troops += troops;
   };
 
   Game.prototype.endAttack = function (at, refund) {
     if (!at.active) return;
     at.active = false;
-    if (refund && at.a.alive && at.troops > 0) at.a.troops += at.troops;
+    at.want = 0;                 // whoever was still marching simply stays where they are
+    if (refund && at.a.alive && at.troops > 0) {
+      const c = at.a.post && at.cell >= 0 ? this.postCellOfAttack(at) : null;
+      if (c) this.postGive(at.a, c, at.troops); else at.a.troops += at.troops;   // they come back where they set out
+    }
     let i = at.a.out.indexOf(at);
     if (i >= 0) at.a.out.splice(i, 1);
     if (at.tid) {
@@ -603,7 +629,8 @@
     const a = at.a, tid = at.tid, t = tid ? this.players[tid] : null;
     if (!a.alive) { this.endAttack(at, false); return; }
     if (t && (!t.alive || this.friendly(a, t))) { this.endAttack(at, true); return; }
-    if (at.troops < 1) { this.endAttack(at, false); return; }
+    if (at.want > 0) this.postDrain(at);
+    if (at.troops < 1) { if (at.want > 0) return; this.endAttack(at, false); return; }
     const own = this.owner, map = this.map, mg = map.mag, W = this.W, H = this.H, aid = a.id;
     const n = at.front.size + this.rng.int(0, 5);
     // What the front may take this tick. A tile that costs more than is left is paid off over the
@@ -618,9 +645,10 @@
     const easy = !!t && t.type === PT.BOT && a.type !== PT.BOT, botMod = easy ? 0.35 : 1;   // bots barely defend themselves
     const dp = t ? t.dposts : null, dr2 = this.R.defense * this.R.defense, fo = this.fallout;
     const cov = map.cover, ft = map.feat, TR = G.TERRAIN;
+    const tp = t ? t.post : null, fx = this.postFx || (this.postFx = { brake: 1, bleed: 1, keep: 1 });
     let guard = 0;
     while (budget > 0) {
-      if (at.troops < 1) { this.endAttack(at, false); return; }
+      if (at.troops < 1) { if (at.want > 0) { at.carry = 0; return; } this.endAttack(at, false); return; }
       if (at.heap.n === 0) {
         this.refreshFront(at);
         if (at.heap.n === 0) { this.endAttack(at, true); return; }
@@ -653,7 +681,14 @@
         const tt = t.troops;
         loss = within(tt / at.troops, 0.6, 2) * mag * 0.8 * botMod * lossMod * traitor;
         used = within(tt / (5 * at.troops), 0.2, 1.5) * speed * speedMod * (easy ? 0.45 : 1);
-        t.troops = Math.max(0, tt - tt / Math.max(1, t.tiles));
+        const pc = tp ? tp.cells.get(this.cellOf(tile)) : null;
+        if (pc) {
+          // the defender has a posture: dense ground is slower to take and costs more, and the
+          // troops standing there lose fewer of their number; thin ground falls fast but nobody dies
+          this.postEffect(this.postDens(t, pc), m >= 10 || (cov && (TR.speed[cov[tile]] > 1.2 || (ft[tile] & 3))), fx);
+          loss *= fx.bleed; used *= fx.brake;
+          this.postTake(t, pc, tt / Math.max(1, t.tiles) * fx.keep);
+        } else t.troops = Math.max(0, tt - tt / Math.max(1, t.tiles));
       } else {
         loss = a.type === PT.BOT ? mag / 10 : mag / 5;
         used = within(2000 * Math.max(10, speed) / at.troops, 5, 100);
@@ -865,6 +900,7 @@
     if (T % 20 === 0) this.attacks = at.filter(function (a) { return a.active; });
     this.reap();
 
+    if (this.postTick) this.postTick();
     this.pathStep();
     this.tickRail();
     const us = this.units;
@@ -993,7 +1029,7 @@
   // Attack over land if there is a shared border, otherwise by sea.
   Game.prototype.strike = function (p, tile, ratio) {
     const a = this.actionsAt(p, tile);
-    if (a.canAttack) return this.attack(p, a.tid, p.troops * ratio, -1) ? '' : 'Zu wenig Truppen';
+    if (a.canAttack) return this.attack(p, a.tid, p.troops * ratio, -1, tile) ? '' : 'Zu wenig Truppen';
     if (a.boat) return this.sendBoat(p, a.boat, p.troops * ratio) ? '' : 'Boot kann nicht auslaufen';
     return a.why;
   };
@@ -1016,7 +1052,7 @@
       case 'strike': {
         if (!tileOk) return 'Nicht möglich';
         const a = this.actionsAt(p, c.t);
-        if (a.canAttack && !c.sea) return this.attack(p, a.tid, p.troops * r, -1) ? '' : 'Zu wenig Truppen';
+        if (a.canAttack && !c.sea) return this.attack(p, a.tid, p.troops * r, -1, c.t) ? '' : 'Zu wenig Truppen';
         if (a.boat) return this.sendBoat(p, a.boat, p.troops * r) ? '' : 'Boot kann nicht auslaufen';
         return a.why || 'Hier nicht möglich';
       }
@@ -1032,6 +1068,8 @@
         const n = c.n >= 1 && c.n <= 100 ? Math.floor(c.n) : 1;
         return u && this.upgradeBy(p, u, n) > 0 ? '' : 'Ausbau nicht möglich';
       }
+      case 'mesh': return this.postPaint && this.postPaint(p, c.c, c.v) ? '' : 'Nicht möglich';
+      case 'even': return this.postReset && this.postReset(p) ? '' : 'Nicht möglich';
       case 'ret': { for (const a of p.out) if (a.id === c.a) { this.retreat(a); return ''; } return 'Nicht möglich'; }
       case 'bret': { for (const u of p.units) if (u.id === c.u && u.type === UT.TRANSPORT) { u.retreat = true; return ''; } return 'Nicht möglich'; }
       case 'ally': return q && this.requestAlliance(p, q) ? '' : 'Gerade nicht möglich';
@@ -1055,6 +1093,7 @@
       h = (Math.imul(h, 31) + p.tiles) | 0;
       h = (Math.imul(h, 31) + Math.floor(p.troops)) | 0;
       h = (Math.imul(h, 31) + Math.floor(p.gold / 16)) | 0;
+      if (p.post) for (const c of p.post.cells.values()) h = (Math.imul(h, 31) + c.n + Math.floor(c.m * 100) + Math.floor(1000 * c.u / (p.post.H || 1))) | 0;
     }
     return h;
   };

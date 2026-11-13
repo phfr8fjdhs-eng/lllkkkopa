@@ -26,6 +26,7 @@
     play: 'M7 4l13 8l-13 8z',
     menu: 'M3 5h18v2.4H3zM3 10.8h18v2.4H3zM3 16.6h18V19H3z',
     home: 'M12 3l9 8h-2.5v9h-5v-6h-3v6h-5v-9H3z',
+    net: 'M3 3h18v18H3zm2 2v3.5h3.5V5zm5.5 0v3.5h3V5zm5 0v3.5H19V5zM5 10.5v3h3.5v-3zm5.5 0v3h3v-3zm5 0v3H19v-3zM5 15.5V19h3.5v-3.5zm5.5 0V19h3v-3.5zm5 0V19H19v-3.5z',
     troops: 'M12 3a4 4 0 1 0 0 8a4 4 0 0 0 0-8zM4 21c0-4.4 3.6-8 8-8s8 3.6 8 8z',
     gold: 'M12 3a9 9 0 1 0 0 18a9 9 0 0 0 0-18zM12 6.5a5.5 5.5 0 1 1 0 11a5.5 5.5 0 0 1 0-11z',
     sound: 'M3 9h4l5-4.5v15L7 15H3zM14.5 8.2a5 5 0 0 1 0 7.6l-1.2-1.4a3.2 3.2 0 0 0 0-4.8zM17 5.4a8.8 8.8 0 0 1 0 13.2l-1.2-1.4a7 7 0 0 0 0-10.4z',
@@ -127,6 +128,7 @@
     this.cam = { x: 0, y: 0, z: 1 };
     this.fly = null; this.map = null; this.game = null;
     this.fxList = []; this.mark = -1; this.aim = null;
+    this.net = { on: false, edit: new Map(), at: -1e9, tint: null, mask: null, x0: 0, y0: 0, w: 0, h: 0, heavy: [], brush: null, lines: null };
     this.occ = new Uint8Array(2600); this.sq = new Uint16Array(2600);
     this.dpr = 1; this.cw = 1; this.ch = 1;
     this.resize();
@@ -367,6 +369,7 @@
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     const g = this.game;
     if (!g) return;
+    this.drawNet(ctx, g, z, ox, oy, now);
     this.drawRails(ctx, g, z, ox, oy);
     this.drawReach(ctx, g, z, ox, oy);
     this.drawStructures(ctx, g, z, ox, oy);
@@ -383,6 +386,128 @@
   // The ground a defence post covers and the sky an air defence guards, drawn around the building at all
   // times so nobody has to tap it to learn how far it reaches. Own and allied ones are drawn clearly,
   // those of others fainter.
+  // ---------- the net: how the own troops stand ----------
+  // Only the player's own posture is ever drawn; nobody sees anyone else's. Outside the editing
+  // mode it is a faint tint (red where troops stand dense, dark where the land is thin); in the
+  // mode the grid is drawn over it, finer where the net has been pulled together.
+  // The tint lives on a small canvas, one pixel for 4 x 4 tiles, cut to the shape of the realm.
+  View.prototype.netWeight = function (c) {
+    const e = this.net.edit.get(c.id);
+    return e ? e.m : c.m;
+  };
+  View.prototype.buildNet = function (g, p) {
+    const N = this.net, post = p.post, CS = G.POST.cell, Q = 4, W = g.W, own = g.owner, id = p.id;
+    const cx0 = Math.floor(p.x0 / CS), cy0 = Math.floor(p.y0 / CS), cx1 = Math.floor(p.x1 / CS), cy1 = Math.floor(p.y1 / CS);
+    const w = (cx1 - cx0 + 1) * (CS / Q), h = (cy1 - cy0 + 1) * (CS / Q);
+    if (!N.tint) { N.tint = document.createElement('canvas'); N.mask = document.createElement('canvas'); }
+    if (N.tint.width !== w || N.tint.height !== h) { N.tint.width = w; N.tint.height = h; N.mask.width = w; N.mask.height = h; }
+    N.x0 = cx0 * CS; N.y0 = cy0 * CS; N.w = w; N.h = h;
+    const tc = N.tint.getContext('2d'), mc = N.mask.getContext('2d');
+    const ti = tc.createImageData(w, h), mi = mc.createImageData(w, h), td = ti.data, md = mi.data;
+    const H = post.H, avg = p.tiles > 0 && H > 0 ? H / p.tiles : 0, CW = g.CW, per = CS / Q;
+    N.heavy.length = 0;
+    for (const c of post.cells.values()) {
+      const cx = c.id % CW, cy = (c.id - cx) / CW;
+      const d = avg > 0 && c.n > 0 ? (c.u / c.n) / avg : 1;
+      let r, gg, b, a;
+      if (d >= 1) { r = 255; gg = 52; b = 36; a = 215 * (1 - 1 / Math.pow(d, 0.8)); }
+      else { r = 6; gg = 10; b = 20; a = 120 * (1 - d); }
+      const m = this.netWeight(c);
+      if (m > 1.25 || m < 0.8) N.heavy.push(cx, cy, m);
+      const bx = (cx - cx0) * per, by = (cy - cy0) * per;
+      for (let j = 0; j < per; j++) {
+        const ty = cy * CS + j * Q + 1;
+        if (ty >= g.H) break;
+        for (let i = 0; i < per; i++) {
+          const tx = cx * CS + i * Q + 1;
+          if (tx >= W) break;
+          const row = ty * W + tx;
+          // four of the sixteen tiles of the block decide how much of it is ours
+          let k = 0;
+          if (own[row] === id) k++;
+          if (own[row + 2] === id) k++;
+          if (ty + 2 < g.H) { if (own[row + 2 * W] === id) k++; if (own[row + 2 * W + 2] === id) k++; }
+          if (!k) continue;
+          const o = ((by + j) * w + bx + i) * 4;
+          td[o] = r; td[o + 1] = gg; td[o + 2] = b; td[o + 3] = a * k / 4;
+          md[o] = 8; md[o + 1] = 13; md[o + 2] = 22; md[o + 3] = 64 * k - 1;
+        }
+      }
+    }
+    tc.putImageData(ti, 0, 0); mc.putImageData(mi, 0, 0);
+  };
+  View.prototype.drawNet = function (ctx, g, z, ox, oy, now) {
+    const p = g.human, N = this.net;
+    if (!p || !p.post || !p.alive || g.phase !== 'play' || !p.post.cells.size) return;
+    if (now - N.at > (N.on ? 300 : 1200) || N.dirty) { N.at = now; N.dirty = false; this.buildNet(g, p); }
+    if (!N.w) return;
+    for (const e of N.edit) if (now - e[1].at > 2500) N.edit.delete(e[0]);
+    const dpr = this.dpr, cw = this.cw, ch = this.ch, CS = G.POST.cell;
+    const sx = N.x0 * z + ox, sy = N.y0 * z + oy, sw = N.w * 4 * z, sh = N.h * 4 * z;
+    if (sx > cw || sy > ch || sx + sw < 0 || sy + sh < 0) return;
+    ctx.save();
+    ctx.imageSmoothingEnabled = true;
+    if (N.on) { ctx.globalAlpha = 0.42; ctx.drawImage(N.mask, sx, sy, sw, sh); }    // a veil over the own colour, so the net reads the same on every colour
+    ctx.globalAlpha = N.on ? 1 : 0.4;
+    ctx.drawImage(N.tint, sx, sy, sw, sh);
+    ctx.globalAlpha = 1;
+    if (N.on) {
+      // the grid, on its own layer so it can be cut to the shape of the realm
+      let lc = N.lines;
+      if (!lc) lc = N.lines = document.createElement('canvas');
+      if (lc.width !== this.cv.width || lc.height !== this.cv.height) { lc.width = this.cv.width; lc.height = this.cv.height; }
+      const l = lc.getContext('2d');
+      l.setTransform(dpr, 0, 0, dpr, 0, 0);
+      l.globalCompositeOperation = 'source-over';
+      l.clearRect(0, 0, cw, ch);
+      let k = 1;
+      while (CS * k * z < 9) k *= 2;       // zoomed out: a coarser grid, so it never turns into a grey film
+      const step = CS * k * z;
+      const x0 = Math.max(sx, 0), x1 = Math.min(sx + sw, cw), y0 = Math.max(sy, 0), y1 = Math.min(sy + sh, ch);
+      l.beginPath();
+      for (let x = sx + Math.ceil((x0 - sx) / step) * step; x <= x1 + 0.5; x += step) { l.moveTo(x, y0); l.lineTo(x, y1); }
+      for (let y = sy + Math.ceil((y0 - sy) / step) * step; y <= y1 + 0.5; y += step) { l.moveTo(x0, y); l.lineTo(x1, y); }
+      l.strokeStyle = 'rgba(255,255,255,0.5)'; l.lineWidth = 1; l.stroke();
+      // where the net is pulled together its meshes get finer and glow, where it is let go they fade
+      const hv = N.heavy, cell = CS * z;
+      if (cell >= 5) {
+        l.beginPath();
+        for (let i = 0; i < hv.length; i += 3) {
+          const m = hv[i + 2];
+          if (m < 1) continue;
+          const x = hv[i] * cell + ox, y = hv[i + 1] * cell + oy;
+          if (x > cw || y > ch || x + cell < 0 || y + cell < 0) continue;
+          const parts = m > 3.2 ? 4 : m > 1.9 ? 3 : 2;
+          for (let q = 1; q < parts; q++) {
+            const f = q / parts * cell;
+            l.moveTo(x + f, y); l.lineTo(x + f, y + cell); l.moveTo(x, y + f); l.lineTo(x + cell, y + f);
+          }
+        }
+        l.strokeStyle = 'rgba(255,214,190,0.75)'; l.lineWidth = 1; l.stroke();
+        l.fillStyle = 'rgba(8,14,24,0.5)';
+        for (let i = 0; i < hv.length; i += 3) {
+          if (hv[i + 2] >= 1) continue;
+          const x = hv[i] * cell + ox, y = hv[i + 1] * cell + oy;
+          if (x > cw || y > ch || x + cell < 0 || y + cell < 0) continue;
+          l.clearRect(x + 1, y + 1, cell - 2, cell - 2);
+          l.globalAlpha = Math.min(1, (1 - hv[i + 2]) * 1.2); l.fillRect(x, y, cell, cell); l.globalAlpha = 1;
+        }
+      }
+      l.globalCompositeOperation = 'destination-in';
+      l.imageSmoothingEnabled = true;
+      l.drawImage(N.mask, sx, sy, sw, sh);
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.drawImage(lc, 0, 0);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const b = N.brush;
+      if (b) {
+        ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, 6.2832);
+        ctx.strokeStyle = b.less ? 'rgba(150,200,255,0.9)' : 'rgba(255,170,140,0.95)'; ctx.lineWidth = 1.5; ctx.stroke();
+      }
+    }
+    ctx.restore();
+  };
+
   View.prototype.drawReach = function (ctx, g, z, ox, oy) {
     const h = g.human, cw = this.cw, ch = this.ch;
     for (const u of g.structAt.values()) {

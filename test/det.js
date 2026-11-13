@@ -3,7 +3,7 @@
 // otherwise devices playing together would drift apart.
 const fs = require('fs'), path = require('path');
 const src = path.join(__dirname, '..', 'src');
-for (const f of ['00_util.js', '01_map.js', '02_path.js', '03_game.js', '04_units.js', '04b_rail.js', '05_ai.js']) require(path.join(src, f));
+for (const f of ['00_util.js', '01_map.js', '02_path.js', '03_game.js', '03b_posture.js', '04_units.js', '04b_rail.js', '05_ai.js']) require(path.join(src, f));
 const G = globalThis.G, UT = G.UT;
 const seed = 4242, map = G.buildMap(480, 300, G.randomClassMap(480, 300, seed), seed, { id: 'zufall', name: 'Test', nations: [] });
 const make = () => { const g = new G.Game(map, { seed: 99, bots: 40, difficulty: 1, me: 0 }); g.setup([{ name: 'A' }, { name: 'B' }]); return g; };

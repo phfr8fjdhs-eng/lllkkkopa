@@ -201,6 +201,16 @@ input[type=range] { width: 100%; height: 30px; margin: 0; accent-color: var(--ac
 .upbtn:active:not(:disabled) { transform: scale(.96); }
 
 /* aiming a bomb */
+#commit { min-height: 16px; margin-top: 2px; font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+#commit b { color: var(--ink); font-weight: 600; }
+#netBar { pointer-events: auto; padding: 10px 12px 12px; border-color: rgba(255, 150, 120, 0.55); }
+.netTop b { display: block; font: 700 17px var(--display); }
+.netTop small { color: var(--muted); font-size: 12.5px; }
+.netSeg { display: grid; grid-template-columns: 1fr 1fr; gap: 0; margin-top: 9px; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.netSeg button { padding: 9px 6px; font: 600 15px var(--display); color: var(--muted); background: none; border: 0; }
+.netSeg button.on { color: var(--ink); background: rgba(255, 255, 255, 0.13); }
+#netBar .aimBtns .btn { margin-top: 0; }
+.tb[aria-pressed=true]#bNet { color: #ffb199; background: rgba(255, 140, 110, 0.16); }
 #aimBar { pointer-events: auto; padding: 10px 12px 12px; border-color: rgba(255, 107, 94, 0.6); }
 .aimTop { display: flex; align-items: center; gap: 11px; }
 .aimTop .ic { color: #ffb4a8; background: rgba(255, 107, 94, 0.16); }
@@ -346,6 +356,7 @@ body.placing #cv { cursor: crosshair; }
       <span id="clock">0:00</span>
       <button id="bPause" class="tb" type="button" aria-label="Pause"></button>
       <button id="bSpeed" class="tb" type="button" aria-label="Tempo">1×</button>
+      <button id="bNet" class="tb" type="button" aria-label="Aufstellung bearbeiten" aria-pressed="false" hidden></button>
       <button id="bHome" class="tb" type="button" aria-label="Zu meinem Gebiet"></button>
       <button id="bSound" class="tb" type="button" aria-label="Ton aus" aria-pressed="true"></button>
       <button id="bMenu" class="tb" type="button" aria-label="Menü"></button>
@@ -364,6 +375,12 @@ body.placing #cv { cursor: crosshair; }
           <div class="stat gold" id="statGold"><span id="icGold"></span><div><b id="sGold">0</b><small id="sGoldSub">Gold</small></div><span id="goldPop" aria-hidden="true"></span></div>
         </div>
         <label class="ratio" for="ratio"><span>Angriff <b id="ratioPct">20%</b></span><input id="ratio" type="range" min="1" max="100" value="20"><span id="ratioTroops">0</span></label>
+        <div id="commit" aria-live="off"></div>
+      </div>
+      <div id="netBar" class="panel" hidden>
+        <div class="netTop"><b>Aufstellung</b><small id="netHint">Mit einem Finger über dein Land ziehen. Zwei Finger verschieben die Karte.</small></div>
+        <div class="netSeg" role="group" aria-label="Pinsel"><button id="netMore" class="on" type="button">Verdichten</button><button id="netLess" type="button">Ausdünnen</button></div>
+        <div class="aimBtns"><button id="netEven" class="btn ghost" type="button">Ausgleichen</button><button id="netDone" class="btn" type="button">Fertig</button></div>
       </div>
       <div id="aimBar" class="panel" hidden>
         <div class="aimTop"><span class="ic" id="aimIc"></span><div><b><span id="aimName"></span><span id="aimCost"></span></b><small id="aimInfo"></small></div></div>

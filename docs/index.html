@@ -201,6 +201,16 @@ input[type=range] { width: 100%; height: 30px; margin: 0; accent-color: var(--ac
 .upbtn:active:not(:disabled) { transform: scale(.96); }
 
 /* aiming a bomb */
+#commit { min-height: 16px; margin-top: 2px; font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+#commit b { color: var(--ink); font-weight: 600; }
+#netBar { pointer-events: auto; padding: 10px 12px 12px; border-color: rgba(255, 150, 120, 0.55); }
+.netTop b { display: block; font: 700 17px var(--display); }
+.netTop small { color: var(--muted); font-size: 12.5px; }
+.netSeg { display: grid; grid-template-columns: 1fr 1fr; gap: 0; margin-top: 9px; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.netSeg button { padding: 9px 6px; font: 600 15px var(--display); color: var(--muted); background: none; border: 0; }
+.netSeg button.on { color: var(--ink); background: rgba(255, 255, 255, 0.13); }
+#netBar .aimBtns .btn { margin-top: 0; }
+.tb[aria-pressed=true]#bNet { color: #ffb199; background: rgba(255, 140, 110, 0.16); }
 #aimBar { pointer-events: auto; padding: 10px 12px 12px; border-color: rgba(255, 107, 94, 0.6); }
 .aimTop { display: flex; align-items: center; gap: 11px; }
 .aimTop .ic { color: #ffb4a8; background: rgba(255, 107, 94, 0.16); }
@@ -346,6 +356,7 @@ body.placing #cv { cursor: crosshair; }
       <span id="clock">0:00</span>
       <button id="bPause" class="tb" type="button" aria-label="Pause"></button>
       <button id="bSpeed" class="tb" type="button" aria-label="Tempo">1×</button>
+      <button id="bNet" class="tb" type="button" aria-label="Aufstellung bearbeiten" aria-pressed="false" hidden></button>
       <button id="bHome" class="tb" type="button" aria-label="Zu meinem Gebiet"></button>
       <button id="bSound" class="tb" type="button" aria-label="Ton aus" aria-pressed="true"></button>
       <button id="bMenu" class="tb" type="button" aria-label="Menü"></button>
@@ -364,6 +375,12 @@ body.placing #cv { cursor: crosshair; }
           <div class="stat gold" id="statGold"><span id="icGold"></span><div><b id="sGold">0</b><small id="sGoldSub">Gold</small></div><span id="goldPop" aria-hidden="true"></span></div>
         </div>
         <label class="ratio" for="ratio"><span>Angriff <b id="ratioPct">20%</b></span><input id="ratio" type="range" min="1" max="100" value="20"><span id="ratioTroops">0</span></label>
+        <div id="commit" aria-live="off"></div>
+      </div>
+      <div id="netBar" class="panel" hidden>
+        <div class="netTop"><b>Aufstellung</b><small id="netHint">Mit einem Finger über dein Land ziehen. Zwei Finger verschieben die Karte.</small></div>
+        <div class="netSeg" role="group" aria-label="Pinsel"><button id="netMore" class="on" type="button">Verdichten</button><button id="netLess" type="button">Ausdünnen</button></div>
+        <div class="aimBtns"><button id="netEven" class="btn ghost" type="button">Ausgleichen</button><button id="netDone" class="btn" type="button">Fertig</button></div>
       </div>
       <div id="aimBar" class="panel" hidden>
         <div class="aimTop"><span class="ic" id="aimIc"></span><div><b><span id="aimName"></span><span id="aimCost"></span></b><small id="aimInfo"></small></div></div>
@@ -1183,8 +1200,9 @@ body.placing #cv { cursor: crosshair; }
       out: [], inc: [], allies: new Map(), embargo: new Set(), reqCd: new Map(),
       rel: info.type === PT.NATION ? new Map() : null,
       traitorUntil: -1, betrayals: 0, lastChange: 0, lastCluster: 0, ai: null,
-      nameX: 0, nameY: 0, nameSize: 0, tradeGold: 0, conquests: 0, cc: null, ccAt: -1
+      nameX: 0, nameY: 0, nameSize: 0, tradeGold: 0, conquests: 0, cc: null, ccAt: -1, post: null
     };
+    if (info.type === PT.HUMAN && this.postInit) this.postInit(p);
     let c = info.color;
     if (!c) {
       if (info.type === PT.NATION) {
@@ -1348,8 +1366,9 @@ body.placing #cv { cursor: crosshair; }
   Game.prototype.conquer = function (p, t) {
     const own = this.owner, prev = own[t], id = p.id;
     if (prev === id) return;
-    if (prev) { const q = this.players[prev]; q.tiles--; q.border.delete(t); q.lastChange = this.ticks; }
+    if (prev) { const q = this.players[prev]; q.tiles--; q.border.delete(t); q.lastChange = this.ticks; if (q.post) this.postLose(q, t); }
     own[t] = id; p.tiles++; p.lastChange = this.ticks;
+    if (p.post) this.postGain(p, t);
     if (p.tiles > p.peak) p.peak = p.tiles;   // the largest it has ever been decides what its conquest pays
     if (this.fallout[t]) { this.fallout[t] = 0; this.falloutCount--; }
     const W = this.W, x = t % W, y = (t - x) / W;
@@ -1365,6 +1384,7 @@ body.placing #cv { cursor: crosshair; }
     if (!prev) return;
     const q = this.players[prev];
     q.tiles--; q.border.delete(t); q.lastChange = this.ticks; own[t] = 0;
+    if (q.post) this.postLose(q, t);
     this.fixAround(t);
     if (this.structAt.size) { const u = this.structAt.get(t); if (u) this.removeUnit(u); }
   };
@@ -1575,6 +1595,7 @@ body.placing #cv { cursor: crosshair; }
   function Attack(id, a, tid, troops, t) {
     this.id = id; this.a = a; this.tid = tid; this.troops = troops;
     this.heap = new G.Heap(128); this.front = new Set(); this.active = true; this.start = t;
+    this.want = 0; this.cell = -1; this.near = -1;   // posture: troops ordered but still on the march, and where they gather
   }
 
   Game.prototype.addFront = function (at, tile) {
@@ -1606,51 +1627,73 @@ body.placing #cv { cursor: crosshair; }
   };
 
   // Send troops against a player (tid) or against free land (tid 0). src is a landing tile, or -1.
-  Game.prototype.attack = function (a, tid, troops, src) {
+  // near: the tile the order was given at. For a realm with a posture the troops are then drawn
+  // from the cell at that spot; what is not at hand marches there and joins as it arrives.
+  Game.prototype.attack = function (a, tid, troops, src, near) {
     if (!a.alive || this.phase !== 'play') return null;
     const t = tid ? this.players[tid] : null;
     if (t) {
       if (t === a || !t.alive || this.friendly(a, t)) return null;
       if (this.ticks < this.immuneUntil) return null;
     }
+    const stream = !!a.post && src < 0 && near >= 0;
+    if (stream) { for (const o of a.out) if (o.active && o.want > 0) troops = Math.min(troops, a.troops - o.want); }
     troops = Math.min(troops, a.troops);
     if (troops < 1) return null;
-    a.troops -= troops;
-    if (t) {
-      for (const inc of a.inc.slice()) {
-        if (!inc.active || inc.a !== t) continue;
-        if (inc.troops > troops) { inc.troops -= troops; return null; }
-        troops -= inc.troops;
-        this.endAttack(inc, false);
+    if (!stream) {
+      a.troops -= troops;
+      if (t) {
+        troops = this.meetIncoming(a, t, troops);
+        if (troops < 1) return null;
       }
-      if (troops < 1) return null;
-      this.relate(t, a, -80);
     }
+    if (t) this.relate(t, a, -80);
     let at = null;
     for (const o of a.out) if (o.active && o.tid === tid) { at = o; break; }
-    if (at) {
-      at.troops += troops;
-      if (src >= 0) this.addFront(at, src);
-      return at;
-    }
-    at = new Attack(++this.attackSeq, a, tid, troops, this.ticks);
-    a.out.push(at);
-    if (t) {
-      t.inc.push(at);
-      if (t === this.human && this.ticks - (a.warnAt || -999) > 300) {
-        a.warnAt = this.ticks; this.say(a.name + ' greift dich an', 'bad');
-        this.emit({ k: 'raid', id: a.id });   // the interface sounds the alarm
+    if (!at) {
+      at = new Attack(++this.attackSeq, a, tid, 0, this.ticks);
+      a.out.push(at);
+      if (t) {
+        t.inc.push(at);
+        if (t === this.human && this.ticks - (a.warnAt || -999) > 300) {
+          a.warnAt = this.ticks; this.say(a.name + ' greift dich an', 'bad');
+          this.emit({ k: 'raid', id: a.id });   // the interface sounds the alarm
+        }
       }
+      this.attacks.push(at);
+      if (src < 0) this.refreshFront(at);
     }
-    this.attacks.push(at);
-    if (src >= 0) this.addFront(at, src); else this.refreshFront(at);
+    if (src >= 0) this.addFront(at, src);
+    if (stream) {
+      const c = this.postGather(a, near);
+      at.near = near; at.cell = c ? c.id : -1; at.want += troops;
+      this.postDrain(at);
+    } else at.troops += troops;
     return at;
+  };
+  // Troops sent against someone who is attacking us first meet that attack, one for one.
+  Game.prototype.meetIncoming = function (a, t, troops) {
+    for (const inc of a.inc.slice()) {
+      if (!inc.active || inc.a !== t) continue;
+      if (inc.troops > troops) { inc.troops -= troops; return 0; }
+      troops -= inc.troops;
+      this.endAttack(inc, false);
+    }
+    return troops;
+  };
+  Game.prototype.feedAttack = function (at, troops) {
+    if (at.tid) troops = this.meetIncoming(at.a, this.players[at.tid], troops);
+    at.troops += troops;
   };
 
   Game.prototype.endAttack = function (at, refund) {
     if (!at.active) return;
     at.active = false;
-    if (refund && at.a.alive && at.troops > 0) at.a.troops += at.troops;
+    at.want = 0;                 // whoever was still marching simply stays where they are
+    if (refund && at.a.alive && at.troops > 0) {
+      const c = at.a.post && at.cell >= 0 ? this.postCellOfAttack(at) : null;
+      if (c) this.postGive(at.a, c, at.troops); else at.a.troops += at.troops;   // they come back where they set out
+    }
     let i = at.a.out.indexOf(at);
     if (i >= 0) at.a.out.splice(i, 1);
     if (at.tid) {
@@ -1670,7 +1713,8 @@ body.placing #cv { cursor: crosshair; }
     const a = at.a, tid = at.tid, t = tid ? this.players[tid] : null;
     if (!a.alive) { this.endAttack(at, false); return; }
     if (t && (!t.alive || this.friendly(a, t))) { this.endAttack(at, true); return; }
-    if (at.troops < 1) { this.endAttack(at, false); return; }
+    if (at.want > 0) this.postDrain(at);
+    if (at.troops < 1) { if (at.want > 0) return; this.endAttack(at, false); return; }
     const own = this.owner, map = this.map, mg = map.mag, W = this.W, H = this.H, aid = a.id;
     const n = at.front.size + this.rng.int(0, 5);
     // What the front may take this tick. A tile that costs more than is left is paid off over the
@@ -1685,9 +1729,10 @@ body.placing #cv { cursor: crosshair; }
     const easy = !!t && t.type === PT.BOT && a.type !== PT.BOT, botMod = easy ? 0.35 : 1;   // bots barely defend themselves
     const dp = t ? t.dposts : null, dr2 = this.R.defense * this.R.defense, fo = this.fallout;
     const cov = map.cover, ft = map.feat, TR = G.TERRAIN;
+    const tp = t ? t.post : null, fx = this.postFx || (this.postFx = { brake: 1, bleed: 1, keep: 1 });
     let guard = 0;
     while (budget > 0) {
-      if (at.troops < 1) { this.endAttack(at, false); return; }
+      if (at.troops < 1) { if (at.want > 0) { at.carry = 0; return; } this.endAttack(at, false); return; }
       if (at.heap.n === 0) {
         this.refreshFront(at);
         if (at.heap.n === 0) { this.endAttack(at, true); return; }
@@ -1720,7 +1765,14 @@ body.placing #cv { cursor: crosshair; }
         const tt = t.troops;
         loss = within(tt / at.troops, 0.6, 2) * mag * 0.8 * botMod * lossMod * traitor;
         used = within(tt / (5 * at.troops), 0.2, 1.5) * speed * speedMod * (easy ? 0.45 : 1);
-        t.troops = Math.max(0, tt - tt / Math.max(1, t.tiles));
+        const pc = tp ? tp.cells.get(this.cellOf(tile)) : null;
+        if (pc) {
+          // the defender has a posture: dense ground is slower to take and costs more, and the
+          // troops standing there lose fewer of their number; thin ground falls fast but nobody dies
+          this.postEffect(this.postDens(t, pc), m >= 10 || (cov && (TR.speed[cov[tile]] > 1.2 || (ft[tile] & 3))), fx);
+          loss *= fx.bleed; used *= fx.brake;
+          this.postTake(t, pc, tt / Math.max(1, t.tiles) * fx.keep);
+        } else t.troops = Math.max(0, tt - tt / Math.max(1, t.tiles));
       } else {
         loss = a.type === PT.BOT ? mag / 10 : mag / 5;
         used = within(2000 * Math.max(10, speed) / at.troops, 5, 100);
@@ -1932,6 +1984,7 @@ body.placing #cv { cursor: crosshair; }
     if (T % 20 === 0) this.attacks = at.filter(function (a) { return a.active; });
     this.reap();
 
+    if (this.postTick) this.postTick();
     this.pathStep();
     this.tickRail();
     const us = this.units;
@@ -2060,7 +2113,7 @@ body.placing #cv { cursor: crosshair; }
   // Attack over land if there is a shared border, otherwise by sea.
   Game.prototype.strike = function (p, tile, ratio) {
     const a = this.actionsAt(p, tile);
-    if (a.canAttack) return this.attack(p, a.tid, p.troops * ratio, -1) ? '' : 'Zu wenig Truppen';
+    if (a.canAttack) return this.attack(p, a.tid, p.troops * ratio, -1, tile) ? '' : 'Zu wenig Truppen';
     if (a.boat) return this.sendBoat(p, a.boat, p.troops * ratio) ? '' : 'Boot kann nicht auslaufen';
     return a.why;
   };
@@ -2083,7 +2136,7 @@ body.placing #cv { cursor: crosshair; }
       case 'strike': {
         if (!tileOk) return 'Nicht möglich';
         const a = this.actionsAt(p, c.t);
-        if (a.canAttack && !c.sea) return this.attack(p, a.tid, p.troops * r, -1) ? '' : 'Zu wenig Truppen';
+        if (a.canAttack && !c.sea) return this.attack(p, a.tid, p.troops * r, -1, c.t) ? '' : 'Zu wenig Truppen';
         if (a.boat) return this.sendBoat(p, a.boat, p.troops * r) ? '' : 'Boot kann nicht auslaufen';
         return a.why || 'Hier nicht möglich';
       }
@@ -2099,6 +2152,8 @@ body.placing #cv { cursor: crosshair; }
         const n = c.n >= 1 && c.n <= 100 ? Math.floor(c.n) : 1;
         return u && this.upgradeBy(p, u, n) > 0 ? '' : 'Ausbau nicht möglich';
       }
+      case 'mesh': return this.postPaint && this.postPaint(p, c.c, c.v) ? '' : 'Nicht möglich';
+      case 'even': return this.postReset && this.postReset(p) ? '' : 'Nicht möglich';
       case 'ret': { for (const a of p.out) if (a.id === c.a) { this.retreat(a); return ''; } return 'Nicht möglich'; }
       case 'bret': { for (const u of p.units) if (u.id === c.u && u.type === UT.TRANSPORT) { u.retreat = true; return ''; } return 'Nicht möglich'; }
       case 'ally': return q && this.requestAlliance(p, q) ? '' : 'Gerade nicht möglich';
@@ -2122,11 +2177,323 @@ body.placing #cv { cursor: crosshair; }
       h = (Math.imul(h, 31) + p.tiles) | 0;
       h = (Math.imul(h, 31) + Math.floor(p.troops)) | 0;
       h = (Math.imul(h, 31) + Math.floor(p.gold / 16)) | 0;
+      if (p.post) for (const c of p.post.cells.values()) h = (Math.imul(h, 31) + c.n + Math.floor(c.m * 100) + Math.floor(1000 * c.u / (p.post.H || 1))) | 0;
     }
     return h;
   };
 
   G.Game = Game;
+})(globalThis.G = globalThis.G || {});
+
+// Aufstellung (posture): where a realm keeps its ground troops.
+//
+// The land of a person is laid over a fixed grid of cells (16 x 16 tiles, never re-gridded). Every
+// cell holds a share of the troops. Left alone the shares are even, which is the game as it was.
+// A person can weigh cells up or down (the "net"), and the troops then march there: over time,
+// slower through forest and mountains, much faster along their railways. The net is how a realm
+// stands, not a shield: it decides how much is at hand at a spot when an order is given, it slows
+// an advance through dense ground a little, and troops that stand dense lose fewer of their number.
+// There is no hard limit anywhere; everything saturates smoothly.
+//
+// Bookkeeping: a cell stores `u`, its share in arbitrary units; `post.H` is the sum. The troops
+// standing in a cell are u / H * p.troops. So everything that changes p.troops as a whole (growth,
+// a boat leaving, a donation) scales every cell alike without touching a single one, and only
+// local events (a fight, an order) move units. Only people have a posture; nations and bots are
+// spread evenly as before.
+(function (G) {
+  'use strict';
+  const Math = G.M;
+  const Game = G.Game, within = G.within;
+  const SH = 4, CS = 1 << SH;             // cell size in tiles
+  const FLOW = 5;                         // ticks between two steps of marching
+  const BASE = 40;                        // ticks to cross one cell of open ground
+  const RAIL = 0.2;                       // a railway makes a cell that much quicker to cross
+  const M_MIN = 0.2, M_MAX = 6;           // range of the weight a person can give a cell
+  G.POST = { cell: CS, flow: FLOW, mMin: M_MIN, mMax: M_MAX };
+
+  Game.prototype.postInit = function (p) {
+    if (!this.CW) { this.CW = Math.ceil(this.W / CS); this.CH = Math.ceil(this.H / CS); this.cellCost = new Float32Array(this.CW * this.CH); this.cellRail = new Uint8Array(this.CW * this.CH); this.railSeen = -1; }
+    p.post = { cells: new Map(), H: 0, edits: 0 };
+  };
+  Game.prototype.cellOf = function (t) { const W = this.W, x = t % W; return (((t - x) / W) >> SH) * this.CW + (x >> SH); };
+
+  // How slow a cell is to march through (1 = open lowland). Worked out once per cell.
+  Game.prototype.cellSlow = function (id) {
+    let v = this.cellCost[id];
+    if (v > 0) return v;
+    const map = this.map, W = this.W, H = this.H, cx = id % this.CW, cy = (id - cx) / this.CW;
+    const mg = map.mag, cov = map.cover, land = map.land, TS = G.TERRAIN.speed;
+    let sum = 0, n = 0;
+    for (let y = cy * CS; y < cy * CS + CS && y < H; y += 2) {
+      for (let x = cx * CS; x < cx * CS + CS && x < W; x += 2) {
+        const t = y * W + x;
+        if (land[t] !== 1) continue;
+        const m = mg[t];
+        sum += (m < 10 ? 1 : m < 20 ? 1.4 : 2) * (cov ? TS[cov[t]] : 1); n++;
+      }
+    }
+    v = n ? sum / n : 1.5;
+    this.cellCost[id] = v;
+    return v;
+  };
+  // Which cells a railway runs through. Looked at again whenever the network has changed.
+  Game.prototype.postRails = function () {
+    const rails = this.rails || [];
+    let sig = rails.length;
+    for (let i = 0; i < rails.length; i++) sig = (sig * 31 + rails[i].path.length) | 0;
+    if (sig === this.railSeen) return;
+    this.railSeen = sig;
+    const cr = this.cellRail, W = this.W, CW = this.CW;
+    cr.fill(0);
+    for (let i = 0; i < rails.length; i++) {
+      const path = rails[i].path;
+      for (let j = 0; j < path.length; j += 2) { const t = path[j], x = t % W; cr[(((t - x) / W) >> SH) * CW + (x >> SH)] = 1; }
+    }
+  };
+
+  // No units anywhere (a fresh realm, or one that had lost every soldier): stand evenly.
+  function even(post) {
+    let H = 0;
+    for (const c of post.cells.values()) { c.u = c.n * c.m; H += c.u; }
+    post.H = H;
+  }
+  // Troops standing in a cell.
+  Game.prototype.postReal = function (p, c) {
+    const post = p.post;
+    if (!(post.H > 0)) even(post);
+    return post.H > 0 ? c.u / post.H * p.troops : 0;
+  };
+  // Density at a cell, 1 = the average of the realm.
+  Game.prototype.postDens = function (p, c) {
+    const post = p.post;
+    if (!(post.H > 0)) even(post);
+    if (!(post.H > 0) || c.n <= 0 || p.tiles <= 0) return 1;
+    return (c.u / c.n) / (post.H / p.tiles);
+  };
+  // Take up to x troops out of a cell; the rest of the realm is untouched. Returns what was taken.
+  Game.prototype.postTake = function (p, c, x) {
+    const post = p.post, T = p.troops;
+    if (!(post.H > 0)) even(post);
+    if (!(x > 0) || !(T > 0) || !(post.H > 0)) return 0;
+    let uu = x * post.H / T;
+    if (uu > c.u) uu = c.u;
+    if (uu >= post.H) uu = post.H * 0.999999;
+    const got = uu / post.H * T;
+    c.u -= uu; post.H -= uu; p.troops = T - got;
+    return got;
+  };
+  // Put x troops into a cell.
+  Game.prototype.postGive = function (p, c, x) {
+    const post = p.post, T = p.troops;
+    if (!(x > 0)) return;
+    if (!(post.H > 0)) even(post);
+    if (!(T > 0) || !(post.H > 0)) {
+      for (const o of post.cells.values()) o.u = 0;
+      c.u = 1; post.H = 1; p.troops = (T > 0 ? T : 0) + x;
+      return;
+    }
+    const uu = x * post.H / T;
+    c.u += uu; post.H += uu; p.troops = T + x;
+  };
+
+  // ---------- land changes hands ----------
+  Game.prototype.postGain = function (p, t) {
+    const post = p.post, id = this.cellOf(t);
+    let c = post.cells.get(id);
+    if (!c) { c = { id: id, n: 0, u: 0, m: 1, want: 0, diff: 0, r: 0, d: 0, to: null, ec: 0 }; post.cells.set(id, c); }   // new ground starts empty
+    c.n++;
+  };
+  Game.prototype.postLose = function (p, t) {
+    const post = p.post, id = this.cellOf(t), c = post.cells.get(id);
+    if (!c) return;
+    if (--c.n > 0) return;
+    post.cells.delete(id);
+    if (!(c.u > 0)) return;
+    // the last of the cell is gone: whoever stood there falls back to the cells next to it
+    const CW = this.CW, cx = id % CW, near = [];
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        if ((!dx && !dy) || cx + dx < 0 || cx + dx >= CW) continue;
+        const o = post.cells.get(id + dy * CW + dx);
+        if (o) near.push(o);
+      }
+    }
+    if (near.length) { const s = c.u / near.length; for (let i = 0; i < near.length; i++) near[i].u += s; }
+    else post.H -= c.u;      // cut off: they find their way back to the rest of the realm
+  };
+
+  // The own cell nearest to a tile: where troops gather for an order given there.
+  Game.prototype.postGather = function (p, tile) {
+    const W = this.W, CW = this.CW, tx = (tile % W) / CS - 0.5, ty = ((tile / W) | 0) / CS - 0.5;
+    let best = null, bd = 1e18;
+    for (const c of p.post.cells.values()) {
+      const cx = c.id % CW, cy = (c.id - cx) / CW, d = (cx - tx) * (cx - tx) + (cy - ty) * (cy - ty);
+      if (d < bd) { bd = d; best = c; }
+    }
+    return best;
+  };
+  Game.prototype.postCellOfAttack = function (at) {
+    const post = at.a.post;
+    let c = post.cells.get(at.cell);
+    if (!c && at.near >= 0) { c = this.postGather(at.a, at.near); if (c) at.cell = c.id; }
+    return c || null;
+  };
+
+  // ---------- orders that draw on the troops at hand ----------
+  // What is ordered (`want`) is taken from the cell at the spot as far as it reaches; the rest is
+  // reserved and marches there, and joins the fight as it arrives.
+  Game.prototype.postDrain = function (at) {
+    const a = at.a;
+    if (at.want > a.troops) at.want = a.troops;
+    if (at.want < 1) { at.want = 0; return; }
+    const c = this.postCellOfAttack(at);
+    if (!c) { at.want = 0; return; }
+    const got = this.postTake(a, c, at.want);
+    if (got <= 0) return;
+    at.want -= got;
+    this.feedAttack(at, got);
+  };
+  // What a click would do, for the display next to the slider: how much is at hand at once, how
+  // much has to march, and roughly how long until most of it is there.
+  Game.prototype.commitInfo = function (p, tile, ratio) {
+    const res = { now: 0, later: 0, eta: 0 };
+    if (!p.post || !p.alive || !(p.troops > 0)) return res;
+    const g = this.postGather(p, tile);
+    if (!g) return res;
+    let pend = 0;
+    for (const o of p.out) if (o.active && o.want > 0) pend += o.want;
+    const want = Math.min(p.troops * ratio, Math.max(0, p.troops - pend));
+    const H = p.post.H, T = p.troops, real = function (c) { return H > 0 ? c.u / H * T : 0; };   // read only: the display must not touch the game
+    res.now = Math.min(want, real(g));
+    res.later = want - res.now;
+    if (res.later < 1) { res.later = 0; return res; }
+    // everything thins by the same share; how far away does 85% of what is needed stand?
+    this.postDijkstra(p, [g]);
+    const list = [];
+    let all = 0;
+    for (const c of p.post.cells.values()) { if (c === g || !(c.d < 1e17)) continue; all += real(c); list.push(c); }
+    list.sort(function (x, y) { return x.d - y.d || x.id - y.id; });
+    let acc = 0, eta = 0;
+    for (let i = 0; i < list.length; i++) {
+      acc += real(list[i]); eta = list[i].d;
+      if (acc >= all * 0.85) break;
+    }
+    res.eta = eta / 10;     // seconds
+    return res;
+  };
+
+  // ---------- marching ----------
+  // Shortest marching time from a set of cells to every other cell of the realm; every cell
+  // remembers the next cell on its way there (`to`) and what that step costs (`ec`).
+  Game.prototype.postDijkstra = function (p, from) {
+    const cells = p.post.cells, CW = this.CW, heap = this.postHeap || (this.postHeap = new G.Heap(1024));
+    const list = this.postList || (this.postList = []);
+    this.postRails();
+    heap.clear(); list.length = 0;
+    let i = 0;
+    for (const c of cells.values()) { c.d = 1e18; c.to = null; c.ec = 0; c.ix = i++; c.done = false; list.push(c); }
+    for (let k = 0; k < from.length; k++) { from[k].d = 0; heap.push(0, from[k].ix); }
+    const cr = this.cellRail;
+    while (heap.n > 0) {
+      const c = list[heap.pop()];
+      if (c.done) continue;
+      c.done = true;
+      const id = c.id, cx = id % CW, sc = this.cellSlow(id) * (cr[id] ? RAIL : 1);
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          if ((!dx && !dy) || cx + dx < 0 || cx + dx >= CW) continue;
+          const nid = id + dy * CW + dx, o = cells.get(nid);
+          if (!o || o.done) continue;
+          const e = BASE * (sc + this.cellSlow(nid) * (cr[nid] ? RAIL : 1)) / 2 * (dx && dy ? 1.414 : 1);
+          const nd = c.d + e;
+          if (nd < o.d) { o.d = nd; o.to = c; o.ec = e; heap.push(nd, o.ix); }
+        }
+      }
+    }
+  };
+  // One step of marching for one realm: cells that hold more than their share send toward the
+  // nearest cell that holds less.
+  Game.prototype.postFlow = function (p) {
+    const post = p.post, cells = post.cells;
+    if (!cells.size) return;
+    let H = 0, Wt = 0;
+    for (const c of cells.values()) { H += c.u; Wt += c.n * c.m; c.r = 0; }
+    post.H = H;
+    if (!(H > 0)) { even(post); H = post.H; }
+    if (!(H > 0) || !(Wt > 0)) return;
+    // troops called to an order are reserved at the spot where they gather
+    let R = 0;
+    const T = p.troops;
+    if (T > 0) {
+      for (const at of p.out) {
+        if (!at.active || !(at.want > 0)) continue;
+        const c = this.postCellOfAttack(at);
+        if (!c) continue;
+        const r = Math.min(at.want, T) * H / T;
+        c.r += r; R += r;
+      }
+    }
+    let k = 1;
+    if (R > H * 0.999) { k = H * 0.999 / R; R = H * 0.999; }
+    const base = (H - R) / Wt, from = [];
+    let lack = 0;
+    for (const c of cells.values()) {
+      c.want = base * c.n * c.m + c.r * k;
+      c.diff = c.u - c.want;
+      c.tol = 1e-7 * H;
+      if (c.diff < -(0.01 * c.want + c.tol)) { from.push(c); lack -= c.diff; }     // a cell asks only when it is clearly short ...
+    }
+    if (!from.length) return;
+    this.postDijkstra(p, from);
+    let pool = 0;
+    for (const c of cells.values()) {
+      c.send = 0;
+      if (!(c.diff > c.tol)) continue;                                             // .. but every cell with anything to spare gives
+      if (c.to) c.send = c.diff * Math.min(1, FLOW / c.ec);
+      else if (c.d > 1e17) { const s = c.diff * 0.02; c.u -= s; pool += s; }    // cut off by water or foreign land: a slow trickle by other ways
+    }
+    for (const c of cells.values()) if (c.send > 0) { c.u -= c.send; c.to.u += c.send; }
+    if (pool > 0 && lack > 0) for (let i = 0; i < from.length; i++) from[i].u -= pool * from[i].diff / lack;
+  };
+  Game.prototype.postTick = function () {
+    const hs = this.humans, T = this.ticks;
+    for (let i = 0; i < hs.length; i++) {
+      const p = hs[i];
+      if (p.post && p.alive && (T + p.id) % FLOW === 0) this.postFlow(p);
+    }
+  };
+
+  // ---------- the net ----------
+  // cells: ids, vals: the weight each of them gets.
+  Game.prototype.postPaint = function (p, ids, vals) {
+    if (!p.post || !Array.isArray(ids) || !Array.isArray(vals) || ids.length > 600) return false;
+    const cells = p.post.cells;
+    for (let i = 0; i < ids.length; i++) {
+      const c = cells.get(ids[i] | 0), v = +vals[i];
+      if (c && v === v) c.m = within(v, M_MIN, M_MAX);
+    }
+    p.post.edits++;
+    return true;
+  };
+  Game.prototype.postReset = function (p) {
+    if (!p.post) return false;
+    for (const c of p.post.cells.values()) c.m = 1;
+    p.post.edits++;
+    return true;
+  };
+
+  // What dense ground does to an attack on it. d is the density of the defender's cell (1 =
+  // average), `rough` whether the ground is narrow (forest, mountains, a river): there a few hold
+  // as well as many, so more troops stop adding sooner. Smooth, with no limit to bump into.
+  //   brake: factor on the time a tile costs the attacker (1 at average density)
+  //   bleed: factor on what a tile costs the attacker in troops
+  //   keep:  factor on what the defender loses per tile, as a multiple of the average
+  Game.prototype.postEffect = function (d, rough, out) {
+    const s = rough ? 1.2 : 2.5, f = (1 + s) * d / (s + d);     // 0 at d = 0, 1 at d = 1, saturates at 1 + s
+    out.brake = 0.4 + 0.6 * f;
+    out.bleed = 0.7 + 0.3 * f;
+    out.keep = d > 0 ? Math.pow(d, 0.35) : 0;
+  };
 })(globalThis.G = globalThis.G || {});
 
 (function (G) {
@@ -3945,6 +4312,7 @@ body.placing #cv { cursor: crosshair; }
     play: 'M7 4l13 8l-13 8z',
     menu: 'M3 5h18v2.4H3zM3 10.8h18v2.4H3zM3 16.6h18V19H3z',
     home: 'M12 3l9 8h-2.5v9h-5v-6h-3v6h-5v-9H3z',
+    net: 'M3 3h18v18H3zm2 2v3.5h3.5V5zm5.5 0v3.5h3V5zm5 0v3.5H19V5zM5 10.5v3h3.5v-3zm5.5 0v3h3v-3zm5 0v3H19v-3zM5 15.5V19h3.5v-3.5zm5.5 0V19h3v-3.5zm5 0V19H19v-3.5z',
     troops: 'M12 3a4 4 0 1 0 0 8a4 4 0 0 0 0-8zM4 21c0-4.4 3.6-8 8-8s8 3.6 8 8z',
     gold: 'M12 3a9 9 0 1 0 0 18a9 9 0 0 0 0-18zM12 6.5a5.5 5.5 0 1 1 0 11a5.5 5.5 0 0 1 0-11z',
     sound: 'M3 9h4l5-4.5v15L7 15H3zM14.5 8.2a5 5 0 0 1 0 7.6l-1.2-1.4a3.2 3.2 0 0 0 0-4.8zM17 5.4a8.8 8.8 0 0 1 0 13.2l-1.2-1.4a7 7 0 0 0 0-10.4z',
@@ -4046,6 +4414,7 @@ body.placing #cv { cursor: crosshair; }
     this.cam = { x: 0, y: 0, z: 1 };
     this.fly = null; this.map = null; this.game = null;
     this.fxList = []; this.mark = -1; this.aim = null;
+    this.net = { on: false, edit: new Map(), at: -1e9, tint: null, mask: null, x0: 0, y0: 0, w: 0, h: 0, heavy: [], brush: null, lines: null };
     this.occ = new Uint8Array(2600); this.sq = new Uint16Array(2600);
     this.dpr = 1; this.cw = 1; this.ch = 1;
     this.resize();
@@ -4286,6 +4655,7 @@ body.placing #cv { cursor: crosshair; }
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     const g = this.game;
     if (!g) return;
+    this.drawNet(ctx, g, z, ox, oy, now);
     this.drawRails(ctx, g, z, ox, oy);
     this.drawReach(ctx, g, z, ox, oy);
     this.drawStructures(ctx, g, z, ox, oy);
@@ -4302,6 +4672,128 @@ body.placing #cv { cursor: crosshair; }
   // The ground a defence post covers and the sky an air defence guards, drawn around the building at all
   // times so nobody has to tap it to learn how far it reaches. Own and allied ones are drawn clearly,
   // those of others fainter.
+  // ---------- the net: how the own troops stand ----------
+  // Only the player's own posture is ever drawn; nobody sees anyone else's. Outside the editing
+  // mode it is a faint tint (red where troops stand dense, dark where the land is thin); in the
+  // mode the grid is drawn over it, finer where the net has been pulled together.
+  // The tint lives on a small canvas, one pixel for 4 x 4 tiles, cut to the shape of the realm.
+  View.prototype.netWeight = function (c) {
+    const e = this.net.edit.get(c.id);
+    return e ? e.m : c.m;
+  };
+  View.prototype.buildNet = function (g, p) {
+    const N = this.net, post = p.post, CS = G.POST.cell, Q = 4, W = g.W, own = g.owner, id = p.id;
+    const cx0 = Math.floor(p.x0 / CS), cy0 = Math.floor(p.y0 / CS), cx1 = Math.floor(p.x1 / CS), cy1 = Math.floor(p.y1 / CS);
+    const w = (cx1 - cx0 + 1) * (CS / Q), h = (cy1 - cy0 + 1) * (CS / Q);
+    if (!N.tint) { N.tint = document.createElement('canvas'); N.mask = document.createElement('canvas'); }
+    if (N.tint.width !== w || N.tint.height !== h) { N.tint.width = w; N.tint.height = h; N.mask.width = w; N.mask.height = h; }
+    N.x0 = cx0 * CS; N.y0 = cy0 * CS; N.w = w; N.h = h;
+    const tc = N.tint.getContext('2d'), mc = N.mask.getContext('2d');
+    const ti = tc.createImageData(w, h), mi = mc.createImageData(w, h), td = ti.data, md = mi.data;
+    const H = post.H, avg = p.tiles > 0 && H > 0 ? H / p.tiles : 0, CW = g.CW, per = CS / Q;
+    N.heavy.length = 0;
+    for (const c of post.cells.values()) {
+      const cx = c.id % CW, cy = (c.id - cx) / CW;
+      const d = avg > 0 && c.n > 0 ? (c.u / c.n) / avg : 1;
+      let r, gg, b, a;
+      if (d >= 1) { r = 255; gg = 52; b = 36; a = 215 * (1 - 1 / Math.pow(d, 0.8)); }
+      else { r = 6; gg = 10; b = 20; a = 120 * (1 - d); }
+      const m = this.netWeight(c);
+      if (m > 1.25 || m < 0.8) N.heavy.push(cx, cy, m);
+      const bx = (cx - cx0) * per, by = (cy - cy0) * per;
+      for (let j = 0; j < per; j++) {
+        const ty = cy * CS + j * Q + 1;
+        if (ty >= g.H) break;
+        for (let i = 0; i < per; i++) {
+          const tx = cx * CS + i * Q + 1;
+          if (tx >= W) break;
+          const row = ty * W + tx;
+          // four of the sixteen tiles of the block decide how much of it is ours
+          let k = 0;
+          if (own[row] === id) k++;
+          if (own[row + 2] === id) k++;
+          if (ty + 2 < g.H) { if (own[row + 2 * W] === id) k++; if (own[row + 2 * W + 2] === id) k++; }
+          if (!k) continue;
+          const o = ((by + j) * w + bx + i) * 4;
+          td[o] = r; td[o + 1] = gg; td[o + 2] = b; td[o + 3] = a * k / 4;
+          md[o] = 8; md[o + 1] = 13; md[o + 2] = 22; md[o + 3] = 64 * k - 1;
+        }
+      }
+    }
+    tc.putImageData(ti, 0, 0); mc.putImageData(mi, 0, 0);
+  };
+  View.prototype.drawNet = function (ctx, g, z, ox, oy, now) {
+    const p = g.human, N = this.net;
+    if (!p || !p.post || !p.alive || g.phase !== 'play' || !p.post.cells.size) return;
+    if (now - N.at > (N.on ? 300 : 1200) || N.dirty) { N.at = now; N.dirty = false; this.buildNet(g, p); }
+    if (!N.w) return;
+    for (const e of N.edit) if (now - e[1].at > 2500) N.edit.delete(e[0]);
+    const dpr = this.dpr, cw = this.cw, ch = this.ch, CS = G.POST.cell;
+    const sx = N.x0 * z + ox, sy = N.y0 * z + oy, sw = N.w * 4 * z, sh = N.h * 4 * z;
+    if (sx > cw || sy > ch || sx + sw < 0 || sy + sh < 0) return;
+    ctx.save();
+    ctx.imageSmoothingEnabled = true;
+    if (N.on) { ctx.globalAlpha = 0.42; ctx.drawImage(N.mask, sx, sy, sw, sh); }    // a veil over the own colour, so the net reads the same on every colour
+    ctx.globalAlpha = N.on ? 1 : 0.4;
+    ctx.drawImage(N.tint, sx, sy, sw, sh);
+    ctx.globalAlpha = 1;
+    if (N.on) {
+      // the grid, on its own layer so it can be cut to the shape of the realm
+      let lc = N.lines;
+      if (!lc) lc = N.lines = document.createElement('canvas');
+      if (lc.width !== this.cv.width || lc.height !== this.cv.height) { lc.width = this.cv.width; lc.height = this.cv.height; }
+      const l = lc.getContext('2d');
+      l.setTransform(dpr, 0, 0, dpr, 0, 0);
+      l.globalCompositeOperation = 'source-over';
+      l.clearRect(0, 0, cw, ch);
+      let k = 1;
+      while (CS * k * z < 9) k *= 2;       // zoomed out: a coarser grid, so it never turns into a grey film
+      const step = CS * k * z;
+      const x0 = Math.max(sx, 0), x1 = Math.min(sx + sw, cw), y0 = Math.max(sy, 0), y1 = Math.min(sy + sh, ch);
+      l.beginPath();
+      for (let x = sx + Math.ceil((x0 - sx) / step) * step; x <= x1 + 0.5; x += step) { l.moveTo(x, y0); l.lineTo(x, y1); }
+      for (let y = sy + Math.ceil((y0 - sy) / step) * step; y <= y1 + 0.5; y += step) { l.moveTo(x0, y); l.lineTo(x1, y); }
+      l.strokeStyle = 'rgba(255,255,255,0.5)'; l.lineWidth = 1; l.stroke();
+      // where the net is pulled together its meshes get finer and glow, where it is let go they fade
+      const hv = N.heavy, cell = CS * z;
+      if (cell >= 5) {
+        l.beginPath();
+        for (let i = 0; i < hv.length; i += 3) {
+          const m = hv[i + 2];
+          if (m < 1) continue;
+          const x = hv[i] * cell + ox, y = hv[i + 1] * cell + oy;
+          if (x > cw || y > ch || x + cell < 0 || y + cell < 0) continue;
+          const parts = m > 3.2 ? 4 : m > 1.9 ? 3 : 2;
+          for (let q = 1; q < parts; q++) {
+            const f = q / parts * cell;
+            l.moveTo(x + f, y); l.lineTo(x + f, y + cell); l.moveTo(x, y + f); l.lineTo(x + cell, y + f);
+          }
+        }
+        l.strokeStyle = 'rgba(255,214,190,0.75)'; l.lineWidth = 1; l.stroke();
+        l.fillStyle = 'rgba(8,14,24,0.5)';
+        for (let i = 0; i < hv.length; i += 3) {
+          if (hv[i + 2] >= 1) continue;
+          const x = hv[i] * cell + ox, y = hv[i + 1] * cell + oy;
+          if (x > cw || y > ch || x + cell < 0 || y + cell < 0) continue;
+          l.clearRect(x + 1, y + 1, cell - 2, cell - 2);
+          l.globalAlpha = Math.min(1, (1 - hv[i + 2]) * 1.2); l.fillRect(x, y, cell, cell); l.globalAlpha = 1;
+        }
+      }
+      l.globalCompositeOperation = 'destination-in';
+      l.imageSmoothingEnabled = true;
+      l.drawImage(N.mask, sx, sy, sw, sh);
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.drawImage(lc, 0, 0);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const b = N.brush;
+      if (b) {
+        ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, 6.2832);
+        ctx.strokeStyle = b.less ? 'rgba(150,200,255,0.9)' : 'rgba(255,170,140,0.95)'; ctx.lineWidth = 1.5; ctx.stroke();
+      }
+    }
+    ctx.restore();
+  };
+
   View.prototype.drawReach = function (ctx, g, z, ox, oy) {
     const h = g.human, cw = this.cw, ch = this.ch;
     for (const u of g.structAt.values()) {
@@ -5590,6 +6082,9 @@ body.placing #cv { cursor: crosshair; }
 
   let MAPS = [], maps = {}, game = null, view = null;
   let paused = false, speed = 1, acc = 0, last = 0, ratio = 0.2;
+  // Aufstellung: the editing mode of the net (see 03b_posture.js)
+  let netOn = false, netLess = false, stroke = null, netTimer = 0, lastTile = -1, commitAt = -99;
+  const netQueue = new Map();
   let sel = null, radialAt = 0, modalKind = '', infoId = 0, lbOpen = false, lbAt = -99, liveAt = -99, tradeAt = 0;
   let toastTimer = 0, endShown = false, botsTouched = false;
   let mp = null, turnLeft = 0, aim = null, joinCode = '', lobbyNote = '', goldTimer = 0;
@@ -6004,6 +6499,8 @@ body.placing #cv { cursor: crosshair; }
     view.cam.z = within(Math.max(view.cw / map.W, view.ch / map.H) * 0.5, view.cam.z, 4);
     $('modal').hidden = true; modalKind = '';
     $('hud').hidden = false; $('spawnBar').hidden = false; $('ctrl').hidden = true; $('lb').hidden = true; $('aimBar').hidden = true;
+    netOn = false; stroke = null; netQueue.clear(); lastTile = -1; commitAt = -99; view.net.on = false; view.net.edit.clear(); view.net.w = 0; view.net.at = -1e9;
+    $('bNet').hidden = true; $('bNet').setAttribute('aria-pressed', 'false'); $('netBar').hidden = true; $('commit').textContent = '';
     $('feedMsgs').innerHTML = ''; $('feedLive').innerHTML = ''; chips.clear(); asks.clear();
     $('lbRows').innerHTML = ''; $('clock').textContent = '0:00';
     speed = 1; $('bSpeed').textContent = '1×'; acc = 0; endShown = false; lbAt = liveAt = -99; tradeAt = 0; aim = null;
@@ -6019,6 +6516,7 @@ body.placing #cv { cursor: crosshair; }
     else done(c, game.exec(game.human.id, c));
   }
   function done(c, why) {
+    if (c.k === 'mesh' || c.k === 'even') return;
     if (why) { toast(why); snd('deny'); return; }
     if (c.k === 'strike') snd(c.sea ? 'boat' : 'attack');
     else if (c.k === 'build') { if (c.u === UT.WARSHIP) snd('ship'); else if (c.u < UT.ATOM) snd('build'); }
@@ -6086,7 +6584,7 @@ body.placing #cv { cursor: crosshair; }
         addAsk('r' + q.id, 'Die Allianz mit ' + q.name + ' läuft bald ab', 'Verlängern', 'Auslaufen lassen',
           function () { act({ k: 'renew', p: q.id }); }, function () { /* let it run out */ });
       } else if (e.k === 'start') {
-        $('spawnBar').hidden = true; $('ctrl').hidden = false; $('lb').hidden = false;
+        $('spawnBar').hidden = true; $('ctrl').hidden = false; $('lb').hidden = false; $('bNet').hidden = !h.post;
         const W = game.W;
         view.flyTo(h.spawnTile % W, (h.spawnTile / W) | 0, within(Math.min(view.cw, view.ch) / 70, 2.2, 6));
         addMsg('Los geht es. Breite dich aus, bevor es andere tun.', 'good');
@@ -6098,7 +6596,7 @@ body.placing #cv { cursor: crosshair; }
         snd('alarm', 0.5);
       } else if (e.k === 'loot') {
         if (e.by === h.id && e.gold > 0) { view.floatText(e.x, e.y, '+ ' + fmt(e.gold)); goldPop(e.gold); }
-      } else if (e.k === 'defeat') showEnd('defeat', null);
+      } else if (e.k === 'defeat') { setNet(false); $('bNet').hidden = true; showEnd('defeat', null); }
       else if (e.k === 'win') showEnd(game.players[e.id] === h ? 'win' : 'other', game.players[e.id]);
     }
     ev.length = 0;
@@ -6131,7 +6629,7 @@ body.placing #cv { cursor: crosshair; }
     };
     if (h.alive) {
       for (const a of h.out) {
-        put('o' + a.id, 'info', 'Angriff auf ' + (a.tid ? game.players[a.tid].name : 'freies Land') + ' · ' + fmtT(a.troops), function () { act({ k: 'ret', a: a.id }); });
+        put('o' + a.id, 'info', 'Angriff auf ' + (a.tid ? game.players[a.tid].name : 'freies Land') + ' · ' + fmtT(a.troops) + (a.want >= 1 ? ' · +' + fmtT(a.want) + ' unterwegs' : ''), function () { act({ k: 'ret', a: a.id }); });
       }
       const inc = h.inc.slice().sort(function (a, b) { return b.troops - a.troops; });
       for (let i = 0; i < inc.length && i < 3; i++) put('i' + inc[i].id, 'bad', inc[i].a.name + ' greift an · ' + fmtT(inc[i].troops), null);
@@ -6217,6 +6715,7 @@ body.placing #cv { cursor: crosshair; }
       $('sGold').textContent = game.opts.infiniteGold ? '∞' : fmt(h.gold);
       $('sGoldSub').textContent = '+' + fmt(game.goldRate(h) * 10) + '/s';
       $('ratioTroops').textContent = fmtT(h.troops * ratio);
+      if (T - commitAt >= 3) { commitAt = T; showCommit(); }
     }
     if (T - lbAt >= 10) { lbAt = T; leaderboard(); }
     if (T - liveAt >= 3) { liveAt = T; live(); }
@@ -6376,7 +6875,7 @@ body.placing #cv { cursor: crosshair; }
     const a = sel, h = game.human;
     if (which === 'C') {
       const mode = $('rC').dataset.mode;
-      if (mode === 'attack') act({ k: 'strike', t: a.tile, r: ratio });
+      if (mode === 'attack') strikeAt(a.tile);
       else if (mode === 'boat') sendBoat(a);
       else if (mode === 'ship') act({ k: 'ship', t: a.tile, say: 'Kriegsschiff nimmt Kurs' });
       else toast(a.why || 'Hier nicht möglich');
@@ -6510,7 +7009,7 @@ body.placing #cv { cursor: crosshair; }
   // ---------- aiming a bomb ----------
   // The map shows the flight path, the blast and every air defence in reach; a tap moves the target.
   function startAim(type, tile) {
-    closeRadial();
+    closeRadial(); setNet(false);
     aim = { type: type, tile: tile };
     $('ctrl').hidden = true; $('aimBar').hidden = false;
     $('aimIc').innerHTML = svg(BUILD.find(function (b) { return b.t === type; }).icon, 26);
@@ -6605,6 +7104,98 @@ body.placing #cv { cursor: crosshair; }
     if (!shiftHeld) setGhost(null);   // hold Shift to place several in a row
   }
 
+  // ---------- Aufstellung ----------
+  // An order to attack over land: says beforehand how much is at hand and how much has to march.
+  function commitText(tile) {
+    const h = game.human;
+    if (!h.post || tile < 0 || game.owner[tile] === h.id || !game.map.land[tile]) return '';
+    const a = game.actionsAt(h, tile);
+    if (!a.canAttack) return '';
+    const i = game.commitInfo(h, tile, ratio);
+    if (i.now + i.later < 1) return '';
+    return fmtT(i.now) + ' sofort' + (i.later >= 1 ? ' · ' + fmtT(i.later) + ' unterwegs · ca. ' + Math.max(1, Math.round(i.eta)) + ' s' : '');
+  }
+  function showCommit() {
+    const el = $('commit');
+    if (!el) return;
+    const tile = hoverX >= 0 ? view.tileAt(hoverX, hoverY) : lastTile;
+    const s = netOn || aim ? '' : commitText(tile);
+    if (el.textContent !== s) el.textContent = s;
+  }
+  function strikeAt(tile, extra) {
+    const c = { k: 'strike', t: tile, r: ratio };
+    if (extra) for (const k in extra) c[k] = extra[k];
+    lastTile = tile;
+    if (!c.sea && !c.say) { const s = commitText(tile); if (s.indexOf('unterwegs') >= 0) c.say = s; }
+    act(c);
+  }
+  function setNet(on) {
+    on = !!on && !!game && game.phase === 'play' && game.human.alive && !!game.human.post;
+    if (on === netOn) return;
+    netOn = on; view.net.on = on; view.net.dirty = true; view.net.brush = null;
+    endStroke(false);
+    $('bNet').setAttribute('aria-pressed', on ? 'true' : 'false');
+    $('netBar').hidden = !on;
+    $('netHint').textContent = window.matchMedia && window.matchMedia('(pointer: coarse)').matches
+      ? 'Mit einem Finger über dein Land ziehen. Zwei Finger verschieben die Karte.'
+      : 'Mit gedrückter Maustaste über dein Land ziehen. Umschalt + ziehen verschiebt die Karte.';
+    if (on) { stopAim(); setGhost(null); closeRadial(); $('ctrl').hidden = true; }
+    else if (game && game.phase === 'play' && !aim) $('ctrl').hidden = false;
+  }
+  function setBrush(less) {
+    netLess = less;
+    $('netMore').classList.toggle('on', !less); $('netLess').classList.toggle('on', less);
+  }
+  function flushNet() {
+    if (!netQueue.size || !game) return;
+    let ids = [], vals = [];
+    for (const e of netQueue) {
+      ids.push(e[0]); vals.push(Math.round(e[1] * 1000) / 1000);
+      if (ids.length >= 400) { act({ k: 'mesh', c: ids, v: vals }); ids = []; vals = []; }
+    }
+    if (ids.length) act({ k: 'mesh', c: ids, v: vals });
+    netQueue.clear();
+  }
+  // One dab of the brush at a point of the screen: the cells under it are weighed up (or down),
+  // strongest in the middle. The brush has a fixed size on the screen, so zoomed out it is coarse.
+  function stamp(sx, sy) {
+    const h = game.human, post = h.post, CS = G.POST.cell, c = view.cam, now = performance.now();
+    const wx = (sx - view.cw / 2) / c.z + c.x, wy = (sy - view.ch / 2) / c.z + c.y, R = stroke.r / c.z;
+    const cx0 = Math.max(0, Math.floor((wx - R) / CS)), cx1 = Math.min(game.CW - 1, Math.floor((wx + R) / CS));
+    const cy0 = Math.max(0, Math.floor((wy - R) / CS)), cy1 = Math.min(game.CH - 1, Math.floor((wy + R) / CS));
+    const reach = R + CS * 0.5;
+    for (let cy = cy0; cy <= cy1; cy++) {
+      for (let cx = cx0; cx <= cx1; cx++) {
+        const id = cy * game.CW + cx, cell = post.cells.get(id);
+        if (!cell) continue;
+        const dx = (cx + 0.5) * CS - wx, dy = (cy + 0.5) * CS - wy, d = Math.sqrt(dx * dx + dy * dy);
+        const inside = wx >= cx * CS && wx < cx * CS + CS && wy >= cy * CS && wy < cy * CS + CS;
+        let f = 1 - d / reach;
+        if (inside && f < 0.6) f = 0.6;
+        if (f <= 0) continue;
+        const e = view.net.edit.get(id), cur = e ? e.m : cell.m;
+        if (!stroke.orig.has(id)) stroke.orig.set(id, cur);
+        const k = 1 + 0.2 * f, m = within(netLess ? cur / k : cur * k, G.POST.mMin, G.POST.mMax);
+        view.net.edit.set(id, { m: m, at: now });
+        netQueue.set(id, m);
+      }
+    }
+    view.net.dirty = true;
+    stroke.sx = sx; stroke.sy = sy;
+  }
+  function endStroke(keep) {
+    if (!stroke) return;
+    if (!keep && stroke.started) {
+      // a second finger came down: this was a pinch, not a stroke. Put everything back.
+      const now = performance.now();
+      for (const e of stroke.orig) { view.net.edit.set(e[0], { m: e[1], at: now }); netQueue.set(e[0], e[1]); }
+      view.net.dirty = true;
+    }
+    stroke = null; view.net.brush = null;
+    clearInterval(netTimer); netTimer = 0;
+    flushNet();
+  }
+
   function tap(sx, sy, menu) {
     if (!game) return;
     const tile = view.tileAt(sx, sy);
@@ -6621,7 +7212,7 @@ body.placing #cv { cursor: crosshair; }
     // an attack that is already running is fed with one tap, whoever it is against
     const running = !!q && h.out.some(function (at) { return at.active && at.tid === q.id; });
     if (!menu && (!q || q.type === PT.BOT || running) && h.alive && o !== h.id && game.map.land[tile]) {
-      act({ k: 'strike', t: tile, r: ratio });
+      strikeAt(tile);
       return;
     }
     snd('tap');
@@ -6654,11 +7245,32 @@ body.placing #cv { cursor: crosshair; }
       if (ptr.size === 1) { moved = false; downAt = performance.now(); downX = e.clientX; downY = e.clientY; downType = e.pointerType; }
       else moved = true;
       view.fly = null;
+      if (netOn) {
+        // one finger draws on the net, two move the map. A touch only starts to draw after a
+        // moment, so the first finger of a pinch leaves no mark.
+        if (ptr.size === 1 && !e.shiftKey) {
+          const touch = e.pointerType !== 'mouse';
+          stroke = { t0: downAt, started: false, touch: touch, r: touch ? 46 : 38, sx: 0, sy: 0, orig: new Map() };
+        } else endStroke(false);
+      }
     });
     cv.addEventListener('pointermove', function (e) {
       if (e.pointerType === 'mouse') { const r = cv.getBoundingClientRect(); hoverX = e.clientX - r.left; hoverY = e.clientY - r.top; }
       const p = ptr.get(e.pointerId);
       if (!p) return;
+      if (netOn && e.pointerType === 'mouse') { const r = cv.getBoundingClientRect(); view.net.brush = { x: e.clientX - r.left, y: e.clientY - r.top, r: 38, less: netLess }; }
+      if (stroke && ptr.size === 1) {
+        const r = cv.getBoundingClientRect(), sx = e.clientX - r.left, sy = e.clientY - r.top;
+        p.x = e.clientX; p.y = e.clientY;
+        if (!stroke.started) {
+          if (stroke.touch && performance.now() - stroke.t0 < 70) return;
+          stroke.started = true;
+          netTimer = setInterval(flushNet, 200);
+          stamp(sx, sy);
+        } else if (Math.hypot(sx - stroke.sx, sy - stroke.sy) >= stroke.r * 0.4) stamp(sx, sy);
+        view.net.brush = { x: sx, y: sy, r: stroke.r, less: netLess };
+        return;
+      }
       if (ptr.size === 1) {
         if (!moved && Math.hypot(e.clientX - downX, e.clientY - downY) > 7) moved = true;
         if (moved) view.pan(e.clientX - p.x, e.clientY - p.y);
@@ -6674,6 +7286,12 @@ body.placing #cv { cursor: crosshair; }
     const up = function (e) {
       if (!ptr.has(e.pointerId)) return;
       ptr.delete(e.pointerId);
+      if (stroke) {
+        if (e.type === 'pointerup' && !stroke.started) { const r = cv.getBoundingClientRect(); stroke.started = true; stamp(e.clientX - r.left, e.clientY - r.top); }   // a tap is one dab
+        endStroke(e.type === 'pointerup');
+        return;
+      }
+      if (netOn) return;
       if (ptr.size === 0 && !moved && e.type === 'pointerup' && performance.now() - downAt < 1500) {
         const r = cv.getBoundingClientRect();
         shiftHeld = e.shiftKey;
@@ -6713,6 +7331,7 @@ body.placing #cv { cursor: crosshair; }
       const k = e.key.toLowerCase();
       if (k === 'escape') {
         if (ghost) setGhost(null);
+        else if (netOn) setNet(false);
         else if (aim) stopAim();
         else if (!$('radial').hidden) closeRadial();
         else if (!$('sheet').hidden) closeBuild();
@@ -6736,6 +7355,7 @@ body.placing #cv { cursor: crosshair; }
       if (k === 't') { setRatio(ratio * 100 - 10); return; }
       if (k === 'y') { setRatio(ratio * 100 + 10); return; }
       if (k === 'c') { $('bHome').click(); return; }
+      if (k === 'n') { setNet(!netOn); return; }
       if (k === '.' || k === ',') { if (!mp) setSpeed(k === '.' ? 1 : -1); return; }
       if (e.repeat || game.phase !== 'play' || !game.human.alive) return;
       if (aim) { if (k === 'enter' && !$('aimGo').disabled) fireAim(); return; }
@@ -6759,7 +7379,7 @@ body.placing #cv { cursor: crosshair; }
       if (k === 'u') { if (open) closeBuild(); doUpgrade(tile); return; }
       if (open) return;
       const q = game.owner[tile] && game.owner[tile] !== h.id ? game.players[game.owner[tile]] : null;
-      if (k === 'g') act({ k: 'strike', t: tile, r: ratio });
+      if (k === 'g') strikeAt(tile);
       else if (k === 'b') act({ k: 'strike', t: tile, r: ratio, sea: 1, say: 'Boot läuft aus' });
       else if (k === 'i') openInfo(q ? q.id : h.id);
       else if (!q) { toast('Zeige auf einen anderen Spieler'); snd('deny'); }
@@ -6784,6 +7404,11 @@ body.placing #cv { cursor: crosshair; }
     });
     $('ratio').addEventListener('input', function () { setRatio(+this.value); });
     $('bPause').addEventListener('click', togglePause);
+    $('bNet').addEventListener('click', function () { setNet(!netOn); });
+    $('netDone').addEventListener('click', function () { setNet(false); });
+    $('netMore').addEventListener('click', function () { setBrush(false); });
+    $('netLess').addEventListener('click', function () { setBrush(true); });
+    $('netEven').addEventListener('click', function () { netQueue.clear(); view.net.edit.clear(); view.net.dirty = true; act({ k: 'even' }); toast('Aufstellung ausgeglichen'); });
     $('aimNo').addEventListener('click', stopAim);
     $('aimGo').addEventListener('click', fireAim);
     $('bSpeed').addEventListener('click', function () { setSpeed(0); });
@@ -6881,6 +7506,7 @@ body.placing #cv { cursor: crosshair; }
     view = new G.View($('cv'));
     $('bPause').innerHTML = svg('pause', 18);
     $('bHome').innerHTML = svg('home', 18);
+    $('bNet').innerHTML = svg('net', 18);
     $('bMenu').innerHTML = svg('menu', 18);
     $('icTroops').innerHTML = svg('troops', 20);
     $('icGold').innerHTML = svg('gold', 20);
