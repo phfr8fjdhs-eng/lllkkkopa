@@ -207,35 +207,30 @@ input[type=range] { width: 100%; height: 30px; margin: 0; accent-color: var(--ac
 .ldTop b { flex: 1; font: 700 19px/1.15 var(--display); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ldX { width: 26px; height: 26px; margin: -3px -5px -3px 0; padding: 0; border: 0; border-radius: 8px; font: 500 20px/1 var(--body); color: var(--muted); background: none; cursor: pointer; }
 .ldX:hover { color: var(--ink); background: rgba(255, 255, 255, 0.08); }
-.ldFree { margin: 3px 0 0; font-size: 13px; color: var(--good); }
+.ldFree { margin: 3px 0 0; font: 600 13px var(--display); color: var(--good); }
 .ldOwn { display: flex; flex-wrap: wrap; gap: 2px 10px; margin-top: 4px; font: 600 13px var(--display); }
 .ldOwn span { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
 .ldOwn i { width: 9px; height: 9px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, 0.8); }
 .ldOwn .free { color: var(--muted); }
-.ldSec { display: flex; justify-content: space-between; align-items: baseline; margin: 9px 0 3px; padding-top: 7px; border-top: 1px solid var(--line); font: 600 11.5px var(--display); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
-.ldSec small { font-size: 11px; letter-spacing: 0; text-transform: none; }
-.ldRow { display: flex; align-items: center; gap: 8px; padding: 2px 0; font: 600 15px var(--display); }
-.ldRow span { width: 20px; text-align: center; font-size: 15px; }
-.ldRow b { flex: 1; font-weight: 600; }
-.ldRow em { font-style: normal; color: var(--accent); font-variant-numeric: tabular-nums; }
-.ldYou { margin-top: 9px; padding: 6px 9px; background: rgba(255, 255, 255, 0.06); border-radius: 9px; font: 600 13.5px var(--display); }
-.ldYou div { display: flex; justify-content: space-between; gap: 8px; }
-.ldYou b { color: var(--accent); font-variant-numeric: tabular-nums; }
-.ldNote { margin: 7px 0 0; font-size: 12px; line-height: 1.3; color: var(--muted); }
-.ldNote.good { color: var(--good); }
+.ldSec { display: flex; justify-content: space-between; align-items: baseline; margin: 10px 0 4px; padding-top: 8px; border-top: 1px solid var(--line); font: 700 12px var(--display); letter-spacing: .07em; text-transform: uppercase; color: var(--ink); }
+.ldSec small { font: 500 11.5px var(--display); letter-spacing: 0; text-transform: none; color: var(--muted); }
+.ldRow { display: flex; align-items: center; gap: 9px; width: 100%; padding: 4px 5px; margin: 0 -5px; box-sizing: content-box; border: 0; border-radius: 8px; font: 600 15px var(--display); color: var(--ink); background: none; text-align: left; }
+button.ldRow { cursor: pointer; }
+button.ldRow:hover { background: rgba(255, 255, 255, 0.07); }
+.ldRow svg { flex: none; padding: 4px; background: #f6f1e4; border-radius: 50%; box-sizing: content-box; }
+.ldRow b { flex: 1; min-width: 0; font-weight: 600; line-height: 1.1; }
+.ldRow b small { display: block; margin-top: 1px; font: 500 12px var(--display); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ldRow b small.good { color: var(--good); }
+.ldRow em { font-style: normal; color: var(--accent); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .incList { margin-top: 12px; }
-.incRow { display: grid; grid-template-columns: 1fr 62px 78px 78px; gap: 6px; align-items: center; padding: 5px 0; border-top: 1px solid var(--line); font: 600 14px var(--display); font-variant-numeric: tabular-nums; }
+.incRow { display: grid; grid-template-columns: 1fr 84px 84px; gap: 6px; align-items: center; padding: 5px 0; border-top: 1px solid var(--line); font: 600 14px var(--display); font-variant-numeric: tabular-nums; }
 .incRow b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .incRow.head { border-top: 0; padding-bottom: 2px; font-size: 11.5px; letter-spacing: .06em; text-transform: uppercase; }
 .incRow.head b, .incRow.head span { color: var(--muted); font-weight: 600; }
-.incRow .mono { color: var(--good); }
 .incRow span { text-align: right; color: var(--accent); white-space: nowrap; }
-.incRow span:nth-child(2) { color: var(--muted); }
-.incRow span.mono:nth-child(2) { color: var(--good); }
 @media (max-width: 640px) {
   #land { left: 8px; right: auto; top: 200px; width: min(62vw, 240px); padding: 7px 10px 8px; }
-  .ldNote { display: none; }
-  .ldRow { font-size: 14px; padding: 1px 0; }
+  .ldRow { font-size: 14px; padding: 2px 5px; }
   .ldSec { margin: 6px 0 2px; padding-top: 5px; }
 }
 #statGold.res { cursor: pointer; }
@@ -5676,28 +5671,53 @@ body.placing #cv { cursor: crosshair; }
     }
   };
 
-  // Version «Rohstoffe»: every country that is large enough on the screen shows the signs of its raw
-  // materials and of its factory good on a small plate, so one sees at a glance what is worth taking.
+  // Version «Rohstoffe»: the signs are only drawn once one has zoomed into a country (or picked it
+  // with a click), so the map of the world stays calm. A deposit is a light round badge at its
+  // spot, ringed green when it is yours; the factory good is a small plate under the country.
+  const iconPaths = new Map();
+  function drawIcon(ctx, id, x, y, s) {
+    let ps = iconPaths.get(id);
+    if (!ps) { ps = G.RES_ICON[id].map(function (l) { return [l[0], new Path2D(l[1])]; }); iconPaths.set(id, ps); }
+    ctx.save(); ctx.translate(x - s / 2, y - s / 2); ctx.scale(s / 24, s / 24);
+    ctx.lineWidth = 1.1; ctx.strokeStyle = 'rgba(10,16,24,0.55)'; ctx.lineJoin = 'round';
+    for (const l of ps) { ctx.stroke(l[1]); ctx.fillStyle = l[0]; ctx.fill(l[1]); }
+    ctx.restore();
+  }
   View.prototype.drawRes = function (ctx, g, z, ox, oy) {
-    const cs = g.map.countries, cw = this.cw, ch = this.ch, sel = this.resSel || 0;
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const map = g.map, cs = map.countries, deps = map.deposits, cw = this.cw, ch = this.ch, sel = this.resSel || 0, h = g.human;
+    const near = z >= G.RES.ZOOM, names = z >= 4;
+    if (!near && !sel) return;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
+    const from = near ? 0 : cs[sel].deps.length ? cs[sel].deps[0] : 0, to = near ? deps.length : from + cs[sel].deps.length;
+    for (let i = from; i < to; i++) {
+      const d = deps[i], x = (d.x + 0.5) * z + ox, y = (d.y + 0.5) * z + oy;
+      if (x < -60 || y < -30 || x > cw + 60 || y > ch + 40) continue;
+      const mine = h && g.owner[d.t] === h.id, r = d.c === sel ? 13 : 11;
+      ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832);
+      ctx.fillStyle = '#f6f1e4'; ctx.fill();
+      ctx.lineWidth = mine ? 3 : 1.6; ctx.strokeStyle = mine ? '#35c46a' : d.c === sel ? '#f4b740' : 'rgba(12,21,32,0.85)'; ctx.stroke();
+      drawIcon(ctx, d.raw, x, y, r * 1.36);
+      if (names || d.c === sel) {
+        const label = G.RAW[d.raw][0];
+        ctx.font = '600 11.5px ' + FONT;
+        ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(12,21,32,0.85)'; ctx.strokeText(label, x, y + r + 8);
+        ctx.fillStyle = '#fff'; ctx.fillText(label, x, y + r + 8);
+      }
+    }
     for (let c = 1; c < cs.length; c++) {
       const k = cs[c];
-      if (!k.tiles) continue;
-      const size = Math.sqrt(k.tiles) * z;                 // roughly how wide the country is on the screen
-      if (size < 76 && c !== sel) continue;
-      const x = k.x * z + ox, y = k.y * z + oy;
-      if (x < -80 || y < -30 || x > cw + 80 || y > ch + 30) continue;
-      const fs = c === sel ? 15 : size < 110 ? 11 : 13;
-      if (!k.signs) { k.signs = k.raw.map(function (r) { return G.RAW[r][1]; }).join('') + ' ' + G.WARE[k.ware][1]; }
-      ctx.font = fs + 'px ' + FONT;
-      const w = ctx.measureText(k.signs).width + fs * 0.9, hh = fs * 1.55, py = y + (c === sel ? 0 : Math.min(26, size * 0.16));
-      ctx.fillStyle = c === sel ? 'rgba(12,21,32,0.92)' : 'rgba(12,21,32,0.62)';
+      if (!k.tiles || (!near && c !== sel)) continue;
+      const x = k.x * z + ox, y = k.y * z + oy + (near ? 34 : 0);
+      if (x < -120 || y < -30 || x > cw + 120 || y > ch + 30) continue;
+      const label = G.WARE[k.ware][0];
+      ctx.font = '600 12px ' + FONT;
+      const tw = ctx.measureText(label).width, w = tw + 34, hh = 22, px = x - w / 2;
       ctx.beginPath();
-      if (ctx.roundRect) ctx.roundRect(x - w / 2, py - hh / 2, w, hh, hh / 2); else ctx.rect(x - w / 2, py - hh / 2, w, hh);
-      ctx.fill();
+      if (ctx.roundRect) ctx.roundRect(px, y - hh / 2, w, hh, 6); else ctx.rect(px, y - hh / 2, w, hh);
+      ctx.fillStyle = 'rgba(12,21,32,0.86)'; ctx.fill();
       if (c === sel) { ctx.lineWidth = 1.5; ctx.strokeStyle = '#f4b740'; ctx.stroke(); }
-      ctx.fillStyle = '#fff'; ctx.fillText(k.signs, x, py + 0.5);
+      drawIcon(ctx, 'fabrik', px + 13, y, 15);
+      ctx.textAlign = 'left'; ctx.fillStyle = '#fff'; ctx.fillText(label, px + 25, y + 0.5); ctx.textAlign = 'center';
     }
   };
   View.prototype.drawNames = function (ctx, g, z, ox, oy) {
@@ -6481,7 +6501,7 @@ body.placing #cv { cursor: crosshair; }
       return '<label class="check" for="' + id + '"><input id="' + id + '" type="checkbox"' + (on ? ' checked' : '') + '>' + label + '</label>';
     };
     let h = '<h1>Grenzland <small>' + (RES ? 'Rohstoffe' : 'Version 2.1') + '</small></h1>';
-    h += joinCode ? '<p>Du wurdest in den Raum <b class="code">' + esc(joinCode) + '</b> eingeladen. Wähle Name und Farbe.</p>' : (RES ? '<p>Jedes Land hat eigene Rohstoffe und eine eigene Fabrikware. Klicke auf ein Land, um zu sehen, was es bringt. Gilt auf der Karte «Erde».</p>' : '<p>Erobere die Karte, allein oder mit Freunden.</p>');
+    h += joinCode ? '<p>Du wurdest in den Raum <b class="code">' + esc(joinCode) + '</b> eingeladen. Wähle Name und Farbe.</p>' : (RES ? '<p>Jedes Land hat Rohstoffe zum Abbauen und eine eigene Ware für Fabriken. Zoome in ein Land oder klicke es an, um zu sehen, was es dort gibt. Gilt auf der Karte «Erde».</p>' : '<p>Erobere die Karte, allein oder mit Freunden.</p>');
     h += '<div class="field"><label for="fName">Dein Name</label><input id="fName" type="text" maxlength="18" autocomplete="off" value="' + esc(cfg.name) + '"></div>';
     h += '<div class="field"><div class="lab">Farbe</div><div class="swatches" id="fColor">' + COLORS.map(function (c, i) {
       return '<button type="button" class="sw" data-i="' + i + '" aria-label="Farbe ' + (i + 1) + '" aria-pressed="' + (i === cfg.color) + '" style="background:rgb(' + c.join(',') + ')"></button>';
@@ -6857,9 +6877,10 @@ body.placing #cv { cursor: crosshair; }
         const al = $('alarm');
         al.classList.remove('on'); void al.offsetWidth; al.classList.add('on');
         snd('alarm', 0.5);
-      } else if (e.k === 'mono') {
-        const k = game.map.countries[e.c];
-        addMsg('Monopol in ' + k.name + ': Rohstoffe bringen dort 50 % mehr.', 'good'); snd('good', 0.4);
+      } else if (e.k === 'dep') {
+        const d = game.map.deposits[e.d], say = G.RAW[d.raw][0] + ' in ' + game.map.countries[d.c].name;
+        if (e.won) { addMsg('Vorkommen erobert: ' + say + ' (' + perSec(d.gold) + ')', 'good'); snd('good', 0.4); }
+        else addMsg('Vorkommen verloren: ' + say, 'warn');
       } else if (e.k === 'loot') {
         if (e.by === h.id && e.gold > 0) { view.floatText(e.x, e.y, '+ ' + fmt(e.gold)); goldPop(e.gold); }
       } else if (e.k === 'defeat') { setNet(false); $('bNet').hidden = true; showEnd('defeat', null); }
@@ -7427,6 +7448,11 @@ body.placing #cv { cursor: crosshair; }
     view.resSel = landC;
     renderLand();
   }
+  function resSvg(id, size) {
+    return '<svg viewBox="0 0 24 24" width="' + size + '" height="' + size + '" aria-hidden="true">' + G.RES_ICON[id].map(function (l) {
+      return '<path d="' + l[1] + '" fill="' + l[0] + '" stroke="rgba(10,16,24,.55)" stroke-width="1" stroke-linejoin="round" paint-order="stroke"/>';
+    }).join('') + '</svg>';
+  }
   function renderLand() {
     const el = $('land');
     if (!el) return;
@@ -7439,46 +7465,41 @@ body.placing #cv { cursor: crosshair; }
     owners.sort(function (a, b) { return b[0] - a[0] || a[1].id - b[1].id; });
     const pct = function (n) { const v = n / Math.max(1, k.tiles) * 100; return (v > 0 && v < 1 ? '<1' : Math.round(v)) + ' %'; };
     let s = '<div class="ldTop"><b>' + (k.iso ? G.flagOf(k.iso) + ' ' : '') + esc(k.name) + '</b><button id="landX" class="ldX" type="button" aria-label="Schliessen">×</button></div>';
-    if (!owners.length) s += '<p class="ldFree">Noch frei. Das gibt es hier zu holen:</p>';
+    if (!owners.length) s += '<p class="ldFree">Noch frei</p>';
     else {
-      s += '<div class="ldOwn">' + owners.slice(0, 3).map(function (o) {
+      s += '<div class="ldOwn">' + owners.slice(0, 2).map(function (o) {
         return '<span><i style="background:' + o[1].css + '"></i>' + (o[1] === h ? 'Du' : esc(o[1].name)) + ' ' + pct(o[0]) + '</span>';
-      }).join('') + (owners.length > 3 ? '<span>+' + (owners.length - 3) + ' weitere</span>' : '') + (taken < k.tiles * 0.995 ? '<span class="free">frei ' + pct(k.tiles - taken) + '</span>' : '') + '</div>';
+      }).join('') + (owners.length > 2 ? '<span class="free">+' + (owners.length - 2) + ' weitere</span>' : taken < k.tiles * 0.995 ? '<span class="free">frei ' + pct(k.tiles - taken) + '</span>' : '') + '</div>';
     }
-    s += '<div class="ldSec">Rohstoffe <small>ganzes Land</small></div>';
-    for (const r of k.raw) { const g = G.RAW[r]; s += '<div class="ldRow"><span>' + g[1] + '</span><b>' + g[0] + '</b><em>' + perSec(Math.floor(g[2] * k.f / 100)) + '</em></div>'; }
-    const w = G.WARE[k.ware];
-    s += '<div class="ldSec">Fabriken stellen her <small>pro Stufe</small></div><div class="ldRow"><span>' + w[1] + '</span><b>' + w[0] + '</b><em>' + perSec(w[2]) + '</em></div>';
-    const mine = h.alive && h.own ? h.own[landC] : 0, lv = h.alive && h.fac ? h.fac[landC] : 0;
-    if (mine > 0 || lv > 0) {
-      const r = game.resOf(h, landC, lv);
-      s += '<div class="ldYou"><div><span>Dein Anteil ' + pct(mine) + '</span><b>' + perSec(r[0]) + '</b></div>' +
-        '<div><span>Fabrikstufen ' + Math.min(lv, R.FACTORY_CAP) + ' von ' + R.FACTORY_CAP + '</span><b>' + perSec(r[1]) + '</b></div></div>';
-      s += r[2] ? '<p class="ldNote good">Monopol: Rohstoffe bringen hier 50 % mehr.</p>' : '<p class="ldNote">Ab 90 % des Landes: Monopol, 50 % mehr.</p>';
-    } else s += '<p class="ldNote">Land bringt die Rohstoffe anteilig. Ab 90 %: Monopol, 50 % mehr.</p>';
+    s += '<div class="ldSec">Abbauen <small>Vorkommen</small></div>';
+    for (const i of k.deps) {
+      const d = game.map.deposits[i], g = G.RAW[d.raw], o = game.owner[d.t], q = o ? ps[o] : null;
+      s += '<button class="ldRow" type="button" data-dep="' + i + '">' + resSvg(d.raw, 22) + '<b>' + g[0] + '<small' + (q === h ? ' class="good"' : '') + '>' + (!q ? 'frei' : q === h ? 'gehört dir' : esc(q.name)) + '</small></b><em>' + perSec(d.gold) + '</em></button>';
+    }
+    const w = G.WARE[k.ware], lv = h.alive && h.fac ? h.fac[landC] : 0;
+    s += '<div class="ldSec">Herstellen <small>jede Fabrik im Land</small></div><div class="ldRow">' + resSvg('fabrik', 22) + '<b>' + w[0] +
+      '<small' + (lv ? ' class="good"' : '') + '>' + (lv ? 'deine Stufen: ' + Math.min(lv, R.FACTORY_CAP) + ' von ' + R.FACTORY_CAP : 'pro Fabrikstufe (max. ' + R.FACTORY_CAP + ')') + '</small></b><em>' + perSec(w[1]) + '</em></div>';
     if (el.dataset.html !== s) { el.innerHTML = s; el.dataset.html = s; }
     el.hidden = false;
   }
   function showIncome() {
-    const h = game.human, cs = game.map.countries, rows = [];
+    const h = game.human, cs = game.map.countries, deps = game.map.deposits, raw = new Int32Array(cs.length), rows = [];
+    for (const d of deps) if (game.owner[d.t] === h.id) raw[d.c] += d.gold;
     for (let c = 1; c < cs.length; c++) {
-      const lv = h.fac ? h.fac[c] : 0;
-      if (!(h.own && h.own[c]) && !lv) continue;
-      const r = game.resOf(h, c, lv);
-      if (r[0] + r[1] > 0) rows.push([r[0] + r[1], cs[c], r, h.own ? h.own[c] : 0]);
+      const ware = h.fac && h.fac[c] ? game.wareOf(c, h.fac[c]) : 0;
+      if (raw[c] + ware > 0) rows.push([raw[c] + ware, cs[c], raw[c], ware]);
     }
     rows.sort(function (a, b) { return b[0] - a[0] || a[1].id - b[1].id; });
     let s = '<h2>Einnahmen</h2><div class="facts">' + fact('Grundeinkommen', perSec(100)) + fact('Rohstoffe', perSec(h.resRaw | 0)) + fact('Fabrikwaren', perSec(h.resWare | 0)) + '</div>';
-    if (!rows.length) s += '<p class="notes">Noch kein Land mit Rohstoffen. Klicke auf ein Land, um zu sehen, was es dort gibt.</p>';
+    if (!rows.length) s += '<p class="notes">Noch kein Vorkommen und keine Fabrik. Klicke auf ein Land, um zu sehen, was es dort gibt.</p>';
     else {
-      s += '<div class="incList"><div class="incRow head"><b>Land</b><span>Anteil</span><span>Rohstoffe</span><span>Fabriken</span></div>' + rows.slice(0, 14).map(function (r) {
+      s += '<div class="incList"><div class="incRow head"><b>Land</b><span>Rohstoffe</span><span>Fabriken</span></div>' + rows.slice(0, 14).map(function (r) {
         const k = r[1];
-        return '<div class="incRow"><b>' + (k.iso ? G.flagOf(k.iso) + ' ' : '') + esc(k.name) + '</b><span' + (r[2][2] ? ' class="mono" title="Monopol">★ ' : '>') + Math.round(r[3] / Math.max(1, k.tiles) * 100) + ' %</span>' +
-          '<span>' + perSec(r[2][0]) + '</span><span>' + perSec(r[2][1]) + '</span></div>';
+        return '<div class="incRow"><b>' + (k.iso ? G.flagOf(k.iso) + ' ' : '') + esc(k.name) + '</b><span>' + (r[2] ? perSec(r[2]) : '–') + '</span><span>' + (r[3] ? perSec(r[3]) : '–') + '</span></div>';
       }).join('') + '</div>';
       if (rows.length > 14) s += '<p class="notes">und ' + (rows.length - 14) + ' weitere Länder</p>';
     }
-    s += '<p class="notes">Land bringt die Rohstoffe seines Landes anteilig, ab 90 % Besitz als Monopol (★) 50 % mehr. Eine Fabrik stellt die Ware des Landes her, in dem sie steht; pro Land zählen ' + G.RES.FACTORY_CAP + ' Stufen. Taste R blendet die Rohstoff-Zeichen aus und ein.</p>' +
+    s += '<p class="notes"><b>Abbauen:</b> Ein Vorkommen bringt Gold, solange dir sein Feld gehört. <b>Herstellen:</b> Jede Fabrik stellt die Ware des Landes her, in dem sie steht; pro Land zählen ' + G.RES.FACTORY_CAP + ' Stufen.</p>' +
       '<button class="btn" data-act="resume" type="button">Weiterspielen</button>';
     openModal(s, 'help');
   }
@@ -7732,7 +7753,7 @@ body.placing #cv { cursor: crosshair; }
       if (!game || !$('modal').hidden) return;
       // The layout follows OpenFront's default keys.
       if (k === 'p' || k === ' ') { e.preventDefault(); togglePause(); return; }
-      if (k === 'r' && game.res) { view.resSigns = !view.resSigns; toast(view.resSigns ? 'Rohstoff-Zeichen an' : 'Rohstoff-Zeichen aus'); return; }
+      if (k === 'r' && game.res) { view.resSigns = !view.resSigns; toast(view.resSigns ? 'Vorkommen auf der Karte an' : 'Vorkommen auf der Karte aus'); return; }
       if ((k.length === 1 && 'wasd'.indexOf(k) >= 0) || k.indexOf('arrow') === 0) { held.add(k); e.preventDefault(); return; }
       // Shift with a building's number upgrades one of that kind: the nearest to the pointer that can still grow
       if (e.shiftKey && /^Digit[1-6]$/.test(e.code || '')) {
@@ -7795,7 +7816,11 @@ body.placing #cv { cursor: crosshair; }
     });
     $('ratio').addEventListener('input', function () { setRatio(+this.value); });
     $('statGold').addEventListener('click', function () { if (game && game.res && game.phase === 'play' && game.human.alive) showIncome(); });
-    $('land').addEventListener('click', function (e) { if (e.target.id === 'landX') { landC = 0; view.resSel = 0; renderLand(); } });
+    $('land').addEventListener('click', function (e) {
+      if (e.target.id === 'landX') { landC = 0; view.resSel = 0; renderLand(); return; }
+      const b = e.target.closest('[data-dep]');           // a deposit in the list: fly to its spot
+      if (b) { const d = game.map.deposits[+b.dataset.dep]; view.flyTo(d.x, d.y, Math.max(view.cam.z, 4)); }
+    });
     $('bPause').addEventListener('click', togglePause);
     $('bNet').addEventListener('click', function () { setNet(!netOn); });
     $('netDone').addEventListener('click', function () { setNet(false); });

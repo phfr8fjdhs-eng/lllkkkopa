@@ -201,7 +201,7 @@
       return '<label class="check" for="' + id + '"><input id="' + id + '" type="checkbox"' + (on ? ' checked' : '') + '>' + label + '</label>';
     };
     let h = '<h1>Grenzland <small>' + (RES ? 'Rohstoffe' : 'Version 2.1') + '</small></h1>';
-    h += joinCode ? '<p>Du wurdest in den Raum <b class="code">' + esc(joinCode) + '</b> eingeladen. Wähle Name und Farbe.</p>' : (RES ? '<p>Jedes Land hat eigene Rohstoffe und eine eigene Fabrikware. Klicke auf ein Land, um zu sehen, was es bringt. Gilt auf der Karte «Erde».</p>' : '<p>Erobere die Karte, allein oder mit Freunden.</p>');
+    h += joinCode ? '<p>Du wurdest in den Raum <b class="code">' + esc(joinCode) + '</b> eingeladen. Wähle Name und Farbe.</p>' : (RES ? '<p>Jedes Land hat Rohstoffe zum Abbauen und eine eigene Ware für Fabriken. Zoome in ein Land oder klicke es an, um zu sehen, was es dort gibt. Gilt auf der Karte «Erde».</p>' : '<p>Erobere die Karte, allein oder mit Freunden.</p>');
     h += '<div class="field"><label for="fName">Dein Name</label><input id="fName" type="text" maxlength="18" autocomplete="off" value="' + esc(cfg.name) + '"></div>';
     h += '<div class="field"><div class="lab">Farbe</div><div class="swatches" id="fColor">' + COLORS.map(function (c, i) {
       return '<button type="button" class="sw" data-i="' + i + '" aria-label="Farbe ' + (i + 1) + '" aria-pressed="' + (i === cfg.color) + '" style="background:rgb(' + c.join(',') + ')"></button>';
@@ -577,9 +577,10 @@
         const al = $('alarm');
         al.classList.remove('on'); void al.offsetWidth; al.classList.add('on');
         snd('alarm', 0.5);
-      } else if (e.k === 'mono') {
-        const k = game.map.countries[e.c];
-        addMsg('Monopol in ' + k.name + ': Rohstoffe bringen dort 50 % mehr.', 'good'); snd('good', 0.4);
+      } else if (e.k === 'dep') {
+        const d = game.map.deposits[e.d], say = G.RAW[d.raw][0] + ' in ' + game.map.countries[d.c].name;
+        if (e.won) { addMsg('Vorkommen erobert: ' + say + ' (' + perSec(d.gold) + ')', 'good'); snd('good', 0.4); }
+        else addMsg('Vorkommen verloren: ' + say, 'warn');
       } else if (e.k === 'loot') {
         if (e.by === h.id && e.gold > 0) { view.floatText(e.x, e.y, '+ ' + fmt(e.gold)); goldPop(e.gold); }
       } else if (e.k === 'defeat') { setNet(false); $('bNet').hidden = true; showEnd('defeat', null); }
@@ -1147,6 +1148,11 @@
     view.resSel = landC;
     renderLand();
   }
+  function resSvg(id, size) {
+    return '<svg viewBox="0 0 24 24" width="' + size + '" height="' + size + '" aria-hidden="true">' + G.RES_ICON[id].map(function (l) {
+      return '<path d="' + l[1] + '" fill="' + l[0] + '" stroke="rgba(10,16,24,.55)" stroke-width="1" stroke-linejoin="round" paint-order="stroke"/>';
+    }).join('') + '</svg>';
+  }
   function renderLand() {
     const el = $('land');
     if (!el) return;
@@ -1159,46 +1165,41 @@
     owners.sort(function (a, b) { return b[0] - a[0] || a[1].id - b[1].id; });
     const pct = function (n) { const v = n / Math.max(1, k.tiles) * 100; return (v > 0 && v < 1 ? '<1' : Math.round(v)) + ' %'; };
     let s = '<div class="ldTop"><b>' + (k.iso ? G.flagOf(k.iso) + ' ' : '') + esc(k.name) + '</b><button id="landX" class="ldX" type="button" aria-label="Schliessen">×</button></div>';
-    if (!owners.length) s += '<p class="ldFree">Noch frei. Das gibt es hier zu holen:</p>';
+    if (!owners.length) s += '<p class="ldFree">Noch frei</p>';
     else {
-      s += '<div class="ldOwn">' + owners.slice(0, 3).map(function (o) {
+      s += '<div class="ldOwn">' + owners.slice(0, 2).map(function (o) {
         return '<span><i style="background:' + o[1].css + '"></i>' + (o[1] === h ? 'Du' : esc(o[1].name)) + ' ' + pct(o[0]) + '</span>';
-      }).join('') + (owners.length > 3 ? '<span>+' + (owners.length - 3) + ' weitere</span>' : '') + (taken < k.tiles * 0.995 ? '<span class="free">frei ' + pct(k.tiles - taken) + '</span>' : '') + '</div>';
+      }).join('') + (owners.length > 2 ? '<span class="free">+' + (owners.length - 2) + ' weitere</span>' : taken < k.tiles * 0.995 ? '<span class="free">frei ' + pct(k.tiles - taken) + '</span>' : '') + '</div>';
     }
-    s += '<div class="ldSec">Rohstoffe <small>ganzes Land</small></div>';
-    for (const r of k.raw) { const g = G.RAW[r]; s += '<div class="ldRow"><span>' + g[1] + '</span><b>' + g[0] + '</b><em>' + perSec(Math.floor(g[2] * k.f / 100)) + '</em></div>'; }
-    const w = G.WARE[k.ware];
-    s += '<div class="ldSec">Fabriken stellen her <small>pro Stufe</small></div><div class="ldRow"><span>' + w[1] + '</span><b>' + w[0] + '</b><em>' + perSec(w[2]) + '</em></div>';
-    const mine = h.alive && h.own ? h.own[landC] : 0, lv = h.alive && h.fac ? h.fac[landC] : 0;
-    if (mine > 0 || lv > 0) {
-      const r = game.resOf(h, landC, lv);
-      s += '<div class="ldYou"><div><span>Dein Anteil ' + pct(mine) + '</span><b>' + perSec(r[0]) + '</b></div>' +
-        '<div><span>Fabrikstufen ' + Math.min(lv, R.FACTORY_CAP) + ' von ' + R.FACTORY_CAP + '</span><b>' + perSec(r[1]) + '</b></div></div>';
-      s += r[2] ? '<p class="ldNote good">Monopol: Rohstoffe bringen hier 50 % mehr.</p>' : '<p class="ldNote">Ab 90 % des Landes: Monopol, 50 % mehr.</p>';
-    } else s += '<p class="ldNote">Land bringt die Rohstoffe anteilig. Ab 90 %: Monopol, 50 % mehr.</p>';
+    s += '<div class="ldSec">Abbauen <small>Vorkommen</small></div>';
+    for (const i of k.deps) {
+      const d = game.map.deposits[i], g = G.RAW[d.raw], o = game.owner[d.t], q = o ? ps[o] : null;
+      s += '<button class="ldRow" type="button" data-dep="' + i + '">' + resSvg(d.raw, 22) + '<b>' + g[0] + '<small' + (q === h ? ' class="good"' : '') + '>' + (!q ? 'frei' : q === h ? 'gehört dir' : esc(q.name)) + '</small></b><em>' + perSec(d.gold) + '</em></button>';
+    }
+    const w = G.WARE[k.ware], lv = h.alive && h.fac ? h.fac[landC] : 0;
+    s += '<div class="ldSec">Herstellen <small>jede Fabrik im Land</small></div><div class="ldRow">' + resSvg('fabrik', 22) + '<b>' + w[0] +
+      '<small' + (lv ? ' class="good"' : '') + '>' + (lv ? 'deine Stufen: ' + Math.min(lv, R.FACTORY_CAP) + ' von ' + R.FACTORY_CAP : 'pro Fabrikstufe (max. ' + R.FACTORY_CAP + ')') + '</small></b><em>' + perSec(w[1]) + '</em></div>';
     if (el.dataset.html !== s) { el.innerHTML = s; el.dataset.html = s; }
     el.hidden = false;
   }
   function showIncome() {
-    const h = game.human, cs = game.map.countries, rows = [];
+    const h = game.human, cs = game.map.countries, deps = game.map.deposits, raw = new Int32Array(cs.length), rows = [];
+    for (const d of deps) if (game.owner[d.t] === h.id) raw[d.c] += d.gold;
     for (let c = 1; c < cs.length; c++) {
-      const lv = h.fac ? h.fac[c] : 0;
-      if (!(h.own && h.own[c]) && !lv) continue;
-      const r = game.resOf(h, c, lv);
-      if (r[0] + r[1] > 0) rows.push([r[0] + r[1], cs[c], r, h.own ? h.own[c] : 0]);
+      const ware = h.fac && h.fac[c] ? game.wareOf(c, h.fac[c]) : 0;
+      if (raw[c] + ware > 0) rows.push([raw[c] + ware, cs[c], raw[c], ware]);
     }
     rows.sort(function (a, b) { return b[0] - a[0] || a[1].id - b[1].id; });
     let s = '<h2>Einnahmen</h2><div class="facts">' + fact('Grundeinkommen', perSec(100)) + fact('Rohstoffe', perSec(h.resRaw | 0)) + fact('Fabrikwaren', perSec(h.resWare | 0)) + '</div>';
-    if (!rows.length) s += '<p class="notes">Noch kein Land mit Rohstoffen. Klicke auf ein Land, um zu sehen, was es dort gibt.</p>';
+    if (!rows.length) s += '<p class="notes">Noch kein Vorkommen und keine Fabrik. Klicke auf ein Land, um zu sehen, was es dort gibt.</p>';
     else {
-      s += '<div class="incList"><div class="incRow head"><b>Land</b><span>Anteil</span><span>Rohstoffe</span><span>Fabriken</span></div>' + rows.slice(0, 14).map(function (r) {
+      s += '<div class="incList"><div class="incRow head"><b>Land</b><span>Rohstoffe</span><span>Fabriken</span></div>' + rows.slice(0, 14).map(function (r) {
         const k = r[1];
-        return '<div class="incRow"><b>' + (k.iso ? G.flagOf(k.iso) + ' ' : '') + esc(k.name) + '</b><span' + (r[2][2] ? ' class="mono" title="Monopol">★ ' : '>') + Math.round(r[3] / Math.max(1, k.tiles) * 100) + ' %</span>' +
-          '<span>' + perSec(r[2][0]) + '</span><span>' + perSec(r[2][1]) + '</span></div>';
+        return '<div class="incRow"><b>' + (k.iso ? G.flagOf(k.iso) + ' ' : '') + esc(k.name) + '</b><span>' + (r[2] ? perSec(r[2]) : '–') + '</span><span>' + (r[3] ? perSec(r[3]) : '–') + '</span></div>';
       }).join('') + '</div>';
       if (rows.length > 14) s += '<p class="notes">und ' + (rows.length - 14) + ' weitere Länder</p>';
     }
-    s += '<p class="notes">Land bringt die Rohstoffe seines Landes anteilig, ab 90 % Besitz als Monopol (★) 50 % mehr. Eine Fabrik stellt die Ware des Landes her, in dem sie steht; pro Land zählen ' + G.RES.FACTORY_CAP + ' Stufen. Taste R blendet die Rohstoff-Zeichen aus und ein.</p>' +
+    s += '<p class="notes"><b>Abbauen:</b> Ein Vorkommen bringt Gold, solange dir sein Feld gehört. <b>Herstellen:</b> Jede Fabrik stellt die Ware des Landes her, in dem sie steht; pro Land zählen ' + G.RES.FACTORY_CAP + ' Stufen.</p>' +
       '<button class="btn" data-act="resume" type="button">Weiterspielen</button>';
     openModal(s, 'help');
   }
@@ -1452,7 +1453,7 @@
       if (!game || !$('modal').hidden) return;
       // The layout follows OpenFront's default keys.
       if (k === 'p' || k === ' ') { e.preventDefault(); togglePause(); return; }
-      if (k === 'r' && game.res) { view.resSigns = !view.resSigns; toast(view.resSigns ? 'Rohstoff-Zeichen an' : 'Rohstoff-Zeichen aus'); return; }
+      if (k === 'r' && game.res) { view.resSigns = !view.resSigns; toast(view.resSigns ? 'Vorkommen auf der Karte an' : 'Vorkommen auf der Karte aus'); return; }
       if ((k.length === 1 && 'wasd'.indexOf(k) >= 0) || k.indexOf('arrow') === 0) { held.add(k); e.preventDefault(); return; }
       // Shift with a building's number upgrades one of that kind: the nearest to the pointer that can still grow
       if (e.shiftKey && /^Digit[1-6]$/.test(e.code || '')) {
@@ -1515,7 +1516,11 @@
     });
     $('ratio').addEventListener('input', function () { setRatio(+this.value); });
     $('statGold').addEventListener('click', function () { if (game && game.res && game.phase === 'play' && game.human.alive) showIncome(); });
-    $('land').addEventListener('click', function (e) { if (e.target.id === 'landX') { landC = 0; view.resSel = 0; renderLand(); } });
+    $('land').addEventListener('click', function (e) {
+      if (e.target.id === 'landX') { landC = 0; view.resSel = 0; renderLand(); return; }
+      const b = e.target.closest('[data-dep]');           // a deposit in the list: fly to its spot
+      if (b) { const d = game.map.deposits[+b.dataset.dep]; view.flyTo(d.x, d.y, Math.max(view.cam.z, 4)); }
+    });
     $('bPause').addEventListener('click', togglePause);
     $('bNet').addEventListener('click', function () { setNet(!netOn); });
     $('netDone').addEventListener('click', function () { setNet(false); });

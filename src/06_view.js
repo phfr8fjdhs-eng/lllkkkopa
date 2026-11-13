@@ -1303,28 +1303,53 @@
     }
   };
 
-  // Version «Rohstoffe»: every country that is large enough on the screen shows the signs of its raw
-  // materials and of its factory good on a small plate, so one sees at a glance what is worth taking.
+  // Version «Rohstoffe»: the signs are only drawn once one has zoomed into a country (or picked it
+  // with a click), so the map of the world stays calm. A deposit is a light round badge at its
+  // spot, ringed green when it is yours; the factory good is a small plate under the country.
+  const iconPaths = new Map();
+  function drawIcon(ctx, id, x, y, s) {
+    let ps = iconPaths.get(id);
+    if (!ps) { ps = G.RES_ICON[id].map(function (l) { return [l[0], new Path2D(l[1])]; }); iconPaths.set(id, ps); }
+    ctx.save(); ctx.translate(x - s / 2, y - s / 2); ctx.scale(s / 24, s / 24);
+    ctx.lineWidth = 1.1; ctx.strokeStyle = 'rgba(10,16,24,0.55)'; ctx.lineJoin = 'round';
+    for (const l of ps) { ctx.stroke(l[1]); ctx.fillStyle = l[0]; ctx.fill(l[1]); }
+    ctx.restore();
+  }
   View.prototype.drawRes = function (ctx, g, z, ox, oy) {
-    const cs = g.map.countries, cw = this.cw, ch = this.ch, sel = this.resSel || 0;
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const map = g.map, cs = map.countries, deps = map.deposits, cw = this.cw, ch = this.ch, sel = this.resSel || 0, h = g.human;
+    const near = z >= G.RES.ZOOM, names = z >= 4;
+    if (!near && !sel) return;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
+    const from = near ? 0 : cs[sel].deps.length ? cs[sel].deps[0] : 0, to = near ? deps.length : from + cs[sel].deps.length;
+    for (let i = from; i < to; i++) {
+      const d = deps[i], x = (d.x + 0.5) * z + ox, y = (d.y + 0.5) * z + oy;
+      if (x < -60 || y < -30 || x > cw + 60 || y > ch + 40) continue;
+      const mine = h && g.owner[d.t] === h.id, r = d.c === sel ? 13 : 11;
+      ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832);
+      ctx.fillStyle = '#f6f1e4'; ctx.fill();
+      ctx.lineWidth = mine ? 3 : 1.6; ctx.strokeStyle = mine ? '#35c46a' : d.c === sel ? '#f4b740' : 'rgba(12,21,32,0.85)'; ctx.stroke();
+      drawIcon(ctx, d.raw, x, y, r * 1.36);
+      if (names || d.c === sel) {
+        const label = G.RAW[d.raw][0];
+        ctx.font = '600 11.5px ' + FONT;
+        ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(12,21,32,0.85)'; ctx.strokeText(label, x, y + r + 8);
+        ctx.fillStyle = '#fff'; ctx.fillText(label, x, y + r + 8);
+      }
+    }
     for (let c = 1; c < cs.length; c++) {
       const k = cs[c];
-      if (!k.tiles) continue;
-      const size = Math.sqrt(k.tiles) * z;                 // roughly how wide the country is on the screen
-      if (size < 76 && c !== sel) continue;
-      const x = k.x * z + ox, y = k.y * z + oy;
-      if (x < -80 || y < -30 || x > cw + 80 || y > ch + 30) continue;
-      const fs = c === sel ? 15 : size < 110 ? 11 : 13;
-      if (!k.signs) { k.signs = k.raw.map(function (r) { return G.RAW[r][1]; }).join('') + ' ' + G.WARE[k.ware][1]; }
-      ctx.font = fs + 'px ' + FONT;
-      const w = ctx.measureText(k.signs).width + fs * 0.9, hh = fs * 1.55, py = y + (c === sel ? 0 : Math.min(26, size * 0.16));
-      ctx.fillStyle = c === sel ? 'rgba(12,21,32,0.92)' : 'rgba(12,21,32,0.62)';
+      if (!k.tiles || (!near && c !== sel)) continue;
+      const x = k.x * z + ox, y = k.y * z + oy + (near ? 34 : 0);
+      if (x < -120 || y < -30 || x > cw + 120 || y > ch + 30) continue;
+      const label = G.WARE[k.ware][0];
+      ctx.font = '600 12px ' + FONT;
+      const tw = ctx.measureText(label).width, w = tw + 34, hh = 22, px = x - w / 2;
       ctx.beginPath();
-      if (ctx.roundRect) ctx.roundRect(x - w / 2, py - hh / 2, w, hh, hh / 2); else ctx.rect(x - w / 2, py - hh / 2, w, hh);
-      ctx.fill();
+      if (ctx.roundRect) ctx.roundRect(px, y - hh / 2, w, hh, 6); else ctx.rect(px, y - hh / 2, w, hh);
+      ctx.fillStyle = 'rgba(12,21,32,0.86)'; ctx.fill();
       if (c === sel) { ctx.lineWidth = 1.5; ctx.strokeStyle = '#f4b740'; ctx.stroke(); }
-      ctx.fillStyle = '#fff'; ctx.fillText(k.signs, x, py + 0.5);
+      drawIcon(ctx, 'fabrik', px + 13, y, 15);
+      ctx.textAlign = 'left'; ctx.fillStyle = '#fff'; ctx.fillText(label, px + 25, y + 0.5); ctx.textAlign = 'center';
     }
   };
   View.prototype.drawNames = function (ctx, g, z, ox, oy) {

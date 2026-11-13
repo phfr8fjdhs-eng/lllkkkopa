@@ -1,6 +1,7 @@
 // Version «Rohstoffe», headless: the Earth with its countries. Checks that every piece of land has a
-// country, that the count of land per country and player matches the map, that the income is what
-// the rules say, and that two copies of the same game stay equal.
+// country, that every deposit lies on land of its own country, that the count of land per country
+// and player matches the map, that the income is exactly deposits plus factories, and that two
+// copies of the same game stay equal.
 //   node --max-old-space-size=4096 test/res.js [ticks] [bots]
 const fs = require('fs'), path = require('path');
 const sharp = require('/opt/npm-tools/node_modules/sharp');
@@ -20,9 +21,15 @@ const fail = (m) => { console.error('FAIL', m); process.exit(1); };
   if (bare) fail(bare + ' land tiles without a country');
   const cs = map.countries, by = (iso) => cs.find((k) => k && k.iso === iso);
   for (const k of cs) if (k) { for (const x of k.raw) if (!G.RAW[x]) fail('raw ' + x); if (!G.WARE[k.ware]) fail('ware ' + k.ware); }
-  console.log('countries', cs.length - 1, 'with land', cs.filter((k) => k && k.tiles).length, 'worth per tick in all', cs.reduce((s, k) => s + (k ? k.value : 0), 0));
+  const deps = map.deposits;
+  for (const d of deps) {
+    if (!map.land[d.t] || map.ctile[d.t] !== d.c) fail('deposit off its country: ' + cs[d.c].name);
+    if (!G.RES_ICON[d.raw] || d.gold <= 0) fail('deposit ' + d.raw);
+  }
+  for (const k of cs) if (k && k.tiles) { if (!k.deps.length || k.deps.length > 2) fail('deposits of ' + k.name + ': ' + k.deps.length); if (new Set(k.deps.map((i) => deps[i].t)).size !== k.deps.length) fail('two deposits on one spot in ' + k.name); }
+  console.log('countries', cs.length - 1, 'with land', cs.filter((k) => k && k.tiles).length, 'deposits', deps.length, 'worth per tick in all', deps.reduce((s, d) => s + d.gold, 0));
   for (const iso of ['CH', 'SA', 'DE', 'RU', 'US', 'QA', 'CD', 'LU'])
-    { const k = by(iso); console.log(' ', k.name.padEnd(14), 'tiles', String(k.tiles).padStart(7), 'factor', k.f / 100, 'raw', k.raw.join('+'), k.value + '/tick', '| ware', G.WARE[k.ware][0], k.wareGold + '/tick'); }
+    { const k = by(iso); console.log(' ', k.name.padEnd(14), 'tiles', String(k.tiles).padStart(7), 'factor', k.f / 100, '| dig', k.deps.map((i) => G.RAW[deps[i].raw][0] + ' ' + deps[i].gold + ' at ' + deps[i].x + ',' + deps[i].y).join(', '), '| make', G.WARE[k.ware][0], k.wareGold); }
   const ticks = +(process.argv[2] || 1500), bots = +(process.argv[3] || 200);
   const check = (g) => {
     const n = cs.length, cnt = g.players.map(() => new Int32Array(n));
@@ -33,6 +40,16 @@ const fail = (m) => { console.error('FAIL', m); process.exit(1); };
       for (let c = 1; c < n; c++) { const have = p.own ? p.own[c] : 0; if (have !== cnt[i][c]) fail('land of ' + p.name + ' in ' + cs[c].name + ': ' + have + ' counted ' + cnt[i][c]); sum += have; }
       if (sum !== p.tiles) fail('sum of ' + p.name);
       if (p.alive && g.goldRate(p) !== (p.type === G.PT.BOT ? 50 : 100) + (p.resRate | 0)) fail('rate');
+    }
+    // right after the income was counted it is exactly: deposits held plus factory levels (five per country at most)
+    g.resTick();
+    const raw = new Int32Array(g.players.length), ware = new Int32Array(g.players.length), lv = new Map();
+    for (const d of deps) raw[g.owner[d.t]] += d.gold;
+    for (const u of g.structAt.values()) if (u.type === G.UT.FACTORY && u.built && u.active) { const key = u.owner.id + ':' + map.ctile[u.tile]; lv.set(key, (lv.get(key) || 0) + u.level); }
+    for (const [key, n] of lv) { const [id, c] = key.split(':').map(Number); ware[id] += Math.min(n, 5) * cs[c].wareGold; }
+    for (let i = 1; i < g.players.length; i++) {
+      const p = g.players[i], bot = p.type === G.PT.BOT;
+      if (p.alive && p.resRate !== (bot ? raw[i] >> 1 : raw[i]) + (bot ? ware[i] >> 1 : ware[i])) fail('income of ' + p.name + ': ' + p.resRate + ' expected ' + raw[i] + ' + ' + ware[i]);
     }
   };
   const make = () => { const g = new G.Game(map, { seed: 7, bots: bots, difficulty: 1, spawnTicks: 10, res: !process.env.NORES }); g.setup(null); return g; };
@@ -46,7 +63,7 @@ const fail = (m) => { console.error('FAIL', m); process.exit(1); };
         if (g.res) check(g);
         log.push(g.players.slice(1).map((p) => p.gold + ':' + p.tiles + ':' + Math.round(p.troops)).join(','));
         const top = g.players.filter((p) => p && p.alive).sort((x, y) => (y.resRate | 0) - (x.resRate | 0)).slice(0, 4);
-        console.log('t=' + (i + 1), top.map((p) => p.name + ' +' + (p.resRate | 0) + '/tick (' + (p.monos | 0) + ' monopolies, ' + G.fmt(p.gold) + ' gold)').join(', '));
+        console.log('t=' + (i + 1), top.map((p) => p.name + ' +' + (p.resRaw | 0) + ' dug +' + (p.resWare | 0) + ' made (' + G.fmt(p.gold) + ' gold)').join(', '));
       }
     }
     return log;
@@ -57,13 +74,5 @@ const fail = (m) => { console.error('FAIL', m); process.exit(1); };
   map.sea = null;
   const lb = run(make());
   for (let i = 0; i < la.length; i++) if (la[i] !== lb[i]) fail('the two copies differ at tick ' + (i + 1) * 500);
-  // a whole country in one hand pays one and a half times its worth
-  if (!a.res) return console.log('OK (classic)');
-  const p = a.players.find((q) => q && q.alive), sa = by('SA');
-  const old = p.own[sa.id]; p.own[sa.id] = sa.tiles;
-  const full = a.resOf(p, sa.id, 7); p.own[sa.id] = Math.floor(sa.tiles / 2);
-  const half = a.resOf(p, sa.id, 2); p.own[sa.id] = old;
-  if (full[0] !== Math.floor(sa.value * 3 / 2) || full[1] !== 5 * sa.wareGold || full[2] !== 1) fail('monopoly ' + full);
-  if (half[0] !== Math.floor(sa.value * Math.floor(sa.tiles / 2) / sa.tiles) || half[1] !== 2 * sa.wareGold || half[2] !== 0) fail('half ' + half);
   console.log('OK');
 })();
