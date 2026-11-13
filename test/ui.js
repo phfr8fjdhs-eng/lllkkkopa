@@ -12,7 +12,7 @@ const out = (n) => path.join(__dirname, '..', 'build', n);
   page.on('pageerror', (e) => errors.push('PAGEERROR ' + e.message + '\n' + (e.stack || '')));
   page.on('console', (m) => { if (m.type() === 'error' && !/ERR_TUNNEL|Failed to load resource/.test(m.text())) errors.push('CONSOLE ' + m.text()); });
   const must = (ok, what) => { if (!ok) { errors.push('FAILED: ' + what); console.log('FAILED', what); } else console.log('ok', what); };
-  await page.goto('file://' + out('index.html'));
+  await page.goto('file://' + out('index.html') + '?karte=welt');
   await page.waitForTimeout(1000);
   await page.screenshot({ path: out(`ui_${tag}_1start.png`) });
   const tapAt = async (x, y) => { if (mobile) await page.touchscreen.tap(x, y); else await page.mouse.click(x, y); };

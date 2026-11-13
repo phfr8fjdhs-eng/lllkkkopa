@@ -11,7 +11,7 @@ const out = (n) => path.join(__dirname, '..', 'build', n);
     const page = await ctx.newPage();
     page.on('pageerror', (e) => errors.push('PAGEERROR ' + e.message + '\n' + (e.stack || '')));
     page.on('console', (m) => { if (m.type() === 'error') errors.push('CONSOLE ' + m.text()); });
-    await page.goto('file://' + out('index.html'));
+    await page.goto('file://' + out('index.html') + '?karte=welt');
     await page.waitForTimeout(1200);
     return page;
   };

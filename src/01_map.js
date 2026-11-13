@@ -186,4 +186,89 @@
       id: meta.id, name: meta.name, nations: meta.nations || []
     };
   };
+
+  // ---------- the Earth: a map made from real data (tools/build_world.py) ----------
+  // What the land is covered with. Together with the height it decides how hard a tile is to
+  // take (see G.TERRAIN in 03_game.js) and how it is painted.
+  G.COVER = { WATER: 0, GRASS: 1, FARM: 2, FOREST: 3, DESERT: 4, TUNDRA: 5, ICE: 6, SWAMP: 7 };
+  G.COVER_NAME = ['Wasser', 'Grasland', 'Ackerland', 'Wald', 'Wüste', 'Tundra', 'Eis', 'Sumpf'];
+  // bits of map.feat
+  G.FEAT = { RIVER: 1, GREAT: 2, TAIGA: 4, JUNGLE: 8 };
+
+  // `cls`: one byte per tile as written by the builder (cover in bits 0-2, river bit 3, great
+  // river bit 4, taiga bit 5, rain forest bit 6, snow cap bit 7). `cost`: 0..30 per tile. `hgt`: height at half
+  // the resolution, for the relief shading only.
+  G.buildWorld = function (def, cls, cost, hgt) {
+    const W = def.w, H = def.h, N = W * H;
+    const land = new Uint8Array(N), mag = new Uint8Array(N), shore = new Uint8Array(N);
+    const cover = new Uint8Array(N), feat = new Uint8Array(N), snow = new Uint8Array(N);
+    let landTiles = 0;
+    for (let i = 0; i < N; i++) {
+      const c = cls[i], cv = c & 7;
+      if (!cv) continue;
+      snow[i] = c >> 7;
+      land[i] = 1; landTiles++; cover[i] = cv; mag[i] = cost[i] > 30 ? 30 : cost[i];
+      feat[i] = ((c >> 3) & 1) | (((c >> 4) & 1) << 1) | (((c >> 5) & 1) << 2) | (((c >> 6) & 1) << 3);
+    }
+    // the coast, on both sides
+    for (let y = 0, i = 0; y < H; y++) for (let x = 0; x < W; x++, i++) {
+      const l = land[i];
+      if ((x > 0 && land[i - 1] !== l) || (x < W - 1 && land[i + 1] !== l) || (y > 0 && land[i - W] !== l) || (y < H - 1 && land[i + W] !== l)) shore[i] = l ? 1 : 2;
+    }
+    // Distance of every water tile to the nearest land, in thirds of a tile, by two sweeps over
+    // the map (a chamfer transform: a straight step counts 3, a diagonal one 4). Whole numbers
+    // only, so every device gets the same sea. It is what ships use to keep off the coast and
+    // what the picture uses to shade the water.
+    const INF = 60000, d = new Uint16Array(N);
+    for (let i = 0; i < N; i++) d[i] = land[i] ? 0 : INF;
+    for (let y = 0, i = 0; y < H; y++) for (let x = 0; x < W; x++, i++) {
+      let v = d[i];
+      if (!v) continue;
+      if (x > 0 && d[i - 1] + 3 < v) v = d[i - 1] + 3;
+      if (y > 0) {
+        if (d[i - W] + 3 < v) v = d[i - W] + 3;
+        if (x > 0 && d[i - W - 1] + 4 < v) v = d[i - W - 1] + 4;
+        if (x < W - 1 && d[i - W + 1] + 4 < v) v = d[i - W + 1] + 4;
+      }
+      d[i] = v;
+    }
+    for (let y = H - 1, i = N - 1; y >= 0; y--) for (let x = W - 1; x >= 0; x--, i--) {
+      let v = d[i];
+      if (!v) continue;
+      if (x < W - 1 && d[i + 1] + 3 < v) v = d[i + 1] + 3;
+      if (y < H - 1) {
+        if (d[i + W] + 3 < v) v = d[i + W] + 3;
+        if (x < W - 1 && d[i + W + 1] + 4 < v) v = d[i + W + 1] + 4;
+        if (x > 0 && d[i + W - 1] + 4 < v) v = d[i + W - 1] + 4;
+      }
+      d[i] = v;
+      const t = (v + 1) / 3 | 0;
+      mag[i] = t > 30 ? 30 : t;
+    }
+    for (let i = 0; i < N; i++) if (!land[i] && d[i] < INF) { const t = (d[i] + 1) / 3 | 0; mag[i] = t > 30 ? 30 : t < 1 ? 1 : t; }
+
+    // Connected bodies of water, so ships only sail where they can actually arrive.
+    const wcomp = new Uint16Array(N), wsize = [0], q = new Int32Array(N);
+    let nc = 0;
+    for (let s = 0; s < N; s++) {
+      if (land[s] || wcomp[s]) continue;
+      nc++;
+      let qh = 0, qt = 0;
+      q[qt++] = s; wcomp[s] = nc;
+      while (qh < qt) {
+        const t = q[qh++], x = t % W, y = (t - x) / W;
+        if (x > 0 && !land[t - 1] && !wcomp[t - 1]) { wcomp[t - 1] = nc; q[qt++] = t - 1; }
+        if (x < W - 1 && !land[t + 1] && !wcomp[t + 1]) { wcomp[t + 1] = nc; q[qt++] = t + 1; }
+        if (y > 0 && !land[t - W] && !wcomp[t - W]) { wcomp[t - W] = nc; q[qt++] = t - W; }
+        if (y < H - 1 && !land[t + W] && !wcomp[t + W]) { wcomp[t + W] = nc; q[qt++] = t + W; }
+      }
+      wsize.push(qt);
+    }
+    return {
+      W: W, H: H, N: N, land: land, mag: mag, shore: shore, wcomp: wcomp, wsize: wsize, landTiles: landTiles,
+      cover: cover, feat: feat, snow: snow, hgt: hgt, hw: W >> 1, hh: H >> 1,
+      S: G.within(Math.sqrt(N / 2e6), 0.4, 1),
+      id: def.id, name: def.name, nations: def.nations || [], credit: def.credit || ''
+    };
+  };
 })(globalThis.G = globalThis.G || {});

@@ -10,7 +10,7 @@ const out = (n) => path.join(__dirname, '..', 'build', n);
   const errors = [];
   page.on('pageerror', (e) => errors.push('PAGEERROR ' + e.message + '\n' + (e.stack || '')));
   page.on('console', (m) => { if (m.type() === 'error') errors.push('CONSOLE ' + m.text()); });
-  await page.goto('file://' + out('index.html'));
+  await page.goto('file://' + out('index.html') + '?karte=welt');
   await page.waitForTimeout(1000);
   await page.click('#fMap [data-id="europa"]');
   await page.check('#fInstant'); await page.check('#fGold'); await page.check('#fTroops');

@@ -9,7 +9,7 @@ const path = require('path');
   const errors = [];
   page.on('pageerror', (e) => errors.push('PAGEERROR ' + e.message));
   page.on('console', (m) => { if (m.type() === 'error') errors.push('CONSOLE ' + m.text()); });
-  await page.goto('file://' + path.join(__dirname, '..', 'build', 'index.html'));
+  await page.goto('file://' + path.join(__dirname, '..', 'build', 'index.html') + '?karte=welt');
   await page.waitForTimeout(1500);
   const tag = mobile ? 'm' : 'd';
   await page.screenshot({ path: path.join(__dirname, '..', 'build', `shot_${tag}_1start.png`) });

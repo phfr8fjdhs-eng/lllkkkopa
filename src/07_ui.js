@@ -29,6 +29,15 @@
     { t: UT.MIRV, icon: 'mirv', note: 'Verwüstet ein ganzes Reich', key: '0' }
   ];
   const TERRAIN = ['Ebene', 'Hochland', 'Gebirge'];
+  // What the ground under a tile is called: its cover on the Earth, with height and river.
+  function groundName(tile) {
+    const m = game.map, lvl = m.mag[tile] < 10 ? 0 : m.mag[tile] < 20 ? 1 : 2;
+    if (!m.cover) return TERRAIN[lvl];
+    let n = G.COVER_NAME[m.cover[tile]];
+    if (lvl) n += ', ' + TERRAIN[lvl];
+    if (m.feat[tile] & 2) n += ', grosser Fluss'; else if (m.feat[tile] & 1) n += ', Fluss';
+    return n;
+  }
   const snd = function (name, gap) { G.Audio.play(name, gap); };
   const plain = function (t) { return G.UNAME[t].replace('\u00AD', ''); };
   const coin = function (n) { return '<span class="price">' + svg('gold', 13) + (n ? fmt(n) : 'gratis') + '</span>'; };
@@ -48,7 +57,7 @@
   let toastTimer = 0, endShown = false, botsTouched = false;
   let mp = null, turnLeft = 0, aim = null, joinCode = '', lobbyNote = '', goldTimer = 0;
   const chips = new Map(), asks = new Map();
-  const cfg = { name: 'Spieler', color: 0, map: 'welt', diff: 1, bots: -1, nations: true, instant: false, gold: false, troops: false, tap: false, music: true, sfx: true, mode: 'klassisch' };
+  const cfg = { name: 'Spieler', color: 0, map: 'erde', diff: 1, bots: -1, nations: true, instant: false, gold: false, troops: false, tap: false, music: true, sfx: true, mode: 'klassisch' };
   const MODES = [['klassisch', 'Klassisch', 'Das Spiel wie gewohnt.'], ['arsenal', 'Arsenal', 'Zusätzliche Waffe: der Satellitenstrahl. Er kommt aus dem All, braucht kein Silo und lässt sich nicht abfangen. Auch die Nationen setzen ihn ein.']];
   let hoverX = -1, hoverY = -1;
   let ghost = null, ghostKey = '', shiftHeld = false;   // the thing a build key is about to place
@@ -59,7 +68,9 @@
       const s = JSON.parse(localStorage.getItem('grenzland.v1') || '{}');
       for (const k in cfg) if (typeof s[k] === typeof cfg[k]) cfg[k] = s[k];
     } catch (e) { /* storage may be unavailable */ }
-    if (cfg.map !== 'zufall' && !special(cfg.map) && !MAPS.some(function (m) { return m.id === cfg.map; })) cfg.map = 'welt';
+    // ?karte=welt in the address picks the map (the tests use it to stay off the big one)
+    try { const k = new URLSearchParams(location.search).get('karte'); if (k) cfg.map = k; } catch (e) { /* no address to read */ }
+    if (cfg.map !== 'zufall' && !special(cfg.map) && !MAPS.some(function (m) { return m.id === cfg.map; })) cfg.map = MAPS[0].id;
     G.Audio.on.music = cfg.music; G.Audio.on.sfx = cfg.sfx;
     if (cfg.mode !== 'arsenal') cfg.mode = 'klassisch';
     botsTouched = cfg.bots >= 0;
@@ -86,6 +97,31 @@
     }
     const def = MAPS.find(function (m) { return m.id === id; });
     if (!def) return Promise.reject(new Error('Diese Karte gibt es hier nicht'));
+    if (def.v === 2) {
+      // The Earth: three pictures (cover and rivers, crossing cost, height), read one after the
+      // other so that only one of them is unpacked in memory at a time.
+      const layer = function (b64, w, h) {
+        return new Promise(function (resolve, reject) {
+          const img = new Image();
+          img.onload = function () {
+            const c = document.createElement('canvas');
+            c.width = w; c.height = h;
+            const x = c.getContext('2d', { willReadFrequently: true });
+            x.drawImage(img, 0, 0);
+            const d = x.getImageData(0, 0, w, h).data, out = new Uint8Array(w * h);
+            for (let i = 0; i < out.length; i++) out[i] = d[i * 4];
+            c.width = c.height = 1;
+            resolve(out);
+          };
+          img.onerror = function () { reject(new Error('Karte konnte nicht geladen werden')); };
+          img.src = 'data:image/png;base64,' + b64;
+        });
+      };
+      let cls, cost;
+      return layer(def.png, def.w, def.h).then(function (a) { cls = a; return layer(def.mag, def.w, def.h); })
+        .then(function (a) { cost = a; return layer(def.hgt, def.w >> 1, def.h >> 1); })
+        .then(function (hgt) { maps[id] = G.buildWorld(def, cls, cost, hgt); return maps[id]; });
+    }
     return new Promise(function (resolve, reject) {
       const img = new Image();
       img.onload = function () {
@@ -166,10 +202,12 @@
       h += '<button class="btn ghost" id="fSolo" type="button">Lieber allein spielen</button>';
     } else {
       h += '<div class="field" id="fMap"><div class="lab">Karte · Erde</div><div class="maprow">' + MAPS.map(function (m) {
-        return mapCard(m.id, m.name, m.nations.length + ' Nationen');
+        return mapCard(m.id, m.name, m.v === 2 ? 'Die grosse Karte · ' + m.nations.length + ' Nationen' : m.nations.length + ' Nationen');
       }).join('') + '</div><div class="lab lab2">Spezialkarten</div><div class="maprow">' + G.SPECIAL_MAPS.map(function (m) {
         return mapCard(m.id, m.name, m.note);
       }).join('') + mapCard('zufall', 'Zufall', 'Jedes Mal eine neue Welt') + '</div></div>';
+      // the makers of the data the Earth is built from ask to be named
+      h += '<p class="credit">Kartendaten der Erde: Natural Earth · Global Map (Höhe, Bodenbedeckung, Wald) © Geospatial Information Authority of Japan, Chiba University and Collaborating Organizations</p>';
       h += '<div class="field"><div class="lab">Spielmodus</div><div class="seg" id="fMode">' + MODES.map(function (m) {
         return '<button type="button" data-id="' + m[0] + '" aria-pressed="' + (m[0] === cfg.mode) + '">' + m[1] + '</button>';
       }).join('') + '</div><p class="hint" id="fModeNote">' + MODES.find(function (m) { return m[0] === cfg.mode; })[2] + '</p></div>';
@@ -347,6 +385,16 @@
       } else if (sp) {
         const w = Math.round(sp.w / 6), h = Math.round(sp.h / 6);
         paintThumb(cv, G.randomClassMap(w, h, sp.seed, sp.kind, sp.w), w, h);
+      } else if (MAPS.find(function (m) { return m.id === id; }).thumb) {
+        // the Earth brings its own little picture
+        const def = MAPS.find(function (m) { return m.id === id; }), img = new Image(), x = cv.getContext('2d');
+        img.onload = function () {
+          x.fillStyle = 'rgb(38,88,146)'; x.fillRect(0, 0, cv.width, cv.height);
+          const k = Math.min(cv.width / img.width, cv.height / img.height);
+          x.imageSmoothingEnabled = true;
+          x.drawImage(img, (cv.width - img.width * k) / 2, (cv.height - img.height * k) / 2, img.width * k, img.height * k);
+        };
+        img.src = 'data:image/png;base64,' + def.thumb;
       } else {
         const def = MAPS.find(function (m) { return m.id === id; }), img = new Image();
         img.onload = function () {
@@ -764,7 +812,8 @@
     if (!a.land) cap = 'Wasser';
     else if (a.own) cap = 'Dein Gebiet';
     else if (a.target) cap = a.target.name + ' · ' + fmtT(a.target.troops);
-    else cap = (game.fallout[tile] ? 'Verstrahltes Land' : 'Freies Land') + ' · ' + TERRAIN[game.map.mag[tile] < 10 ? 0 : game.map.mag[tile] < 20 ? 1 : 2];
+    else cap = (game.fallout[tile] ? 'Verstrahltes Land' : 'Freies Land') + ' · ' + groundName(tile);
+    if (a.land && a.target && game.map.cover) cap += ' · ' + groundName(tile);
     $('rCap').textContent = cap;
     let mode = '';
     if (a.canAttack) mode = 'attack';

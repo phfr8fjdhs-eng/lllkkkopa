@@ -62,6 +62,59 @@
     const v = Math.round(222 + 3 * (m - 20));
     return pack(v - 6, v - 3, v);
   }
+  // ---------- the Earth: how real terrain is painted ----------
+  // Calm, flat colours per kind of ground, so a glance tells what an attack will have to cross:
+  // light green grassland, pale yellow-green farmland, dark green forest (blue-green taiga,
+  // deep green rain forest), sand-coloured desert, grey-olive tundra, white ice, grey-green
+  // swamp. The harder the ground (highland, mountains) the more the colour turns to bare rock,
+  // with snow on the highest steep peaks. A soft relief, lit from the north-west, is laid over
+  // it: plains stay flat, ranges stand out. The same numbers as tools/render_preview.py.
+  const COVER_RGB = [[0, 0, 0], [178, 205, 134], [208, 214, 146], [112, 154, 98], [230, 213, 164], [180, 181, 158], [241, 246, 249], [132, 168, 150]];
+  function worldColors(map) {
+    const W = map.W, H = map.H, N = map.N, hw = map.hw, hh = map.hh, hgt = map.hgt;
+    const cover = map.cover, feat = map.feat, mag = map.mag, land = map.land, snowBit = map.snow;
+    // relief at half resolution: height in metres, slope towards the light, squeezed by tanh
+    const lum2 = new Float32Array(hw * hh), e = new Float32Array(hw * hh);
+    for (let i = 0; i < e.length; i++) { const v = hgt[i] / 255; e[i] = v * v * 8850; }
+    const tanh = function (x) { const a = Math.exp(2 * x); return (a - 1) / (a + 1); };
+    for (let y = 0, i = 0; y < hh; y++) for (let x = 0; x < hw; x++, i++) {
+      const gx = e[x < hw - 1 ? i + 1 : i] - e[x > 0 ? i - 1 : i], gy = e[y < hh - 1 ? i + hw : i] - e[y > 0 ? i - hw : i];
+      const sh = tanh((gx + gy) / 900);
+      lum2[i] = 1 + (sh > 0 ? 0.16 : 0.24) * sh;
+    }
+    // water: light near the coast, deep blue far out (mag of a water tile is its distance to land)
+    const sea = new Uint32Array(31);
+    for (let m = 0; m <= 30; m++) {
+      const k = Math.pow(Math.min(1, m / 26), 0.8);
+      sea[m] = pack(Math.round(98 + (38 - 98) * k), Math.round(166 + (88 - 166) * k), Math.round(206 + (146 - 206) * k));
+    }
+    const out = new Uint32Array(N);
+    for (let y = 0, i = 0; y < H; y++) {
+      const fy = Math.min(hh - 1, Math.max(0, (y + 0.5) / 2 - 0.5)), y0 = fy | 0, y1 = Math.min(hh - 1, y0 + 1), ty = fy - y0;
+      for (let x = 0; x < W; x++, i++) {
+        if (!land[i]) { out[i] = sea[mag[i]]; continue; }
+        const f = feat[i];
+        if (f & 2) { out[i] = pack(74, 142, 204); continue; }            // a great river
+        const cv = cover[i];
+        let r, g, b;
+        if (cv === 3 && (f & 4)) { r = 92; g = 132; b = 106; }             // taiga
+        else if (cv === 3 && (f & 8)) { r = 78; g = 142; b = 90; }         // rain forest
+        else { const c = COVER_RGB[cv]; r = c[0]; g = c[1]; b = c[2]; }
+        if (cv !== 6) {
+          const t = Math.min(1, Math.max(0, (mag[i] - 9) / 19)) * 0.6;
+          r += (158 - r) * t; g += (148 - g) * t; b += (134 - b) * t;
+        }
+        if (snowBit[i]) { r = r * 0.12 + 244 * 0.88; g = g * 0.12 + 246 * 0.88; b = b * 0.12 + 248 * 0.88; }
+        const fx = Math.min(hw - 1, Math.max(0, (x + 0.5) / 2 - 0.5)), x0 = fx | 0, x1 = Math.min(hw - 1, x0 + 1), tx = fx - x0;
+        const l = (lum2[y0 * hw + x0] * (1 - tx) + lum2[y0 * hw + x1] * tx) * (1 - ty) + (lum2[y1 * hw + x0] * (1 - tx) + lum2[y1 * hw + x1] * tx) * ty;
+        r *= l; g *= l; b *= l;
+        if (f & 1) { r = r * 0.25 + 96 * 0.75; g = g * 0.25 + 160 * 0.75; b = b * 0.25 + 212 * 0.75; }   // a river
+        out[i] = pack(r > 255 ? 255 : r | 0, g > 255 ? 255 : g | 0, b > 255 ? 255 : b | 0);
+      }
+    }
+    return out;
+  }
+
   function flagOf(iso) {
     if (!iso || iso.length !== 2) return '';
     return String.fromCodePoint(0x1F1E6 + iso.charCodeAt(0) - 65, 0x1F1E6 + iso.charCodeAt(1) - 65);
@@ -95,8 +148,11 @@
     this.mctx = mc.getContext('2d');
     this.img = this.mctx.createImageData(map.W, map.H);
     this.px = new Uint32Array(this.img.data.buffer);
-    this.base = new Uint32Array(map.N);
-    for (let i = 0; i < map.N; i++) this.base[i] = terrainColor(map, i);
+    if (map.cover) this.base = worldColors(map);
+    else {
+      this.base = new Uint32Array(map.N);
+      for (let i = 0; i < map.N; i++) this.base[i] = terrainColor(map, i);
+    }
     this.px.set(this.base);
     this.mctx.putImageData(this.img, 0, 0);
   };
@@ -136,6 +192,23 @@
         }
       }
       this.px[t] = c;
+    } else if (g.map.feat) {
+      const br = b & 255, bg = (b >>> 8) & 255, bb = (b >>> 16) & 255;
+      if (g.map.feat[t] & 1) {
+        // a river stays a river under any flag: it is a line of defence, and you have to see it
+        this.px[t] = pack((br * 150 + p.r * 106) >> 8, (bg * 150 + p.g * 106) >> 8, (bb * 150 + p.b * 106) >> 8);
+      } else {
+        // On the Earth the owner's colour takes on the light and dark of the ground under it:
+        // forest shows as a darker stretch, desert and snow as lighter ones, ranges keep their
+        // relief. The hue stays the owner's, so borders read cleanly, and the terrain that
+        // decides the next attack can still be seen.
+        const lum = (br * 77 + bg * 150 + bb * 29) >> 8;
+        let f = 148 + ((lum * 108 / 190) | 0);
+        if (f > 300) f = 300;
+        let r = (p.r * f) >> 8, gg = (p.g * f) >> 8, bl = (p.b * f) >> 8;
+        r = (r * 206 + br * 50) >> 8; gg = (gg * 206 + bg * 50) >> 8; bl = (bl * 206 + bb * 50) >> 8;
+        this.px[t] = pack(r > 255 ? 255 : r, gg > 255 ? 255 : gg, bl > 255 ? 255 : bl);
+      }
     } else {
       this.px[t] = pack(((b & 255) * 84 + p.r * 172) >> 8, (((b >>> 8) & 255) * 84 + p.g * 172) >> 8, (((b >>> 16) & 255) * 84 + p.b * 172) >> 8);
     }

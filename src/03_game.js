@@ -16,6 +16,17 @@
   // gives the pace of the original. These three factors come on top, for tuning by feel:
   // move (ships, trains, shells), attack (how fast a front advances), growth (troops per tick).
   G.PACE = { move: 1, attack: 1, growth: 1 };
+  // What the ground does to an attack, by what covers it (index: G.COVER). `speed` multiplies
+  // what a tile costs in time, `loss` what it costs the attacker in troops. Height comes on top
+  // (lowland, highland, mountains: the numbers of OpenFront). Forest and swamp give cover and
+  // swallow an advance, ice is all but impassable, open desert is quick to cross. A river is a
+  // line of defence: the tile it runs through is slow and bloody to take, a great river more so.
+  //                 water grass farm forest desert tundra ice  swamp
+  G.TERRAIN = {
+    speed: [1, 1, 1, 1.5, 0.9, 1.3, 2.6, 1.8],
+    loss: [1, 1, 1, 1.25, 1, 1.1, 1.5, 1.25],
+    riverSpeed: 4, riverLoss: 2, greatSpeed: 6, greatLoss: 3
+  };
   G.LASER_COOL = 450;   // ticks between two shots of the satellite beam (Arsenal mode)
   G.DIFF_NAMES = ['Leicht', 'Mittel', 'Schwer', 'Unmöglich'];
 
@@ -65,8 +76,9 @@
     this.requests = []; this.events = []; this.fx = [];
     this.human = null; this.humans = []; this.winner = null; this.names = new Set();
     this.dirty = new Int32Array(N); this.dirtyN = 0; this.dirtyFlag = new Uint8Array(N);
-    this.path = new G.Pathfinder(map); this.pathCache = new Map(); this.pathQ = []; this.pathJob = null;
-    this.pathNear = new G.Pathfinder(map); this.nearQ = []; this.nearJob = null;
+    this.sea = map.sea || (map.sea = new G.SeaGraph(map));   // built once per map, shared by every game on it
+    this.pathLeg = new G.Pathfinder(map, 160000); this.pathCache = new Map(); this.pathQ = []; this.pathJob = null;
+    this.pathNear = new G.Pathfinder(map, 260000); this.nearQ = []; this.nearJob = null;   // short hops: a window of at most 260 000 tiles
     this.pace = S * G.PACE.move;          // tiles a ship or train covers per tick
     this.attackPace = S * G.PACE.attack;  // share of OpenFront's tiles per tick a front takes
     this.R = {
@@ -199,7 +211,8 @@
         spots.length = 0;
       }
       // only part of the nations take the field (three in four unless told otherwise), the rest of the world belongs to bots
-      const share = o.nationShare === undefined ? 0.75 : o.nationShare;
+      // (on the Earth every country takes the field: a world without the big powers is no world)
+      const share = o.nationShare === undefined ? (map.cover ? 1 : 0.75) : o.nationShare;
       if (share < 1 && list.length > 4) {
         list = list.slice();
         const keep = Math.max(4, Math.round(list.length * share));
@@ -604,6 +617,7 @@
     const traitor = t && t.traitorUntil > this.ticks ? 0.5 : 1;
     const easy = !!t && t.type === PT.BOT && a.type !== PT.BOT, botMod = easy ? 0.35 : 1;   // bots barely defend themselves
     const dp = t ? t.dposts : null, dr2 = this.R.defense * this.R.defense, fo = this.fallout;
+    const cov = map.cover, ft = map.feat, TR = G.TERRAIN;
     let guard = 0;
     while (budget > 0) {
       if (at.troops < 1) { this.endAttack(at, false); return; }
@@ -621,6 +635,12 @@
       this.addFront(at, tile);
       const m = mg[tile];
       let mag = m < 10 ? 80 : m < 20 ? 100 : 120, speed = m < 10 ? 16.5 : m < 20 ? 20 : 25;
+      if (cov) {
+        const c = cov[tile], f = ft[tile];
+        mag *= TR.loss[c]; speed *= TR.speed[c];
+        if (f & 2) { mag *= TR.greatLoss; speed *= TR.greatSpeed; }
+        else if (f & 1) { mag *= TR.riverLoss; speed *= TR.riverSpeed; }
+      }
       if (dp && dp.length) {
         for (let i = 0; i < dp.length; i++) {
           const dx = dp[i].x - x, dy = dp[i].y - y;
@@ -877,7 +897,57 @@
   // of their own; one that turns out not to be short after all is handed to the long lane.
   Game.prototype.pathStep = function () {
     this.pathLane(this.pathNear, this.nearQ, 'nearJob', 9000, 80000);
-    this.pathLane(this.path, this.pathQ, 'pathJob', 12000, 900000);
+    this.pathLong(9000);
+  };
+  // A long route, in two steps (see SeaGraph): which cells of the sea to pass through, then the
+  // tiles, in legs of LEG cells, each searched only inside its corridor.
+  const LEG = 10;
+  Game.prototype.pathLong = function (budget) {
+    const sea = this.sea, pf = this.pathLeg, map = this.map;
+    while (budget > 0) {
+      let j = this.pathJob;
+      if (!j) {
+        j = this.pathQ.shift();
+        if (!j) return;
+        budget -= 30;
+        if (j.src < 0 || j.dst < 0 || map.land[j.src] || map.land[j.dst] || map.wcomp[j.src] !== map.wcomp[j.dst]) { j.cb(null); continue; }
+        if (j.src === j.dst) { j.cb(new Int32Array([j.src])); continue; }
+        if (!sea.start(j.src, j.dst)) { j.cb(null); continue; }
+        j.stage = 0; this.pathJob = j;
+      }
+      if (j.stage === 0) {
+        budget -= sea.run(budget) * 2;
+        if (sea.state === 0) return;
+        if (sea.state !== 1) { this.pathJob = null; j.cb(null); continue; }
+        j.nodes = sea.result(); j.i = 0; j.cur = j.src; j.parts = []; j.len = 0; j.stage = 1; j.leg = false;
+      }
+      if (!j.leg) {
+        const last = j.nodes.length - 1, to = Math.min(last, j.i + LEG);
+        const wp = to === last ? j.dst : sea.rep[j.nodes[to]];
+        j.to = to; j.wp = wp;
+        if (wp === j.cur) { j.i = to; if (to === last) { this.pathDone(j); } continue; }
+        pf.start(j.cur, wp, j.shy, 400000, sea.corridor(j.nodes, j.i, to));
+        j.leg = true;
+      }
+      budget -= pf.run(budget);
+      if (pf.state === 0) return;
+      if (pf.state !== 1) { this.pathJob = null; j.cb(null); continue; }   // cannot happen while the graph matches the sea
+      const part = pf.result();
+      j.parts.push(part); j.len += part.length - (j.parts.length > 1 ? 1 : 0);
+      j.cur = j.wp; j.i = j.to; j.leg = false;
+      if (j.to === j.nodes.length - 1) this.pathDone(j);
+    }
+  };
+  Game.prototype.pathDone = function (j) {
+    this.pathJob = null;
+    if (!j.parts.length) { j.cb(new Int32Array([j.src])); return; }
+    const out = new Int32Array(j.len);
+    let n = 0;
+    for (let p = 0; p < j.parts.length; p++) {
+      const part = j.parts[p];
+      for (let i = p ? 1 : 0; i < part.length; i++) out[n++] = part[i];
+    }
+    j.cb(out);
   };
   Game.prototype.pathLane = function (pf, queue, slot, budget, limit) {
     while (budget > 0) {
@@ -896,7 +966,7 @@
         const job = this[slot];
         this[slot] = null;
         if (pf.state === 1) job.cb(pf.result());
-        else if (pf.gaveUp && queue !== this.pathQ) this.pathQ.push(job);   // not a short hop: the long lane takes it
+        else if (pf.gaveUp) this.pathQ.push(job);   // not a short hop: the long lane takes it
         else job.cb(null);
       }
     }
