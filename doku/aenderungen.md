@@ -25,7 +25,7 @@ Patrouille (`tickWarship`, `patrolPoint`, nach `WarshipExecution.ts` in OpenFron
 - **Gelände zählt nur so viel, wie es verteidigt ist** (`tickAttack`): freies Land nimmt 15 % des Gelände-Zuschlags (`G.TERRAIN.free`); gegen ein Reich `hold = 1.15 − 0.33 · Angreifer/Verteidiger`, begrenzt auf 0.15–1, bei Menschen zusätzlich × örtliche Dichte, wenn sie unter 1 liegt. Leeres Gebirge fällt also fast wie Ebene, und Übermacht überrollt auch Wald.
 - **Maus:** einfacher Klick schaut nur (Karte ziehen), Doppelklick greift an (über Land, sonst per Boot) oder öffnet die Ausbaukarte eines eigenen Gebäudes, Rechtsklick öffnet das Kreismenü. Setzen von Gebäuden, Zielen und Startpunkt bleiben ein Klick. Handy unverändert.
 - **Gegner unter der Maus:** Leiste oben mit Name, Stand (Bot, Nation, verbündet, im Krieg), Truppen, Gold, Landanteil und Zahl der Gebäude und Kriegsschiffe (`showPeek`).
-- **Front-Schilder:** an der Grenze steht pro eigenem Angriff «⚔ Truppen im Kampf» und «+ unterwegs», Angriffe auf einen selbst in Rot (`drawFronts`).
+- **Front-Schilder:** an der Grenze steht pro eigenem Angriff die Zahl der Truppen im Kampf und «+ unterwegs», Angriffe auf einen selbst in Rot (`drawFronts`). Ohne Schwert-Zeichen davor (am 13.11.2026 entfernt, Emoji sehen auf jedem Gerät anders aus).
 - **Truppenboote:** gefahrene Route kräftig mit dunklem Rand, der Rest gestrichelt bis zum Landepunkt mit Ring.
 - **Gebäude-Icons:** mindestens 15 px, auch ganz herausgezoomt.
 - **Raketen:** schlanker Metallkörper ohne Umriss, glühender Abgasstrahl, blinkendes Positionslicht, Rauchspur, die nach hinten verblasst, Schatten am Boden, wächst zum Scheitel der Bahn.
