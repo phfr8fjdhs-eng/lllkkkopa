@@ -43,7 +43,7 @@
         const t = y * W + x;
         if (land[t] !== 1) continue;
         const m = mg[t];
-        sum += (m < 10 ? 1 : m < 20 ? 1.4 : 2) * (cov ? TS[cov[t]] : 1); n++;
+        sum += (m < 10 ? 1 : m < 20 ? 1.4 : 2) * G.groundSpeed(map, t); n++;
       }
     }
     v = n ? sum / n : 1.5;

@@ -22,7 +22,7 @@ from scipy import ndimage
 
 GEO, WORK, OUT = sys.argv[1], sys.argv[2], sys.argv[3]
 W = int(sys.argv[4]) if len(sys.argv) > 4 else 5600
-LON0, LAT_S, LAT_N = -169.2, -57.5, 79.5        # the cut runs through the Bering Strait; Antarctica is left out
+LON0, LAT_S, LAT_N = -169.2, -80.0, 79.5        # the cut runs through the Bering Strait; in the south the map ends at 80 S, inside Antarctica
 T0 = time.time()
 def log(*a): print(f"[{time.time() - T0:6.1f}s]", *a, flush=True)
 
@@ -33,8 +33,15 @@ def log(*a): print(f"[{time.time() - T0:6.1f}s]", *a, flush=True)
 def pat(phi):
     p2 = phi * phi
     return phi * (1.0148 + p2 * p2 * (0.23185 + p2 * (-0.14499 + p2 * 0.02406)))
-YN, YS = pat(math.radians(LAT_N)), pat(math.radians(LAT_S))
-H = int(round(W * (YN - YS) / math.radians(360)))
+# The grid keeps the rows it had when the map ended at 57.5 S (LAT_OLD): the height of a row is
+# fixed by that first cut, and Antarctica is whole rows added below. So everything north of
+# 57.5 S stays on the tile it was on. The true southern edge lands within a row of LAT_S.
+LAT_OLD = -57.5
+YN = pat(math.radians(LAT_N))
+H_OLD = int(round(W * (YN - pat(math.radians(LAT_OLD))) / math.radians(360)))
+ROW = (YN - pat(math.radians(LAT_OLD))) / H_OLD
+H = int(round((YN - pat(math.radians(LAT_S))) / ROW))
+YS = YN - H * ROW
 _tab_phi = np.linspace(math.radians(-89), math.radians(89), 20001)
 _tab_y = pat(_tab_phi)
 def lat_of_row(j, s=1.0):                       # latitude in degrees of the middle of row j (rows of 1/s tile)
@@ -258,6 +265,9 @@ cover[f_forest >= 0.5] = FOREST
 cover[f_wet >= 0.4] = SWAMP
 gl = raster(load("ne_10m_glaciated_areas")["features"], 1)
 cover[(f_ice >= 0.5) | gl] = ICE
+# Antarctica is one ice sheet. The land-cover data thins out down there, so the rule is plain:
+# south of 60 S everything is ice.
+cover[(lat_rows < -60.0)[:, None] & np.ones((1, W), bool)] = ICE
 cover[~land] = 0
 # A region has to be big enough to matter: patches of fewer than MINP tiles take the cover of
 # their surroundings. That is what keeps the map calm to look at.
@@ -376,7 +386,7 @@ def png(a, mode="L"):
 p_cls, p_mag, p_hgt = png(cls), png(mag), png(np.round(h2))
 log("png bytes: classes", len(p_cls), "cost", len(p_mag), "height", len(p_hgt))
 np.savez_compressed(f"{OUT}/erde_{W}.npz", cls=cls, mag=mag, hgt=np.round(hgt).astype(np.uint8), elev=elev.astype(np.int16))
-world = dict(id="erde", name="Erde", w=W, h=H, v=2, png=base64.b64encode(p_cls).decode(), mag=base64.b64encode(p_mag).decode(),
+world = dict(id="erde", name="Erde", w=W, h=H, v=2, lat=[round(float(np.degrees(np.interp(YS, _tab_y, _tab_phi))), 4), LAT_N], png=base64.b64encode(p_cls).decode(), mag=base64.b64encode(p_mag).decode(),
              hgt=base64.b64encode(p_hgt).decode(), nations=[[c["n"], c["x"], c["y"], c["s"], c["iso"]] for c in chosen],
              credit="Natural Earth; Global Map © Geospatial Information Authority of Japan, Chiba University and Collaborating Organizations")
 json.dump(world, open(f"{OUT}/erde_{W}.json", "w"), ensure_ascii=False, separators=(",", ":"))

@@ -26,7 +26,19 @@
     speed: [1, 1, 1, 1.5, 0.9, 1.3, 2.6, 1.8],
     loss: [1, 1, 1, 1.25, 1, 1.1, 1.5, 1.25],
     riverSpeed: 4, riverLoss: 2, greatSpeed: 6, greatLoss: 3,
-    free: 0.15          // how much of all that counts on land nobody holds
+    free: 0.15,         // how much of all that counts on land nobody holds
+    coldLoss: 0.5       // how much of the cold's slowdown also shows in the attacker's losses
+  };
+  // Cover and cold together, as factors over open ground in mild weather: the cold factor of a
+  // tile (1 above freezing, rising to 2 at -45 C, see G.addClimate) multiplies what the cover
+  // costs. So the high, bitterly cold middle of an ice sheet is slower still than its coast.
+  G.groundSpeed = function (map, t) {
+    const cov = map.cover;
+    return (cov ? G.TERRAIN.speed[cov[t]] : 1) * map.coldOf(t);
+  };
+  G.groundLoss = function (map, t) {
+    const cov = map.cover;
+    return (cov ? G.TERRAIN.loss[cov[t]] : 1) * (1 + (map.coldOf(t) - 1) * G.TERRAIN.coldLoss);
   };
   G.LASER_COOL = 450;   // ticks between two shots of the satellite beam (Arsenal mode)
   G.DIFF_NAMES = ['Leicht', 'Mittel', 'Schwer', 'Unmöglich'];
@@ -672,9 +684,9 @@
       const m = mg[tile];
       // what the ground adds, as factors over open lowland
       let gl = m < 10 ? 1 : m < 20 ? 1.25 : 1.5, gs = m < 10 ? 1 : m < 20 ? 1.2121 : 1.5152;
+      gl *= G.groundLoss(map, tile); gs *= G.groundSpeed(map, tile);
       if (cov) {
-        const c = cov[tile], f = ft[tile];
-        gl *= TR.loss[c]; gs *= TR.speed[c];
+        const f = ft[tile];
         if (f & 2) { gl *= TR.greatLoss; gs *= TR.greatSpeed; }
         else if (f & 1) { gl *= TR.riverLoss; gs *= TR.riverSpeed; }
       }

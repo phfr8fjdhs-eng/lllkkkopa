@@ -17,12 +17,19 @@ from scipy import ndimage
 
 GEO, OUT = sys.argv[1], sys.argv[2]
 W = int(sys.argv[3]) if len(sys.argv) > 3 else 5600
-LON0, LAT_S, LAT_N = -169.2, -57.5, 79.5
+LON0, LAT_S, LAT_N = -169.2, -80.0, 79.5
 def pat(phi):
     p2 = phi * phi
     return phi * (1.0148 + p2 * p2 * (0.23185 + p2 * (-0.14499 + p2 * 0.02406)))
-YN, YS = pat(math.radians(LAT_N)), pat(math.radians(LAT_S))
-H = int(round(W * (YN - YS) / math.radians(360)))
+# The grid keeps the rows it had when the map ended at 57.5 S (LAT_OLD): the height of a row is
+# fixed by that first cut, and Antarctica is whole rows added below. So everything north of
+# 57.5 S stays on the tile it was on. The true southern edge lands within a row of LAT_S.
+LAT_OLD = -57.5
+YN = pat(math.radians(LAT_N))
+H_OLD = int(round(W * (YN - pat(math.radians(LAT_OLD))) / math.radians(360)))
+ROW = (YN - pat(math.radians(LAT_OLD))) / H_OLD
+H = int(round((YN - pat(math.radians(LAT_S))) / ROW))
+YS = YN - H * ROW
 def px(lon, lat, s=1.0):
     return ((lon - LON0) / 360.0 * W * s, (YN - pat(math.radians(max(-89.0, min(89.0, lat))))) / (YN - YS) * H * s)
 def polys(geom):

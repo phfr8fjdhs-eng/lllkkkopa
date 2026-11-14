@@ -16,5 +16,5 @@ module.exports = async function loadMap(G, id) {
   const maps = JSON.parse(fs.readFileSync(path.join(root, 'build', 'maps.json'), 'utf8'));
   const m = maps.find((x) => x.id === id), g = await gray(m.png), cls = new Uint8Array(m.w * m.h);
   for (let i = 0; i < cls.length; i++) cls[i] = Math.round(g[i] / 85);
-  return G.buildMap(m.w, m.h, cls, 12345, { id: m.id, name: m.name, nations: m.nations });
+  return G.buildMap(m.w, m.h, cls, 12345, { id: m.id, name: m.name, nations: m.nations, lat: m.lat, lon: m.lon });
 };

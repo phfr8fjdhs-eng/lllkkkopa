@@ -24,7 +24,7 @@ def polys(geom):
     return []
 
 MAPS = [
-    dict(id="welt", name="Welt", lon=(-168.5, 191.5), lat=(-56.0, 75.0), tiles=740_000, nations=62, mind=20),
+    dict(id="welt", name="Welt", lon=(-168.5, 191.5), lat=(-80.0, 75.0), tiles=900_000, nations=62, mind=20),
     dict(id="europa", name="Europa", lon=(-25.0, 52.0), lat=(29.5, 72.0), tiles=560_000, nations=44, mind=17),
     dict(id="asien", name="Asien", lon=(38.0, 150.0), lat=(-11.0, 62.0), tiles=560_000, nations=40, mind=18),
     dict(id="afrika", name="Afrika", lon=(-20.0, 54.0), lat=(-36.0, 38.5), tiles=520_000, nations=44, mind=18),
@@ -162,9 +162,18 @@ def build(m):
     prev.save(f"{OUT}/preview_{m['id']}.png")
     print(m["id"], W, H, W * H, "land", int(isl.sum()), f"{isl.mean():.2f}", "png", len(buf.getvalue()), "nations", len(chosen),
           "waterbodies", int((wsizes >= 30).sum()), "islands", int((sizes >= 12).sum()))
-    return dict(id=m["id"], name=m["name"], w=W, h=H, png=base64.b64encode(buf.getvalue()).decode(),
+    return dict(id=m["id"], name=m["name"], w=W, h=H, lon=[lon0, lon1], lat=[lat0, lat1], png=base64.b64encode(buf.getvalue()).decode(),
                 nations=[[c["n"], c["x"], c["y"], c["s"], c["iso"]] for c in chosen])
 
-out = [build(m) for m in MAPS]
+# Optional third argument: comma separated map ids to rebuild; the others are kept as they are in maps.json
+only = sys.argv[3].split(",") if len(sys.argv) > 3 else None
+old = {}
+try: old = {m["id"]: m for m in json.load(open(f"{OUT}/maps.json"))}
+except Exception: pass
+out = []
+for m in MAPS:
+    if only and m["id"] not in only and m["id"] in old:
+        o = old[m["id"]]; o["lon"] = list(m["lon"]); o["lat"] = list(m["lat"]); out.append(o)   # keep the raster, record where on Earth it lies
+    else: out.append(build(m))
 json.dump(out, open(f"{OUT}/maps.json", "w"), ensure_ascii=False, separators=(",", ":"))
 print("total json bytes", len(json.dumps(out)))

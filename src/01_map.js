@@ -152,6 +152,10 @@
     for (let i = 0; i < N; i++) { if (cls[i] === 3) M[i] = 1; if (cls[i] >= 2) P[i] = 1; }
     boxBlur(M, W, H, 3, tmp); boxBlur(M, W, H, 2, tmp);
     boxBlur(P, W, H, 4, tmp); boxBlur(P, W, H, 3, tmp);
+    // Maps cut from the real Earth know where they lie (meta.lat, meta.lon). There Antarctica and
+    // Greenland carry their ice sheet: the ground rises from the coast to a dome some 3000 m high.
+    const geo = meta.lat ? { proj: 'merc', lat: meta.lat, lon: meta.lon } : null;
+    const lats = G.rowLats(H, geo);
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
       const i = y * W + x;
       if (!land[i]) { mag[i] = dist[i] || 30; continue; }
@@ -159,6 +163,10 @@
       let e = Math.max(0, (n - 0.45) * 26) + n2 * 6;
       e += P[i] * (7 + 6 * n2) + M[i] * (9 + 14 * n2);
       e *= 0.4 + 0.6 * Math.min(1, (dist[i] || 30) / 5);
+      if (geo && geo.lon) {
+        const lat = lats[y], lon = geo.lon[0] + (x + 0.5) / W * (geo.lon[1] - geo.lon[0]), lw = lon > 180 ? lon - 360 : lon;
+        if (lat < -64 || (lat > 68 && lw > -73 && lw < -12) || (lat > 59 && lat <= 68 && lw > -55 && lw < -40)) e += 10 * Math.min(1, (dist[i] || 30) / 14);
+      }
       mag[i] = Math.min(30, Math.round(e));
     }
 
@@ -178,13 +186,66 @@
       wsize.push(qt);
     }
 
-    return {
+    return G.addClimate({
       W: W, H: H, N: N, land: land, mag: mag, shore: shore, wcomp: wcomp, wsize: wsize,
       landTiles: landTiles,
       // Ranges are tuned for a two-million-tile world; smaller maps scale them down.
       S: G.within(Math.sqrt(N / 2e6), 0.4, 1),
       id: meta.id, name: meta.name, nations: meta.nations || []
+    }, lats);
+  };
+
+  // ---------- climate: height, temperature and what the cold does ----------
+  // Latitude of every row of a map, in degrees. `geo.proj` is 'merc' (the small maps, Mercator) or
+  // 'pat' (the Earth, Patterson), `geo.lat` the southern and northern edge. Invented maps pretend
+  // to reach from 55 N down to 5 N. Only G.M and plain arithmetic, so every device gets the same rows.
+  G.rowLats = function (H, geo) {
+    const M = G.M, RAD = M.PI / 180, out = new Float64Array(H);
+    // inverse of a rising function by halving the interval
+    const solve = function (f, v, lo, hi) { for (let i = 0; i < 46; i++) { const m = (lo + hi) / 2; if (f(m) < v) lo = m; else hi = m; } return (lo + hi) / 2; };
+    if (!geo || !geo.lat) { for (let y = 0; y < H; y++) out[y] = 55 - 50 * (y + 0.5) / H; return out; }
+    let fwd;
+    if (geo.proj === 'pat') fwd = function (phi) { const p2 = phi * phi; return phi * (1.0148 + p2 * p2 * (0.23185 + p2 * (-0.14499 + p2 * 0.02406))); };
+    else {
+      // Mercator: y = artanh(sin(phi)), found by halving as well (G.M has no logarithm)
+      const tanh = function (v) { const e = M.exp(2 * v); return (e - 1) / (e + 1); };
+      fwd = function (phi) { return solve(tanh, M.sin(phi), -4, 4); };
+    }
+    const lim = geo.proj === 'pat' ? 90 : 85;
+    const cl = function (d) { return d < -lim ? -lim : d > lim ? lim : d; };
+    const ys = fwd(cl(geo.lat[0]) * RAD), yn = fwd(cl(geo.lat[1]) * RAD);
+    for (let y = 0; y < H; y++) out[y] = solve(fwd, yn - (y + 0.5) / H * (yn - ys), -M.PI / 2, M.PI / 2) / RAD;
+    return out;
+  };
+  // Height in metres, mean temperature and the cold factor of every tile, worked out on demand
+  // (no extra memory per tile: the Earth has sixteen million of them).
+  //   height       the Earth: the real height; other maps: 150 m for every step of `mag`
+  //   temperature  at sea level 27 C on the equator, 10 C at 45 degrees, -1 C at 60, -31 C at the poles, and 6.5 C colder
+  //                for every 1000 m of height
+  //   cold         1 down to freezing, then rising evenly to 2 at -45 C: how many times slower
+  //                the frozen ground is to cross (see G.groundSpeed in 03_game.js)
+  G.CLIMATE = { equator: 27, k: 0.0175, pow: 1.8, lapse: 6.5, coldest: 45, step: 150 };
+  G.addClimate = function (map, lats) {
+    const M = G.M, C = G.CLIMATE, W = map.W, H = map.H, rowT = new Int16Array(H);
+    for (let y = 0; y < H; y++) {
+      const al = lats[y] < 0 ? -lats[y] : lats[y];
+      rowT[y] = M.round(10 * (C.equator - (al > 0.01 ? C.k * M.pow(al, C.pow) : 0)));
+    }
+    const mag = map.mag, hgt = map.hgt, hw = map.hw, hh = map.hh;
+    map.rowLat = lats; map.rowT = rowT;
+    map.elevOf = hgt ? function (t) {
+      const x = t % W, y = (t - x) / W, hx = x >> 1, hy = y >> 1;
+      const v = hgt[(hy < hh ? hy : hh - 1) * hw + (hx < hw ? hx : hw - 1)];
+      return (v * v * 8850 / 65025) | 0;            // the builder stores sqrt(height / 8850 m) in a byte
+    } : function (t) { return mag[t] * C.step; };
+    // in tenths of a degree, a whole number
+    map.temp10 = function (t) { return rowT[(t / W) | 0] - M.round(C.lapse * map.elevOf(t) / 100); };
+    map.tempOf = function (t) { return M.round(map.temp10(t) / 10); };
+    map.coldOf = function (t) {
+      const d = -map.temp10(t);
+      return d <= 0 ? 1 : d >= C.coldest * 10 ? 2 : 1 + d / (C.coldest * 10);
     };
+    return map;
   };
 
   // ---------- the Earth: a map made from real data (tools/build_world.py) ----------
@@ -264,11 +325,11 @@
       }
       wsize.push(qt);
     }
-    return {
+    return G.addClimate({
       W: W, H: H, N: N, land: land, mag: mag, shore: shore, wcomp: wcomp, wsize: wsize, landTiles: landTiles,
       cover: cover, feat: feat, snow: snow, hgt: hgt, hw: W >> 1, hh: H >> 1,
       S: G.within(Math.sqrt(N / 2e6), 0.4, 1),
       id: def.id, name: def.name, nations: def.nations || [], credit: def.credit || ''
-    };
+    }, G.rowLats(H, { proj: 'pat', lat: def.lat || [-57.5, 79.5] }));
   };
 })(globalThis.G = globalThis.G || {});

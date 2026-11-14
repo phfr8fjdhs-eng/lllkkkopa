@@ -11,7 +11,7 @@ async function loadMap(id) {
   const raw = await sharp(Buffer.from(m.png, 'base64')).raw().toBuffer({ resolveWithObject: true });
   const ch = raw.info.channels, cls = new Uint8Array(m.w * m.h);
   for (let i = 0; i < cls.length; i++) cls[i] = Math.round(raw.data[i * ch] / 85);
-  return G.buildMap(m.w, m.h, cls, 12345, { id: m.id, name: m.name, nations: m.nations });
+  return G.buildMap(m.w, m.h, cls, 12345, { id: m.id, name: m.name, nations: m.nations, lat: m.lat, lon: m.lon });
 }
 
 function check(g) {

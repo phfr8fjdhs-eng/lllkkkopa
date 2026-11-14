@@ -50,3 +50,8 @@ Ziel: die Karte so ruhig wie in OpenFront. Alles in `06_view.js`, die Palette in
 - **Verbündete:** deren Grenze wird zu 45 % mit Grün gemischt (`View.borderColors`), neu berechnet, sobald eine Allianz entsteht oder zerbricht (`checkAllies`, einmal pro Bild).
 - **Bevölkerungsbalken:** unter den Zahlen, Truppen durch Höchststand, zweiter Abschnitt für die Truppen in Angriffen und auf Booten, Beschriftung «X + Y / Max».
 - **Schienen:** aus der Nähe gedämpfter, damit sie nicht über der Landschaft liegen.
+
+## Antarktis und Klima (14.11.2026)
+- **Antarktis auf beiden Weltkarten:** «Erde» reicht bis 80° Süd (5600 x 2902, vorher bis 57.5°), aus echten Küsten- und Höhendaten; die kleine Weltkarte ebenfalls bis 80° Süd (1126 x 800). Einzelheiten und Neubau: `doku/erde.md`. `tools/build_maps.py <geo> build welt` baut nur die genannten kleinen Karten neu; jede trägt jetzt `lat`/`lon` ihres Ausschnitts.
+- **Klima auf allen Karten:** Höhe in Metern, Temperatur aus Breite und Höhe, Kälte bremst Angriff und Marsch (bis doppelt so langsam bei −45 °C, zusätzlich zur Bedeckung). Formeln und Beispiele in `doku/erde.md`, Abschnitt «Klima».
+- **Hilfetext:** «alle Gebäude bis Stufe 100» (stand noch auf Stufe 5).

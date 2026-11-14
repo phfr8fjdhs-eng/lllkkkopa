@@ -32,11 +32,13 @@
   // What the ground under a tile is called: its cover on the Earth, with height and river.
   function groundName(tile) {
     const m = game.map, lvl = m.mag[tile] < 10 ? 0 : m.mag[tile] < 20 ? 1 : 2;
-    if (!m.cover) return TERRAIN[lvl];
+    // height rounded to 50 m and the mean temperature: both decide how fast the tile falls
+    const clim = ' · ' + (Math.round(m.elevOf(tile) / 50) * 50).toLocaleString('de-CH') + ' m · ' + m.tempOf(tile) + ' °C';
+    if (!m.cover) return TERRAIN[lvl] + clim;
     let n = G.COVER_NAME[m.cover[tile]];
     if (lvl) n += ', ' + TERRAIN[lvl];
     if (m.feat[tile] & 2) n += ', grosser Fluss'; else if (m.feat[tile] & 1) n += ', Fluss';
-    return n;
+    return n + clim;
   }
   const snd = function (name, gap) { G.Audio.play(name, gap); };
   const plain = function (t) { return G.UNAME[t].replace('\u00AD', ''); };
@@ -140,7 +142,7 @@
         x.drawImage(img, 0, 0);
         const d = x.getImageData(0, 0, def.w, def.h).data, cls = new Uint8Array(def.w * def.h);
         for (let i = 0; i < cls.length; i++) cls[i] = Math.round(d[i * 4] / 85);
-        maps[id] = G.buildMap(def.w, def.h, cls, 12345, { id: def.id, name: def.name, nations: def.nations });
+        maps[id] = G.buildMap(def.w, def.h, cls, 12345, { id: def.id, name: def.name, nations: def.nations, lat: def.lat, lon: def.lon });
         resolve(maps[id]);
       };
       img.onerror = function () { reject(new Error('Karte konnte nicht geladen werden')); };
@@ -439,7 +441,7 @@
       '<li><b>Schiffe:</b> Handelsschiffe fahren Gold von Hafen zu Hafen, beide Häfen verdienen daran. Ein <b>Kriegsschiff</b> nimmt fremde Schiffe ein, mit deren Besitzer du keine Allianz hast: Handelsschiffe samt Gold, Boote samt der Hälfte der Truppen, und besiegte Kriegsschiffe wechseln die Seite. Ein beschädigtes Kriegsschiff erholt sich langsam, solange ein eigener Hafen in der Nähe ist; unter 75 % fährt es von selbst zum nächsten eigenen Hafen und wird dort schnell repariert (je höher die Hafenstufe, desto schneller).</li>' +
       '<li><b>Züge:</b> Pro Bahnhof gibt es 10K Gold, bei Handelspartnern 25K für beide, bei Verbündeten 35K für beide. Ab dem zehnten Bahnhof einer Fahrt sinkt der Betrag um 5K pro Halt, aber nie unter 5K.</li>' +
       '<li><b>Spielmodus Arsenal:</b> Zusätzlich gibt es den <b>Satellitenstrahl</b> (600K Gold). Er braucht kein Silo, trifft drei Sekunden nach dem Abfeuern, kann nicht abgefangen werden und hinterlässt keine Verstrahlung. Danach lädt der Satellit 45 Sekunden nach.</li>' +
-      '<li><b>Ausbauen:</b> Tippe auf eines deiner Gebäude, dann öffnet sich gleich die Ausbaukarte mit drei Knöpfen: eine Stufe, fünf Stufen oder so viele, wie dein Gold reicht. Städte gehen bis Stufe 100, alle anderen Gebäude bis Stufe 5. Jede Stufe kostet so viel wie ein weiteres Gebäude derselben Art (Stadt: 125K, 250K, 500K, danach je 1M) und bringt bei Städten +25K Truppen-Limit. </li>' +
+      '<li><b>Ausbauen:</b> Tippe auf eines deiner Gebäude, dann öffnet sich gleich die Ausbaukarte mit drei Knöpfen: eine Stufe, fünf Stufen oder so viele, wie dein Gold reicht. Alle Gebäude gehen bis Stufe 100. Jede Stufe kostet so viel wie ein weiteres Gebäude derselben Art (Stadt: 125K, 250K, 500K, danach je 1M) und bringt bei Städten +25K Truppen-Limit. </li>' +
       '<li><b>Eroberung:</b> Wer ein Reich ganz einnimmt, bekommt dessen Gold (bei Mitspielern die Hälfte) und dazu eine Prämie nach Landgrösse: 60 Gold für jedes Feld, das das Reich zu seiner grössten Zeit hatte. Bots bringen zusätzlich 25K. Die Summe steht in der Spieler-Info.</li>' +
       '<li><b>Maus:</b> Ein einfacher Klick schaut sich nur um (Karte ziehen). Ein Doppelklick greift an, der Rechtsklick öffnet das Kreismenü. Fährst du über ein fremdes Reich, steht oben, was es hat.</li>' +
       '<li><b>Tippen (Handy):</b> Ein Tipp auf freies Land oder auf einen Bot greift sofort an. Bei Nationen und Mitspielern öffnet sich das Menü, dort musst du auf Angreifen tippen. Läuft dein Angriff auf sie schon, schickt jeder weitere Tipp auf ihr Land sofort mehr Truppen. Lange drücken öffnet das Menü überall.</li>' +

@@ -10,7 +10,7 @@ const sharp = require('/opt/npm-tools/node_modules/sharp');
   const raw = await sharp(Buffer.from(m.png, 'base64')).raw().toBuffer({ resolveWithObject: true });
   const cls = new Uint8Array(m.w * m.h);
   for (let i = 0; i < cls.length; i++) cls[i] = Math.round(raw.data[i * raw.info.channels] / 85);
-  const map = G.buildMap(m.w, m.h, cls, 12345, { id: m.id, name: m.name, nations: m.nations });
+  const map = G.buildMap(m.w, m.h, cls, 12345, { id: m.id, name: m.name, nations: m.nations, lat: m.lat, lon: m.lon });
   for (const rich of [false, true]) {
     const g = new G.Game(map, { seed: rich ? 11 : 5, bots: 120, difficulty: 1, spawnTicks: 30, infiniteGold: rich, instantBuild: rich, infiniteTroops: rich });
     g.setup({ name: 'Tester', color: [220, 60, 50] });

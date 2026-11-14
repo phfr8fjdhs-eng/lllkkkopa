@@ -58,11 +58,15 @@
       const d = Math.min(m, 14) / 14;
       return pack(Math.round(88 - 19 * d), Math.round(130 - 19 * d), Math.round(166 - 17 * d));
     }
-    if (map.shore[i]) return calm(214, 205, 160);
-    if (m < 10) return calm(172 + 1.6 * m, 212 - 2.2 * m, 128 + 0.5 * m);
-    if (m < 20) return calm(196 + 2.2 * (m - 10), 184 + 1.6 * (m - 10), 140 + 2.2 * (m - 10));
-    const v = 222 + 3 * (m - 20);
-    return calm(v - 6, v - 3, v);
+    let r, g, b;
+    if (map.shore[i]) { r = 214; g = 205; b = 160; }
+    else if (m < 10) { r = 172 + 1.6 * m; g = 212 - 2.2 * m; b = 128 + 0.5 * m; }
+    else if (m < 20) { r = 196 + 2.2 * (m - 10); g = 184 + 1.6 * (m - 10); b = 140 + 2.2 * (m - 10); }
+    else { const v = 222 + 3 * (m - 20); r = v - 6; g = v - 3; b = v; }
+    // the colder, the whiter: first snow at about -2 C, solid ice below -15 C
+    const s = within((-map.temp10(i) / 10 - 2) / 13, 0, 1) * 0.9;
+    if (s > 0) { r += (236 - r) * s; g += (242 - g) * s; b += (248 - b) * s; return pack(r | 0, g | 0, b | 0); }
+    return calm(r, g, b);
   }
   // Land colours are taken down a notch before they reach the map: a quarter of the way to grey,
   // and a quarter of the way to a middle brightness. The ground is the stage, not the play.

@@ -12,7 +12,7 @@ const ok = (c, msg) => { if (!c) { console.log('FAIL', msg); process.exitCode = 
   const raw = await sharp(Buffer.from(m.png, 'base64')).raw().toBuffer({ resolveWithObject: true });
   const cls = new Uint8Array(m.w * m.h);
   for (let i = 0; i < cls.length; i++) cls[i] = Math.round(raw.data[i * raw.info.channels] / 85);
-  const map = G.buildMap(m.w, m.h, cls, 12345, { id: m.id, name: m.name, nations: m.nations });
+  const map = G.buildMap(m.w, m.h, cls, 12345, { id: m.id, name: m.name, nations: m.nations, lat: m.lat, lon: m.lon });
   const sum = (g, h) => { let s = 0; for (const c of h.post.cells.values()) s += g.postReal(h, c); return s; };
   const tilesOf = (h) => { let n = 0; for (const c of h.post.cells.values()) n += c.n; return n; };
   const run = (script) => {

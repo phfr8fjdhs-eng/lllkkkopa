@@ -18,7 +18,7 @@ const sharp = require('/opt/npm-tools/node_modules/sharp');
       const raw = await sharp(Buffer.from(m.png, 'base64')).raw().toBuffer({ resolveWithObject: true });
       const cls = new Uint8Array(m.w * m.h);
       for (let i = 0; i < cls.length; i++) cls[i] = Math.round(raw.data[i * raw.info.channels] / 85);
-      map = G.buildMap(m.w, m.h, cls, 12345, { id: m.id, name: m.name, nations: m.nations });
+      map = G.buildMap(m.w, m.h, cls, 12345, { id: m.id, name: m.name, nations: m.nations, lat: m.lat, lon: m.lon });
     }
     const hist = [0, 0, 0]; for (let i = 0; i < map.N; i++) if (map.land[i]) hist[map.mag[i] < 10 ? 0 : map.mag[i] < 20 ? 1 : 2]++;
     const bots = Math.min(400, Math.round(map.landTiles / 1500));
