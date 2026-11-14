@@ -702,7 +702,17 @@
     renderHotbar();
     if (h.alive) {
       $('sTroops').textContent = fmtT(h.troops);
-      $('sTroopsSub').textContent = 'von ' + (game.opts.infiniteTroops ? '∞' : fmtT(game.maxTroops(h))) + ' · +' + fmtT(Math.max(0, game.troopGrowth(h)) * 10) + '/s';
+      $('sTroopsSub').textContent = '+' + fmtT(Math.max(0, game.troopGrowth(h)) * 10) + '/s';
+      // the bar: what stands at home, what is out in attacks, against the most you can hold
+      const max = game.opts.infiniteTroops ? h.troops : Math.max(1, game.maxTroops(h));
+      let out = 0;
+      for (const a of h.out) if (a.active) out += a.troops + (a.want || 0);
+      for (const u of h.units) if (u.type === UT.TRANSPORT) out += u.troops;
+      const home = Math.min(1, h.troops / max), away = Math.min(1 - home, out / max);
+      $('popHome').style.transform = 'scaleX(' + home.toFixed(4) + ')';
+      $('popOut').style.transform = 'translateX(' + (home * 100).toFixed(2) + '%) scaleX(' + away.toFixed(4) + ')';
+      $('popBar').classList.toggle('full', home > 0.985);
+      $('popTxt').textContent = fmtT(h.troops) + (out >= 1 ? ' + ' + fmtT(out) : '') + ' / ' + (game.opts.infiniteTroops ? '∞' : fmtT(max));
       $('sGold').textContent = game.opts.infiniteGold ? '∞' : fmt(h.gold);
       $('sGoldSub').textContent = '+' + fmt(game.goldRate(h) * 10) + '/s';
       $('ratioTroops').textContent = fmtT(h.troops * ratio);

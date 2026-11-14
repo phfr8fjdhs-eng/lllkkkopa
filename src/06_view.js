@@ -176,10 +176,12 @@
       const p = game.players[i];
       // the border: the land's colour a shade darker; the player's own border is near white, so
       // the own realm is found at a glance (its defended stretches alternate with a dark shade)
-      const me = p === game.human;
-      p.c32b = me ? pack(240, 240, 240) : pack(Math.round(p.r * 0.72), Math.round(p.g * 0.72), Math.round(p.b * 0.72));
-      p.c32l = me ? pack(Math.round(p.r * 0.5), Math.round(p.g * 0.5), Math.round(p.b * 0.5)) : pack(Math.round(p.r * 0.5 + 127), Math.round(p.g * 0.5 + 127), Math.round(p.b * 0.5 + 127));
-      p.cssL = 'rgb(' + Math.round(p.r * 0.45 + 140) + ',' + Math.round(p.g * 0.45 + 140) + ',' + Math.round(p.b * 0.45 + 140) + ')';
+      this.borderColors(p);
+      // On a map in the owner's colour a sign must not be of the same colour again: the body of
+      // every building and every ship is a deep shade of it, the rim a light one. That holds the
+      // shape against the land under it, whoever owns that land.
+      p.cssD = 'rgb(' + Math.round(p.r * 0.46) + ',' + Math.round(p.g * 0.46) + ',' + Math.round(p.b * 0.46) + ')';
+      p.cssL = 'rgb(' + Math.round(p.r * 0.3 + 172) + ',' + Math.round(p.g * 0.3 + 172) + ',' + Math.round(p.b * 0.3 + 172) + ')';
       p.css = 'rgb(' + p.r + ',' + p.g + ',' + p.b + ')';
       p.cssB = 'rgb(' + Math.round(p.r * 0.58) + ',' + Math.round(p.g * 0.58) + ',' + Math.round(p.b * 0.58) + ')';
     }
@@ -229,6 +231,44 @@
       }
     } else {
       this.px[t] = pack(((b & 255) * 84 + p.r * 172) >> 8, (((b >>> 8) & 255) * 84 + p.g * 172) >> 8, (((b >>> 16) & 255) * 84 + p.b * 172) >> 8);
+    }
+  };
+  // The two colours a border is drawn in: c32b for the plain stretch, c32l for the stretches a
+  // defence post covers. Your own realm is rimmed near white, an ally's in green, so a glance at
+  // the map says who is with you. Worked out again whenever an alliance is made or broken.
+  View.prototype.borderColors = function (p) {
+    const h = this.game && this.game.human;
+    if (p === h) {
+      p.c32b = pack(240, 240, 240);
+      p.c32l = pack(Math.round(p.r * 0.5), Math.round(p.g * 0.5), Math.round(p.b * 0.5));
+      return;
+    }
+    const ally = !!h && h.allies.has(p.id);
+    const mix = function (f, gr, gg, gb) {
+      return pack(Math.round(p.r * f * (1 - gr[0]) + gr[0] * gr[1]), Math.round(p.g * f * (1 - gg[0]) + gg[0] * gg[1]), Math.round(p.b * f * (1 - gb[0]) + gb[0] * gb[1]));
+    };
+    if (ally) {
+      // nearly half way to a deep green, so the land's own colour still shows through
+      p.c32b = pack(Math.round(p.r * 0.72 * 0.55 + 0.45 * 46), Math.round(p.g * 0.72 * 0.55 + 0.45 * 186), Math.round(p.b * 0.72 * 0.55 + 0.45 * 96));
+      p.c32l = pack(Math.round(p.r * 0.5 * 0.55 + 0.45 * 150), Math.round(p.g * 0.5 * 0.55 + 0.45 * 240), Math.round(p.b * 0.5 * 0.55 + 0.45 * 176));
+      return;
+    }
+    p.c32b = pack(Math.round(p.r * 0.72), Math.round(p.g * 0.72), Math.round(p.b * 0.72));
+    p.c32l = pack(Math.round(p.r * 0.5 + 127), Math.round(p.g * 0.5 + 127), Math.round(p.b * 0.5 + 127));
+  };
+  // An alliance made or broken repaints the border of whoever it concerns.
+  View.prototype.checkAllies = function () {
+    const g = this.game, h = g && g.human;
+    if (!h) return;
+    const seen = this.allySeen || (this.allySeen = new Set());
+    let change = false;
+    for (const id of h.allies.keys()) if (!seen.has(id)) { seen.add(id); change = true; }
+    for (const id of Array.from(seen)) if (!h.allies.has(id)) { seen.delete(id); change = true; }
+    if (!change) return;
+    for (let i = 1; i < g.players.length; i++) {
+      const p = g.players[i];
+      this.borderColors(p);
+      if (p !== h && p.alive) for (const t of p.border) g.markDirty(t);
     }
   };
   View.prototype.flush = function () {
@@ -366,6 +406,7 @@
 
   // ---------- drawing ----------
   View.prototype.draw = function (alpha, now) {
+    if (this.game) this.checkAllies();
     const ctx = this.ctx, c = this.cam, dpr = this.dpr, cw = this.cw, ch = this.ch;
     if (this.fly) {
       const f = this.fly, k = Math.min(1, (now - f.t0) / 480), e = k * (2 - k);
@@ -552,7 +593,7 @@
     const gh = this.ghost, W = g.W, R = g.R, h = g.human;
     if (gh.tile < 0 || !h) return;
     const x = (gh.tile % W + 0.5) * z + ox, y = (((gh.tile / W) | 0) + 0.5) * z + oy;
-    const s = within(6 + z * 3, 15, 25) * 1.4, t = gh.type, bad = !gh.ok;
+    const s = within(8 + z * 3.2, 18, 30) * 1.3, t = gh.type, bad = !gh.ok;
     const rout = t === UT.HYDRO ? R.hydroOut : t === UT.ATOM ? R.atomOut : t === UT.CRUISE ? R.cruiseOut : t === UT.LASER ? R.laserOut : 0;
     const rin = t === UT.HYDRO ? R.hydroIn : t === UT.ATOM ? R.atomIn : t === UT.CRUISE ? R.cruiseIn : t === UT.LASER ? R.laserIn : 0;
     if (t >= UT.ATOM && t !== UT.LASER) {
@@ -599,8 +640,8 @@
     // a dark rim first, so the marker stands out on any colour of land
     ctx.beginPath(); ctx.arc(x, y, s / 2 + 3, 0, 6.2832);
     ctx.fillStyle = 'rgba(13,20,27,.85)'; ctx.fill();
-    ctx.beginPath(); ctx.arc(x, y, s / 2, 0, 6.2832);
-    ctx.fillStyle = bad ? '#e02a20' : h.cssB; ctx.fill();
+    shape(ctx, t <= UT.FACTORY ? t : UT.CITY, x, y, s / 2);
+    ctx.fillStyle = bad ? '#e02a20' : h.cssD; ctx.fill();
     ctx.lineWidth = 2; ctx.strokeStyle = bad ? '#ffd0cb' : '#fff'; ctx.stroke();
     ctx.fillStyle = '#fff';
     glyph(ctx, gh.icon, x, y, s * 0.62);
@@ -698,15 +739,15 @@
     }
     // Close up: gravel bed, wooden sleepers, two steel rails.
     trace(0);
-    ctx.lineWidth = z * 1.1; ctx.strokeStyle = 'rgba(30,25,20,.55)'; ctx.stroke();
-    ctx.lineWidth = z * 0.86; ctx.strokeStyle = '#8f8676'; ctx.stroke();
+    ctx.lineWidth = z * 1.1; ctx.strokeStyle = 'rgba(30,25,20,.4)'; ctx.stroke();
+    ctx.lineWidth = z * 0.86; ctx.strokeStyle = 'rgba(126,118,104,.8)'; ctx.stroke();
     ctx.lineCap = 'butt';
     ctx.setLineDash([z * 0.16, z * 0.3]);
-    ctx.lineWidth = z * 0.74; ctx.strokeStyle = '#4b3826'; ctx.stroke();
+    ctx.lineWidth = z * 0.74; ctx.strokeStyle = 'rgba(75,56,38,.75)'; ctx.stroke();
     ctx.setLineDash([]);
     ctx.lineCap = 'round';
     ctx.lineWidth = Math.max(1, z * 0.1);
-    trace(z * 0.2); ctx.strokeStyle = '#f0f3f6'; ctx.stroke();
+    trace(z * 0.2); ctx.strokeStyle = 'rgba(226,230,236,.7)'; ctx.stroke();
     trace(-z * 0.2); ctx.stroke();
   };
 
@@ -743,8 +784,8 @@
   //   far:    small outlines, and what lies close together is drawn once, with a number
   View.prototype.drawStructures = function (ctx, g, z, ox, oy) {
     const cw = this.cw, ch = this.ch, T = g.ticks, h = g.human;
-    const full = z >= 2.2, far = z < 1.1;
-    const s = full ? within(6 + z * 3, 15, 25) : far ? 7.5 : 10.5;
+    const full = z >= 1.6, far = z < 1.1;
+    const s = full ? within(8 + z * 3.2, 18, 30) : far ? 9 : 14;
     ctx.lineJoin = 'round';
     if (far) {
       // bucket by owner and by a coarse screen grid; the most important kind stands for the lot
@@ -763,8 +804,8 @@
       for (const e of bk.values()) {
         const x = e.x / e.n, y = e.y / e.n, mine = e.owner === h;
         shape(ctx, e.type, x, y, s / 2);
-        ctx.fillStyle = e.owner.cssB; ctx.fill();
-        ctx.lineWidth = mine ? 1.4 : 1; ctx.strokeStyle = mine ? '#fff' : e.owner.cssL; ctx.stroke();
+        ctx.fillStyle = e.owner.cssD; ctx.fill();
+        ctx.lineWidth = mine ? 2 : 1.3; ctx.strokeStyle = mine ? '#fff' : 'rgba(255,255,255,.82)'; ctx.stroke();
         if (e.n > 1) {
           ctx.font = '700 9px ' + FONT; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
           ctx.lineWidth = 2.5; ctx.strokeStyle = 'rgba(12,18,26,.8)'; ctx.strokeText(String(e.n), x + s / 2 + 1.5, y + 0.5);
@@ -777,15 +818,13 @@
       const x = (u.x + 0.5) * z + ox, y = (u.y + 0.5) * z + oy;
       if (x < -s || y < -s || x > cw + s || y > ch + s) continue;
       const mine = u.owner === h;
-      ctx.globalAlpha = u.built ? 1 : 0.6;
       shape(ctx, u.type, x, y, s / 2);
-      ctx.fillStyle = u.owner.cssB; ctx.fill();
-      ctx.lineWidth = full ? (mine ? 2 : 1.4) : (mine ? 1.5 : 1); ctx.strokeStyle = mine ? '#fff' : u.owner.cssL; ctx.stroke();
+      ctx.fillStyle = u.built ? u.owner.cssD : 'rgba(18,24,32,.72)'; ctx.fill();
+      ctx.lineWidth = full ? (mine ? 2.6 : 1.9) : (mine ? 2 : 1.4); ctx.strokeStyle = mine ? '#fff' : 'rgba(255,255,255,.85)'; ctx.stroke();
       if (full) {
-        ctx.fillStyle = '#fff';
+        ctx.fillStyle = u.built ? '#fff' : 'rgba(255,255,255,.6)';
         glyph(ctx, STRUCT_ICON[u.type], x, y + (u.type === UT.SILO ? s * 0.08 : 0), s * (u.type === UT.SILO ? 0.5 : 0.58));
       }
-      ctx.globalAlpha = 1;
       if (!u.built) {
         const k = within((T - u.buildStart) / Math.max(1, u.buildEnd - u.buildStart), 0, 1);
         ctx.beginPath(); ctx.arc(x, y, s / 2 + 3, -1.5708, -1.5708 + 6.2832 * k);
@@ -1069,20 +1108,22 @@
           ctx.setLineDash([3, 3]); ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(244,183,64,.9)'; ctx.stroke(); ctx.setLineDash([]);
         }
       } else if (ty === UT.TRANSPORT) {
-        hull(ctx, x, y, ang, bs * 0.62, 'boat');
+        hull(ctx, x, y, ang, bs * 0.72, 'boat');
         ctx.fillStyle = p.css; ctx.fill();
-        ctx.lineWidth = 1.5; ctx.strokeStyle = '#fff'; ctx.stroke();
+        ctx.lineWidth = 1.6; ctx.strokeStyle = p.cssD; ctx.stroke();
       } else if (ty === UT.TRAIN) {
         this.drawTrain(ctx, g, u, z, ox, oy, alpha);
       } else if (ty === UT.TRADE) {
-        const s = bs * 0.56;
+        // Whose ship it is has to be readable from the hull, not from a hairline: the body is the
+        // owner's colour with a deep rim of the same, and the cargo is a light spot amidships.
+        const s = bs * 0.72;
         hull(ctx, x, y, ang, s, 'trade');
-        ctx.fillStyle = u.captured ? '#f4b740' : '#f6efdc'; ctx.fill();
-        ctx.lineWidth = 1.6; ctx.strokeStyle = p.cssB; ctx.stroke();
-        // the gold on board
-        ctx.fillStyle = u.captured ? '#7a5200' : '#e0a21c';
-        const cx = Math.cos(ang) * s, cy = Math.sin(ang) * s, r = Math.max(0.9, s * 0.22);
-        ctx.beginPath(); ctx.arc(x - cx * 0.45, y - cy * 0.45, r, 0, 6.2832); ctx.arc(x + cx * 0.1, y + cy * 0.1, r, 0, 6.2832); ctx.fill();
+        ctx.fillStyle = p.css; ctx.fill();
+        ctx.lineWidth = Math.max(1.4, s * 0.22); ctx.strokeStyle = p.cssD; ctx.stroke();
+        ctx.fillStyle = u.captured ? '#f4b740' : '#fdfaf0';
+        const r = Math.max(1.1, s * 0.3);
+        ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832); ctx.fill();
+        ctx.lineWidth = Math.max(0.8, s * 0.12); ctx.strokeStyle = p.cssD; ctx.stroke();
         if (z >= 4.5) {
           ctx.font = '700 ' + within(z * 1.6, 9, 13).toFixed(0) + 'px ' + FONT;
           ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';

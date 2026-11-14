@@ -112,6 +112,12 @@ button { font: inherit; color: inherit; cursor: pointer; }
 @keyframes goldUp { 0% { opacity: 0; transform: translateY(6px) scale(.7); } 15% { opacity: 1; transform: translateY(-14px) scale(1.15); } 70% { opacity: 1; transform: translateY(-30px) scale(1); } 100% { opacity: 0; transform: translateY(-44px); } }
 .stat b { display: block; font: 700 21px/1 var(--display); font-variant-numeric: tabular-nums; }
 #sGoldSub { color: var(--ink); }
+#popBar { position: relative; height: 20px; margin-top: 7px; border: 1px solid var(--line); border-radius: 7px; background: rgba(0, 0, 0, 0.3); overflow: hidden; }
+#popBar i { position: absolute; top: 0; bottom: 0; left: 0; transform-origin: left center; transition: transform .2s ease-out; }
+#popHome { width: 100%; background: linear-gradient(180deg, #7fc4f5, #4f9ddb); }
+#popOut { width: 100%; background: linear-gradient(180deg, #f6c267, #e49a2c); }
+#popBar.full #popHome { background: linear-gradient(180deg, #8fe0ac, #4bbd77); }
+#popBar span { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font: 700 13px var(--display); font-variant-numeric: tabular-nums; color: #fff; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85); }
 .stat small { display: block; margin-top: 2px; color: var(--muted); font-size: 11.5px; white-space: nowrap; }
 .ratio { display: grid; grid-template-columns: auto 1fr 46px; align-items: center; gap: 10px; margin-top: 4px; font-size: 13px; color: var(--muted); }
 .ratio b { color: var(--ink); font: 700 16px var(--display); }
@@ -429,6 +435,7 @@ body.placing #cv { cursor: crosshair; }
           <div class="stat"><span id="icTroops"></span><div><b id="sTroops">0</b><small id="sTroopsSub">Truppen</small></div></div>
           <div class="stat gold" id="statGold"><span id="icGold"></span><div><b id="sGold">0</b><small id="sGoldSub">Gold</small></div><span id="goldPop" aria-hidden="true"></span></div>
         </div>
+        <div id="popBar" title="Truppen von deinem Höchststand"><i id="popHome"></i><i id="popOut"></i><span id="popTxt"></span></div>
         <label class="ratio" for="ratio"><span>Angriff <b id="ratioPct">20%</b></span><input id="ratio" type="range" min="1" max="100" value="20"><span id="ratioTroops">0</span></label>
         <div id="commit" aria-live="off"></div>
       </div>
