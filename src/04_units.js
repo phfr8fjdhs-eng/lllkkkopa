@@ -465,7 +465,7 @@
       if (p === h) this.say('Gekapertes Handelsschiff bringt ' + fmt(u.gold) + ' Gold', 'good');
     } else if (q !== p) {
       q.gold += u.gold;
-      if (h && (p === h || q === h)) h.tradeGold += u.gold;
+      if (h && (p === h || q === h)) { h.tradeGold += u.gold; h.shipTotal = (h.shipTotal || 0) + u.gold; }
     }
     this.removeUnit(u);
   };

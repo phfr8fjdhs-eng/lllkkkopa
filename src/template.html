@@ -112,6 +112,10 @@ button { font: inherit; color: inherit; cursor: pointer; }
 @keyframes goldUp { 0% { opacity: 0; transform: translateY(6px) scale(.7); } 15% { opacity: 1; transform: translateY(-14px) scale(1.15); } 70% { opacity: 1; transform: translateY(-30px) scale(1); } 100% { opacity: 0; transform: translateY(-44px); } }
 .stat b { display: block; font: 700 21px/1 var(--display); font-variant-numeric: tabular-nums; }
 #sGoldSub { color: var(--ink); }
+#incLine { display: flex; gap: 14px; margin-top: 5px; font: 600 12.5px var(--display); color: var(--ink); font-variant-numeric: tabular-nums; }
+#incLine[hidden] { display: none; }
+#incLine span { display: inline-flex; align-items: center; gap: 5px; }
+#incLine svg { color: var(--muted); }
 #popBar { position: relative; height: 20px; margin-top: 7px; border: 1px solid var(--line); border-radius: 7px; background: rgba(0, 0, 0, 0.3); overflow: hidden; }
 #popBar i { position: absolute; top: 0; bottom: 0; left: 0; transform-origin: left center; transition: transform .2s ease-out; }
 #popHome { width: 100%; background: linear-gradient(180deg, #7fc4f5, #4f9ddb); }
@@ -436,6 +440,7 @@ body.placing #cv { cursor: crosshair; }
           <div class="stat gold" id="statGold"><span id="icGold"></span><div><b id="sGold">0</b><small id="sGoldSub">Gold</small></div><span id="goldPop" aria-hidden="true"></span></div>
         </div>
         <div id="popBar" title="Truppen von deinem Höchststand"><i id="popHome"></i><i id="popOut"></i><span id="popTxt"></span></div>
+        <div id="incLine" hidden></div>
         <label class="ratio" for="ratio"><span>Angriff <b id="ratioPct">20%</b></span><input id="ratio" type="range" min="1" max="100" value="20"><span id="ratioTroops">0</span></label>
         <div id="commit" aria-live="off"></div>
       </div>

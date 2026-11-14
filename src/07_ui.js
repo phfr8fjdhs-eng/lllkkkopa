@@ -56,6 +56,8 @@
   let MAPS = [], maps = {}, game = null, view = null;
   let paused = false, speed = 1, acc = 0, last = 0, ratio = 0.2;
   // Aufstellung: the editing mode of the net (see 03b_posture.js)
+  let trainSeen = 0, incAt = -99;
+  const incLog = [];          // [tick, gold from trains so far, gold from ships so far], one entry every five seconds
   let netOn = false, netLess = false, stroke = null, netTimer = 0, lastTile = -1, commitAt = -99;
   const netQueue = new Map();
   let sel = null, radialAt = 0, modalKind = '', infoId = 0, lbOpen = false, lbAt = -99, liveAt = -99, tradeAt = 0;
@@ -484,7 +486,7 @@
     $('modal').hidden = true; modalKind = '';
     $('hud').hidden = false; $('spawnBar').hidden = false; $('ctrl').hidden = true; $('lb').hidden = true; $('aimBar').hidden = true;
     netOn = false; stroke = null; netQueue.clear(); lastTile = -1; commitAt = -99; view.net.on = false; view.net.edit.clear(); view.net.w = 0; view.net.at = -1e9;
-    $('peek').hidden = true;
+    $('peek').hidden = true; trainSeen = 0; incAt = -99; incLog.length = 0; $('incLine').hidden = true; $('incLine').dataset.html = '';
     $('bNet').hidden = true; $('bNet').setAttribute('aria-pressed', 'false'); $('netBar').hidden = true; $('commit').textContent = '';
     $('feedMsgs').innerHTML = ''; $('feedLive').innerHTML = ''; chips.clear(); asks.clear();
     $('lbRows').innerHTML = ''; $('clock').textContent = '0:00';
@@ -719,12 +721,16 @@
       $('sGoldSub').textContent = '+' + fmt(game.goldRate(h) * 10) + '/s';
       $('ratioTroops').textContent = fmtT(h.troops * ratio);
       if (T - commitAt >= 3) { commitAt = T; showCommit(); showPeek(); if (game.res) renderLand(); }
+      if (T - incAt >= 50) { incAt = T; showIncome(); }
     }
     if (T - lbAt >= 10) { lbAt = T; leaderboard(); }
     if (T - liveAt >= 3) { liveAt = T; live(); }
     if (T - tradeAt >= 150) {
       tradeAt = T;
-      if (h.tradeGold > 0) { addMsg('Handel bringt ' + fmt(h.tradeGold) + ' Gold', 'good'); h.tradeGold = 0; }
+      // sea trade and railways are reported apart, so one can see what a port and what a factory earns
+      if (h.tradeGold > 0) { addMsg('Seehandel bringt ' + fmt(h.tradeGold) + ' Gold', 'good'); h.tradeGold = 0; }
+      const tg = (h.trainTotal || 0) - trainSeen;
+      if (tg > 0) { addMsg('Züge bringen ' + fmt(tg) + ' Gold', 'good'); trainSeen = h.trainTotal || 0; }
     }
     if (modalKind === 'info' && T % 5 === 0) renderInfo();
     if (aim && T % 3 === 0) refreshAim();
@@ -1060,6 +1066,15 @@
   // A tap on free land or on a bot attacks at once. Against nations and other players the menu
   // opens and the attack has to be chosen there. A long press opens the menu everywhere.
   // A build key shows what it would place under the mouse pointer; the next click places it.
+  // What a factory at this spot would be worth: the stations it would tie in, and roughly what
+  // its trains earn a minute (a train every 23 seconds, 10K at each of up to four stops).
+  function railHint(tile) {
+    const h = game.human, W = game.W, x = tile % W, y = (tile / W) | 0, rr = game.R.rail * game.R.rail;
+    let n = 0;
+    for (const u of h.units) if (u.built && G.isStation(u.type) && (u.x - x) * (u.x - x) + (u.y - y) * (u.y - y) <= rr) n++;
+    if (!n) return ' · keine Station in Reichweite';
+    return ' · ' + n + (n === 1 ? ' Station' : ' Stationen') + ', ca. +' + fmt(Math.round(2.6 * Math.min(4, n) * 10000)) + '/min';
+  }
   function setGhost(t) {
     ghost = t === null ? null : { t: t };
     ghostKey = '';
@@ -1088,7 +1103,7 @@
     // for a bomb: the silo it would start from (or, while all are reloading, any silo), so the flight path can be shown
     const silo = ghost.t >= UT.ATOM && ghost.t !== UT.LASER ? c.silo || game.readySilo(h, tile).silo || h.units.find(function (u) { return u.type === UT.SILO && u.built; }) || null : null;
     view.ghost = { type: ghost.t, icon: icon, tile: tile, ok: c.ok, silo: silo,
-      text: c.ok || c.why === 'Zu wenig Gold' ? plain(ghost.t) + ' · ' + G.fmt(game.cost(h, ghost.t)) : c.why || 'Hier nicht möglich' };   // too little gold: the price stays, in red
+      text: c.ok || c.why === 'Zu wenig Gold' ? plain(ghost.t) + ' · ' + G.fmt(game.cost(h, ghost.t)) + (ghost.t === UT.FACTORY ? railHint(tile) : '') : c.why || 'Hier nicht möglich' };   // too little gold: the price stays, in red
   }
   // The player's own finished building of the kind being placed, if the pointer is on it.
   function ghostUpgrade(tile) {
@@ -1227,6 +1242,22 @@
     s += '<p class="notes"><b>Abbauen und ernten:</b> Ein Vorkommen bringt erst Gold, wenn du darauf eine Anlage gebaut hast: Mine, Bohrturm, Staudamm, Holzfällerei, Farm, Plantage, Viehhof oder Fischerei. Klicke dazu auf das Land. <b>Herstellen:</b> Jede Fabrik stellt die Ware des Landes her, in dem sie steht; pro Land zählen ' + G.RES.FACTORY_CAP + ' Stufen.</p>' +
       '<button class="btn" data-act="resume" type="button">Weiterspielen</button>';
     openModal(s, 'help');
+  }
+  // One line under the bar: what railways and sea trade have brought in the last minute, and how
+  // many stations the own network ties together. Hidden as long as there is neither.
+  function showIncome() {
+    const h = game.human, T = game.ticks, el = $('incLine');
+    if (!el) return;
+    incLog.push([T, h.trainTotal || 0, h.shipTotal || 0]);
+    while (incLog.length > 1 && T - incLog[1][0] >= 600) incLog.shift();
+    const a = incLog[0], span = Math.max(50, T - a[0]), k = 600 / span;
+    const tr = ((h.trainTotal || 0) - a[1]) * k, sh = ((h.shipTotal || 0) - a[2]) * k;
+    let st = 0;
+    if (game.railAdj) for (const u of h.units) if (u.built && G.isStation(u.type) && game.railAdj.has(u.id)) st++;
+    let s = '';
+    if (st || tr > 0) s += '<span>' + svg('factory', 13) + (st ? st + ' Stationen · ' : '') + '+' + fmt(Math.round(tr)) + '/min</span>';
+    if (sh > 0) s += '<span>' + svg('port', 13) + '+' + fmt(Math.round(sh)) + '/min</span>';
+    if (el.dataset.html !== s) { el.innerHTML = s; el.dataset.html = s; el.hidden = !s; }
   }
   function strikeAt(tile, extra) {
     const c = { k: 'strike', t: tile, r: ratio };

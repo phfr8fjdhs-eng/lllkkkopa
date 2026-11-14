@@ -28,7 +28,7 @@ Echtzeit-Eroberungsspiel im Browser, Nachbau von OpenFront, als eine einzige HTM
 | `03c_res.js` | 270 | nur Version «Rohstoffe»: `G.RAW`, `G.WARE`, `G.RES_ICON`, Ländertabelle, Vorkommen (`attachCountries`, `map.deposits`), Anlagen auf Vorkommen (`G.DIG`, `G.DIG_OF`, `digCheck`, `dig`, `digGold`, `digAuto`, Zustand `game.dg`), `resTick`, `wareOf`; im klassischen Build nicht enthalten |
 | `03b_posture.js` | 330 | Aufstellung (Truppen-Netz): `postEffect`, `HAND` |
 | `04_units.js` | 980 | Gebäude und Ausbau (`G.MAX_LEVEL`, `G.BUILD_TICKS`), Bomben, Flugabwehr (`G.CRUISE_RANGE`), Kriegsschiffe (`tickWarship`, `patrolPoint`, `shipboom`, `G.WARSHIP_CAPTURE`) |
-| `04b_rail.js` | 250 | Fabrik, Schienen, Züge: `straighten` |
+| `04b_rail.js` | 250 | Fabrik, Schienen, Züge: `railPath` (nur waagrecht und senkrecht), `rebuildRails` |
 | `05_ai.js` | 370 | Bots und Nationen: `AI.nukeTarget` |
 | `06a_audio.js` | 190 | Ton und Musik aus dem Browser: `G.Audio` |
 | `06_view.js` | 1570 | Zeichnen: `View.pose`, `drawReach`, `drawRaids`, `drawFronts`, `drawNet`, `railGeo`, `worldColors`, `placeName`, `G.ICON` |

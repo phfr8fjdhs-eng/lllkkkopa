@@ -184,7 +184,11 @@
       // On a map in the owner's colour a sign must not be of the same colour again: the body of
       // every building and every ship is a deep shade of it, the rim a light one. That holds the
       // shape against the land under it, whoever owns that land.
-      p.cssD = 'rgb(' + Math.round(p.r * 0.46) + ',' + Math.round(p.g * 0.46) + ',' + Math.round(p.b * 0.46) + ')';
+      {
+        const mx = Math.max(p.r, p.g, p.b), mn = Math.min(p.r, p.g, p.b), grey = mx - mn < 26;
+        const d = grey ? [70, 76, 84] : G.hsl(G.hueOf([p.r, p.g, p.b]), 0.5, 0.31);
+        p.cssD = 'rgb(' + d[0] + ',' + d[1] + ',' + d[2] + ')';
+      }
       p.cssL = 'rgb(' + Math.round(p.r * 0.3 + 172) + ',' + Math.round(p.g * 0.3 + 172) + ',' + Math.round(p.b * 0.3 + 172) + ')';
       p.css = 'rgb(' + p.r + ',' + p.g + ',' + p.b + ')';
       p.cssB = 'rgb(' + Math.round(p.r * 0.58) + ',' + Math.round(p.g * 0.58) + ',' + Math.round(p.b * 0.58) + ')';
@@ -597,7 +601,7 @@
     const gh = this.ghost, W = g.W, R = g.R, h = g.human;
     if (gh.tile < 0 || !h) return;
     const x = (gh.tile % W + 0.5) * z + ox, y = (((gh.tile / W) | 0) + 0.5) * z + oy;
-    const s = within(8 + z * 3.2, 18, 30) * 1.3, t = gh.type, bad = !gh.ok;
+    const s = within(9 + z * 3.4, 20, 32) * 1.25, t = gh.type, bad = !gh.ok;
     const rout = t === UT.HYDRO ? R.hydroOut : t === UT.ATOM ? R.atomOut : t === UT.CRUISE ? R.cruiseOut : t === UT.LASER ? R.laserOut : 0;
     const rin = t === UT.HYDRO ? R.hydroIn : t === UT.ATOM ? R.atomIn : t === UT.CRUISE ? R.cruiseIn : t === UT.LASER ? R.laserIn : 0;
     if (t >= UT.ATOM && t !== UT.LASER) {
@@ -673,7 +677,7 @@
     for (let i = 1; i < n - 1; i++) {
       const ax = px[i] - px[i - 1], ay = py[i] - py[i - 1], bx = px[i + 1] - px[i], by = py[i + 1] - py[i];
       const la = Math.hypot(ax, ay) || 1, lb = Math.hypot(bx, by) || 1;
-      const r = Math.min(7, la * 0.45, lb * 0.45);                    // how far before the corner the curve begins
+      const r = Math.min(2.2, la * 0.45, lb * 0.45);                  // corners are right angles, eased only a touch
       const x0 = px[i] - ax / la * r, y0 = py[i] - ay / la * r, x1 = px[i] + bx / lb * r, y1 = py[i] + by / lb * r;
       const p0 = idx[i] - r * (idx[i] - idx[i - 1]) / la, p1 = idx[i] + r * (idx[i + 1] - idx[i]) / lb;
       for (let k = 0; k <= 8; k++) {
@@ -697,89 +701,73 @@
     return out;
   }
 
+  // Railways are part of the close view only. From afar the map shows land, borders and names;
+  // tracks fade in as one zooms into a region (OpenFront does the same). The player's own network
+  // and that of allies is drawn clearly, with a light core; everybody else's stays a thin grey line.
+  const RAIL_MIN = 1.7, RAIL_FULL = 2.6, RAIL_DETAIL = 5;
   View.prototype.drawRails = function (ctx, g, z, ox, oy) {
     const rails = g.rails;
-    if (!rails.length) return;
+    if (!rails.length || z < RAIL_MIN) return;
+    const fade = within((z - RAIL_MIN) / (RAIL_FULL - RAIL_MIN), 0, 1), h = g.human;
     const W = g.W, x0 = -ox / z - 2, y0 = -oy / z - 2, x1 = (this.cw - ox) / z + 2, y1 = (this.ch - oy) / z + 2;
-    const vis = [];
-    for (const e of rails) if (!(e.x1 < x0 || e.x0 > x1 || e.y1 < y0 || e.y0 > y1)) vis.push(railGeo(e, W));
-    if (!vis.length) return;
-    // `off`: the same line pushed sideways, for the two rails
-    const trace = function (off) {
+    const mine = [], other = [];
+    for (const e of rails) {
+      if (e.x1 < x0 || e.x0 > x1 || e.y1 < y0 || e.y0 > y1) continue;
+      const oa = e.a.owner, ob = e.b.owner;
+      ((h && (oa === h || ob === h || h.allies.has(oa.id) || h.allies.has(ob.id))) ? mine : other).push(railGeo(e, W));
+    }
+    const trace = function (list) {
       ctx.beginPath();
-      for (const geo of vis) {
+      for (const geo of list) {
         const xs = geo.xs, ys = geo.ys, n = xs.length;
         for (let i = 0; i < n; i++) {
-          let x = (xs[i] + 0.5) * z + ox, y = (ys[i] + 0.5) * z + oy;
-          if (off) {
-            const a = i > 0 ? i - 1 : 0, b = i < n - 1 ? i + 1 : n - 1;
-            const dx = xs[b] - xs[a], dy = ys[b] - ys[a], d = Math.hypot(dx, dy) || 1;
-            x += -dy / d * off; y += dx / d * off;
-          }
+          const x = (xs[i] + 0.5) * z + ox, y = (ys[i] + 0.5) * z + oy;
           if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y);
         }
       }
     };
-    ctx.lineJoin = 'round'; ctx.lineCap = 'round';
-    if (z < 1.1) {
-      // From very far: one thin dark line, so the networks of a whole continent do not shout.
-      trace(0);
-      ctx.lineWidth = 1.1; ctx.strokeStyle = 'rgba(40,34,28,' + within(z * 0.5, 0.22, 0.5).toFixed(2) + ')'; ctx.stroke();
-      return;
+    ctx.lineJoin = 'round'; ctx.lineCap = 'butt';
+    const wd = within(z * 0.5, 1.4, 4.5);
+    if (other.length) {
+      trace(other);
+      ctx.lineWidth = wd * 0.8; ctx.strokeStyle = 'rgba(58,52,46,' + (0.42 * fade).toFixed(3) + ')'; ctx.stroke();
+      if (z >= RAIL_DETAIL) {
+        ctx.setLineDash([z * 0.18, z * 0.34]);
+        ctx.lineWidth = wd * 1.7; ctx.strokeStyle = 'rgba(58,52,46,.34)'; ctx.stroke();
+        ctx.setLineDash([]);
+      }
     }
-    if (z < 2.4) {
-      // From afar: a dark bed, sleepers showing as short cross strokes on both sides of it, and
-      // one pale line for the glint of the rails.
-      const base = within(z * 0.95, 1.8, 2.6);
-      trace(0);
-      ctx.lineCap = 'butt';
-      ctx.setLineDash([Math.max(1.1, z * 0.34), Math.max(1.7, z * 0.56)]);
-      ctx.lineWidth = base * 1.9; ctx.strokeStyle = 'rgba(110,98,84,.45)'; ctx.stroke();
-      ctx.setLineDash([]);
-      ctx.lineCap = 'round';
-      ctx.lineWidth = base * 0.8; ctx.strokeStyle = 'rgba(46,40,34,.62)'; ctx.stroke();
-      ctx.lineWidth = Math.max(0.6, base * 0.3); ctx.strokeStyle = 'rgba(234,230,220,.6)'; ctx.stroke();
-      return;
+    if (mine.length) {
+      trace(mine);
+      if (z >= RAIL_DETAIL) {
+        // close up: sleepers as short cross strokes under the line
+        ctx.setLineDash([z * 0.18, z * 0.34]);
+        ctx.lineWidth = wd * 2; ctx.strokeStyle = 'rgba(40,34,28,.6)'; ctx.stroke();
+        ctx.setLineDash([]);
+      }
+      ctx.lineWidth = wd * 1.25; ctx.strokeStyle = 'rgba(30,26,22,' + (0.85 * fade).toFixed(3) + ')'; ctx.stroke();
+      ctx.lineWidth = Math.max(0.8, wd * 0.42); ctx.strokeStyle = 'rgba(244,240,230,' + (0.92 * fade).toFixed(3) + ')'; ctx.stroke();
     }
-    // Close up: gravel bed, wooden sleepers, two steel rails.
-    trace(0);
-    ctx.lineWidth = z * 1.1; ctx.strokeStyle = 'rgba(30,25,20,.4)'; ctx.stroke();
-    ctx.lineWidth = z * 0.86; ctx.strokeStyle = 'rgba(126,118,104,.8)'; ctx.stroke();
-    ctx.lineCap = 'butt';
-    ctx.setLineDash([z * 0.16, z * 0.3]);
-    ctx.lineWidth = z * 0.74; ctx.strokeStyle = 'rgba(75,56,38,.75)'; ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.lineCap = 'round';
-    ctx.lineWidth = Math.max(1, z * 0.1);
-    trace(z * 0.2); ctx.strokeStyle = 'rgba(226,230,236,.7)'; ctx.stroke();
-    trace(-z * 0.2); ctx.stroke();
   };
 
-  // Every kind of building has its own outline, so it can be told apart without reading the sign
-  // inside: city a hexagon, port a pentagon, factory a square, defence post a shield, air defence
-  // a circle, missile silo a triangle. r is half the size.
-  function shape(ctx, type, x, y, r) {
-    ctx.beginPath();
-    if (type === UT.SAM) { ctx.arc(x, y, r * 0.94, 0, 6.2832); return; }
-    if (type === UT.FACTORY) {
-      const q = r * 0.86, c = r * 0.22;
-      if (ctx.roundRect) ctx.roundRect(x - q, y - q, 2 * q, 2 * q, c); else ctx.rect(x - q, y - q, 2 * q, 2 * q);
-      return;
-    }
-    if (type === UT.DEFENSE) {
-      ctx.moveTo(x - r * 0.86, y - r * 0.82); ctx.lineTo(x + r * 0.86, y - r * 0.82); ctx.lineTo(x + r * 0.86, y + r * 0.1);
-      ctx.quadraticCurveTo(x + r * 0.8, y + r * 0.78, x, y + r * 1.08); ctx.quadraticCurveTo(x - r * 0.8, y + r * 0.78, x - r * 0.86, y + r * 0.1);
-      ctx.closePath(); return;
-    }
-    if (type === UT.SILO) {
-      ctx.moveTo(x, y - r * 1.12); ctx.lineTo(x + r * 1.05, y + r * 0.8); ctx.lineTo(x - r * 1.05, y + r * 0.8); ctx.closePath(); return;
-    }
-    const n = type === UT.PORT ? 5 : 6, a0 = type === UT.PORT ? -1.5708 : 0, rr = r * (n === 5 ? 1.06 : 1.02);
+  // Every kind of building has its own outline, the same ones as in OpenFront, so it can be told
+  // apart without reading the sign inside: city a circle, port a pentagon, factory a hexagon,
+  // defence post an octagon, air defence a square, missile silo a triangle. r is half the size.
+  function poly(ctx, x, y, r, n, rot) {
     for (let i = 0; i < n; i++) {
-      const a = a0 + i * 6.2832 / n, px = x + Math.cos(a) * rr, py = y + Math.sin(a) * rr;
+      const a = rot + i * 6.2832 / n, px = x + Math.cos(a) * r, py = y + Math.sin(a) * r;
       if (i) ctx.lineTo(px, py); else ctx.moveTo(px, py);
     }
     ctx.closePath();
+  }
+  function shape(ctx, type, x, y, r) {
+    ctx.beginPath();
+    if (type === UT.CITY) ctx.arc(x, y, r * 0.96, 0, 6.2832);
+    else if (type === UT.PORT) poly(ctx, x, y + r * 0.06, r * 1.1, 5, -1.5708);
+    else if (type === UT.FACTORY) poly(ctx, x, y, r * 1.08, 6, 0);
+    else if (type === UT.DEFENSE) poly(ctx, x, y, r * 1.04, 8, 0.3927);
+    else if (type === UT.SAM) { const q = r * 0.88; ctx.rect(x - q, y - q, 2 * q, 2 * q); }
+    else poly(ctx, x, y + r * 0.2, r * 1.3, 3, -1.5708);
   }
   G.structShape = shape;
   // Buildings, in three steps of nearness, so the map of the world is not buried under signs:
@@ -788,8 +776,8 @@
   //   far:    small outlines, and what lies close together is drawn once, with a number
   View.prototype.drawStructures = function (ctx, g, z, ox, oy) {
     const cw = this.cw, ch = this.ch, T = g.ticks, h = g.human;
-    const full = z >= 1.6, far = z < 1.1;
-    const s = full ? within(8 + z * 3.2, 18, 30) : far ? 9 : 14;
+    const full = z >= 1.5, far = z < 1.1;
+    const s = full ? within(9 + z * 3.4, 20, 32) : far ? 10 : 15;
     ctx.lineJoin = 'round';
     if (far) {
       // bucket by owner and by a coarse screen grid; the most important kind stands for the lot
@@ -827,7 +815,7 @@
       ctx.lineWidth = full ? (mine ? 2.6 : 1.9) : (mine ? 2 : 1.4); ctx.strokeStyle = mine ? '#fff' : 'rgba(255,255,255,.85)'; ctx.stroke();
       if (full) {
         ctx.fillStyle = u.built ? '#fff' : 'rgba(255,255,255,.6)';
-        glyph(ctx, STRUCT_ICON[u.type], x, y + (u.type === UT.SILO ? s * 0.08 : 0), s * (u.type === UT.SILO ? 0.5 : 0.58));
+        glyph(ctx, STRUCT_ICON[u.type], x, y + (u.type === UT.SILO ? s * 0.12 : 0), s * (u.type === UT.SILO ? 0.5 : 0.6));
       }
       if (!u.built) {
         const k = within((T - u.buildStart) / Math.max(1, u.buildEnd - u.buildStart), 0, 1);
@@ -1077,6 +1065,7 @@
       if (x < -30 || y < -30 || x > cw + 30 || y > ch + 30) continue;
       const p = u.owner;
       const ang = sea ? u.va : 0;
+      if (z < 1.7 && p !== g.human && ty === UT.TRADE) continue;       // foreign merchants only once one has zoomed into a region
       if (z < 1.1 && p !== g.human && ty !== UT.SHELL) {
         // seen from afar, other people's traffic is not worth a picture: trains and merchants
         // are left out, warships and troop boats are a dot in their owner's colour
@@ -1116,11 +1105,11 @@
         ctx.fillStyle = p.css; ctx.fill();
         ctx.lineWidth = 1.6; ctx.strokeStyle = p.cssD; ctx.stroke();
       } else if (ty === UT.TRAIN) {
-        this.drawTrain(ctx, g, u, z, ox, oy, alpha);
+        if (z >= RAIL_FULL || (z >= RAIL_MIN && p === g.human)) this.drawTrain(ctx, g, u, z, ox, oy, alpha);
       } else if (ty === UT.TRADE) {
         // Whose ship it is has to be readable from the hull, not from a hairline: the body is the
         // owner's colour with a deep rim of the same, and the cargo is a light spot amidships.
-        const s = bs * 0.72;
+        const s = bs * (p === g.human ? 0.72 : 0.58);
         hull(ctx, x, y, ang, s, 'trade');
         ctx.fillStyle = p.css; ctx.fill();
         ctx.lineWidth = Math.max(1.4, s * 0.22); ctx.strokeStyle = p.cssD; ctx.stroke();
@@ -1128,7 +1117,7 @@
         const r = Math.max(1.1, s * 0.3);
         ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832); ctx.fill();
         ctx.lineWidth = Math.max(0.8, s * 0.12); ctx.strokeStyle = p.cssD; ctx.stroke();
-        if (z >= 4.5) {
+        if (z >= 4.5 && p === g.human) {
           ctx.font = '700 ' + within(z * 1.6, 9, 13).toFixed(0) + 'px ' + FONT;
           ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
           ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(13,20,27,.8)'; ctx.strokeText(G.fmt(u.gold), x, y - s * 0.8);
@@ -1149,7 +1138,7 @@
     const head = within(u.pi + dir * ((u.mv || 0) + (u.st === g.ticks ? alpha * g.pace : 0)), 0, n - 1);
     // Big enough to make out even on a map zoomed right out, where a train used to be three
     // specks melting into the track.
-    const L = Math.max(9.5, z * 1.45), B = Math.max(4.5, z * 0.86);
+    const L = Math.max(7, z * 1.3), B = Math.max(3.4, z * 0.72);
     // Keep the carriages a carriage-length apart on the screen, not a fixed number of tiles,
     // so they stay separate instead of piling up when zoomed out.
     const gap = Math.max(1.55, L * 1.3 / z);
@@ -1159,12 +1148,10 @@
       ctx.save();
       ctx.translate(x, y); ctx.rotate(RP.a);
       // dark skirt, so the carriage lifts off the track and the land underneath
-      ctx.fillStyle = 'rgba(16,14,12,.5)';
-      ctx.fillRect(-L / 2 - 1.2, -B / 2 - 1.2, L + 2.4, B + 2.4);
-      ctx.fillStyle = k ? p.cssB : p.css;
+      // engine in the deep shade, carriages in the owner's colour, one dark rim: no white boxes
+      ctx.fillStyle = k ? p.css : p.cssD;
       ctx.fillRect(-L / 2, -B / 2, L, B);
-      ctx.lineWidth = 1.2; ctx.strokeStyle = k ? 'rgba(255,255,255,.8)' : '#fff'; ctx.strokeRect(-L / 2, -B / 2, L, B);
-      if (!k) { ctx.fillStyle = '#fff'; ctx.fillRect(dir * L * 0.14 - L * 0.16, -B * 0.28, L * 0.32, B * 0.56); }
+      ctx.lineWidth = 1; ctx.strokeStyle = p.cssD; ctx.strokeRect(-L / 2, -B / 2, L, B);
       ctx.restore();
     }
   };

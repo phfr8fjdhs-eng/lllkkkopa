@@ -11,70 +11,57 @@
 
   G.isStation = function (t) { return t === UT.CITY || t === UT.PORT || t === UT.FACTORY; };
 
-  // Shortest land route between two tiles, searched inside a box around them. Returns tiles from a to b.
+  // A track between two stations, the way OpenFront lays it: only along the two axes of the map,
+  // never at a slant, and every bend costs as much as three tiles of straight track. So a line
+  // runs in long straight stretches with a few right-angled corners, like a drawn plan. Tiles on
+  // the shore cost extra, which keeps tracks off the beaches. Searched (Dijkstra over tile and
+  // heading) inside a box around the two ends; returns the tiles from a to b, the corners in
+  // `.pts` for drawing, or null if there is no way over land or it would be too long.
+  const TURN = 3, SHORE = 2, DX = [1, -1, 0, 0], DY = [0, 0, 1, -1];
   Game.prototype.railPath = function (a, b) {
-    const W = this.W, H = this.H, land = this.map.land, pad = 14;
+    const W = this.W, H = this.H, land = this.map.land, shore = this.map.shore, pad = 24;
     const ax = a % W, ay = (a / W) | 0, bx = b % W, by = (b / W) | 0;
     const x0 = Math.max(0, Math.min(ax, bx) - pad), x1 = Math.min(W - 1, Math.max(ax, bx) + pad);
     const y0 = Math.max(0, Math.min(ay, by) - pad), y1 = Math.min(H - 1, Math.max(ay, by) + pad);
     const w = x1 - x0 + 1, h = y1 - y0 + 1, n = w * h;
-    const prev = new Int32Array(n).fill(-2), q = new Int32Array(n);
+    const dist = new Float32Array(n * 4).fill(1e9), prev = new Int32Array(n * 4).fill(-1), done = new Uint8Array(n * 4);
+    const heap = this.railHeap || (this.railHeap = new G.Heap(4096));
+    heap.clear();
     const start = (by - y0) * w + (bx - x0), goal = (ay - y0) * w + (ax - x0);
-    let qh = 0, qt = 0;
-    q[qt++] = start; prev[start] = -1;
-    while (qh < qt && prev[goal] === -2) {
-      const c = q[qh++], cx = c % w, cy = (c / w) | 0;
-      for (let k = 0; k < 8; k++) {
-        const dx = k === 0 ? 1 : k === 1 ? -1 : k < 4 ? 0 : (k & 1 ? 1 : -1);
-        const dy = k === 2 ? 1 : k === 3 ? -1 : k < 4 ? 0 : (k < 6 ? 1 : -1);
-        const nx = cx + dx, ny = cy + dy;
+    for (let d = 0; d < 4; d++) { dist[start * 4 + d] = 0; heap.push(0, start * 4 + d); }
+    let found = -1;
+    while (heap.n > 0) {
+      const s = heap.pop();
+      if (done[s]) continue;
+      done[s] = 1;
+      const c = s >> 2, d = s & 3;
+      if (c === goal) { found = s; break; }
+      const cx = c % w, cy = (c - cx) / w, ds = dist[s];
+      for (let k = 0; k < 4; k++) {
+        if ((k ^ 1) === d && c !== start) continue;                  // no turning back on itself
+        const nx = cx + DX[k], ny = cy + DY[k];
         if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
-        const m = ny * w + nx;
-        if (prev[m] !== -2 || !land[(ny + y0) * W + nx + x0]) continue;
-        if (dx && dy && !land[(cy + y0) * W + nx + x0] && !land[(ny + y0) * W + cx + x0]) continue;
-        prev[m] = c; q[qt++] = m;
+        const t = (ny + y0) * W + nx + x0;
+        if (!land[t]) continue;
+        const ns = (ny * w + nx) * 4 + k;
+        if (done[ns]) continue;
+        const nd = ds + 1 + (k !== d ? TURN : 0) + (shore[t] ? SHORE : 0);
+        if (nd < dist[ns]) { dist[ns] = nd; prev[ns] = s; heap.push(nd, ns); }
       }
     }
-    if (prev[goal] === -2) return null;
-    const raw = [];
-    for (let c = goal; c !== -1; c = prev[c]) raw.push(((c / w | 0) + y0) * W + (c % w) + x0);
-    return this.straighten(raw);
-  };
-
-  // Can a track run in a straight line between two tiles without touching water?
-  Game.prototype.landLine = function (a, b) {
-    const W = this.W, land = this.map.land;
-    const ax = a % W, ay = (a / W) | 0, bx = b % W, by = (b / W) | 0;
-    const n = Math.max(Math.abs(bx - ax), Math.abs(by - ay)) * 2;
-    for (let i = 1; i < n; i++) {
-      const x = ax + (bx - ax) * i / n, y = ay + (by - ay) * i / n;
-      if (!land[Math.round(y) * W + Math.round(x)]) return false;
-      if (!land[Math.floor(y) * W + Math.floor(x)] || !land[Math.ceil(y) * W + Math.ceil(x)]) return false;
+    if (found < 0) return null;
+    const out = [], pts = [];
+    let last = -1;
+    for (let s = found; s !== -1; s = prev[s]) {
+      const c = s >> 2, t = ((c / w | 0) + y0) * W + (c % w) + x0;
+      if (out.length && t === out[out.length - 1]) continue;
+      out.push(t);
     }
-    return true;
-  };
-  // Replace the stair-stepped search result by a few long straight stretches.
-  // Returns the tiles to travel along; the corner tiles are kept in `.pts` for drawing.
-  Game.prototype.straighten = function (raw) {
-    const W = this.W, pts = [raw[0]];
-    let i = 0;
-    // From each corner go as far along the searched route as a straight track over land allows.
-    // Looking from the far end backwards finds the longest stretch, so a track has as few bends
-    // as the coastline permits (halving the distance, as before, left needless kinks).
-    while (i < raw.length - 1) {
-      let j = raw.length - 1;
-      while (j > i + 1 && !this.landLine(raw[i], raw[j])) j -= j - i > 24 ? 3 : 1;
-      pts.push(raw[j]); i = j;
-    }
-    const out = [pts[0]];
-    for (let k = 1; k < pts.length; k++) {
-      const a = pts[k - 1], b = pts[k];
-      const ax = a % W, ay = (a / W) | 0, bx = b % W, by = (b / W) | 0;
-      const n = Math.max(Math.abs(bx - ax), Math.abs(by - ay));
-      for (let s = 1; s <= n; s++) {
-        const t = Math.round(ay + (by - ay) * s / n) * W + Math.round(ax + (bx - ax) * s / n);
-        if (t !== out[out.length - 1]) out.push(t);
-      }
+    if (out.length > this.R.rail * 2) return null;                   // as in OpenFront a single track has a longest length
+    for (let i = 0; i < out.length; i++) {
+      const d = i < out.length - 1 ? out[i + 1] - out[i] : last;
+      if (i === 0 || i === out.length - 1 || d !== last) pts.push(out[i]);
+      last = d;
     }
     const path = Int32Array.from(out);
     path.pts = Int32Array.from(pts);
@@ -235,9 +222,9 @@
     else if (q.alive && this.canTrade(p, q)) {
       pay = Math.max(5000, (p.allies.has(q.id) ? TRAIN_ALLY : TRAIN_FOREIGN) - worn);
       p.gold += pay; q.gold += pay;
-      if (h && (p === h || q === h)) h.tradeGold += pay;
     } else { this.removeUnit(u); return; }
-    if (h && p === h) h.trainGold = (h.trainGold || 0) + pay;
+    // what the railways bring the player is kept apart from the sea trade, so each can be shown
+    if (h && (p === h || q === h)) { h.trainGold = (h.trainGold || 0) + pay; h.trainTotal = (h.trainTotal || 0) + pay; }
     this.fx.push({ k: 'coin', x: st.x, y: st.y, t: this.ticks, mine: p === h || q === h, amt: pay });
     if (this.fx.length > 300) this.fx.splice(0, 150);
     // at the end of a branch the train turns round
