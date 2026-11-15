@@ -27,7 +27,7 @@
   color-scheme: dark;
 }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-html, body { height: 100%; margin: 0; }
+html, body { height: 100%; margin: 0; touch-action: pan-x pan-y; }
 body {
   background: var(--sea); color: var(--ink); font: 500 15px/1.35 var(--body);
   overflow: hidden; user-select: none; -webkit-user-select: none; overscroll-behavior: none;
@@ -4862,6 +4862,14 @@ body.placing #cv { cursor: crosshair; }
     c.x = wx - (sx - this.cw / 2) / c.z; c.y = wy - (sy - this.ch / 2) / c.z;
     this.clampCam();
   };
+  // Put the map point (wx, wy) under the screen point (sx, sy) at zoom z. A pinch holds the point
+  // that was between the fingers when it began, so the map cannot drift away from the fingers.
+  View.prototype.zoomTo = function (wx, wy, sx, sy, z) {
+    const c = this.cam;
+    c.z = z; this.clampCam();
+    c.x = wx - (sx - this.cw / 2) / c.z; c.y = wy - (sy - this.ch / 2) / c.z;
+    this.clampCam();
+  };
   View.prototype.pan = function (dx, dy) {
     this.cam.x -= dx / this.cam.z; this.cam.y -= dy / this.cam.z;
     this.clampCam();
@@ -8014,6 +8022,13 @@ body.placing #cv { cursor: crosshair; }
       const a = Array.from(ptr.values());
       return { x: (a[0].x + a[1].x) / 2, y: (a[0].y + a[1].y) / 2, d: Math.max(1, Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y)) };
     };
+    // A pinch remembers the map point between the two fingers and the zoom it began with. Every
+    // move puts that same point back between the fingers, instead of adding up small steps.
+    let pinch = null;
+    const startPinch = function () {
+      const r = cv.getBoundingClientRect(), t = two(), c = view.cam;
+      pinch = { d: t.d, z: c.z, wx: (t.x - r.left - view.cw / 2) / c.z + c.x, wy: (t.y - r.top - view.ch / 2) / c.z + c.y };
+    };
     document.addEventListener('pointerdown', function () { G.Audio.resume(); }, true);
     document.addEventListener('keydown', function () { G.Audio.resume(); }, true);
     document.addEventListener('click', function (e) {
@@ -8024,7 +8039,11 @@ body.placing #cv { cursor: crosshair; }
       if (e.pointerType === 'mouse' && e.button !== 0) return;
       closeRadial();
       try { cv.setPointerCapture(e.pointerId); } catch (err) { /* not capturable */ }
+      // the first finger of a new touch: a finger whose lift was never reported must not linger,
+      // or the next single finger would count as a pinch against a point that is not there
+      if (e.isPrimary && e.pointerType !== 'mouse') ptr.clear();
       ptr.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (ptr.size === 2) startPinch(); else pinch = null;
       if (ptr.size === 1) { moved = false; downAt = performance.now(); downX = e.clientX; downY = e.clientY; downType = e.pointerType; }
       else moved = true;
       view.fly = null;
@@ -8064,16 +8083,19 @@ body.placing #cv { cursor: crosshair; }
         if (moved) view.pan(e.clientX - p.x, e.clientY - p.y);
         p.x = e.clientX; p.y = e.clientY;
       } else if (ptr.size === 2) {
-        const a = two();
         p.x = e.clientX; p.y = e.clientY;
-        const b = two();
-        view.pan(b.x - a.x, b.y - a.y);
-        view.zoomAt(b.x, b.y, b.d / a.d);
+        if (!pinch) startPinch();
+        const r = cv.getBoundingClientRect(), t = two(), z = pinch.z * t.d / pinch.d;
+        view.zoomTo(pinch.wx, pinch.wy, t.x - r.left, t.y - r.top, z);
+        // at the nearest or farthest zoom the fingers go on moving: measure from here, so that
+        // turning back zooms at once
+        if (view.cam.z !== z) { pinch.z = view.cam.z; pinch.d = t.d; }
       }
     });
     const up = function (e) {
       if (!ptr.has(e.pointerId)) return;
       ptr.delete(e.pointerId);
+      if (ptr.size === 2) startPinch(); else pinch = null;
       if (stroke) {
         if (e.type === 'pointerup' && !stroke.started) { const r = cv.getBoundingClientRect(); stroke.started = true; stamp(e.clientX - r.left, e.clientY - r.top); }   // a tap is one dab
         endStroke(e.type === 'pointerup');
@@ -8093,6 +8115,12 @@ body.placing #cv { cursor: crosshair; }
     };
     cv.addEventListener('pointerup', up);
     cv.addEventListener('pointercancel', up);
+    cv.addEventListener('lostpointercapture', up);
+    // Safari on the iPhone ignores «user-scalable=no»: with a finger on a panel it would zoom the
+    // whole page instead of the map, and then nothing sits under the fingers any more
+    ['gesturestart', 'gesturechange', 'gestureend'].forEach(function (n) {
+      document.addEventListener(n, function (e) { e.preventDefault(); }, { passive: false });
+    });
     cv.addEventListener('dblclick', function (e) {
       if (downType !== 'mouse') return;
       const r = cv.getBoundingClientRect();
