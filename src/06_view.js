@@ -6,13 +6,13 @@
 
   // Icon shapes on a 24-unit grid, shared by the map and the menus.
   const ICON = G.ICON = {
-    city: 'M4 21V4h10v17zM6 6v2.5h2.5V6zM9.5 6v2.5H12V6zM6 10.5V13h2.5v-2.5zM9.5 10.5V13H12v-2.5zM6 15v2.5h2.5V15zM9.5 15v2.5H12V15zM15 21V10h5.5v11zM16.5 12v2.5H19V12zM16.5 16v2.5H19V16z',
-    defense: 'M12 2.5l8 3v6c0 5-3.4 8.6-8 10c-4.6-1.4-8-5-8-10v-6z',
-    port: 'M12 2.5a2.5 2.5 0 1 0 0 5a2.5 2.5 0 0 0 0-5zM11 7.5h2V20h-2zM8 9.5h8v2H8zM5 13h2.2c0 3.3 2 5.8 4.8 5.8s4.8-2.5 4.8-5.8H19c0 4.5-3 8-7 8s-7-3.5-7-8z',
-    silo: 'M12 2c2.6 2.2 4 5.4 4 9v6H8v-6c0-3.6 1.4-6.8 4-9zM6 15l2-2v6H6zM18 15l-2-2v6h2zM10 18h4v4h-4z',
-    sam: 'M12 3a9 9 0 1 0 0 18a9 9 0 0 0 0-18zM12 5.2a6.8 6.8 0 1 1 0 13.6a6.8 6.8 0 0 1 0-13.6zM12 9.5a2.5 2.5 0 1 0 0 5a2.5 2.5 0 0 0 0-5zM11 1v5h2V1zM11 18v5h2v-5zM1 11v2h5v-2zM18 11v2h5v-2z',
-    factory: 'M3 21V9l5 3.5V9l5 3.5V4h3.5v8.5H21V21zM6 15.5v2.5h2.5v-2.5zM11 15.5v2.5h2.5v-2.5zM16 15.5v2.5h2.5v-2.5z',
-    warship: 'M2 14h20l-2.5 6h-15zM7 13V9h4V6h3v3h3v4z',
+    city: 'M3 21V11h5V4h7v6h6v11zM10 6.5v2h1.6v-2zM12.4 6.5v2H14v-2zM10 10.5v2h1.6v-2zM12.4 10.5v2H14v-2zM10 14.5v2h1.6v-2zM12.4 14.5v2H14v-2zM5 13v2h1.6v-2zM5 16.5v2h1.6v-2zM17 12.5v2h1.8v-2zM17 16v2h1.8v-2z',
+    defense: 'M12 2l8.5 3.2v6.3c0 5.2-3.6 9-8.5 10.5c-4.9-1.5-8.5-5.3-8.5-10.5V5.2zM12 4.6v14.7c3.6-1.4 6.1-4.1 6.1-7.8V6.9z',
+    port: 'M12 1.4a3.1 3.1 0 1 1 0 6.2a3.1 3.1 0 1 1 0-6.2zM12 3.1a1.4 1.4 0 1 0 0 2.8a1.4 1.4 0 1 0 0-2.8zM10.7 7.4h2.6V20h-2.6zM7 9.2h10v2.4H7zM20.8 13A8.8 8.8 0 0 1 3.2 13H6A6 6 0 0 0 18 13zM1.6 14.6L4.4 9.6L7.6 13.8zM22.4 14.6L16.4 13.8L19.6 9.6z',
+    silo: 'M12 1.5c2.3 1.9 3.6 4.6 3.6 7.8V17H8.4V9.3c0-3.2 1.3-5.9 3.6-7.8zM12 6.2a1.6 1.6 0 1 0 0 3.2a1.6 1.6 0 1 0 0-3.2zM8.4 12.5v6l-3.8 2V17zM15.6 12.5l3.8 4.5v3.5l-3.8-2zM10 18h4l-.8 2.4h-2.4zM10.8 21h2.4L12 23.5z',
+    sam: 'M2.5 18h19v3.5h-19zM5.3 14.3L14.8 4.8L18.2 3.8L17.2 7.2L7.7 16.7zM8.6 17.6L18.1 8.1L21.5 7.1L20.5 10.5L11 20zM4 14.5h5.5V18H4z',
+    factory: 'M2.5 21V10l5.2 3.4V10l5.2 3.4V3.5h3.6V12h5v9zM5.2 15.5V18h2.4v-2.5zM10.4 15.5V18h2.4v-2.5zM15.6 15.5V18H18v-2.5z',
+    warship: 'M1 14.5h22l-3.2 5H4.6zM7.5 14.5v-3h2V8h3.5V5.5h1.6V8h1.4v3.5H18v3zM2.5 12.6h4.2v1.4H2.5zM19 12.2h3v1.3h-3z',
     boat: 'M3 14h18l-3 6H6zM11 3h1.6v10H11zM13.4 4l5.6 8h-5.6z',
     atom: 'M12 2l2 3h-4zM9.5 5h5v2.5c2.6 1 4.5 3.6 4.5 6.6c0 3.9-3.1 7-7 7s-7-3.1-7-7c0-3 1.9-5.6 4.5-6.6z',
     hydro: 'M12 1l2.4 6.2l6.2-2.6l-2.6 6.2L24 12l-6 1.2l2.6 6.2l-6.2-2.6L12 23l-2.4-6.2l-6.2 2.6l2.6-6.2L0 12l6-1.2L3.4 4.6l6.2 2.6z',
@@ -770,14 +770,40 @@
     else poly(ctx, x, y + r * 0.2, r * 1.3, 3, -1.5708);
   }
   G.structShape = shape;
+
+  // One building as a sign, the way OpenFront draws it: the outline filled with a deep shade of
+  // the owner's colour, a dark rim that holds the shape on any ground, and a large white sign
+  // inside. Own buildings get a white ring outside the rim. `s` is the width on the screen.
+  function structIcon(ctx, type, x, y, s, p, mine, built, sign) {
+    const r = s / 2, rim = Math.max(1.4, s * 0.085);
+    shape(ctx, type, x, y, r);
+    if (mine) { ctx.lineWidth = rim + Math.max(2.2, s * 0.09); ctx.strokeStyle = '#fff'; ctx.stroke(); }
+    ctx.fillStyle = built ? p.cssB : '#9da3a8'; ctx.fill();
+    ctx.lineWidth = rim; ctx.strokeStyle = built ? '#0b1016' : '#4a4f55'; ctx.stroke();
+    if (!sign) return;
+    const gs = s * (type === UT.SILO ? 0.56 : type === UT.SAM ? 0.7 : type === UT.CITY ? 0.66 : 0.64);
+    const gy = y + (type === UT.SILO ? s * 0.1 : type === UT.PORT ? s * 0.03 : 0);
+    if (s >= 22) { ctx.fillStyle = 'rgba(0,0,0,.35)'; glyph(ctx, STRUCT_ICON[type], x + s * 0.03, gy + s * 0.04, gs); }
+    ctx.fillStyle = built ? '#fff' : 'rgba(255,255,255,.85)';
+    glyph(ctx, STRUCT_ICON[type], x, gy, gs);
+  }
+  // The level in large white digits with a dark edge, sitting on top of the sign.
+  function levelTag(ctx, n, x, y, s) {
+    const fs = Math.round(Math.max(11, s * 0.46)), ty = y - s * 0.5 - fs * 0.05;
+    ctx.font = '800 ' + fs + 'px ' + FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = Math.max(3, fs * 0.32); ctx.strokeStyle = '#0b1016'; ctx.strokeText(String(n), x, ty);
+    ctx.fillStyle = '#fff'; ctx.fillText(String(n), x, ty);
+  }
+  G.structIcon = structIcon;
   // Buildings, in three steps of nearness, so the map of the world is not buried under signs:
-  //   close:  the outline in the owner's colour with the white sign inside, level badge
-  //   middle: the bare outline, small
-  //   far:    small outlines, and what lies close together is drawn once, with a number
+  //   close:  large signs with the level on top, growing with the map once one is far in
+  //   middle: smaller signs, still with the white symbol inside
+  //   far:    small bare outlines, and what lies close together is drawn once, with a number
   View.prototype.drawStructures = function (ctx, g, z, ox, oy) {
     const cw = this.cw, ch = this.ch, T = g.ticks, h = g.human;
     const full = z >= 1.5, far = z < 1.1;
-    const s = full ? within(9 + z * 3.4, 20, 32) : far ? 10 : 15;
+    const s = full ? Math.min(64, Math.max(within(6 + z * 7, 24, 40), z * 3.6)) : far ? 12 : 20;
     ctx.lineJoin = 'round';
     if (far) {
       // bucket by owner and by a coarse screen grid; the most important kind stands for the lot
@@ -794,13 +820,11 @@
         if (rank < e.rank) { e.rank = rank; e.type = u.type; }
       }
       for (const e of bk.values()) {
-        const x = e.x / e.n, y = e.y / e.n, mine = e.owner === h;
-        shape(ctx, e.type, x, y, s / 2);
-        ctx.fillStyle = e.owner.cssD; ctx.fill();
-        ctx.lineWidth = mine ? 2 : 1.3; ctx.strokeStyle = mine ? '#fff' : 'rgba(255,255,255,.82)'; ctx.stroke();
+        const x = e.x / e.n, y = e.y / e.n;
+        structIcon(ctx, e.type, x, y, s, e.owner, e.owner === h, true, false);
         if (e.n > 1) {
-          ctx.font = '700 9px ' + FONT; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-          ctx.lineWidth = 2.5; ctx.strokeStyle = 'rgba(12,18,26,.8)'; ctx.strokeText(String(e.n), x + s / 2 + 1.5, y + 0.5);
+          ctx.font = '800 10px ' + FONT; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+          ctx.lineWidth = 3; ctx.strokeStyle = '#0b1016'; ctx.strokeText(String(e.n), x + s / 2 + 1.5, y + 0.5);
           ctx.fillStyle = '#fff'; ctx.fillText(String(e.n), x + s / 2 + 1.5, y + 0.5);
         }
       }
@@ -809,27 +833,12 @@
     for (const u of g.structAt.values()) {
       const x = (u.x + 0.5) * z + ox, y = (u.y + 0.5) * z + oy;
       if (x < -s || y < -s || x > cw + s || y > ch + s) continue;
-      const mine = u.owner === h;
-      shape(ctx, u.type, x, y, s / 2);
-      ctx.fillStyle = u.built ? u.owner.cssD : 'rgba(18,24,32,.72)'; ctx.fill();
-      ctx.lineWidth = full ? (mine ? 2.6 : 1.9) : (mine ? 2 : 1.4); ctx.strokeStyle = mine ? '#fff' : 'rgba(255,255,255,.85)'; ctx.stroke();
-      if (full) {
-        ctx.fillStyle = u.built ? '#fff' : 'rgba(255,255,255,.6)';
-        glyph(ctx, STRUCT_ICON[u.type], x, y + (u.type === UT.SILO ? s * 0.12 : 0), s * (u.type === UT.SILO ? 0.5 : 0.6));
-      }
+      structIcon(ctx, u.type, x, y, s, u.owner, u.owner === h, u.built, true);
       if (!u.built) {
         const k = within((T - u.buildStart) / Math.max(1, u.buildEnd - u.buildStart), 0, 1);
-        ctx.beginPath(); ctx.arc(x, y, s / 2 + 3, -1.5708, -1.5708 + 6.2832 * k);
-        ctx.strokeStyle = '#f4b740'; ctx.lineWidth = 2; ctx.stroke();
-      } else if (full && u.level > 1) {
-        const digits = u.level > 99 ? 3 : u.level > 9 ? 2 : 1;
-        const bx = x + s * 0.46, by = y + s * 0.46, br = Math.max(5, s * 0.28) * (digits > 1 ? 1.3 : 1);
-        ctx.beginPath(); ctx.arc(bx, by, br, 0, 6.2832);
-        ctx.fillStyle = '#10161d'; ctx.fill();
-        ctx.fillStyle = '#fff'; ctx.font = '700 ' + Math.round(br * (digits === 1 ? 1.5 : digits === 2 ? 1.15 : 0.85)) + 'px ' + FONT;
-        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.fillText(String(u.level), bx, by + 0.5);
-      }
+        ctx.beginPath(); ctx.arc(x, y, s / 2 + 4, -1.5708, -1.5708 + 6.2832 * k);
+        ctx.strokeStyle = '#f4b740'; ctx.lineWidth = 2.5; ctx.stroke();
+      } else if (u.level > 1) levelTag(ctx, u.level, x, y, s);
     }
   };
 
@@ -881,7 +890,7 @@
       if (hx < -60 || hy < -60 || hx > cw + 60 || hy > ch + 60 || z < 1.3 || u.st !== g.ticks) continue;
       // A ship under way pushes two short lines of foam out from the stern, like the arms of a
       // V. Nothing more: the long white streak belonged to a speedboat, not to a ship of war.
-      const s = ty === UT.WARSHIP ? within(4 + z * 2.2, 7, 17) * 0.95 : within(3 + z * 1.6, 5, 12) * 0.56;
+      const s = ty === UT.WARSHIP ? warSize(z) : tradeSize(z, u.owner === g.human);
       const ca = Math.cos(u.va), sa = Math.sin(u.va), len = s * 0.75, sp = s * 0.5;
       const bx = hx - ca * s * 0.95, by = hy - sa * s * 0.95;
       ctx.beginPath();
@@ -901,7 +910,7 @@
     } else if (kind === 'boat') {
       ctx.moveTo(-0.8, -0.46); ctx.lineTo(0.2, -0.46); ctx.lineTo(1, 0); ctx.lineTo(0.2, 0.46); ctx.lineTo(-0.8, 0.46);
     } else {
-      ctx.moveTo(-1, -0.5); ctx.lineTo(0.5, -0.5); ctx.quadraticCurveTo(1.15, -0.3, 1.2, 0); ctx.quadraticCurveTo(1.15, 0.3, 0.5, 0.5); ctx.lineTo(-1, 0.5);
+      ctx.moveTo(-1, -0.38); ctx.lineTo(0.42, -0.38); ctx.lineTo(1.08, 0); ctx.lineTo(0.42, 0.38); ctx.lineTo(-1, 0.38);
     }
     ctx.closePath();
     ctx.restore();
@@ -954,42 +963,94 @@
     u.vf = this.frame; u.vx = x; u.vy = y;
   };
 
-  // A warship, seen from above: a long grey hull with a sharp bow and a square stern, a deck in
-  // the owner's colour, a bridge amidships and two gun turrets that turn towards whatever the
-  // ship is fighting. `s` is half the length of the hull on the screen.
+  // A warship, seen from above, drawn as a destroyer and not as a yacht: a long, slender hull
+  // (five times as long as wide) with a straight, sharp bow and a square stern, the hull in the
+  // owner's colour, and on deck grey steel: a gun turret forward, a block of missile cells, a
+  // stepped superstructure with mast and funnel, a second turret and a helicopter deck aft. The
+  // turrets turn towards whatever the ship is fighting. `s` is half the length on the screen.
   function warship(ctx, x, y, ang, s, p, aim) {
     ctx.save();
     ctx.translate(x, y); ctx.rotate(ang);
-    const hullPath = function (k) {
+    const W = 0.22;
+    ctx.beginPath();
+    ctx.moveTo(-s, -W * 0.82 * s); ctx.lineTo(-0.62 * s, -W * s); ctx.lineTo(0.3 * s, -W * s);
+    ctx.lineTo(1.12 * s, 0);
+    ctx.lineTo(0.3 * s, W * s); ctx.lineTo(-0.62 * s, W * s); ctx.lineTo(-s, W * 0.82 * s); ctx.closePath();
+    ctx.lineJoin = 'miter'; ctx.miterLimit = 6;
+    ctx.lineWidth = Math.max(2.2, s * 0.13); ctx.strokeStyle = '#0b1016'; ctx.stroke();      // dark edge: shows on any water
+    ctx.fillStyle = p.css; ctx.fill();                                                       // hull: whose it is
+    if (s < 7) {
+      ctx.fillStyle = '#e4e8ec'; ctx.fillRect(-0.34 * s, -0.11 * s, 0.5 * s, 0.22 * s);
+      ctx.restore(); return;
+    }
+    // a grey deck inside the coloured hull
+    ctx.beginPath();
+    ctx.moveTo(-0.95 * s, -0.11 * s); ctx.lineTo(0.3 * s, -0.11 * s); ctx.lineTo(0.8 * s, 0);
+    ctx.lineTo(0.3 * s, 0.11 * s); ctx.lineTo(-0.95 * s, 0.11 * s); ctx.closePath();
+    ctx.fillStyle = '#7f8993'; ctx.fill();
+    const fine = s >= 11, thin = Math.max(0.7, s * 0.03);
+    // helicopter deck at the stern
+    if (fine) {
+      ctx.fillStyle = '#aab3bb'; ctx.fillRect(-0.95 * s, -0.11 * s, 0.24 * s, 0.22 * s);
+      ctx.beginPath(); ctx.arc(-0.83 * s, 0, 0.06 * s, 0, 6.2832);
+      ctx.lineWidth = thin; ctx.strokeStyle = '#f3f4f5'; ctx.stroke();
+    }
+    // missile cells ahead of the bridge
+    ctx.fillStyle = '#3b444d'; ctx.fillRect(0.2 * s, -0.08 * s, 0.16 * s, 0.16 * s);
+    if (fine) {
       ctx.beginPath();
-      ctx.moveTo(-1 * s * k, -0.27 * s * k); ctx.lineTo(0.42 * s * k, -0.3 * s * k);
-      ctx.quadraticCurveTo(0.8 * s * k, -0.2 * s * k, 1.08 * s * k, 0);
-      ctx.quadraticCurveTo(0.8 * s * k, 0.2 * s * k, 0.42 * s * k, 0.3 * s * k);
-      ctx.lineTo(-1 * s * k, 0.27 * s * k); ctx.closePath();
-    };
-    hullPath(1);
-    ctx.lineJoin = 'round';
-    ctx.lineWidth = Math.max(2.6, s * 0.3); ctx.strokeStyle = '#0d1319'; ctx.stroke();      // dark edge: shows on any water
-    ctx.fillStyle = '#9aa5b0'; ctx.fill();
-    ctx.lineWidth = Math.max(1, s * 0.11); ctx.strokeStyle = p.cssB; ctx.stroke();           // whose it is
-    hullPath(0.72);
-    ctx.fillStyle = p.css; ctx.fill();                                                       // deck
-    if (s >= 7) {
-      // bridge and funnel
-      ctx.fillStyle = '#39424c'; ctx.fillRect(-0.3 * s, -0.15 * s, 0.5 * s, 0.3 * s);
-      ctx.fillStyle = '#c9d1d9'; ctx.fillRect(-0.02 * s, -0.09 * s, 0.17 * s, 0.18 * s);
-      ctx.fillStyle = '#12181e'; ctx.beginPath(); ctx.arc(-0.2 * s, 0, 0.07 * s, 0, 6.2832); ctx.fill();
-    } else {
-      ctx.fillStyle = '#2a323b'; ctx.fillRect(-0.24 * s, -0.13 * s, 0.4 * s, 0.26 * s);
+      for (let k = 1; k < 3; k++) { ctx.moveTo((0.2 + k * 0.053) * s, -0.08 * s); ctx.lineTo((0.2 + k * 0.053) * s, 0.08 * s); }
+      ctx.moveTo(0.2 * s, 0); ctx.lineTo(0.36 * s, 0);
+      ctx.lineWidth = Math.max(0.5, s * 0.012); ctx.strokeStyle = '#7f8993'; ctx.stroke();
     }
-    // turrets fore and aft; at rest the after one points astern
-    const tr = Math.max(1.2, s * 0.12), bl = s * 0.3;
+    // superstructure: a long block that steps down aft, with a slanted front and the bridge windows
+    ctx.beginPath();
+    ctx.moveTo(-0.5 * s, -0.12 * s); ctx.lineTo(0.06 * s, -0.15 * s); ctx.lineTo(0.15 * s, -0.09 * s);
+    ctx.lineTo(0.15 * s, 0.09 * s); ctx.lineTo(0.06 * s, 0.15 * s); ctx.lineTo(-0.5 * s, 0.12 * s); ctx.closePath();
+    ctx.fillStyle = '#dde2e6'; ctx.fill();
+    ctx.lineWidth = thin; ctx.strokeStyle = '#4b545d'; ctx.stroke();
+    ctx.fillStyle = '#c3cad0'; ctx.fillRect(-0.5 * s, -0.09 * s, 0.22 * s, 0.18 * s);
+    ctx.fillStyle = '#1d242b'; ctx.fillRect(0.1 * s, -0.08 * s, 0.035 * s, 0.16 * s);
+    // funnel and mast
+    ctx.fillStyle = '#2b323a';
+    ctx.beginPath(); ctx.ellipse(-0.2 * s, 0, 0.07 * s, 0.05 * s, 0, 0, 6.2832); ctx.fill();
+    if (fine) {
+      ctx.beginPath(); ctx.moveTo(-0.02 * s, -0.17 * s); ctx.lineTo(-0.02 * s, 0.17 * s);
+      ctx.lineWidth = thin; ctx.strokeStyle = '#2b323a'; ctx.stroke();
+      ctx.beginPath(); ctx.arc(-0.02 * s, 0, 0.04 * s, 0, 6.2832); ctx.fillStyle = '#2b323a'; ctx.fill();
+    }
+    // two turrets with long barrels; at rest the forward one points ahead and the after one astern
+    ctx.lineCap = 'butt';
     for (let i = 0; i < 2; i++) {
-      const tx = i ? -0.66 * s : 0.56 * s, ta = aim === null ? (i ? Math.PI : 0) : aim;
+      const tx = i ? -0.6 * s : 0.54 * s, tr = (i ? 0.09 : 0.115) * s, ta = aim === null ? (i ? Math.PI : 0) : aim;
+      const bl = (i ? 0.28 : 0.38) * s;
       ctx.beginPath(); ctx.moveTo(tx, 0); ctx.lineTo(tx + Math.cos(ta) * bl, Math.sin(ta) * bl);
-      ctx.lineWidth = Math.max(1, s * 0.07); ctx.strokeStyle = '#0d1319'; ctx.lineCap = 'butt'; ctx.stroke();
-      ctx.beginPath(); ctx.arc(tx, 0, tr, 0, 6.2832); ctx.fillStyle = '#20272e'; ctx.fill();
+      ctx.lineWidth = Math.max(1, s * 0.045); ctx.strokeStyle = '#151b21'; ctx.stroke();
+      ctx.beginPath(); ctx.arc(tx, 0, Math.max(1.5, tr), 0, 6.2832);
+      ctx.fillStyle = '#c9d0d6'; ctx.fill();
+      ctx.lineWidth = Math.max(0.7, s * 0.025); ctx.strokeStyle = '#2b323a'; ctx.stroke();
     }
+    ctx.restore();
+  }
+  // How large ships are drawn: warships half-length, merchants half-length.
+  function warSize(z) { return within(5 + z * 2.6, 9, 22); }
+  function tradeSize(z, own) { return within(4 + z * 1.5, 6, 13) * (own ? 1 : 0.85); }
+
+  // A merchant: a white hull, square at the stern and pointed at the bow, the bridge aft and the
+  // cargo amidships in the owner's colour, as a row of containers once it is large enough.
+  // Gold-coloured cargo means the ship was captured on its way.
+  function merchant(ctx, x, y, ang, s, p, captured) {
+    hull(ctx, x, y, ang, s, 'trade');
+    ctx.lineJoin = 'miter'; ctx.miterLimit = 6;
+    ctx.lineWidth = Math.max(1.6, s * 0.2); ctx.strokeStyle = '#0b1016'; ctx.stroke();
+    ctx.fillStyle = '#f7f5ef'; ctx.fill();
+    ctx.save();
+    ctx.translate(x, y); ctx.rotate(ang); ctx.scale(s, s);
+    ctx.fillStyle = captured ? '#f4b740' : p.css;
+    if (s >= 8) {
+      for (let k = 0; k < 3; k++) ctx.fillRect(-0.56 + k * 0.33, -0.25, 0.28, 0.5);
+    } else ctx.fillRect(-0.56, -0.25, 0.94, 0.5);
+    ctx.fillStyle = '#2b323a'; ctx.fillRect(-0.92, -0.26, 0.22, 0.52);
     ctx.restore();
   }
 
@@ -1048,7 +1109,7 @@
 
   View.prototype.drawUnits = function (ctx, g, z, ox, oy, alpha, now) {
     const cw = this.cw, ch = this.ch, us = g.units;
-    const ws = within(4 + z * 2.2, 7, 17), bs = within(3 + z * 1.6, 5, 12);
+    const ws = warSize(z), bs = within(3 + z * 1.6, 5, 12);
     this.frame = (this.frame || 0) + 1;
     for (let i = 0; i < us.length; i++) {
       const u = us[i], ty = u.type;
@@ -1065,12 +1126,13 @@
       if (x < -30 || y < -30 || x > cw + 30 || y > ch + 30) continue;
       const p = u.owner;
       const ang = sea ? u.va : 0;
-      if (z < 1.7 && p !== g.human && ty === UT.TRADE) continue;       // foreign merchants only once one has zoomed into a region
       if (z < 1.1 && p !== g.human && ty !== UT.SHELL) {
-        // seen from afar, other people's traffic is not worth a picture: trains and merchants
-        // are left out, warships and troop boats are a dot in their owner's colour
-        if (ty === UT.WARSHIP || ty === UT.TRANSPORT) {
-          ctx.beginPath(); ctx.arc(x, y, ty === UT.WARSHIP ? 2.6 : 2, 0, 6.2832);
+        // seen from afar, other people's traffic is drawn small but whole: a warship as a slim
+        // hull, a merchant as a white one, a troop boat as a dot in its owner's colour; trains are left out
+        if (ty === UT.WARSHIP) warship(ctx, x, y, ang, 6, p, null);
+        else if (ty === UT.TRADE) merchant(ctx, x, y, ang, 4.6, p, u.captured);
+        else if (ty === UT.TRANSPORT) {
+          ctx.beginPath(); ctx.arc(x, y, 2.2, 0, 6.2832);
           ctx.fillStyle = p.cssB; ctx.fill();
           ctx.lineWidth = 0.8; ctx.strokeStyle = 'rgba(255,255,255,.75)'; ctx.stroke();
         }
@@ -1089,15 +1151,15 @@
         continue;
       }
       if (ty === UT.WARSHIP) {
-        const s = ws * 0.95, tg = u.target && u.target.active && u.target.type !== UT.TRADE ? u.target : null;
+        const s = ws, tg = u.target && u.target.active && u.target.type !== UT.TRADE ? u.target : null;
         warship(ctx, x, y, ang, s, p, tg ? Math.atan2(tg.y - u.y, tg.x - u.x) - ang : null);
         if (u.hp < 1000) {
-          ctx.fillStyle = '#10161d'; ctx.fillRect(x - ws / 2 - 1, y + ws * 0.85 - 1, ws + 2, 5);
-          ctx.fillStyle = u.hp < 400 ? '#ff6b5e' : u.hp < 750 ? '#f4b740' : '#63d391'; ctx.fillRect(x - ws / 2, y + ws * 0.85, ws * u.hp / 1000, 3);
+          ctx.fillStyle = '#10161d'; ctx.fillRect(x - ws / 2 - 1, y + ws * 1.15 - 1, ws + 2, 5);
+          ctx.fillStyle = u.hp < 400 ? '#ff6b5e' : u.hp < 750 ? '#f4b740' : '#63d391'; ctx.fillRect(x - ws / 2, y + ws * 1.15, ws * u.hp / 1000, 3);
         }
         if (u.repair) {
           // heading for the quay or lying there: a small spanner-coloured ring
-          ctx.beginPath(); ctx.arc(x, y, s * 1.45, 0, 6.2832);
+          ctx.beginPath(); ctx.arc(x, y, s * 1.25, 0, 6.2832);
           ctx.setLineDash([3, 3]); ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(244,183,64,.9)'; ctx.stroke(); ctx.setLineDash([]);
         }
       } else if (ty === UT.TRANSPORT) {
@@ -1107,16 +1169,9 @@
       } else if (ty === UT.TRAIN) {
         if (z >= RAIL_FULL || (z >= RAIL_MIN && p === g.human)) this.drawTrain(ctx, g, u, z, ox, oy, alpha);
       } else if (ty === UT.TRADE) {
-        // Whose ship it is has to be readable from the hull, not from a hairline: the body is the
-        // owner's colour with a deep rim of the same, and the cargo is a light spot amidships.
-        const s = bs * (p === g.human ? 0.72 : 0.58);
-        hull(ctx, x, y, ang, s, 'trade');
-        ctx.fillStyle = p.css; ctx.fill();
-        ctx.lineWidth = Math.max(1.4, s * 0.22); ctx.strokeStyle = p.cssD; ctx.stroke();
-        ctx.fillStyle = u.captured ? '#f4b740' : '#fdfaf0';
-        const r = Math.max(1.1, s * 0.3);
-        ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832); ctx.fill();
-        ctx.lineWidth = Math.max(0.8, s * 0.12); ctx.strokeStyle = p.cssD; ctx.stroke();
+        // White hull, cargo in the owner's colour: readable from far out on any water.
+        const s = tradeSize(z, p === g.human);
+        merchant(ctx, x, y, ang, s, p, u.captured);
         if (z >= 4.5 && p === g.human) {
           ctx.font = '700 ' + within(z * 1.6, 9, 13).toFixed(0) + 'px ' + FONT;
           ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
