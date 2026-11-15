@@ -63,3 +63,10 @@ Ziel: die Karte so ruhig wie in OpenFront. Alles in `06_view.js`, die Palette in
 - **Geld getrennt:** «Seehandel bringt …» und «Züge bringen …» sind zwei Meldungen (`h.shipTotal`, `h.trainTotal` laufen in der Simulation mit). Unter dem Balken steht eine Zeile: Stationen im eigenen Netz und was Züge und Schiffe in der letzten Minute gebracht haben.
 - **Fabrik-Vorschau:** neben dem Preis steht, wie viele Stationen in Reichweite liegen und was das ungefähr pro Minute bringt (ein Zug alle 23 s, 10K an bis zu vier Halten).
 - **Gebäude:** OpenFronts Umrisse (Stadt Kreis, Hafen Fünfeck, Fabrik Sechseck, Posten Achteck, Flugabwehr Quadrat, Silo Dreieck), Körper im satten tiefen Ton der Spielerfarbe statt in grauem Dunkel, weisser Rand, etwas grösser (nah 20–32, mittel 15, fern 10).
+
+## Zoom mit zwei Fingern (15.11.2026)
+- **Der Punkt zwischen den Fingern bleibt dort:** beim Aufsetzen des zweiten Fingers merkt sich die Bedienung den Kartenpunkt zwischen den Fingern und den Zoom; jede Bewegung legt genau diesen Punkt wieder zwischen die Finger (`View.zoomTo`, `startPinch` in `07_ui.js`). Vorher wurden viele kleine Schritte aufaddiert.
+- **Hängengebliebener Finger:** meldete das Handy das Abheben eines Fingers nicht, blieb er in der Liste, und der nächste einzelne Finger galt als Zoom gegen einen Punkt, an dem nichts war. Der erste Finger einer neuen Berührung räumt die Liste jetzt auf; `lostpointercapture` zählt als Abheben.
+- **Seite zoomt nicht mehr mit:** Safari auf dem iPhone beachtet «user-scalable=no» nicht. Lag ein Finger auf einer Leiste, zoomte die ganze Seite statt der Karte. Jetzt `touch-action: pan-x pan-y` auf der Seite und die `gesture`-Ereignisse sind abgestellt.
+- **Am Anschlag:** am nächsten und am fernsten Zoom wird neu gemessen, Umkehren zoomt sofort.
+- Test: `node test/pinch.js`.

@@ -389,6 +389,14 @@
     c.x = wx - (sx - this.cw / 2) / c.z; c.y = wy - (sy - this.ch / 2) / c.z;
     this.clampCam();
   };
+  // Put the map point (wx, wy) under the screen point (sx, sy) at zoom z. A pinch holds the point
+  // that was between the fingers when it began, so the map cannot drift away from the fingers.
+  View.prototype.zoomTo = function (wx, wy, sx, sy, z) {
+    const c = this.cam;
+    c.z = z; this.clampCam();
+    c.x = wx - (sx - this.cw / 2) / c.z; c.y = wy - (sy - this.ch / 2) / c.z;
+    this.clampCam();
+  };
   View.prototype.pan = function (dx, dy) {
     this.cam.x -= dx / this.cam.z; this.cam.y -= dy / this.cam.z;
     this.clampCam();
