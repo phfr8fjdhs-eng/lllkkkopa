@@ -4,9 +4,8 @@
 // cell holds a share of the troops. Left alone the shares are even, which is the game as it was.
 // A person can weigh cells up or down (the "net"), and the troops then march there: over time,
 // slower through forest and mountains, much faster along their railways. The net is how a realm
-// stands, not a shield: it decides how much is at hand at a spot when an order is given, it slows
-// an advance through dense ground a little, and troops that stand dense lose fewer of their number.
-// There is no hard limit anywhere; everything saturates smoothly.
+// stands: it decides how much is at hand at a spot when an order is given, and an attacker meets
+// the troops that stand where he attacks (the fight is local, see tickAttack in 03_game.js).
 //
 // Bookkeeping: a cell stores `u`, its share in arbitrary units; `post.H` is the sum. The troops
 // standing in a cell are u / H * p.troops. So everything that changes p.troops as a whole (growth,
@@ -312,16 +311,8 @@
     return true;
   };
 
-  // What dense ground does to an attack on it. d is the density of the defender's cell (1 =
-  // average), `rough` whether the ground is narrow (forest, mountains, a river): there a few hold
-  // as well as many, so more troops stop adding sooner. Smooth, with no limit to bump into.
-  //   brake: factor on the time a tile costs the attacker (1 at average density)
-  //   bleed: factor on what a tile costs the attacker in troops
-  //   keep:  factor on what the defender loses per tile, as a multiple of the average
-  Game.prototype.postEffect = function (d, rough, out) {
-    const s = rough ? 1.2 : 2.5, f = (1 + s) * d / (s + d);     // 0 at d = 0, 1 at d = 1, saturates at 1 + s
-    out.brake = 0.4 + 0.6 * f;
-    out.bleed = 0.7 + 0.3 * f;
-    out.keep = d > 0 ? Math.pow(d, 0.35) : 0;
-  };
+  // What the defender loses with a tile, as a multiple of the average per tile, in a cell of
+  // density d (1 = average). Where troops stand dense they do not all die with the tile: part of
+  // them fall back into the rest of the cell, so the cell grows denser as it shrinks.
+  Game.prototype.postKeep = function (d) { return d > 0 ? Math.pow(d, 0.35) : 0; };
 })(globalThis.G = globalThis.G || {});

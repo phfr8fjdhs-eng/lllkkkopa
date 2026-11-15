@@ -1,4 +1,5 @@
 # Version «Rohstoffe» (13.11.2026)
+**Eingefroren seit 15.11.2026.** Die Version wird weiter gebaut und ausgeliefert, aber nicht mehr weiterentwickelt, bis das neue Kampfsystem steht (`doku/vision.md`). Änderungen am gemeinsamen Spielkern gelten auch hier.
 Eine eigene Spielversion neben dem klassischen Spiel: dieselbe Karte «Erde», aber jedes Land hat Rohstoffe zum Abbauen und eine eigene Fabrikware. Das klassische Spiel bleibt, wie es ist.
 **Spielen:** https://phfr8fjdhs-eng.github.io/lllkkkopa/rohstoffe/ · Code: `src/03c_res.js` (Tabellen und Regeln), Länderkarte in `src/07_ui.js` (`setLand`, `renderLand`, `showIncome`), Zeichen auf der Karte `View.drawRes`.
 

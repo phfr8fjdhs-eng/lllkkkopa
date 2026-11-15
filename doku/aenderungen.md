@@ -1,6 +1,13 @@
 # Änderungsprotokoll
 Was seit dem 13.11.2026 geändert wurde und warum. Den heutigen Stand der Regeln beschreiben die anderen Dateien in `doku/`.
 
+## Kampf am Ort, Messbank, Vision (15.11.2026)
+**Problem.** Mit 150K gegen 40K konnte man niemanden einnehmen: Die Truppen eines Klicks kamen gestaffelt aus der Aufstellung, und die Kampfformel von OpenFront verglich jede kleine Portion mit der ganzen Armee des Verteidigers. Jede Portion zahlte den schlechtesten Kurs und starb, bevor die nächste kam.
+**Lösung.** Gekämpft wird am Ort: gegen die Verteidiger an der Front, nicht gegen die ganze Armee (`G.COMBAT`, Einzelheiten in `doku/aufstellung.md`). Die Dichte bleibt und wirkt jetzt sauber: Wo mehr Verteidiger stehen, ist ein Feld teurer und langsamer.
+**Gemessen** (`node test/kampf.js`, alle Werte gleich mit Aufstellung und mit einem Topf): 150K gegen 40K mit fünf Klicks zu 20 % erobert in 8 s für 59K Verluste (vorher: steckt bei 66 % des Landes, 100K verloren); ein Klick 50 % in 7 s für 48K; 400K gegen 100K in 11 s für 138K (vorher 160K); gleich starke Gegner bleiben stecken. Simulation mit Bots und Nationen läuft normal, Gleichlauf geprüft.
+**Rohstoffe eingefroren.** Die Version bleibt spielbar, wird aber nicht weiterentwickelt, bis der Kampf steht.
+**Vision.** Wohin das Spiel geht und in welcher Reihenfolge: `doku/vision.md`.
+
 ## Gebäude- und Schiffszeichen neu (15.11.2026)
 **Gebäude.** Wie in OpenFront: grösser (nah bis 40 px, weit hineingezoomt wachsen sie mit der Karte bis 64 px, vorher höchstens 32 px), Füllung in einem tiefen Ton der Spielerfarbe, fast schwarzer Rand, eigene Gebäude zusätzlich mit weissem Ring. Die Zeichen sind neu und fett gezeichnet (Hochhäuser, geteiltes Wappen, Anker, Rakete, Abschussrampe mit zwei Raketen, Fabrik mit Kamin) und füllen zwei Drittel der Form. Das Zeichen erscheint schon ab mittlerer Nähe (`z` ab 1.1). Die Stufe steht wie in OpenFront gross in weissen Ziffern mit dunklem Rand oben auf dem Gebäude statt in einem kleinen Kreis unten rechts. Im Bau: grau mit orangem Fortschrittsring. Zeichnen: `structIcon`, `levelTag` in `src/06_view.js`.
 **Handelsschiffe.** Weisser Rumpf mit geradem Heck und kantigem Bug, Brücke hinten, Ladung in Spielerfarbe (nah drei Container, gelb bei gekaperten Schiffen). Grösser als vorher und auch ganz herausgezoomt sichtbar, fremde ab mittlerer Nähe statt erst ab `z` 1.7, weit draussen klein statt gar nicht (`merchant`, `tradeSize`).

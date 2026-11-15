@@ -91,10 +91,9 @@ const ok = (c, msg) => { if (!c) { console.log('FAIL', msg); process.exitCode = 
   const g2 = run((g, h, step) => { grow(g, h, step); for (const a of h.out.slice()) g.retreat(a); step(100); log.b0 = g.checksum(); });
   const g3 = run((g, h, step) => { grow(g, h, step); for (const a of h.out.slice()) g.retreat(a); step(100); log.b1 = g.checksum(); });
   ok(log.b0 === log.b1, 'two runs, same game: ' + log.b0);
-  // dense ground brakes and keeps more of its troops
-  const fx = { brake: 0, bleed: 0, keep: 0 }, row = [];
-  for (const d of [0, 0.5, 1, 2, 4, 8]) { g1.postEffect(d, false, fx); row.push(d + ': brake ' + fx.brake.toFixed(2) + ' bleed ' + fx.bleed.toFixed(2) + ' loss/troop ' + (d ? (fx.keep / d).toFixed(2) : '-')); }
-  console.log('open ground  ', row.join(' | '));
-  g1.postEffect(1, false, fx);
-  ok(Math.abs(fx.brake - 1) < 1e-9 && Math.abs(fx.bleed - 1) < 1e-9 && Math.abs(fx.keep - 1) < 1e-9, 'average density is the game as it was');
+  // where troops stand dense, part of them fall back instead of dying with the tile
+  const row = [];
+  for (const d of [0.5, 1, 2, 4, 8]) row.push(d + ': ' + (g1.postKeep(d) / d).toFixed(2));
+  console.log('loss per soldier by density  ', row.join(' | '));
+  ok(Math.abs(g1.postKeep(1) - 1) < 1e-9 && g1.postKeep(4) / 4 < 0.5, 'average density loses what stands there, dense ground less per soldier');
 })();

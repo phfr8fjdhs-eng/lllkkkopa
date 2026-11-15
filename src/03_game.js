@@ -7,6 +7,14 @@
     CITY: 0, DEFENSE: 1, PORT: 2, SILO: 3, SAM: 4, FACTORY: 5, WARSHIP: 6, TRANSPORT: 7, TRADE: 8,
     TRAIN: 9, SHELL: 10, SAMM: 11, ATOM: 12, HYDRO: 13, MIRV: 14, WARHEAD: 15, CRUISE: 16, LASER: 17
   };
+  // Ground combat. An attack fights the defenders at its front, not the whole army:
+  //   base      troops a tile costs even when nobody stands on it (what free land costs a person)
+  //   exchange  attackers lost per defender standing on the tile, at even strength
+  //   fMin/fMax how far outnumbering (or being outnumbered) at the spot bends that exchange
+  //   depth     how many tiles behind the front the defenders count as facing the attack
+  // OpenFront compares the attack with the defender's whole army and charges per tile whatever
+  // stands there; see doku/openfront-abgleich.md.
+  G.COMBAT = { base: 16, exchange: 1, fMin: 0.7, fMax: 1.5, depth: 24 };
   G.UNAME = ['Stadt', 'Verteidigungs\u00ADposten', 'Hafen', 'Raketensilo', 'Flugabwehr', 'Fabrik', 'Kriegsschiff', 'Boot',
     'Handelsschiff', 'Zug', 'Granate', 'Abwehrrakete', 'Atombombe', 'Wasserstoff\u00ADbombe', 'MIRV', 'Sprengkopf', 'Marschflug\u00ADkörper', 'Satelliten\u00ADstrahl'];
   // Tempo. The numbers of the simulation are OpenFront's, but its maps have two million tiles and
@@ -653,10 +661,16 @@
     if (at.troops < 1) { if (at.want > 0) return; this.endAttack(at, false); return; }
     const own = this.owner, map = this.map, mg = map.mag, W = this.W, H = this.H, aid = a.id;
     const n = at.front.size + this.rng.int(0, 5);
+    // The fight is local. An attack does not meet the whole army of the defender, only those who
+    // stand at this front: the defenders per tile, along the front, `depth` tiles deep (never more
+    // than there are). `face` is that number for troops standing evenly; a tile in a denser or
+    // thinner cell scales it.
+    const CB = G.COMBAT, dAvg = t ? t.troops / Math.max(1, t.tiles) : 0;
+    const face = t ? Math.max(1, Math.min(t.troops, dAvg * Math.max(4, at.front.size) * CB.depth)) : 1;
     // What the front may take this tick. A tile that costs more than is left is paid off over the
     // following ticks (`carry`), so a weak attack really is slow instead of taking a tile a tick
     // regardless.
-    let budget = (t ? within((5 * at.troops / Math.max(1, t.troops)) * 2, 0.01, 0.5) * n * 3 : n * (a.type === PT.BOT ? 1.4 : 2)) * this.attackPace + (at.carry || 0);
+    let budget = (t ? within(10 * at.troops / face, 0.01, 0.5) * n * 3 : n * (a.type === PT.BOT ? 1.4 : 2)) * this.attackPace + (at.carry || 0);
     if (budget <= 0) { at.carry = budget; return; }
     const landTiles = map.landTiles;
     const lossMod = a.tiles > landTiles * 0.17 ? Math.sqrt(landTiles * 0.17 / a.tiles) : 1;
@@ -665,7 +679,7 @@
     const easy = !!t && t.type === PT.BOT && a.type !== PT.BOT, botMod = easy ? 0.35 : 1;   // bots barely defend themselves
     const dp = t ? t.dposts : null, dr2 = this.R.defense * this.R.defense, fo = this.fallout;
     const cov = map.cover, ft = map.feat, TR = G.TERRAIN;
-    const tp = t ? t.post : null, fx = this.postFx || (this.postFx = { brake: 1, bleed: 1, keep: 1 });
+    const tp = t ? t.post : null;
     let guard = 0;
     while (budget > 0) {
       if (at.troops < 1) { if (at.want > 0) { at.carry = 0; return; } this.endAttack(at, false); return; }
@@ -694,8 +708,10 @@
       // the mountains as on the plain; against a realm it weighs less the more the attacker
       // outnumbers it, and (for a realm with a posture) the thinner the troops stand right there.
       const pc = tp ? tp.cells.get(this.cellOf(tile)) : null, pd = pc ? this.postDens(t, pc) : 1;
+      // r: how many attackers there are for every defender they face at this tile
+      const r = t ? at.troops / Math.max(1, face * pd) : 0;
       let hold = TR.free;
-      if (t) { hold = within(1.15 - 0.33 * at.troops / Math.max(1, t.troops), 0.15, 1); if (pd < 1) hold *= pd; }
+      if (t) hold = within(1.15 - 0.33 * r, 0.15, 1);
       let mag = 80 * (1 + (gl - 1) * hold), speed = 16.5 * (1 + (gs - 1) * hold);
       if (dp && dp.length) {
         for (let i = 0; i < dp.length; i++) {
@@ -706,16 +722,16 @@
       if (fo[tile]) { const f = 5 - 2 * this.falloutCount / landTiles; mag *= f; speed *= f; }
       let loss, used;
       if (t) {
-        const tt = t.troops;
-        loss = within(tt / at.troops, 0.6, 2) * mag * 0.8 * botMod * lossMod * traitor;
-        used = within(tt / (5 * at.troops), 0.2, 1.5) * speed * speedMod * (easy ? 0.45 : 1);
-        if (pc) {
-          // the defender has a posture: dense ground is slower to take and costs more, and the
-          // troops standing there lose fewer of their number; thin ground falls fast but nobody dies
-          this.postEffect(pd, m >= 10 || (cov && (TR.speed[cov[tile]] > 1.2 || (ft[tile] & 3))), fx);
-          loss *= fx.bleed; used *= fx.brake;
-          this.postTake(t, pc, tt / Math.max(1, t.tiles) * fx.keep);
-        } else t.troops = Math.max(0, tt - tt / Math.max(1, t.tiles));
+        // A tile costs what it takes to hold ground at all, plus the defenders standing on it:
+        // one for one at even strength, fewer for an attacker who outnumbers them there, more
+        // for one who is outnumbered. Ground, posts and fallout weigh on all of it (`mag`).
+        const dd = dAvg * pd;
+        loss = (CB.base + CB.exchange * dd * within(1 / Math.sqrt(Math.max(r, 0.01)), CB.fMin, CB.fMax)) * (mag / 80) * botMod * lossMod * traitor;
+        used = within(1 / (5 * Math.max(r, 0.01)), 0.2, 1.5) * speed * speedMod * (easy ? 0.45 : 1);
+        // the defender loses those who stood there; where they stand dense, part of them fall back
+        // into the rest of the cell instead (`postKeep`)
+        if (pc) this.postTake(t, pc, dAvg * this.postKeep(pd));
+        else t.troops = Math.max(0, t.troops - dAvg);
       } else {
         loss = a.type === PT.BOT ? mag / 10 : mag / 5;
         used = within(2000 * Math.max(10, speed) / at.troops, 5, 100);
