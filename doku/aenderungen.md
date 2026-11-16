@@ -96,3 +96,10 @@ Ziel: die Karte so ruhig wie in OpenFront. Alles in `06_view.js`, die Palette in
 - **Seite zoomt nicht mehr mit:** Safari auf dem iPhone beachtet «user-scalable=no» nicht. Lag ein Finger auf einer Leiste, zoomte die ganze Seite statt der Karte. Jetzt `touch-action: pan-x pan-y` auf der Seite und die `gesture`-Ereignisse sind abgestellt.
 - **Am Anschlag:** am nächsten und am fernsten Zoom wird neu gemessen, Umkehren zoomt sofort.
 - Test: `node test/pinch.js`.
+
+## Vollbild (16.11.2026)
+- **Knopf in der Leiste oben rechts** (`#bFull`, vor dem Menü): schaltet Vollbild ein und aus, das Symbol wechselt. Die Karte nimmt danach die neue Grösse an (`fullscreenchange` ruft `view.resize`).
+- **Handy:** ein Tippen auf «Start» schaltet gleich auf Vollbild (nur bei Touch, `pointer: coarse`); am Desktop bleibt das Fenster, wie es ist.
+- **iPhone:** Safari kann eine Seite auf dem iPhone nicht ins Vollbild schalten. Der Knopf erklärt dort «Teilen → Zum Home-Bildschirm»; dank `apple-mobile-web-app-capable` startet das Spiel von dort ohne Leisten. Läuft es so schon, ist der Knopf ausgeblendet.
+- Keine eigene Taste (am Desktop gibt es F11; `N` ist die Aufstellung).
+- Test: `node test/vollbild.js`.

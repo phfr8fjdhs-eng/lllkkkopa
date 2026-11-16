@@ -19,5 +19,6 @@ Alle Tests liegen in `test/` und laufen mit `node test/<name>.js`. Mehrere brauc
 | `prof.js` | zeigt, woher langsame Ticks kommen |
 | `ui.js`, `feat.js`, `play.js`, `rail.js`, `rich.js`, `shot.js`, `aufstellung.js` | Browser: Bedienung, neue Funktionen, Durchlauf, Gleise, Gebäude und Raketen, Bilder, Netz; Bilder landen in `build/` |
 | `pinch.js` | Browser, Handy: Zoom mit zwei Fingern bleibt am Punkt zwischen den Fingern |
+| `vollbild.js` | Browser: Vollbild-Knopf, Vollbild beim Start auf dem Handy, Hinweis auf dem iPhone |
 | `net.js` | zwei Browser spielen über einen lokalen Vermittler zusammen |
 | `load.js` | Hilfsdatei, lädt die Karten für die anderen Tests (kein Test) |

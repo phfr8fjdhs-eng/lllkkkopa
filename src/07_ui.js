@@ -170,11 +170,42 @@
   }
 
   // ---------- small helpers ----------
-  function toast(text) {
+  function toast(text, ms) {
     const t = $('toast');
     t.textContent = text; t.hidden = false;
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(function () { t.hidden = true; }, 2200);
+    toastTimer = setTimeout(function () { t.hidden = true; }, ms || 2200);
+  }
+  // ---------- full screen ----------
+  // The browser's Fullscreen API where there is one (Android, desktop, iPad). Safari on the iPhone
+  // has none for a page: there the game runs without bars once it is added to the home screen.
+  const fsEl = function () { return document.fullscreenElement || document.webkitFullscreenElement || null; };
+  const fsCan = function () { const d = document.documentElement; return !!(d.requestFullscreen || d.webkitRequestFullscreen); };
+  const fsApp = function () { return !!(navigator.standalone || (window.matchMedia && window.matchMedia('(display-mode: standalone), (display-mode: fullscreen)').matches)); };
+  function fsEnter() {
+    const d = document.documentElement;
+    try {
+      const r = d.requestFullscreen ? d.requestFullscreen({ navigationUI: 'hide' }) : d.webkitRequestFullscreen();
+      if (r && r.catch) r.catch(function () { /* refused, e.g. without a tap */ });
+    } catch (e) { /* refused */ }
+  }
+  function fsExit() {
+    try {
+      const r = document.exitFullscreen ? document.exitFullscreen() : document.webkitExitFullscreen && document.webkitExitFullscreen();
+      if (r && r.catch) r.catch(function () {});
+    } catch (e) { /* not in full screen */ }
+  }
+  function fsToggle() {
+    if (fsEl()) { fsExit(); return; }
+    if (fsCan()) { fsEnter(); return; }
+    toast('Auf dem iPhone: unten auf «Teilen» tippen, dann «Zum Home-Bildschirm». Von dort startet Grenzland ohne Leisten.', 6500);
+  }
+  function fsShow() {
+    const b = $('bFull'), on = !!fsEl();
+    b.hidden = fsApp();
+    b.innerHTML = svg(on ? 'fullx' : 'full', 18);
+    b.setAttribute('aria-label', on ? 'Vollbild verlassen' : 'Vollbild');
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
   }
   function clock(sec) {
     sec = Math.max(0, Math.floor(sec));
@@ -271,7 +302,10 @@
       if (b) { cfg.diff = +b.dataset.i; press(this, b); }
     });
     $('fBots').addEventListener('input', function () { botsTouched = true; cfg.bots = +this.value; $('fBotsVal').textContent = this.value; });
-    $('fStart').addEventListener('click', startGame);
+    $('fStart').addEventListener('click', function () {
+      if (!fsEl() && fsCan() && !fsApp() && window.matchMedia && window.matchMedia('(pointer: coarse)').matches) fsEnter();
+      startGame();
+    });
     $('fHost').addEventListener('click', function () { readForm(); openRoom(true); });
   }
   function readForm() {
@@ -1732,6 +1766,9 @@
       else if (h.spawnTile >= 0) view.flyTo(h.spawnTile % game.W, (h.spawnTile / game.W) | 0, 4);
     });
     $('bMenu').addEventListener('click', showMenu);
+    $('bFull').addEventListener('click', fsToggle);
+    document.addEventListener('fullscreenchange', function () { fsShow(); view.resize(); });
+    document.addEventListener('webkitfullscreenchange', function () { fsShow(); view.resize(); });
     $('hotbar').addEventListener('click', function (e) {
       const b = e.target.closest('.hk');
       if (!b || !game || game.phase !== 'play' || !game.human.alive) return;
@@ -1824,6 +1861,7 @@
     $('bHome').innerHTML = svg('home', 18);
     $('bNet').innerHTML = svg('net', 18);
     $('bMenu').innerHTML = svg('menu', 18);
+    fsShow();
     $('icTroops').innerHTML = svg('troops', 20);
     $('icGold').innerHTML = svg('gold', 20);
     $('rN').innerHTML = '<span class="in">' + svg('hammer', 22) + '<span>Bauen</span></span>';

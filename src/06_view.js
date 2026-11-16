@@ -26,6 +26,8 @@
     play: 'M7 4l13 8l-13 8z',
     menu: 'M3 5h18v2.4H3zM3 10.8h18v2.4H3zM3 16.6h18V19H3z',
     home: 'M12 3l9 8h-2.5v9h-5v-6h-3v6h-5v-9H3z',
+    full: 'M3 3h7v2.4H5.4V10H3zM14 3h7v7h-2.4V5.4H14zM3 14h2.4v4.6H10V21H3zM18.6 14H21v7h-7v-2.4h4.6z',
+    fullx: 'M7.6 3H10v7H3V7.6h4.6zM14 3h2.4v4.6H21V10h-7zM3 14h7v7H7.6v-4.6H3zM14 14h7v2.4h-4.6V21H14z',
     net: 'M3 3h18v18H3zm2 2v3.5h3.5V5zm5.5 0v3.5h3V5zm5 0v3.5H19V5zM5 10.5v3h3.5v-3zm5.5 0v3h3v-3zm5 0v3H19v-3zM5 15.5V19h3.5v-3.5zm5.5 0V19h3v-3.5zm5 0V19H19v-3.5z',
     troops: 'M12 3a4 4 0 1 0 0 8a4 4 0 0 0 0-8zM4 21c0-4.4 3.6-8 8-8s8 3.6 8 8z',
     gold: 'M12 3a9 9 0 1 0 0 18a9 9 0 0 0 0-18zM12 6.5a5.5 5.5 0 1 1 0 11a5.5 5.5 0 0 1 0-11z',
