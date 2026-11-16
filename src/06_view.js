@@ -6,6 +6,7 @@
 
   // Icon shapes on a 24-unit grid, shared by the map and the menus.
   const ICON = G.ICON = {
+    flag: 'M5 2h2.2v20H5zM8.4 3H20l-3 4.6L20 12.2H8.4z',
     city: 'M3 21V11h5V4h7v6h6v11zM10 6.5v2h1.6v-2zM12.4 6.5v2H14v-2zM10 10.5v2h1.6v-2zM12.4 10.5v2H14v-2zM10 14.5v2h1.6v-2zM12.4 14.5v2H14v-2zM5 13v2h1.6v-2zM5 16.5v2h1.6v-2zM17 12.5v2h1.8v-2zM17 16v2h1.8v-2z',
     defense: 'M12 2l8.5 3.2v6.3c0 5.2-3.6 9-8.5 10.5c-4.9-1.5-8.5-5.3-8.5-10.5V5.2zM12 4.6v14.7c3.6-1.4 6.1-4.1 6.1-7.8V6.9z',
     port: 'M12 1.4a3.1 3.1 0 1 1 0 6.2a3.1 3.1 0 1 1 0-6.2zM12 3.1a1.4 1.4 0 1 0 0 2.8a1.4 1.4 0 1 0 0-2.8zM10.7 7.4h2.6V20h-2.6zM7 9.2h10v2.4H7zM20.8 13A8.8 8.8 0 0 1 3.2 13H6A6 6 0 0 0 18 13zM1.6 14.6L4.4 9.6L7.6 13.8zM22.4 14.6L16.4 13.8L19.6 9.6z',
@@ -454,6 +455,7 @@
     this.drawNames(ctx, g, z, ox, oy);
     this.drawRaids(ctx, g, z, ox, oy, now);
     this.drawThrusts(ctx, g, z, ox, oy, now);
+    this.drawFlags(ctx, g, z, ox, oy);
     this.drawFronts(ctx, g, z, ox, oy, now);
     this.drawIncoming(ctx, g, z, ox, oy, alpha, now);
     this.drawMarks(ctx, g, z, ox, oy, now);
@@ -1842,6 +1844,32 @@
   // Own thrusts on their way to the goal, and the preview of the one being drawn with the right
   // mouse button (`view.plan`, set by the interface: way, lane width, colour of the verdict,
   // troops, label). Every drawn arrow is remembered for clicks (`arrowHits`).
+  // Rally flags (combat system 3): a little flag on each, and while they are being set the
+  // circle the troops gather in.
+  View.prototype.drawFlags = function (ctx, g, z, ox, oy) {
+    const h = g.human;
+    if (!h || !h.alive || !h.post || g.kampf !== 3 || g.phase !== 'play') return;
+    const fl = h.post.flags, W = g.W, R = G.FLAG.r * G.POST.cell * z;
+    if (!fl.length) return;
+    ctx.save();
+    for (let i = 0; i < fl.length; i++) {
+      const x = (fl[i] % W + 0.5) * z + ox, y = (((fl[i] / W) | 0) + 0.5) * z + oy;
+      if (x < -R || y < -R || x > this.cw + R || y > this.ch + R) continue;
+      if (this.flagOn) {
+        ctx.beginPath(); ctx.arc(x, y, R, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(255,214,94,0.08)'; ctx.fill();
+        ctx.setLineDash([5, 4]); ctx.strokeStyle = 'rgba(255,214,94,0.75)'; ctx.lineWidth = 1.5; ctx.stroke(); ctx.setLineDash([]);
+      }
+      // pole and cloth, the same size on the screen at every zoom
+      ctx.lineWidth = 2.2; ctx.strokeStyle = 'rgba(10,16,24,.9)';
+      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y - 22); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x + 1, y - 22); ctx.lineTo(x + 15, y - 17); ctx.lineTo(x + 1, y - 12); ctx.closePath();
+      ctx.fillStyle = h.cssL || 'rgb(240,240,240)'; ctx.fill();
+      ctx.lineWidth = 1.4; ctx.stroke();
+      ctx.beginPath(); ctx.arc(x, y, 2.5, 0, Math.PI * 2); ctx.fillStyle = 'rgba(10,16,24,.9)'; ctx.fill();
+    }
+    ctx.restore();
+  };
   View.prototype.drawThrusts = function (ctx, g, z, ox, oy, now) {
     const h = g.human, W = g.W, hits = this.arrowHits || (this.arrowHits = []);
     hits.length = 0;
