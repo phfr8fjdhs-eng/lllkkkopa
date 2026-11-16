@@ -588,9 +588,9 @@
     if (tg && tg.type !== UT.TRADE && T >= u.shotAt) {
       u.shotAt = T + 20;
       const s = this.newUnit(UT.SHELL, p, u.tile);
-      s.target = tg; s.sx = u.x; s.sy = u.y;
+      s.target = tg; s.sx = u.x; s.sy = u.y; s.ship = u;          // `ship` only tells the picture where the gun is
       this.addUnit(s);
-      this.fx.push({ k: 'muzzle', x: u.x, y: u.y, tx: tg.x, ty: tg.y });
+      this.fx.push({ k: 'muzzle', x: u.x, y: u.y, tx: tg.x, ty: tg.y, ship: u });
       if (this.fx.length > 300) this.fx.splice(0, 150);
     }
     if (hunt) {
