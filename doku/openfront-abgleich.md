@@ -12,3 +12,5 @@ Die Zahlen stammen aus dem OpenFront-Quellcode (`packages/engine-lib/src/configu
 **Mehr Bots (15.11.2026):** Vorgabe ein Bot je 630 Landfelder statt je 950, höchstens 600 statt 400 (`defaultBots` in `src/07_ui.js`).
 
 **Klima (14.11.2026, nur hier):** OpenFront kennt keine Temperatur. Hier bremst Kälte unter 0 °C jeden Angriff und Marsch, bis zum Doppelten bei −45 °C (`G.CLIMATE`, `G.groundSpeed`; `doku/erde.md`).
+
+**Kapern nur mit Hafen (16.11.2026):** Ein Kriegsschiff jagt Handelsschiffe nur, wenn sein Besitzer im selben Gewässer einen fertigen Hafen hat (`tickWarship`, `portNear`). Ob OpenFront das genauso verlangt, ist nicht nachgeschlagen; vorher wurde auch ohne Hafen gekapert, und das Schiff verschwand auf offener See.

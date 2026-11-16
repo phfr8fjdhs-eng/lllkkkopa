@@ -3658,10 +3658,16 @@ body.placing #cv { cursor: crosshair; }
     }, false);
   };
   Game.prototype.tickTrade = function (u) {
-    const d = u.dstPort, p = u.owner;
-    if (!d.active || !d.owner.alive || (!u.captured && !this.canTrade(p, d.owner))) { this.removeUnit(u); return; }
+    const p = u.owner;
+    let d = u.dstPort;
+    if (u.captured) {
+      // a captured ship heads for a port of its new owner; if that one is gone or has changed hands,
+      // it turns for the next one (or, with none left, its gold is paid out where it is)
+      if ((!d.active || d.owner !== p) && !u.wait) { this.tradeHome(u); if (!u.active) return; d = u.dstPort; }
+    } else if (!d.active || !d.owner.alive || !this.canTrade(p, d.owner)) { this.removeUnit(u); return; }
     if (!u.path) return;
     if (u.pi < u.path.length - 1) { for (let n = this.stride(u); n > 0 && u.pi < u.path.length - 1; n--) { u.pi++; this.setPos(u, u.path[u.pi]); } return; }
+    if (u.wait || (u.captured && (!d.active || d.owner !== p))) return;   // its new course is still being worked out
     const q = d.owner, h = this.human;
     p.gold += u.gold;
     this.fx.push({ k: 'coin', x: d.x, y: d.y, t: this.ticks, mine: p === h || (q === h && !u.captured), amt: u.gold });
@@ -3674,29 +3680,54 @@ body.placing #cv { cursor: crosshair; }
     }
     this.removeUnit(u);
   };
+  // The nearest built port of p on the same water as `tile`, or null.
+  Game.prototype.portNear = function (p, tile) {
+    const wc = this.map.wcomp, c = wc[tile], W = this.W, x = tile % W, y = (tile - x) / W;
+    let best = null, bd = Infinity;
+    for (const v of p.units) {
+      if (v.type !== UT.PORT || !v.built || !v.active || wc[v.water] !== c) continue;
+      const d = (v.x - x) * (v.x - x) + (v.y - y) * (v.y - y);
+      if (d < bd) { bd = d; best = v; }
+    }
+    return best;
+  };
+  // Send a captured merchant to the nearest port of its owner. Like `sail`, the ship keeps going
+  // while the route is worked out, and the new route is spliced on a few tiles ahead, so it does
+  // not jump back to its tile and swing round. Without a port its gold is paid out at once.
+  Game.prototype.tradeHome = function (ts) {
+    const p = ts.owner, best = this.portNear(p, ts.tile);
+    if (!best) { if (p.alive) p.gold += ts.gold; this.removeUnit(ts); return; }
+    ts.dstPort = best;
+    // join six tiles ahead: the picture smooths the ship's place over 3.5 tiles either way along its
+    // route, so a join any nearer would show as a jump the moment the new route is put on
+    const old = ts.path, lead = old && ts.pi < old.length - 1 ? Math.min(old.length - 1, ts.pi + 6) : -1;
+    const from = lead >= 0 ? old[lead] : ts.tile, id = ts.req = (ts.req || 0) + 1;
+    ts.wait = true;
+    if (lead < 0) ts.path = null;
+    this.requestPath(from, best.water, (path) => {
+      if (!ts.active || ts.req !== id) return;
+      ts.wait = false;
+      if (!path) { if (ts.owner.alive) ts.owner.gold += ts.gold; this.removeUnit(ts); return; }
+      if (lead >= 0 && ts.path === old && ts.pi <= lead) {
+        const back = Math.max(0, ts.pi - 5), keep = lead - back, j = new Int32Array(keep + path.length);
+        for (let i = 0; i < keep; i++) j[i] = old[back + i];
+        j.set(path, keep);
+        ts.path = j; ts.pi = ts.pi - back;
+      } else if (path[0] === ts.tile) { ts.path = path; ts.pi = 0; }
+      else this.tradeHome(ts);   // sailed past the join before the route was ready: ask again from here
+    }, false);
+  };
   Game.prototype.captureTrade = function (w, ts) {
-    const np = w.owner, o = ts.owner, h = this.human, wc = this.map.wcomp;
+    const np = w.owner, o = ts.owner, h = this.human;
     const i = o.units.indexOf(ts);
     if (i >= 0) o.units.splice(i, 1);
     o.cnt[UT.TRADE]--; np.cnt[UT.TRADE]++;
     ts.owner = np; np.units.push(ts); ts.captured = true;
-    let best = null, bd = Infinity;
-    for (const v of np.units) {
-      if (v.type !== UT.PORT || !v.built || wc[v.water] !== wc[ts.tile]) continue;
-      const d = (v.x - ts.x) * (v.x - ts.x) + (v.y - ts.y) * (v.y - ts.y);
-      if (d < bd) { bd = d; best = v; }
-    }
     this.fx.push({ k: 'flag', x: ts.x, y: ts.y });
     if (np === h) this.say('Handelsschiff von ' + o.name + ' gekapert (' + fmt(ts.gold) + ' Gold an Bord)', 'good');
     else if (o === h) this.say(np.name + ' hat ein Handelsschiff von dir gekapert', 'warn');
-    if (!best) { np.gold += ts.gold; this.removeUnit(ts); return; }
-    ts.dstPort = best; ts.path = null; ts.pi = 0;
-    this.requestPath(ts.tile, best.water, (path) => {
-      if (!ts.active) return;
-      if (path) { ts.path = path; ts.pi = 0; return; }
-      if (np.alive) np.gold += ts.gold;
-      this.removeUnit(ts);
-    }, false);
+    ts.wait = false;
+    this.tradeHome(ts);
   };
 
   // Give a warship a new course; it holds position until the route is known.
@@ -3768,7 +3799,7 @@ body.placing #cv { cursor: crosshair; }
     // Who to go for, as in OpenFront: troop boats first, then warships, then merchants. A merchant
     // only counts while it is inside the patrol area, so the ship is not lured away from its post.
     if ((T + u.id) % 5 === 0) {
-      let best = null, bs = Infinity;
+      let best = null, bs = Infinity, home;
       const r2 = R.warTarget * R.warTarget, p2 = R.warPatrol * R.warPatrol, pcx = u.patrol % W, pcy = (u.patrol / W) | 0;
       for (const v of this.units) {
         if (!v.active || v.owner === p) continue;
@@ -3777,7 +3808,10 @@ body.placing #cv { cursor: crosshair; }
         if (v.safeUntil > T || v.docked) continue;   // just changed hands, or under repair at the quay
         if (this.friendly(v.owner, p)) continue;
         if (ty === UT.TRADE) {
+          // only worth chasing with a port of one's own on this water to bring it into
           if (v.captured || !v.path || this.friendly(v.dstPort.owner, p) || map.wcomp[v.tile] !== map.wcomp[u.tile]) continue;
+          if (home === undefined) home = this.portNear(p, u.tile);
+          if (!home) continue;
           if ((v.x - pcx) * (v.x - pcx) + (v.y - pcy) * (v.y - pcy) > p2) continue;
         }
         const dx = v.x - u.x, dy = v.y - u.y, d2 = dx * dx + dy * dy;
