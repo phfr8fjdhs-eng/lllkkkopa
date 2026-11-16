@@ -1,6 +1,13 @@
 # Änderungsprotokoll
 Was seit dem 13.11.2026 geändert wurde und warum. Den heutigen Stand der Regeln beschreiben die anderen Dateien in `doku/`.
 
+## Ziehen mit rechts, neuer Pfeil, Verteidigung nach echtem Vorbild (16.11.2026)
+**Bedienung am PC.** Ein Stoss wird mit der rechten Maustaste gezogen: Start im eigenen Land (dort bricht er ein), Ziel im Feindesland. Vorschau beim Ziehen mit Urteil an der Spitze, Mausrad ändert den Anteil. `F` wählt Keil oder Abschnitt, Doppelklick bleibt die ganze Front, Rechtsklick ohne Ziehen das Kreismenü. Ein Klick auf einen Pfeil: verstärken oder zurückziehen. Auf dem Handy bleibt der Schalter mit drei Arten.
+**Pfeil.** Statt einer gestrichelten Linie mit Kettenmuster ein gefülltes Band, das zur Spitze breiter wird, mit dunklem Rand und breiter Spitze; dick nach Truppenanteil (drei Stufen).
+**Verteidigung.** Nationen haben ein Netz und setzen es selbst (dicht an bedrohten Grenzen). Eingraben bis +50 %, Reserven für angegriffene Abschnitte, Kessel ohne Küste verhungern in etwa 30 s. Marsch 2 s statt 3 s pro Zelle, Schienen beschleunigen auch zwei Zellen daneben. Einzelheiten und Messwerte: `doku/aufstellung.md`.
+**Dabei gefunden.** Das Verhältnis am Ort konnte mehr Verteidiger zählen, als es gibt (die Obergrenze kam vor dem Dichtefaktor); behoben. Reserven halfen zuerst dem Angreifer, weil sie aus der Zelle kamen, in die der Keil als Nächstes stiess; jetzt schlägt der ganze Abschnitt Alarm.
+**Tempo.** Erde mit 600 Bots: 14.7 ms pro Tick nach 5000 Ticks (vorher 10.2 nach 1500), höchstens 50 ms.
+
 ## Stösse, mehr Bots, ruhigere Leiste (15.11.2026)
 **Gezielt angreifen.** Ein Schalter unter dem Regler (Taste `F`): ganze Front, Abschnitt oder Keil. Abschnitt und Keil stossen auf die angeklickte Stelle vor, auf dem billigsten Weg (um Gebirge und Wald herum, durch Täler), nur in ihrem Korridor; am Ziel weiten sie sich aus. Vorschau mit Weg, Breite und Urteil, Pfeil in der eigenen Farbe unterwegs, bis 4 Stösse gleichzeitig. Regeln: `doku/spielregeln.md`.
 **Abgestimmt mit der Messbank** (`node test/kampf.js stoss`, 150K gegen 40K): Mit 10 % der Armee schafft die ganze Front 6 % des Wegs zum tiefsten Punkt, ein Abschnitt und ein Keil erreichen das Ziel nach etwa 6 s. Zwei Fehler dabei gefunden und behoben: Ohne Tempo-Grenze schoss der Keil in 1 s 50 Felder tief wie ein Speer; mit einer Grenze pro Tick blieb er stehen, sobald ein Feld mehr kostete als ein Tick erlaubt (jetzt summiert sich die Grenze über die Ticks). Ohne Flanken nahm der Keil fast doppelt so viele Felder wie die Front und wäre immer die beste Wahl gewesen; mit Flanken zahlt er pro Feld fast gleich viel, und sein Vorteil ist die Tiefe. Ein Gebirgszug mit einer Lücke: Der Keil quert in der Lücke.

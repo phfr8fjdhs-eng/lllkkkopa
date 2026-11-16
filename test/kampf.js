@@ -28,7 +28,10 @@ const SCENARIOS = [
   { name: 'gross: 150K gegen 40K, ein Klick 100 %', at: 3000, dt: 1200, aT: 150000, dT: 40000, clicks: [[1, 0]], want: 1 },
   { name: 'gross: 150K gegen 40K, fünf Klicks 20 %', at: 3000, dt: 1200, aT: 150000, dT: 40000, clicks: [[0.2, 0], [0.2, 20], [0.2, 40], [0.2, 60], [0.2, 80]], want: 1 },
   { name: 'gleich: 80K gegen 80K, ein Klick 50 %', at: 3000, dt: 3000, aT: 80000, dT: 80000, clicks: [[0.5, 0]], want: 0 },
-  { name: 'riesig: 400K gegen 100K, ein Klick 50 %', at: 12000, dt: 4000, aT: 400000, dT: 100000, clicks: [[0.5, 0]], want: 1 }
+  // since nations stand dense along a threatening border (15.11.2026), two to one against them is a
+  // close call either way (want -1: only shown, not checked)
+  { name: 'riesig: 400K gegen 100K, ein Klick 50 %', at: 12000, dt: 4000, aT: 400000, dT: 100000, clicks: [[0.5, 0]], want: -1 },
+  { name: 'riesig: 400K gegen 100K, ein Klick 65 %', at: 12000, dt: 4000, aT: 400000, dT: 100000, clicks: [[0.65, 0]], want: 1 }
 ];
 const LIMIT = 3000;       // ticks (five minutes): whoever is not through by then is stuck
 
@@ -133,7 +136,9 @@ function runThrust(map, sc, mode, classic) {
 const THRUSTS = [
   { name: 'Stoss: 150K gegen 40K mit 20 %', at: 3000, dt: 1200, aT: 150000, dT: 40000, share: 0.2 },
   { name: 'Stoss: 150K gegen 40K mit 10 %', at: 3000, dt: 1200, aT: 150000, dT: 40000, share: 0.1 },
-  { name: 'Stoss: 400K gegen 100K mit 15 %', at: 12000, dt: 4000, aT: 400000, dT: 100000, share: 0.15 }
+  { name: 'Stoss: 400K gegen 100K mit 15 %', at: 12000, dt: 4000, aT: 400000, dT: 100000, share: 0.15 },
+  // for the reserves: a large defender, a small wedge (not run on its own)
+  { name: 'Reserve: 400K gegen 200K mit 6 %', at: 12000, dt: 12000, aT: 400000, dT: 200000, share: 0.06, quiet: true }
 ];
 const MODES = ['ganze Front', 'Abschnitt', 'Keil'];
 
@@ -156,6 +161,41 @@ function valley(map) {
   return { ok: !!r && Math.abs(cross - gapY) <= 3, cross: cross, gapY: gapY, len: r ? r.path.length : 0 };
 }
 
+// ---------- defence ----------
+// The whole front against a defender whose troops have stood a long time (dug in) and one that has
+// just arrived: dug in holds more land.
+function dugIn(map, dug) {
+  const sc = { at: 3000, dt: 1200, aT: 150000, dT: 40000 }, A = arena(map, sc, false), g = A.g, h = A.h, foe = A.foe;
+  for (const c of foe.post.cells.values()) c.e = dug ? 1 : 0;
+  const t0 = foe.tiles;
+  g.exec(h.id, { k: 'strike', t: foe.border.values().next().value, r: 0.3, w: 0 });
+  for (let k = 0; k < LIMIT && h.out.some((a) => a.active); k++) { g.tick(); g.dirtyN = 0; g.dirtyFlag.fill(0); g.events.length = 0; }
+  return 1 - foe.tiles / t0;
+}
+// A wedge against a defender whose reserves come to the cells under attack, and one whose do not.
+function reserves(map, on) {
+  const keep = G.POST.reserve;
+  G.POST.reserve = on ? keep : 1;
+  const r = runThrust(map, THRUSTS[3], 2, false);
+  G.POST.reserve = keep;
+  return r;
+}
+// A pocket: a block of the defender's land inside the attacker's, far from the sea. Its troops
+// should be all but gone after half a minute, while those of the main land stay.
+function pocket(map) {
+  const sc = { at: 12000, dt: 4000, aT: 400000, dT: 100000 }, A = arena(map, sc, false), g = A.g, h = A.h, foe = A.foe, W = g.W;
+  // the block: the attacker's tiles in two by two cells in the western quarter of its realm
+  const cs = G.POST.cell, mx = Math.round((h.x0 + (h.x1 - h.x0) * 0.25) / cs) * cs, my = Math.round((h.y0 + h.y1) / 2 / cs) * cs;
+  for (let y = my; y < my + 2 * cs; y++) for (let x = mx; x < mx + 2 * cs; x++) { const t = y * W + x; if (g.owner[t] === h.id) g.conquer(foe, t); }
+  for (let i = 0; i < 10; i++) g.tick();
+  const inPocket = () => { let s = 0; for (const c of foe.post.cells.values()) if (c.cut) s += g.postReal(foe, c); return s; };
+  const cut = [...foe.post.cells.values()].filter((c) => c.cut).length;
+  const p0 = inPocket(), m0 = foe.troops - p0;
+  for (let i = 0; i < 300; i++) g.tick();
+  const p1 = inPocket();
+  return { cut: cut, p0: p0, p1: p1, main0: m0, main1: foe.troops - p1 };
+}
+
 (async () => {
   const map = await loadMap('welt'), only = process.argv[2];
   const sec = (t) => t < 0 ? '   – ' : (t / 10).toFixed(0).padStart(4) + 's';
@@ -167,15 +207,16 @@ function valley(map) {
     console.log(sc.name + '  (' + p.cells + ' Zellen)');
     console.log(line('ein Topf', c));
     console.log(line('Aufstellung', p));
-    const fits = (c.won ? 1 : 0) === sc.want && (p.won ? 1 : 0) === sc.want;
+    const fits = sc.want < 0 || ((c.won ? 1 : 0) === sc.want && (p.won ? 1 : 0) === sc.want);
     if (!fits) { bad++; console.log('  FAIL: erwartet war ' + (sc.want ? 'erobert' : 'steckt')); }
+    if (sc.want < 0) console.log('  (knapp, nur zur Anzeige)');
     // the posture must not make a fight much slower or dearer than the pool does
     const near = (c.end < 0 || p.end <= c.end * 1.3 + 20) && p.lost <= c.lost * 1.3 + 500;
     if (!near) { bad++; console.log('  FAIL: mit Aufstellung deutlich schlechter als mit einem Topf'); }
   }
   // thrusts: a wedge gets deeper than the whole front with the same troops, a section in between
   for (const sc of THRUSTS) {
-    if (only && sc.name.indexOf(only) < 0 && only !== 'stoss') continue;
+    if (sc.quiet || (only && sc.name.indexOf(only) < 0 && only !== 'stoss')) continue;
     console.log(sc.name);
     const rs = [0, 1, 2].map((m) => runThrust(map, sc, m, false));
     rs.forEach((r, m) => console.log('  ' + MODES[m].padEnd(12) + (r.why ? 'abgelehnt: ' + r.why : (r.hit >= 0 ? 'Ziel nach ' + (r.hit / 10).toFixed(0).padStart(3) + 's' : 'Ziel nicht erreicht') +
@@ -187,6 +228,17 @@ function valley(map) {
     const v = valley(map);
     console.log('Tal: Gebirgszug mit einer Lücke auf Zeile ' + v.gapY + ', der Keil quert auf Zeile ' + v.cross + ' (Weg ' + v.len + ' Felder)');
     if (!v.ok) { bad++; console.log('  FAIL: der Keil nimmt nicht das Tal'); }
+  }
+  if (!only || only === 'abwehr') {
+    const fresh = dugIn(map, false), dug = dugIn(map, true);
+    console.log('Eingraben: 30 % von 150K gegen 40K nehmen ' + (fresh * 100).toFixed(0) + ' % des Landes bei frisch angekommenen Verteidigern, ' + (dug * 100).toFixed(0) + ' % bei eingegrabenen');
+    if (!(dug < fresh * 0.85)) { bad++; console.log('  FAIL: Eingraben wirkt kaum'); }
+    const off = reserves(map, false), on = reserves(map, true);
+    console.log('Reserven: Keil mit 6 % von 400K gegen 200K schafft ' + (off.depth * 100).toFixed(0) + ' % des Wegs ohne, ' + (on.depth * 100).toFixed(0) + ' % mit Reserven des Verteidigers (Felder ' + off.took + ' / ' + on.took + ')');
+    if (!(on.took < off.took)) { bad++; console.log('  FAIL: Reserven bremsen den Keil nicht'); }
+    const pk = pocket(map);
+    console.log('Kessel: ' + pk.cut + ' Zellen abgeschnitten, Truppen darin ' + K(pk.p0) + ' -> ' + K(pk.p1) + ' in 30 s, im Hauptland ' + K(pk.main0) + ' -> ' + K(pk.main1));
+    if (!(pk.cut > 0 && pk.p1 < pk.p0 * 0.15 && pk.main1 > pk.main0 * 0.95)) { bad++; console.log('  FAIL: der Kessel fällt nicht oder das Hauptland leidet mit'); }
   }
   console.log(bad ? bad + ' Abweichungen' : 'alle Szenarien wie erwartet');
   if (bad) process.exitCode = 1;

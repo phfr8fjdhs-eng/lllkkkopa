@@ -63,13 +63,28 @@ const ok = (c, msg) => { if (!c) { console.log('FAIL', msg); process.exitCode = 
     // an order at the dense end has much at hand, at the thin end little
     const tileOfCell = (c) => { const cx = c.id % g.CW, cy = (c.id - cx) / g.CW; return (cy * 16 + 8) * g.W + cx * 16 + 8; };
     const ie = g.commitInfo(h, tileOfCell(east[0]), 1), iw = g.commitInfo(h, tileOfCell(west[0]), 1);
-    ok(ie.later > 0 && iw.later > 0 && iw.eta > 0 && Math.abs(ie.now + ie.later - h.troops) < 1, 'at hand (the cells around the spot), the far end has to march: dense end ' + Math.round(ie.now) + ' (rest ' + Math.round(ie.later) + ' in ' + ie.eta.toFixed(0) + ' s), thin end ' + Math.round(iw.now) + ' (rest ' + Math.round(iw.later) + ' in ' + iw.eta.toFixed(0) + ' s)');
+    // (a realm no wider than the reach of an order has everything at hand from either end)
+    let cx0 = 1e9, cx1 = -1;
+    for (const c of h.post.cells.values()) { const cx = c.id % g.CW; if (cx < cx0) cx0 = cx; if (cx > cx1) cx1 = cx; }
+    const narrow = cx1 - cx0 <= 9;
+    ok((narrow || (ie.later > 0 && iw.later > 0 && iw.eta > 0)) && Math.abs(ie.now + ie.later - h.troops) < 1, 'at hand (the cells around the spot), the far end has to march: dense end ' + Math.round(ie.now) + ' (rest ' + Math.round(ie.later) + ' in ' + ie.eta.toFixed(0) + ' s), thin end ' + Math.round(iw.now) + ' (rest ' + Math.round(iw.later) + ' in ' + iw.eta.toFixed(0) + ' s)');
     ok(wshare < share2, 'the far end thinned out');
     // an order against a neighbour: part at once, the rest arrives
     g.immuneUntil = 0;
     const nb = g.neighbors(h);
     let target = -1;
-    for (const id of nb.ids) { const q = g.players[id]; for (let k = 0; k < 4000 && target < 0; k++) { const tt = (q.y0 + ((k * 7919) % (q.y1 - q.y0 + 1))) * g.W + q.x0 + ((k * 104729) % (q.x1 - q.x0 + 1)); if (g.owner[tt] === id) target = tt; } if (target >= 0) break; }
+    // a tile some way inside a neighbour, reachable over land: from a tile next to our border, 150
+    // steps further into its land
+    for (const b of h.border) {
+      for (const n of [b - 1, b + 1, b - g.W, b + g.W]) {
+        const id = g.owner[n];
+        if (!id || id === h.id || !g.players[id].alive || g.friendly(h, g.players[id])) continue;
+        const q = [n], seen = new Set(q);
+        for (let i = 0; i < q.length && q.length < 150; i++) for (const m of [q[i] - 1, q[i] + 1, q[i] - g.W, q[i] + g.W]) if (g.owner[m] === id && !seen.has(m)) { seen.add(m); q.push(m); }
+        target = q[q.length - 1]; break;
+      }
+      if (target >= 0) break;
+    }
     if (target >= 0) {
       // the whole front draws on the whole realm alike: everything goes at once
       const p0 = h.troops, tid = g.owner[target];
@@ -78,7 +93,8 @@ const ok = (c, msg) => { if (!c) { console.log('FAIL', msg); process.exitCode = 
       // a thrust draws on what stands where it breaks in; the rest marches there
       const route = g.thrustRoute(h, tid, target, g.thrustWidth(2));
       const pool = h.troops, info = g.commitInfo(h, route ? route.path[0] : target, 1);
-      ok(g.exec(h.id, { k: 'strike', t: target, r: 1, w: 2 }) === '', 'order: a wedge with the whole army');
+      const why = g.exec(h.id, { k: 'strike', t: target, r: 1, w: 2 });
+      ok(why === '', 'order: a wedge with the whole army' + (why ? ' (' + why + ')' : ''));
       const at = h.out.find((a) => a.tid === tid && a.goal >= 0);
       ok(!!at && at.want > 0 && Math.abs((pool - h.troops) - info.now) < 0.02 * pool + 5, 'only what stood there went at once (' + Math.round(pool - h.troops) + ' of ' + Math.round(pool) + '), ' + Math.round(at ? at.want : 0) + ' on the march');
       const w0 = at.want;
@@ -98,6 +114,15 @@ const ok = (c, msg) => { if (!c) { console.log('FAIL', msg); process.exitCode = 
   const g2 = run((g, h, step) => { grow(g, h, step); for (const a of h.out.slice()) g.retreat(a); step(100); log.b0 = g.checksum(); });
   const g3 = run((g, h, step) => { grow(g, h, step); for (const a of h.out.slice()) g.retreat(a); step(100); log.b1 = g.checksum(); });
   ok(log.b0 === log.b1, 'two runs, same game: ' + log.b0);
+  // a railway speeds up marching in its own cell and, less, in the two rings of cells around it
+  {
+    const keep = g1.rails, W = g1.W, y = 8 * 16 + 8, path = [];
+    for (let x = 10 * 16; x < 14 * 16; x++) path.push(y * W + x);
+    g1.rails = [{ path: path }]; g1.railSeen = -1; g1.postRails();
+    const cr = g1.cellRail, CW = g1.CW, at = (cx, cy) => cr[cy * CW + cx];
+    ok(Math.abs(at(11, 8) - 0.2) < 1e-6 && Math.abs(at(11, 9) - 0.45) < 1e-6 && Math.abs(at(11, 10) - 0.75) < 1e-6 && at(11, 11) === 1, 'railway: 0.2 on the line, 0.45 one cell away, 0.75 two away, 1 beyond');
+    g1.rails = keep; g1.railSeen = -1; g1.postRails();
+  }
   // where troops stand dense, part of them fall back instead of dying with the tile
   const row = [];
   for (const d of [0.5, 1, 2, 4, 8]) row.push(d + ': ' + (g1.postKeep(d) / d).toFixed(2));

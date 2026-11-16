@@ -150,7 +150,8 @@
       traitorUntil: -1, betrayals: 0, lastChange: 0, lastCluster: 0, ai: null,
       nameX: 0, nameY: 0, nameSize: 0, tradeGold: 0, conquests: 0, cc: null, ccAt: -1, post: null
     };
-    if (info.type === PT.HUMAN && this.postInit) this.postInit(p);
+    // people and nations stand in cells (src/03b_posture.js); bots are too small to need it
+    if ((info.type === PT.HUMAN || info.type === PT.NATION) && this.postInit) this.postInit(p);
     let c = info.color;
     if (!c) {
       if (info.type === PT.NATION) {
@@ -615,7 +616,9 @@
   // Reads the game only, so the interface can ask for a preview as often as it likes.
   //   entry: the tile where it breaks in, path: the tiles from there to the goal,
   //   lane: the tiles within half the width of the way, dist: cost of the way to the goal.
-  Game.prototype.thrustRoute = function (p, tid, goal, width) {
+  // start: an own tile the thrust should break in near (the start of a drag), or -1 to let the
+  // way-finding choose the cheapest spot on the border.
+  Game.prototype.thrustRoute = function (p, tid, goal, width, start) {
     const own = this.owner, land = this.map.land, W = this.W, H = this.H, N = this.N, pid = p.id;
     if (goal < 0 || goal >= N || own[goal] !== tid || !land[goal] || !(width > 0)) return null;
     const t = tid ? this.players[tid] : null, dp = t ? t.dposts : null, dr2 = this.R.defense * this.R.defense;
@@ -627,14 +630,22 @@
     heap.clear(); dist.set(goal, 0); heap.push(0, goal);
     const costOf = new Map();
     const cost = (n) => { let c = costOf.get(n); if (c === undefined) { c = this.crossCost(n, dp, dr2); costOf.set(n, c); } return c; };
-    let entry = -1, stop = Infinity;
+    // With a start, the entry is the border tile that is cheapest by way cost plus distance from
+    // the start (two units of way cost per tile); the search goes on until nothing can beat it.
+    const hasStart = start >= 0 && start < N && own[start] === pid, sx = hasStart ? start % W : 0, sy = hasStart ? (start - sx) / W : 0;
+    let entry = -1, stop = Infinity, best = Infinity;
     while (heap.n > 0) {
       const d = heap.k[0], n = heap.pop();
       if (done.has(n)) continue;
       if (d > stop) break;
       done.add(n);
-      if (done.size > G.THRUST.search) return null;
-      if (entry < 0 && touches(n)) { entry = n; stop = d * 1.3 + width * 2; }
+      if (done.size > G.THRUST.search) { if (entry >= 0) break; return null; }
+      if (touches(n)) {
+        if (hasStart) {
+          const nx = n % W, ny = (n - nx) / W, sc = d + 2 * Math.sqrt((nx - sx) * (nx - sx) + (ny - sy) * (ny - sy));
+          if (sc < best) { best = sc; entry = n; stop = sc + width * 2; }
+        } else if (entry < 0) { entry = n; stop = d * 1.3 + width * 2; }
+      }
       const x = n % W, y = (n - x) / W, cn = cost(n);
       for (let k = 0; k < 4; k++) {
         let m;
@@ -690,8 +701,8 @@
       let gl = (m < 10 ? 1 : m < 20 ? 1.25 : 1.5) * G.groundLoss(map, n);
       if (map.cover) { const f = map.feat[n]; if (f & 2) gl *= G.TERRAIN.greatLoss; else if (f & 1) gl *= G.TERRAIN.riverLoss; }
       if (!t) { need += (p.type === PT.BOT ? 8 : 16) * (1 + (gl - 1) * G.TERRAIN.free); continue; }
-      const pc = tp ? tp.cells.get(this.cellOf(n)) : null, pd = pc ? this.postDens(t, pc) : 1;
-      const r = troops / Math.max(1, face * pd), hold = within(1.15 - 0.33 * r, 0.15, 1);
+      const pc = tp ? tp.cells.get(this.cellOf(n)) : null, pd = pc ? this.postDens(t, pc) * this.postHold(pc) : 1;
+      const r = troops / Math.max(1, Math.min(t.troops, face * pd)), hold = within(1.15 - 0.33 * r, 0.15, 1);
       let mag = 1 + (gl - 1) * hold;
       if (dp && dp.length) { const x = n % this.W, y = (n - x) / this.W; for (let i = 0; i < dp.length; i++) { const dx = dp[i].x - x, dy = dp[i].y - y; if (dx * dx + dy * dy <= dr2) { mag *= 3 + 2 * dp[i].level; break; } } }
       need += (CB.base + CB.exchange * dAvg * pd * within(1 / Math.sqrt(Math.max(r, 0.01)), CB.fMin, CB.fMax)) * mag * botMod;
@@ -709,7 +720,7 @@
   // near: the tile the order was given at. For a realm with a posture the troops are then drawn
   // from the cell at that spot; what is not at hand marches there and joins as it arrives.
   // mode: 0 the whole front (default), 1 a section, 2 a wedge; for 1 and 2 `near` is the goal.
-  Game.prototype.attack = function (a, tid, troops, src, near, mode) {
+  Game.prototype.attack = function (a, tid, troops, src, near, mode, start) {
     this.attackWhy = '';
     if (!a.alive || this.phase !== 'play') return null;
     const t = tid ? this.players[tid] : null;
@@ -728,7 +739,7 @@
       }
       if (!join) {
         if (this.thrustCount(a) >= G.THRUST.max) { this.attackWhy = 'Höchstens ' + G.THRUST.max + ' Stösse gleichzeitig'; return null; }
-        route = this.thrustRoute(a, tid, near, width);
+        route = this.thrustRoute(a, tid, near, width, start === undefined ? -1 : start);
         if (!route) { this.attackWhy = 'Kein Weg dorthin'; return null; }
       }
     }
@@ -898,9 +909,10 @@
       // Ground only counts for as much as it is defended. Empty land is taken almost as fast in
       // the mountains as on the plain; against a realm it weighs less the more the attacker
       // outnumbers it, and (for a realm with a posture) the thinner the troops stand right there.
-      const pc = tp ? tp.cells.get(this.cellOf(tile)) : null, pd = pc ? this.postDens(t, pc) : 1;
+      const pc = tp ? tp.cells.get(this.cellOf(tile)) : null, pd = pc ? this.postDens(t, pc) * this.postHold(pc) : 1;
+      if (pc) pc.alarm = this.ticks;          // reserves are called to a cell under attack
       // r: how many attackers there are for every defender they face at this tile
-      const r = t ? at.troops / Math.max(1, face * pd) : 0;
+      const r = t ? at.troops / Math.max(1, Math.min(t.troops, face * pd)) : 0;      // never more defenders than there are
       let hold = TR.free;
       if (t) hold = within(1.15 - 0.33 * r, 0.15, 1);
       let mag = 80 * (1 + (gl - 1) * hold), speed = 16.5 * (1 + (gs - 1) * hold);
@@ -921,7 +933,7 @@
         used = within(1 / (5 * Math.max(r, 0.01)), 0.2, 1.5) * speed * speedMod * (easy ? 0.45 : 1);
         // the defender loses those who stood there; where they stand dense, part of them fall back
         // into the rest of the cell instead (`postKeep`)
-        if (pc) this.postTake(t, pc, dAvg * this.postKeep(pd));
+        if (pc) this.postTake(t, pc, dAvg * this.postKeep(this.postDens(t, pc)));
         else t.troops = Math.max(0, t.troops - dAvg);
       } else {
         loss = a.type === PT.BOT ? mag / 10 : mag / 5;
@@ -1307,11 +1319,17 @@
         if (!tileOk) return 'Nicht möglich';
         const a = this.actionsAt(p, c.t);
         if (a.canAttack && !c.sea) {
-          const mode = c.w === 1 || c.w === 2 ? c.w : 0;
-          return this.attack(p, a.tid, p.troops * r, -1, c.t, mode) ? '' : (this.attackWhy || 'Zu wenig Truppen');
+          const mode = c.w === 1 || c.w === 2 ? c.w : 0, st = c.s >= 0 && c.s < this.N ? Math.floor(c.s) : -1;
+          return this.attack(p, a.tid, p.troops * r, -1, c.t, mode, st) ? '' : (this.attackWhy || 'Zu wenig Truppen');
         }
         if (a.boat) return this.sendBoat(p, a.boat, p.troops * r) ? '' : 'Boot kann nicht auslaufen';
         return a.why || 'Hier nicht möglich';
+      }
+      case 'feed': {                                          // reinforce a thrust with a share of the army
+        const at = p.out.find(function (o) { return o.active && o.id === c.a; });
+        if (!at || at.goal < 0) return 'Nicht möglich';
+        const mode = at.width === this.thrustWidth(1) ? 1 : 2;
+        return this.attack(p, at.tid, p.troops * r, -1, at.goal, mode) ? '' : (this.attackWhy || 'Zu wenig Truppen');
       }
       case 'ship': return tileOk && this.moveWarship(p, c.t) ? '' : 'Kein Schiff kann dorthin';
       case 'build': {

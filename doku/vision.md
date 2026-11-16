@@ -16,7 +16,7 @@ Vorbereitung ist ein Bonus, nie eine Pflicht. Ein Stoss geht immer sofort mit de
 - **Kampf am Ort** (gebaut 15.11.2026): Ein Angriff kämpft gegen die Verteidiger an seiner Front, nicht gegen die ganze Armee.
 - **Gezielter Stoss** (gebaut 15.11.2026, ohne Antippen der Pfeile): Tippen ins Feindesland, der Angriff stösst als Keil von der nächsten Grenzstelle dorthin vor. «Ganze Front» bleibt als Wahl. Mehrere Stösse gleichzeitig, jeder als Pfeil mit Truppenzahl; antippen verstärkt oder zieht zurück. Urteil am Pfeil: überlegen, ausgeglichen, zu schwach.
 - **Bereitschaft:** Truppen, die eine Weile an einem Abschnitt stehen, kämpfen dort besser.
-- **Automatische Aufstellung:** Truppen stehen von selbst dichter an Grenzen zu Feinden, für alle Spieler (auch Bots und Nationen). Der Mensch setzt nur wenige Markierungen («hier verstärken»). Das Netz-Malen fällt weg.
+- **Aufstellung:** Das Netz bleibt in der Hand des Menschen (Verbündete können in den Rücken fallen, darum keine Automatik). Nationen setzen ihr Netz selbst. Passiv verteidigt das Netz (Dichte, Eingraben), aktiv der Gegenangriff mit einem Stoss.
 - **Durchbruch und Reserven:** Fällt ein dichter Abschnitt, geht es dahinter schnell, bis Reserven ankommen. Verteidigung heisst Tiefe, Posten, Schienen.
 - **Versorgung:** Abgeschnittene Truppen werden schwächer, Kessel fallen.
 
@@ -34,8 +34,8 @@ Vorbereitung ist ein Bonus, nie eine Pflicht. Ein Stoss geht immer sofort mit de
 ## Reihenfolge
 1. Messbank für den Kampf (`test/kampf.js`) – erledigt
 2. Kampf am Ort für alle – erledigt
-3. Gezielter Stoss mit Pfeilen – gebaut 15.11.2026 (Abschnitt, Keil, Vorschau, Flanken); offen: Bereitschaft
-4. Automatische Aufstellung
+3. Gezielter Stoss mit Pfeilen – gebaut 15./16.11.2026 (rechts ziehen, Abschnitt, Keil, Vorschau, Flanken, Pfeil anklicken)
+4. Verteidigung: Netz für Nationen, Eingraben, Reserven, Kessel – gebaut 16.11.2026 (das Netz des Menschen bleibt von Hand)
 5. Unterhalt und Silo-Wahl
 6. Kaserne
 7. Aufklärung

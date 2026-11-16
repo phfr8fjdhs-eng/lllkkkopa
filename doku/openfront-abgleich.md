@@ -7,6 +7,8 @@ Die Zahlen stammen aus dem OpenFront-Quellcode (`packages/engine-lib/src/configu
 
 **Stösse (15.11.2026):** OpenFront kennt nur den Angriff auf die ganze Grenze. Hier gibt es dazu Abschnitt und Keil mit Weg, Korridor, Flanken und Tempo der Spitze (`G.THRUST`, `thrustRoute` in `src/03_game.js`, Regeln in `doku/spielregeln.md`). Die ganze Front nimmt ihre Truppen aus dem ganzen Land, wie OpenFront.
 
+**Verteidigung (16.11.2026):** OpenFront kennt weder Aufstellung noch Eingraben, Reserven oder Kessel; hier haben Menschen und Nationen ein Netz, Truppen graben sich ein (bis +50 %), angegriffene Abschnitte rufen Reserven, abgeschnittene Gruppen ohne Küste verhungern in etwa 30 s (`doku/aufstellung.md`). Dadurch reicht eine Übermacht von zwei zu eins gegen eine Nation, die dicht an der Grenze steht, nur knapp (`node test/kampf.js riesig`).
+
 **Mehr Bots (15.11.2026):** Vorgabe ein Bot je 630 Landfelder statt je 950, höchstens 600 statt 400 (`defaultBots` in `src/07_ui.js`).
 
 **Klima (14.11.2026, nur hier):** OpenFront kennt keine Temperatur. Hier bremst Kälte unter 0 °C jeden Angriff und Marsch, bis zum Doppelten bei −45 °C (`G.CLIMATE`, `G.groundSpeed`; `doku/erde.md`).

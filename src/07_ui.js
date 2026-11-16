@@ -454,7 +454,7 @@
       '<li><b>Karte:</b> Ziehen verschiebt, zwei Finger oder das Mausrad zoomen.</li>' +
       '</ul><h2 class="h3">Tastenkürzel</h2><p>Die Belegung ist die von OpenFront.</p><div class="keys">' +
       BUILD.map(function (b) { return '<span><kbd>' + b.key.toUpperCase() + '</kbd>' + plain(b.t) + (b.t === UT.LASER ? ' (Arsenal)' : '') + '</span>'; }).join('') +
-      '<span><kbd>G</kbd>Angreifen</span><span><kbd>B</kbd>Boot schicken</span><span><kbd>T</kbd><kbd>Y</kbd>Truppenanteil −/+ 10 %</span><span><kbd>F</kbd>Ganze Front, Abschnitt oder Keil</span>' +
+      '<span><kbd>G</kbd>Angreifen</span><span><kbd>B</kbd>Boot schicken</span><span><kbd>T</kbd><kbd>Y</kbd>Truppenanteil −/+ 10 %</span><span>Rechts ziehen: Stoss vom Start zum Ziel</span><span><kbd>F</kbd>Keil oder Abschnitt</span><span>Mausrad beim Ziehen: Truppenanteil</span><span>Klick auf einen Pfeil: verstärken oder zurückziehen</span>' +
       '<span><kbd>K</kbd>Allianz anfragen</span><span><kbd>L</kbd>Allianz brechen</span><span><kbd>I</kbd>Spieler-Info</span>' +
       '<span><kbd>Q</kbd><kbd>E</kbd>Zoom −/+</span><span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>Karte schieben</span><span><kbd>C</kbd>Zum eigenen Gebiet</span>' +
       '<span><kbd>P</kbd>Pause</span><span><kbd>,</kbd><kbd>.</kbd>Tempo −/+</span><span><kbd>Strg</kbd>+ Klick: Baumenü</span><span>Doppelklick: Angreifen</span><span>Rechtsklick: Kreismenü</span><span><kbd>N</kbd>Aufstellung</span><span><kbd>Shift</kbd>+ Mausrad: Truppenanteil</span>' +
@@ -1133,54 +1133,81 @@
   // ---------- Aufstellung ----------
   // An order to attack over land: says beforehand how much is at hand and how much has to march.
   // ---------- attack modes ----------
-  // 0 the whole front, 1 a section, 2 a wedge. A section or a wedge is aimed at the spot clicked.
+  // 0 the whole front, 1 a section, 2 a wedge. With a mouse the whole front is a double click and
+  // a section or a wedge is drawn with the right button (the switch picks which of the two); on a
+  // touch screen the switch picks what a tap does.
   const THRUST_NAME = ['Ganze Front', 'Abschnitt', 'Keil'];
+  const finePointer = function () { return !!(window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches); };
+  function dragWidth() { return cfg.thrust === 1 ? 1 : 2; }
   function setThrust(w) {
     cfg.thrust = within(w | 0, 0, 2); saveCfg();
-    document.querySelectorAll('#modes button').forEach(function (b) { b.classList.toggle('on', +b.dataset.w === cfg.thrust); b.setAttribute('aria-pressed', +b.dataset.w === cfg.thrust ? 'true' : 'false'); });
+    const fine = finePointer(), on = fine ? dragWidth() : cfg.thrust;
+    document.querySelectorAll('#modes button').forEach(function (b) { const k = +b.dataset.w; b.classList.toggle('on', k === on); b.setAttribute('aria-pressed', k === on ? 'true' : 'false'); });
     planKey = ''; planInfo = null; if (view) view.plan = null;
   }
-  // The preview of a thrust under the pointer: its way, as an arrow with a band as wide as the
-  // lane, coloured by whether the troops set on the slider will get there.
-  let planKey = '', planAt = 0, planInfo = null;
+  // The preview of a thrust: its way as an arrow, with a band as wide as the lane, coloured by
+  // whether the troops set on the slider will get there. With a mouse it follows a drag with the
+  // right button (`rdrag`: where it began, where it is now).
+  let planKey = '', planAt = 0, planInfo = null, rdrag = null, rdragEnd = 0, rdragDrew = false;
   function updatePlan(now) {
     const h = game && game.human;
-    let tile = -1;
-    if (cfg.thrust && h && h.alive && game.phase === 'play' && hoverX >= 0 && !netOn && !aim && !ghost && $('modal').hidden) tile = view.tileAt(hoverX, hoverY);
+    let tile = -1, start = -1, mode = 0;
+    if (h && h.alive && game.phase === 'play' && !netOn && !aim && !ghost && $('modal').hidden && rdrag && rdrag.started) {
+      tile = view.tileAt(rdrag.x, rdrag.y); start = rdrag.tile; mode = dragWidth();
+    }
     const a = tile >= 0 && game.map.land[tile] && game.owner[tile] !== h.id ? game.actionsAt(h, tile) : null;
-    if (!a || !a.canAttack) { if (planInfo || view.plan) { view.plan = null; planInfo = null; planKey = ''; showCommit(); } return; }
-    const key = tile + ':' + cfg.thrust + ':' + Math.round(ratio * 100);
-    if ((key === planKey && now - planAt < 1500) || now - planAt < 90) return;
+    if (!a || !a.canAttack) {
+      if (planInfo || view.plan) { view.plan = null; planInfo = rdrag && rdrag.started ? { why: tile >= 0 && game.owner[tile] === h.id ? 'Ziehe ins Land eines Gegners' : (a && a.why) || 'Hier nicht möglich' } : null; planKey = ''; showCommit(); }
+      return;
+    }
+    const key = tile + ':' + start + ':' + mode + ':' + Math.round(ratio * 100);
+    if ((key === planKey && now - planAt < 1500) || now - planAt < 70) return;
     planKey = key; planAt = now;
-    const width = game.thrustWidth(cfg.thrust);
+    const width = game.thrustWidth(mode);
     if (game.thrustCount(h) >= G.THRUST.max && !h.out.some(function (o) { return o.active && o.goal >= 0 && o.tid === a.tid && o.width === width && Math.hypot(o.goal % game.W - tile % game.W, ((o.goal / game.W) | 0) - ((tile / game.W) | 0)) <= width; })) {
       view.plan = null; planInfo = { why: 'Höchstens ' + G.THRUST.max + ' Stösse gleichzeitig' }; showCommit(); return;
     }
-    const r = game.thrustRoute(h, a.tid, tile, width);
+    const r = game.thrustRoute(h, a.tid, tile, width, start);
     if (!r) { view.plan = null; planInfo = { why: 'Kein Weg dorthin' }; showCommit(); return; }
     const troops = h.troops * ratio, est = game.thrustEstimate(h, r, troops), k = troops / Math.max(1, est.need);
     const verdict = k >= 1.25 ? 0 : k >= 0.8 ? 1 : 2;
-    view.plan = { path: r.path, width: width, col: ['rgb(99,211,145)', 'rgb(244,183,64)', 'rgb(255,107,94)'][verdict] };
-    planInfo = { verdict: verdict, share: Math.min(1, k), ci: h.post ? game.commitInfo(h, r.path[0], ratio) : null };
+    const verdictText = ['reicht bis zum Ziel', 'knapp', 'reicht etwa ' + Math.max(5, Math.round(Math.min(1, k) * 20) * 5) + ' % des Wegs'][verdict];
+    view.plan = { path: r.path, width: width, troops: troops, col: ['rgb(99,211,145)', 'rgb(244,183,64)', 'rgb(255,107,94)'][verdict], label: THRUST_NAME[mode] + ' · ' + fmtT(troops) + ' · ' + verdictText };
+    planInfo = { mode: mode, verdict: verdict, text: verdictText, ci: h.post ? game.commitInfo(h, r.path[0], ratio) : null };
     showCommit();
   }
+  // The card for a thrust under way: reinforce it with the share on the slider, or call it back.
+  let cardId = -1;
+  function openThrustCard(id, sx, sy) {
+    const at = game.human.out.find(function (o) { return o.active && o.id === id; });
+    if (!at) return;
+    cardId = id;
+    const el = $('thrustCard');
+    el.innerHTML = '<b>' + THRUST_NAME[at.width === game.thrustWidth(1) ? 1 : 2] + ' · ' + fmtT(at.troops + (at.want || 0)) + '</b>' +
+      '<button type="button" data-act="feed">' + svg('up', 14) + 'Verstärken +' + fmtT(game.human.troops * ratio) + '</button>' +
+      '<button type="button" data-act="ret" class="ghost">' + svg('close', 13) + 'Zurückziehen</button>';
+    el.hidden = false;
+    const r = $('cv').getBoundingClientRect(), w = el.offsetWidth, hh = el.offsetHeight;
+    el.style.left = within(sx + 12, 6, r.width - w - 6) + 'px'; el.style.top = within(sy - hh / 2, 6, r.height - hh - 6) + 'px';
+  }
+  function closeThrustCard() { cardId = -1; const el = $('thrustCard'); if (el) el.hidden = true; }
   function commitText(tile) {
     const h = game.human;
     if (tile < 0 || game.owner[tile] === h.id || !game.map.land[tile]) return '';
-    if (cfg.thrust) {
-      if (!planInfo) return '';
+    if (planInfo) {
       if (planInfo.why) return planInfo.why;
-      let t = THRUST_NAME[cfg.thrust] + ' · ' + ['reicht bis zum Ziel', 'knapp', 'reicht etwa ' + Math.max(5, Math.round(planInfo.share * 20) * 5) + ' % des Wegs'][planInfo.verdict];
+      let t = THRUST_NAME[planInfo.mode] + ' · ' + planInfo.text;
       const i = planInfo.ci;
       if (i && i.later >= 1) t += ' · ' + fmtT(i.now) + ' sofort, ' + fmtT(i.later) + ' unterwegs (ca. ' + Math.max(1, Math.round(i.eta)) + ' s)';
       return t;
     }
+    if (finePointer() && !(rdrag && rdrag.started)) return '';
     return '';                      // the whole front draws on the whole realm: everything goes at once
   }
   function showCommit() {
     const el = $('commit');
     if (!el) return;
-    const tile = hoverX >= 0 ? view.tileAt(hoverX, hoverY) : lastTile;
+    const tile = rdrag && rdrag.started ? view.tileAt(rdrag.x, rdrag.y) : hoverX >= 0 ? view.tileAt(hoverX, hoverY) : lastTile;
     const s = netOn || aim ? '' : commitText(tile);
     if (el.textContent !== s) el.textContent = s;
   }
@@ -1302,9 +1329,9 @@
   function strikeAt(tile, extra) {
     const c = { k: 'strike', t: tile, r: ratio };
     if (extra) for (const k in extra) c[k] = extra[k];
-    if (!c.sea && cfg.thrust) c.w = cfg.thrust;
+    if (c.sea) delete c.w;
     lastTile = tile;
-    if (!c.sea && !c.say && c.w) { const s = commitText(tile); if (s.indexOf('unterwegs') >= 0) c.say = s; }
+    if (!c.sea && !c.say && c.w && planInfo && !planInfo.why) { const s = commitText(tile); if (s.indexOf('unterwegs') >= 0) c.say = s; }
     act(c);
   }
   function setNet(on) {
@@ -1402,6 +1429,9 @@
       return;
     }
     if (aim) { aim.tile = tile; refreshAim(); snd('tap'); return; }
+    const arrow = view.arrowAt(sx, sy);
+    if (arrow !== null && !menu) { openThrustCard(arrow, sx, sy); snd('tap'); return; }
+    closeThrustCard();
     // With a mouse a single click only looks around. A double click attacks, the right button
     // opens the circle menu. Touch keeps its taps: there is no second button on a screen.
     if (mouse) return;
@@ -1409,7 +1439,7 @@
     // an attack that is already running is fed with one tap, whoever it is against
     const running = !!q && h.out.some(function (at) { return at.active && at.tid === q.id; });
     if (!menu && (!q || q.type === PT.BOT || running) && h.alive && o !== h.id && game.map.land[tile]) {
-      strikeAt(tile);
+      strikeAt(tile, cfg.thrust ? { w: cfg.thrust } : null);
       return;
     }
     snd('tap');
@@ -1442,6 +1472,15 @@
       if (b && !b.disabled && !b.closest('#radial') && !b.closest('#sheetBody') && b.id !== 'aimGo') snd('ui');
     }, true);
     cv.addEventListener('pointerdown', function (e) {
+      if (e.pointerType === 'mouse' && e.button === 2) {
+        // the right button: a drag from own land into a foe's draws a thrust; a plain click opens the circle menu
+        if (!game || game.phase !== 'play' || aim || ghost || netOn) return;
+        const r = cv.getBoundingClientRect();
+        rdrag = { x0: e.clientX - r.left, y0: e.clientY - r.top, x: e.clientX - r.left, y: e.clientY - r.top, tile: view.tileAt(e.clientX - r.left, e.clientY - r.top), started: false, menu: false };
+        try { cv.setPointerCapture(e.pointerId); } catch (err) { /* not capturable */ }
+        closeRadial(); closeThrustCard();
+        return;
+      }
       if (e.pointerType === 'mouse' && e.button !== 0) return;
       closeRadial();
       try { cv.setPointerCapture(e.pointerId); } catch (err) { /* not capturable */ }
@@ -1464,6 +1503,11 @@
     });
     cv.addEventListener('pointermove', function (e) {
       if (e.pointerType === 'mouse') { const r = cv.getBoundingClientRect(); hoverX = e.clientX - r.left; hoverY = e.clientY - r.top; }
+      if (rdrag && e.pointerType === 'mouse') {
+        rdrag.x = hoverX; rdrag.y = hoverY;
+        if (!rdrag.started && Math.hypot(rdrag.x - rdrag.x0, rdrag.y - rdrag.y0) > 10) rdrag.started = true;
+        return;
+      }
       // version «Rohstoffe»: while the start point is being chosen the card follows the mouse
       if (e.pointerType === 'mouse' && game && game.res && game.phase === 'spawn' && ptr.size === 0) {
         const t = view.tileAt(hoverX, hoverY), k = t >= 0 && game.map.land[t] ? G.countryAt(game.map, t) : null;
@@ -1499,6 +1543,17 @@
       }
     });
     const up = function (e) {
+      if (rdrag && e.pointerType === 'mouse' && (e.button === 2 || e.type !== 'pointerup')) {
+        const d = rdrag;
+        rdrag = null; rdragEnd = performance.now(); rdragDrew = d.started;
+        if (d.started) {
+          const t = view.tileAt(d.x, d.y), ok = planInfo && !planInfo.why && view.plan;
+          if (e.type === 'pointerup' && ok && t >= 0) strikeAt(t, { w: dragWidth(), s: d.tile });
+          else if (e.type === 'pointerup' && planInfo && planInfo.why) { toast(planInfo.why); snd('deny'); }
+          view.plan = null; planInfo = null; planKey = ''; showCommit();
+        } else if (d.menu && e.type === 'pointerup') openRadial(view.tileAt(d.x0, d.y0), d.x0, d.y0);
+        return;
+      }
       if (!ptr.has(e.pointerId)) return;
       ptr.delete(e.pointerId);
       if (ptr.size === 2) startPinch(); else pinch = null;
@@ -1535,6 +1590,10 @@
     cv.addEventListener('pointerleave', function (e) { if (e.pointerType === 'mouse') { hoverX = -1; hoverY = -1; } });
     cv.addEventListener('contextmenu', function (e) {
       e.preventDefault();
+      // the menu waits for the button to come up, so that a drag can become a thrust instead;
+      // where the menu event comes only after the button is up, a drag just ended swallows it
+      if (rdrag) { rdrag.menu = true; return; }
+      if (rdragDrew && performance.now() - rdragEnd < 400) return;
       if (ghost) { setGhost(null); return; }
       if (!game || game.phase !== 'play' || aim) return;
       const r = cv.getBoundingClientRect(), tile = view.tileAt(e.clientX - r.left, e.clientY - r.top);
@@ -1542,7 +1601,7 @@
     });
     cv.addEventListener('wheel', function (e) {
       e.preventDefault();
-      if (e.shiftKey) { setRatio(ratio * 100 + (e.deltaY < 0 ? 5 : -5)); return; }
+      if (e.shiftKey || (rdrag && rdrag.started)) { setRatio(ratio * 100 + (e.deltaY < 0 ? 5 : -5)); planKey = ''; return; }
       const r = cv.getBoundingClientRect();
       view.zoomAt(e.clientX - r.left, e.clientY - r.top, Math.exp(-e.deltaY * 0.0016));
     }, { passive: false });
@@ -1585,7 +1644,11 @@
       if (k === 'y') { setRatio(ratio * 100 + 10); return; }
       if (k === 'c') { $('bHome').click(); return; }
       if (k === 'n') { setNet(!netOn); return; }
-      if (k === 'f') { setThrust((cfg.thrust + 1) % 3); toast('Angriff: ' + THRUST_NAME[cfg.thrust]); return; }
+      if (k === 'f') {
+        if (finePointer()) { setThrust(dragWidth() === 2 ? 1 : 2); toast('Rechts ziehen: ' + THRUST_NAME[dragWidth()]); }
+        else { setThrust((cfg.thrust + 1) % 3); toast('Angriff: ' + THRUST_NAME[cfg.thrust]); }
+        return;
+      }
       if (k === '.' || k === ',') { if (!mp) setSpeed(k === '.' ? 1 : -1); return; }
       if (e.repeat || game.phase !== 'play' || !game.human.alive) return;
       if (aim) { if (k === 'enter' && !$('aimGo').disabled) fireAim(); return; }
@@ -1634,6 +1697,13 @@
     });
     $('ratio').addEventListener('input', function () { setRatio(+this.value); });
     $('modes').addEventListener('click', function (e) { const b = e.target.closest('button[data-w]'); if (b) { setThrust(+b.dataset.w); snd('ui'); } });
+    $('thrustCard').addEventListener('click', function (e) {
+      const b = e.target.closest('button[data-act]');
+      if (!b || cardId < 0) return;
+      if (b.dataset.act === 'feed') act({ k: 'feed', a: cardId, r: ratio, say: 'Stoss verstärkt' });
+      else act({ k: 'ret', a: cardId });
+      closeThrustCard();
+    });
     $('statGold').addEventListener('click', function () { if (game && game.res && game.phase === 'play' && game.human.alive) showIncome(); });
     $('land').addEventListener('click', function (e) {
       if (e.target.id === 'landX') { landC = 0; view.resSel = 0; renderLand(); return; }

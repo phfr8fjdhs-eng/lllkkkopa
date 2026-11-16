@@ -1733,48 +1733,115 @@
     }
     return p;
   }
-  // An arrow along a way: a broad soft band as wide as the lane (only for the preview), a dark
-  // edge, the colour on top and a head at the goal.
-  function wayArrow(ctx, pts, col, band, dashed) {
+  // An arrow along a way, drawn as one filled shape: a body that swells from a narrow tail to its
+  // full width `w`, and a broad head at the goal. A dark rim holds it on any ground. For the
+  // preview a soft band as wide as the lane lies under it (`band`, in pixels).
+  function wayArrow(ctx, pts, col, w, band, alpha) {
     if (pts.length < 2) return;
-    const trace = function () { ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]); };
     ctx.lineJoin = 'round'; ctx.lineCap = 'round';
-    if (band > 0) { trace(); ctx.lineWidth = band; ctx.strokeStyle = col.replace('rgb(', 'rgba(').replace(')', ',.22)'); ctx.stroke(); }
-    // the head: a triangle along the last stretch of the line
-    const b = pts[pts.length - 1];
-    let a = pts[0];
-    for (let i = pts.length - 2; i >= 0; i--) { const d = Math.hypot(b[0] - pts[i][0], b[1] - pts[i][1]); a = pts[i]; if (d >= 14) break; }
-    const ang = Math.atan2(b[1] - a[1], b[0] - a[0]), L = 15, Wd = 9;
-    const bx = b[0] - Math.cos(ang) * L, by = b[1] - Math.sin(ang) * L;
-    // the shaft stops where the head begins
-    const shaft = pts.slice(0, -1); shaft.push([bx, by]);
-    ctx.beginPath(); ctx.moveTo(shaft[0][0], shaft[0][1]); for (let i = 1; i < shaft.length; i++) ctx.lineTo(shaft[i][0], shaft[i][1]);
-    ctx.lineWidth = 7; ctx.strokeStyle = dashed ? 'rgba(8,13,20,.45)' : 'rgba(8,13,20,.75)'; ctx.stroke();
-    if (dashed) ctx.setLineDash([10, 6]);
-    ctx.lineWidth = 3.6; ctx.strokeStyle = col; ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.beginPath();
-    ctx.moveTo(b[0], b[1]);
-    ctx.lineTo(bx - Math.sin(ang) * Wd, by + Math.cos(ang) * Wd);
-    ctx.lineTo(bx + Math.sin(ang) * Wd, by - Math.cos(ang) * Wd);
-    ctx.closePath();
-    ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(8,13,20,.8)'; ctx.stroke();
+    if (band > 0) {
+      ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]);
+      for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+      ctx.lineWidth = band; ctx.strokeStyle = col.replace('rgb(', 'rgba(').replace(')', ',.16)'); ctx.stroke();
+    }
+    // the head takes the last stretch of the way: as long as 2.6 widths, but never more than half
+    const HL = Math.max(12, w * 2.6), HW = Math.max(9, w * 1.25);
+    let total = 0;
+    for (let i = 1; i < pts.length; i++) total += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
+    if (total < 4) return;
+    const hl = Math.min(HL, total * 0.5);
+    // the body: points up to where the head begins, each with its distance from the tail
+    const body = [[pts[0][0], pts[0][1], 0]];
+    let run = 0, bx = pts[pts.length - 1][0], by = pts[pts.length - 1][1];
+    for (let i = 1; i < pts.length; i++) {
+      const ax = pts[i - 1][0], ay = pts[i - 1][1], seg = Math.hypot(pts[i][0] - ax, pts[i][1] - ay);
+      if (run + seg >= total - hl) { const f = (total - hl - run) / Math.max(1e-6, seg); bx = ax + (pts[i][0] - ax) * f; by = ay + (pts[i][1] - ay) * f; body.push([bx, by, total - hl]); break; }
+      run += seg; body.push([pts[i][0], pts[i][1], run]);
+    }
+    const tip = pts[pts.length - 1], hang = Math.atan2(tip[1] - by, tip[0] - bx);
+    const L = [], R = [], span = Math.max(1, total - hl);
+    for (let i = 0; i < body.length; i++) {
+      const p0 = body[Math.max(0, i - 1)], p1 = body[Math.min(body.length - 1, i + 1)];
+      let a = Math.atan2(p1[1] - p0[1], p1[0] - p0[0]);
+      if (i === body.length - 1) a = hang;
+      const k = body[i][2] / span, half = w * (0.32 + 0.18 * k);       // from a third of the width at the tail to half of it at the head
+      L.push([body[i][0] - Math.sin(a) * half, body[i][1] + Math.cos(a) * half]);
+      R.push([body[i][0] + Math.sin(a) * half, body[i][1] - Math.cos(a) * half]);
+    }
+    const trace = function () {
+      ctx.beginPath();
+      ctx.moveTo(L[0][0], L[0][1]);
+      for (let i = 1; i < L.length; i++) ctx.lineTo(L[i][0], L[i][1]);
+      ctx.lineTo(bx - Math.sin(hang) * HW, by + Math.cos(hang) * HW);
+      ctx.lineTo(tip[0], tip[1]);
+      ctx.lineTo(bx + Math.sin(hang) * HW, by - Math.cos(hang) * HW);
+      for (let i = R.length - 1; i >= 0; i--) ctx.lineTo(R[i][0], R[i][1]);
+      ctx.closePath();
+    };
+    ctx.globalAlpha = alpha === undefined ? 1 : alpha;
+    trace();
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = 3.2; ctx.strokeStyle = 'rgba(6,10,16,.85)'; ctx.stroke();
     ctx.fillStyle = col; ctx.fill();
+    // a light line along the middle of the body gives it some depth
+    ctx.beginPath(); ctx.moveTo(body[0][0], body[0][1]);
+    for (let i = 1; i < body.length; i++) ctx.lineTo(body[i][0], body[i][1]);
+    ctx.lineWidth = Math.max(1, w * 0.16); ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.stroke();
+    ctx.globalAlpha = 1;
   }
-  // Own thrusts on their way to the goal, and the preview of the one the pointer would send
-  // (`view.plan`, set by the interface: way, lane width, colour of the verdict).
+  G.wayArrow = wayArrow;
+  // How thick an arrow is for so many troops out of an army of `all`: three steps.
+  function arrowWidth(troops, all) {
+    const k = troops / Math.max(1, all);
+    return k < 0.12 ? 7 : k < 0.35 ? 11 : 15;
+  }
+  // Own thrusts on their way to the goal, and the preview of the one being drawn with the right
+  // mouse button (`view.plan`, set by the interface: way, lane width, colour of the verdict,
+  // troops, label). Every drawn arrow is remembered for clicks (`arrowHits`).
   View.prototype.drawThrusts = function (ctx, g, z, ox, oy, now) {
-    const h = g.human, W = g.W;
+    const h = g.human, W = g.W, hits = this.arrowHits || (this.arrowHits = []);
+    hits.length = 0;
     if (!h || !h.alive || g.phase !== 'play') return;
+    let all = h.troops;
+    for (const at of h.out) if (at.active) all += at.troops + (at.want || 0);
     for (const at of h.out) {
       if (!at.active || at.goal < 0 || at.reached || !at.path) continue;
       // start where the thrust has got to: the furthest tile of the way it holds
       let from = 0;
       for (let i = at.path.length - 1; i >= 0; i--) if (g.owner[at.path[i]] === h.id) { from = i; break; }
-      wayArrow(ctx, wayPoints(at.path, from, W, z, ox, oy), h.cssL || '#fff', 0, false);
+      const pts = wayPoints(at.path, from, W, z, ox, oy);
+      wayArrow(ctx, pts, h.cssL || 'rgb(240,240,240)', arrowWidth(at.troops + (at.want || 0), all), 0, 0.95);
+      hits.push({ id: at.id, pts: pts });
     }
     const pl = this.plan;
-    if (pl && pl.path && pl.path.length > 1) wayArrow(ctx, wayPoints(pl.path, 0, W, z, ox, oy), pl.col, pl.width * z, true);
+    if (pl && pl.path && pl.path.length > 1) {
+      const pts = wayPoints(pl.path, 0, W, z, ox, oy);
+      wayArrow(ctx, pts, pl.col, arrowWidth(pl.troops, all), pl.width * z, 0.85);
+      if (pl.label) {
+        const tip = pts[pts.length - 1];
+        ctx.font = '700 13px ' + FONT; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+        const tw = ctx.measureText(pl.label).width + 16, x = Math.min(tip[0] + 14, this.cw - tw - 6), y = Math.max(16, tip[1] - 22);
+        ctx.beginPath();
+        if (ctx.roundRect) ctx.roundRect(x, y - 11, tw, 22, 11); else ctx.rect(x, y - 11, tw, 22);
+        ctx.fillStyle = 'rgba(10,16,24,.92)'; ctx.fill();
+        ctx.lineWidth = 1.5; ctx.strokeStyle = pl.col; ctx.stroke();
+        ctx.fillStyle = '#fff'; ctx.fillText(pl.label, x + 8, y + 0.5);
+      }
+    }
+  };
+  // Which own thrust arrow lies under a point of the screen (within a few pixels), or null.
+  View.prototype.arrowAt = function (sx, sy) {
+    const hits = this.arrowHits || [];
+    let best = null, bd = 12;
+    for (const e of hits) {
+      const p = e.pts;
+      for (let i = 1; i < p.length; i++) {
+        const ax = p[i - 1][0], ay = p[i - 1][1], dx = p[i][0] - ax, dy = p[i][1] - ay, l2 = dx * dx + dy * dy || 1;
+        const t = Math.max(0, Math.min(1, ((sx - ax) * dx + (sy - ay) * dy) / l2)), d = Math.hypot(sx - ax - dx * t, sy - ay - dy * t);
+        if (d < bd) { bd = d; best = e.id; }
+      }
+    }
+    return best;
   };
 
   View.prototype.drawFronts = function (ctx, g, z, ox, oy, now) {
