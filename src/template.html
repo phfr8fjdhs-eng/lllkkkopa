@@ -92,10 +92,10 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .msg.ask div { display: flex; gap: 6px; }
 .msg.ask button { border: 0; border-radius: 7px; padding: 6px 11px; font: 600 14px var(--display); letter-spacing: .02em; background: rgba(255, 255, 255, 0.12); }
 .msg.ask .yes { background: var(--accent); color: var(--accent-ink); }
-#ctrl { pointer-events: auto; padding: 9px 12px 8px; position: relative; z-index: 2; }
-.stats { display: flex; gap: 12px; }
-.stat { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
-.stat > span { color: var(--muted); display: grid; }
+#ctrl { pointer-events: auto; padding: 12px 14px 10px; position: relative; z-index: 2; }
+.stats { display: flex; gap: 16px; }
+.stat { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; }
+.stat > span { color: var(--muted); display: grid; place-items: center; width: 34px; height: 34px; border-radius: 9px; background: rgba(255, 255, 255, 0.06); flex: none; }
 .stat.gold > span { color: var(--accent); }
 .stat.gold { position: relative; }
 .stat.gold.flash b { animation: goldFlash 1.3s ease-out; }
@@ -110,23 +110,34 @@ button { font: inherit; color: inherit; cursor: pointer; }
 #goldPop { position: absolute; left: 30px; top: -2px; font: 600 14px var(--display); color: #fff; text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8); opacity: 0; pointer-events: none; white-space: nowrap; }
 #goldPop.go { animation: goldUp 1.8s ease-out; }
 @keyframes goldUp { 0% { opacity: 0; transform: translateY(6px) scale(.7); } 15% { opacity: 1; transform: translateY(-14px) scale(1.15); } 70% { opacity: 1; transform: translateY(-30px) scale(1); } 100% { opacity: 0; transform: translateY(-44px); } }
-.stat b { display: block; font: 700 21px/1 var(--display); font-variant-numeric: tabular-nums; }
+.stat b { display: block; font: 700 23px/1 var(--display); letter-spacing: .01em; font-variant-numeric: tabular-nums; }
 #sGoldSub { color: var(--ink); }
 #incLine { display: flex; gap: 14px; margin-top: 5px; font: 600 12.5px var(--display); color: var(--ink); font-variant-numeric: tabular-nums; }
 #incLine[hidden] { display: none; }
 #incLine span { display: inline-flex; align-items: center; gap: 5px; }
 #incLine svg { color: var(--muted); }
-#popBar { position: relative; height: 20px; margin-top: 7px; border: 1px solid var(--line); border-radius: 7px; background: rgba(0, 0, 0, 0.3); overflow: hidden; }
+.popRow { display: flex; justify-content: space-between; align-items: baseline; margin-top: 12px; font: 600 11px var(--display); letter-spacing: .09em; text-transform: uppercase; color: var(--muted); }
+.popRow #popTxt { font: 600 13.5px var(--display); letter-spacing: .02em; text-transform: none; color: var(--ink); font-variant-numeric: tabular-nums; }
+#popBar { position: relative; height: 6px; margin-top: 5px; border-radius: 3px; background: rgba(255, 255, 255, 0.08); overflow: hidden; }
 #popBar i { position: absolute; top: 0; bottom: 0; left: 0; transform-origin: left center; transition: transform .2s ease-out; }
-#popHome { width: 100%; background: linear-gradient(180deg, #7fc4f5, #4f9ddb); }
-#popOut { width: 100%; background: linear-gradient(180deg, #f6c267, #e49a2c); }
-#popBar.full #popHome { background: linear-gradient(180deg, #8fe0ac, #4bbd77); }
-#popBar span { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font: 700 13px var(--display); font-variant-numeric: tabular-nums; color: #fff; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85); }
-.stat small { display: block; margin-top: 2px; color: var(--muted); font-size: 11.5px; white-space: nowrap; }
-.ratio { display: grid; grid-template-columns: auto 1fr 46px; align-items: center; gap: 10px; margin-top: 4px; font-size: 13px; color: var(--muted); }
-.ratio b { color: var(--ink); font: 700 16px var(--display); }
-.ratio > span:last-child { text-align: right; color: var(--ink); font: 600 15px var(--display); font-variant-numeric: tabular-nums; }
+#popHome { width: 100%; background: #5aa9e6; }
+#popOut { width: 100%; background: #f0a840; }
+#popBar.full #popHome { background: #4fc27f; }
+.stat small { display: block; margin-top: 3px; color: var(--muted); font-size: 11.5px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.ratio { display: grid; grid-template-columns: 92px 1fr 52px; align-items: center; gap: 12px; margin-top: 10px; font: 600 11px var(--display); letter-spacing: .09em; text-transform: uppercase; color: var(--muted); }
+.ratio b { color: var(--ink); font: 700 15px var(--display); letter-spacing: .02em; margin-left: 6px; font-variant-numeric: tabular-nums; }
+.ratio > span:last-child { text-align: right; color: var(--ink); font: 600 14px var(--display); letter-spacing: .02em; text-transform: none; font-variant-numeric: tabular-nums; }
 input[type=range] { width: 100%; height: 30px; margin: 0; accent-color: var(--accent); }
+#ratio { -webkit-appearance: none; appearance: none; height: 24px; background: transparent; cursor: pointer; }
+#ratio::-webkit-slider-runnable-track { height: 4px; border-radius: 2px; background: linear-gradient(90deg, var(--accent) var(--p, 20%), rgba(255, 255, 255, 0.12) var(--p, 20%)); }
+#ratio::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; margin-top: -6px; border-radius: 50%; background: #fff; border: 3px solid var(--accent); box-shadow: 0 1px 5px rgba(0, 0, 0, 0.55); }
+#ratio::-moz-range-track { height: 4px; border-radius: 2px; background: rgba(255, 255, 255, 0.12); }
+#ratio::-moz-range-progress { height: 4px; border-radius: 2px; background: var(--accent); }
+#ratio::-moz-range-thumb { width: 10px; height: 10px; border-radius: 50%; background: #fff; border: 3px solid var(--accent); box-shadow: 0 1px 5px rgba(0, 0, 0, 0.55); }
+.modes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; margin-top: 8px; padding: 3px; border-radius: 9px; background: rgba(0, 0, 0, 0.28); }
+.modes button { border: 0; border-radius: 7px; padding: 6px 4px; font: 600 13px var(--display); letter-spacing: .03em; color: var(--muted); background: transparent; cursor: pointer; transition: background .12s, color .12s; }
+.modes button:hover:not(.on) { color: var(--ink); background: rgba(255, 255, 255, 0.05); }
+.modes button.on { color: var(--ink); background: rgba(255, 255, 255, 0.13); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14); }
 
 /* circle menu: a ring of four wedges around the main action */
 #radial { position: absolute; width: 0; height: 0; z-index: 30; filter: drop-shadow(0 6px 16px rgba(0, 0, 0, 0.5)); }
@@ -264,7 +275,7 @@ button.ldRow:hover { background: rgba(255, 255, 255, 0.07); }
 .pkHas { font-size: 13px; color: var(--muted); }
 .pkHas svg { color: var(--ink); }
 .pkHas .none { font-weight: 500; }
-#commit { min-height: 16px; margin-top: 2px; font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+#commit { min-height: 16px; margin-top: 6px; font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
 #commit b { color: var(--ink); font-weight: 600; }
 #netBar { pointer-events: auto; padding: 10px 12px 12px; border-color: rgba(255, 150, 120, 0.55); }
 .netTop b { display: block; font: 700 17px var(--display); }
@@ -439,9 +450,11 @@ body.placing #cv { cursor: crosshair; }
           <div class="stat"><span id="icTroops"></span><div><b id="sTroops">0</b><small id="sTroopsSub">Truppen</small></div></div>
           <div class="stat gold" id="statGold"><span id="icGold"></span><div><b id="sGold">0</b><small id="sGoldSub">Gold</small></div><span id="goldPop" aria-hidden="true"></span></div>
         </div>
-        <div id="popBar" title="Truppen von deinem Höchststand"><i id="popHome"></i><i id="popOut"></i><span id="popTxt"></span></div>
+        <div class="popRow"><span>Armee</span><span id="popTxt"></span></div>
+        <div id="popBar" title="Truppen daheim (blau) und im Angriff (orange), gemessen am Höchststand"><i id="popHome"></i><i id="popOut"></i></div>
         <div id="incLine" hidden></div>
-        <label class="ratio" for="ratio"><span>Angriff <b id="ratioPct">20%</b></span><input id="ratio" type="range" min="1" max="100" value="20"><span id="ratioTroops">0</span></label>
+        <label class="ratio" for="ratio"><span>Angriff<b id="ratioPct">20%</b></span><input id="ratio" type="range" min="1" max="100" value="20"><span id="ratioTroops">0</span></label>
+        <div id="modes" class="modes" role="group" aria-label="Angriffsart" title="Taste F wechselt"><button type="button" data-w="0">Ganze Front</button><button type="button" data-w="1">Abschnitt</button><button type="button" data-w="2">Keil</button></div>
         <div id="commit" aria-live="off"></div>
       </div>
       <div id="netBar" class="panel" hidden>

@@ -1,6 +1,13 @@
 # Änderungsprotokoll
 Was seit dem 13.11.2026 geändert wurde und warum. Den heutigen Stand der Regeln beschreiben die anderen Dateien in `doku/`.
 
+## Stösse, mehr Bots, ruhigere Leiste (15.11.2026)
+**Gezielt angreifen.** Ein Schalter unter dem Regler (Taste `F`): ganze Front, Abschnitt oder Keil. Abschnitt und Keil stossen auf die angeklickte Stelle vor, auf dem billigsten Weg (um Gebirge und Wald herum, durch Täler), nur in ihrem Korridor; am Ziel weiten sie sich aus. Vorschau mit Weg, Breite und Urteil, Pfeil in der eigenen Farbe unterwegs, bis 4 Stösse gleichzeitig. Regeln: `doku/spielregeln.md`.
+**Abgestimmt mit der Messbank** (`node test/kampf.js stoss`, 150K gegen 40K): Mit 10 % der Armee schafft die ganze Front 6 % des Wegs zum tiefsten Punkt, ein Abschnitt und ein Keil erreichen das Ziel nach etwa 6 s. Zwei Fehler dabei gefunden und behoben: Ohne Tempo-Grenze schoss der Keil in 1 s 50 Felder tief wie ein Speer; mit einer Grenze pro Tick blieb er stehen, sobald ein Feld mehr kostete als ein Tick erlaubt (jetzt summiert sich die Grenze über die Ticks). Ohne Flanken nahm der Keil fast doppelt so viele Felder wie die Front und wäre immer die beste Wahl gewesen; mit Flanken zahlt er pro Feld fast gleich viel, und sein Vorteil ist die Tiefe. Ein Gebirgszug mit einer Lücke: Der Keil quert in der Lücke.
+**Ganze Front aus dem ganzen Land.** Die ganze Front nimmt ihre Truppen wieder überall gleichmässig und sofort (wie OpenFront); nur ein Stoss nimmt, was an seiner Einbruchstelle steht.
+**Mehr Bots.** Ein Bot je 630 Landfelder statt je 950, höchstens 600; auf der Erde 600 statt 400 (Simulation 10.2 statt 8.9 ms pro Tick). Eine früher gespeicherte Bot-Zahl wird einmal auf die neue Vorgabe zurückgesetzt.
+**Leiste unten links.** Ruhiger: Symbole in Kacheln, grössere Zahlen, schmaler flacher Armee-Balken mit der Zahl darüber statt des dicken Balkens mit Glanz, eigener schlanker Regler, Schalter für die Angriffsart.
+
 ## Kampf am Ort, Messbank, Vision (15.11.2026)
 **Problem.** Mit 150K gegen 40K konnte man niemanden einnehmen: Die Truppen eines Klicks kamen gestaffelt aus der Aufstellung, und die Kampfformel von OpenFront verglich jede kleine Portion mit der ganzen Armee des Verteidigers. Jede Portion zahlte den schlechtesten Kurs und starb, bevor die nächste kam.
 **Lösung.** Gekämpft wird am Ort: gegen die Verteidiger an der Front, nicht gegen die ganze Armee (`G.COMBAT`, Einzelheiten in `doku/aufstellung.md`). Die Dichte bleibt und wirkt jetzt sauber: Wo mehr Verteidiger stehen, ist ein Feld teurer und langsamer.

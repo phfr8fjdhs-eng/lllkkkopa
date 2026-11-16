@@ -14,7 +14,7 @@ Vorbereitung ist ein Bonus, nie eine Pflicht. Ein Stoss geht immer sofort mit de
 
 ## Bodenkampf
 - **Kampf am Ort** (gebaut 15.11.2026): Ein Angriff kämpft gegen die Verteidiger an seiner Front, nicht gegen die ganze Armee.
-- **Gezielter Stoss:** Tippen ins Feindesland, der Angriff stösst als Keil von der nächsten Grenzstelle dorthin vor. «Ganze Front» bleibt als Wahl. Mehrere Stösse gleichzeitig, jeder als Pfeil mit Truppenzahl; antippen verstärkt oder zieht zurück. Urteil am Pfeil: überlegen, ausgeglichen, zu schwach.
+- **Gezielter Stoss** (gebaut 15.11.2026, ohne Antippen der Pfeile): Tippen ins Feindesland, der Angriff stösst als Keil von der nächsten Grenzstelle dorthin vor. «Ganze Front» bleibt als Wahl. Mehrere Stösse gleichzeitig, jeder als Pfeil mit Truppenzahl; antippen verstärkt oder zieht zurück. Urteil am Pfeil: überlegen, ausgeglichen, zu schwach.
 - **Bereitschaft:** Truppen, die eine Weile an einem Abschnitt stehen, kämpfen dort besser.
 - **Automatische Aufstellung:** Truppen stehen von selbst dichter an Grenzen zu Feinden, für alle Spieler (auch Bots und Nationen). Der Mensch setzt nur wenige Markierungen («hier verstärken»). Das Netz-Malen fällt weg.
 - **Durchbruch und Reserven:** Fällt ein dichter Abschnitt, geht es dahinter schnell, bis Reserven ankommen. Verteidigung heisst Tiefe, Posten, Schienen.
@@ -34,7 +34,7 @@ Vorbereitung ist ein Bonus, nie eine Pflicht. Ein Stoss geht immer sofort mit de
 ## Reihenfolge
 1. Messbank für den Kampf (`test/kampf.js`) – erledigt
 2. Kampf am Ort für alle – erledigt
-3. Gezielter Stoss mit Pfeilen und Bereitschaft
+3. Gezielter Stoss mit Pfeilen – gebaut 15.11.2026 (Abschnitt, Keil, Vorschau, Flanken); offen: Bereitschaft
 4. Automatische Aufstellung
 5. Unterhalt und Silo-Wahl
 6. Kaserne

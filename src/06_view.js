@@ -451,6 +451,7 @@
     if (g.res && this.resSigns) this.drawRes(ctx, g, z, ox, oy);
     this.drawNames(ctx, g, z, ox, oy);
     this.drawRaids(ctx, g, z, ox, oy, now);
+    this.drawThrusts(ctx, g, z, ox, oy, now);
     this.drawFronts(ctx, g, z, ox, oy, now);
     this.drawIncoming(ctx, g, z, ox, oy, alpha, now);
     this.drawMarks(ctx, g, z, ox, oy, now);
@@ -1714,6 +1715,68 @@
     }
     return e;
   };
+  // ---------- thrusts ----------
+  // A way of tiles as a smooth line on the screen: every few tiles a point, rounded off twice.
+  function wayPoints(path, from, W, z, ox, oy) {
+    const step = Math.max(1, Math.round(5 / Math.max(0.5, z))), pts = [];
+    for (let i = from; i < path.length; i += step) pts.push([(path[i] % W + 0.5) * z + ox, (((path[i] / W) | 0) + 0.5) * z + oy]);
+    const last = path[path.length - 1];
+    pts.push([(last % W + 0.5) * z + ox, (((last / W) | 0) + 0.5) * z + oy]);
+    let p = pts;
+    for (let k = 0; k < 2 && p.length > 2; k++) {
+      const q = [p[0]];
+      for (let i = 0; i < p.length - 1; i++) {
+        const a = p[i], b = p[i + 1];
+        q.push([a[0] * 0.75 + b[0] * 0.25, a[1] * 0.75 + b[1] * 0.25], [a[0] * 0.25 + b[0] * 0.75, a[1] * 0.25 + b[1] * 0.75]);
+      }
+      q.push(p[p.length - 1]); p = q;
+    }
+    return p;
+  }
+  // An arrow along a way: a broad soft band as wide as the lane (only for the preview), a dark
+  // edge, the colour on top and a head at the goal.
+  function wayArrow(ctx, pts, col, band, dashed) {
+    if (pts.length < 2) return;
+    const trace = function () { ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]); };
+    ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    if (band > 0) { trace(); ctx.lineWidth = band; ctx.strokeStyle = col.replace('rgb(', 'rgba(').replace(')', ',.22)'); ctx.stroke(); }
+    // the head: a triangle along the last stretch of the line
+    const b = pts[pts.length - 1];
+    let a = pts[0];
+    for (let i = pts.length - 2; i >= 0; i--) { const d = Math.hypot(b[0] - pts[i][0], b[1] - pts[i][1]); a = pts[i]; if (d >= 14) break; }
+    const ang = Math.atan2(b[1] - a[1], b[0] - a[0]), L = 15, Wd = 9;
+    const bx = b[0] - Math.cos(ang) * L, by = b[1] - Math.sin(ang) * L;
+    // the shaft stops where the head begins
+    const shaft = pts.slice(0, -1); shaft.push([bx, by]);
+    ctx.beginPath(); ctx.moveTo(shaft[0][0], shaft[0][1]); for (let i = 1; i < shaft.length; i++) ctx.lineTo(shaft[i][0], shaft[i][1]);
+    ctx.lineWidth = 7; ctx.strokeStyle = dashed ? 'rgba(8,13,20,.45)' : 'rgba(8,13,20,.75)'; ctx.stroke();
+    if (dashed) ctx.setLineDash([10, 6]);
+    ctx.lineWidth = 3.6; ctx.strokeStyle = col; ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.beginPath();
+    ctx.moveTo(b[0], b[1]);
+    ctx.lineTo(bx - Math.sin(ang) * Wd, by + Math.cos(ang) * Wd);
+    ctx.lineTo(bx + Math.sin(ang) * Wd, by - Math.cos(ang) * Wd);
+    ctx.closePath();
+    ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(8,13,20,.8)'; ctx.stroke();
+    ctx.fillStyle = col; ctx.fill();
+  }
+  // Own thrusts on their way to the goal, and the preview of the one the pointer would send
+  // (`view.plan`, set by the interface: way, lane width, colour of the verdict).
+  View.prototype.drawThrusts = function (ctx, g, z, ox, oy, now) {
+    const h = g.human, W = g.W;
+    if (!h || !h.alive || g.phase !== 'play') return;
+    for (const at of h.out) {
+      if (!at.active || at.goal < 0 || at.reached || !at.path) continue;
+      // start where the thrust has got to: the furthest tile of the way it holds
+      let from = 0;
+      for (let i = at.path.length - 1; i >= 0; i--) if (g.owner[at.path[i]] === h.id) { from = i; break; }
+      wayArrow(ctx, wayPoints(at.path, from, W, z, ox, oy), h.cssL || '#fff', 0, false);
+    }
+    const pl = this.plan;
+    if (pl && pl.path && pl.path.length > 1) wayArrow(ctx, wayPoints(pl.path, 0, W, z, ox, oy), pl.col, pl.width * z, true);
+  };
+
   View.prototype.drawFronts = function (ctx, g, z, ox, oy, now) {
     const h = g.human;
     if (!h || !h.alive || g.phase !== 'play') return;

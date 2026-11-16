@@ -1,5 +1,6 @@
 // The posture (Aufstellung): bookkeeping stays exact, troops march to where the net is pulled,
-// an order draws on what is at hand and the rest follows, and two runs give the same game.
+// a thrust draws on what is at hand and the rest follows, the whole front on everything at once,
+// and two runs give the same game.
 const fs = require('fs'), path = require('path');
 const src = path.join(__dirname, '..', 'src');
 for (const f of ['00_util.js', '01_map.js', '02_path.js', '03_game.js', '03b_posture.js', '04_units.js', '04b_rail.js', '05_ai.js']) require(path.join(src, f));
@@ -70,9 +71,15 @@ const ok = (c, msg) => { if (!c) { console.log('FAIL', msg); process.exitCode = 
     let target = -1;
     for (const id of nb.ids) { const q = g.players[id]; for (let k = 0; k < 4000 && target < 0; k++) { const tt = (q.y0 + ((k * 7919) % (q.y1 - q.y0 + 1))) * g.W + q.x0 + ((k * 104729) % (q.x1 - q.x0 + 1)); if (g.owner[tt] === id) target = tt; } if (target >= 0) break; }
     if (target >= 0) {
-      const pool = h.troops, info = g.commitInfo(h, target, 1);
-      ok(g.exec(h.id, { k: 'strike', t: target, r: 1 }) === '', 'order: attack with the whole army');
-      const at = h.out.find((a) => a.tid === g.owner[target]);
+      // the whole front draws on the whole realm alike: everything goes at once
+      const p0 = h.troops, tid = g.owner[target];
+      ok(g.exec(h.id, { k: 'strike', t: target, r: 0.1 }) === '' && Math.abs(p0 * 0.9 - h.troops) < 1 && h.out.some((a) => a.tid === tid && a.goal < 0 && !(a.want > 0)), 'order: the whole front, a tenth of the army at once from everywhere');
+      for (const a of h.out.slice()) g.endAttack(a, true);
+      // a thrust draws on what stands where it breaks in; the rest marches there
+      const route = g.thrustRoute(h, tid, target, g.thrustWidth(2));
+      const pool = h.troops, info = g.commitInfo(h, route ? route.path[0] : target, 1);
+      ok(g.exec(h.id, { k: 'strike', t: target, r: 1, w: 2 }) === '', 'order: a wedge with the whole army');
+      const at = h.out.find((a) => a.tid === tid && a.goal >= 0);
       ok(!!at && at.want > 0 && Math.abs((pool - h.troops) - info.now) < 0.02 * pool + 5, 'only what stood there went at once (' + Math.round(pool - h.troops) + ' of ' + Math.round(pool) + '), ' + Math.round(at ? at.want : 0) + ' on the march');
       const w0 = at.want;
       step(20);

@@ -88,7 +88,7 @@ function run(map, sc, classic) {
       let tile = -1;
       for (const b of h.border) { for (const n of [b - 1, b + 1, b - g.W, b + g.W]) if (g.owner[n] === foe.id) { tile = n; break; } if (tile >= 0) break; }
       const before = h.troops;
-      if (tile >= 0) g.exec(h.id, { k: 'strike', t: tile, r: sc.clicks[next][0] });
+      if (tile >= 0) g.exec(h.id, { k: 'strike', t: tile, r: sc.clicks[next][0], w: sc.clicks[next][2] || 0 });
       sent += classic ? before - h.troops : before * sc.clicks[next][0];
       next++;
     }
@@ -100,6 +100,60 @@ function run(map, sc, classic) {
   let inAttack = 0;
   for (const a of h.out) if (a.active) inAttack += a.troops;
   return { won: !foe.alive, half: half, end: end, took: 1 - (foe.alive ? foe.tiles : 0) / tiles0, lost: sc.aT - h.troops - inAttack, sent: sent, cells: h.post ? h.post.cells.size : 0, foeLeft: foe.alive ? foe.troops : 0 };
+}
+
+// ---------- thrusts ----------
+// The goal of a thrust: the defender's tile furthest east on the row through the middle of the arena.
+function deepGoal(g, foe, row) {
+  let best = -1;
+  for (let x = 0; x < g.W; x++) { const t = row * g.W + x; if (g.owner[t] === foe.id) best = t; }
+  return best;
+}
+// One thrust (or the whole front) with the same troops; measured: does it reach the goal, how far
+// does it get along the way a wedge would take (share of that way), what does it cost.
+function runThrust(map, sc, mode, classic) {
+  const A = arena(map, sc, classic), g = A.g, h = A.h, foe = A.foe, W = g.W;
+  const row = Math.round((h.y0 + h.y1) / 2), goal = deepGoal(g, foe, row);
+  let x0 = W, x1 = 0;
+  for (let x = 0; x < W; x++) if (g.owner[row * W + x] === foe.id) { if (x < x0) x0 = x; if (x > x1) x1 = x; }
+  const way = g.thrustRoute(h, foe.id, goal, g.thrustWidth(2));     // the same way for every mode, to measure progress on
+  const before = h.troops, why = g.exec(h.id, { k: 'strike', t: goal, r: sc.share, w: mode });
+  const at = h.out.find((a) => a.active);
+  const lane = at && at.lane ? at.lane.size : 0, len = at && at.path ? at.path.length : 0;
+  let hit = -1, t0 = g.ticks;
+  for (let k = 0; k < LIMIT; k++) {
+    g.tick(); g.dirtyN = 0; g.dirtyFlag.fill(0); g.events.length = 0;
+    if (hit < 0 && g.owner[goal] === h.id) hit = g.ticks - t0;
+    if (!h.out.some((a) => a.active)) break;
+  }
+  let deep = 0;
+  if (way) for (let i = 0; i < way.path.length; i++) if (g.owner[way.path[i]] === h.id) deep = i + 1;
+  return { why: why, hit: hit, depth: way ? deep / way.path.length : 0, took: sc.dt - foe.tiles, lost: before - h.troops, lane: lane, len: len };
+}
+const THRUSTS = [
+  { name: 'Stoss: 150K gegen 40K mit 20 %', at: 3000, dt: 1200, aT: 150000, dT: 40000, share: 0.2 },
+  { name: 'Stoss: 150K gegen 40K mit 10 %', at: 3000, dt: 1200, aT: 150000, dT: 40000, share: 0.1 },
+  { name: 'Stoss: 400K gegen 100K mit 15 %', at: 12000, dt: 4000, aT: 400000, dT: 100000, share: 0.15 }
+];
+const MODES = ['ganze Front', 'Abschnitt', 'Keil'];
+
+// A mountain range across the defender's land with one valley through it: a thrust must take the valley.
+function valley(map) {
+  const sc = THRUSTS[0], A = arena(map, sc, false), g = A.g, h = A.h, foe = A.foe, W = g.W;
+  const row = Math.round((h.y0 + h.y1) / 2), goal = deepGoal(g, foe, row);
+  let x0 = W, x1 = 0;
+  for (let x = 0; x < W; x++) if (g.owner[row * W + x] === foe.id) { if (x < x0) x0 = x; if (x > x1) x1 = x; }
+  const wall = Math.round((x0 + x1) / 2), gapY = row - 14, saved = [];
+  for (let y = 0; y < g.H; y++) for (let x = wall - 1; x <= wall + 1; x++) {
+    const t = y * W + x;
+    if (g.owner[t] !== foe.id || Math.abs(y - gapY) <= 2) continue;
+    saved.push([t, map.mag[t]]); map.mag[t] = 28;
+  }
+  const r = g.thrustRoute(h, foe.id, goal, g.thrustWidth(2));
+  for (const [t, m] of saved) map.mag[t] = m;
+  let cross = -1;
+  if (r) for (const t of r.path) if (Math.abs(t % W - wall) <= 1) { cross = (t / W) | 0; break; }
+  return { ok: !!r && Math.abs(cross - gapY) <= 3, cross: cross, gapY: gapY, len: r ? r.path.length : 0 };
 }
 
 (async () => {
@@ -118,6 +172,21 @@ function run(map, sc, classic) {
     // the posture must not make a fight much slower or dearer than the pool does
     const near = (c.end < 0 || p.end <= c.end * 1.3 + 20) && p.lost <= c.lost * 1.3 + 500;
     if (!near) { bad++; console.log('  FAIL: mit Aufstellung deutlich schlechter als mit einem Topf'); }
+  }
+  // thrusts: a wedge gets deeper than the whole front with the same troops, a section in between
+  for (const sc of THRUSTS) {
+    if (only && sc.name.indexOf(only) < 0 && only !== 'stoss') continue;
+    console.log(sc.name);
+    const rs = [0, 1, 2].map((m) => runThrust(map, sc, m, false));
+    rs.forEach((r, m) => console.log('  ' + MODES[m].padEnd(12) + (r.why ? 'abgelehnt: ' + r.why : (r.hit >= 0 ? 'Ziel nach ' + (r.hit / 10).toFixed(0).padStart(3) + 's' : 'Ziel nicht erreicht') +
+      '  Weg geschafft ' + (r.depth * 100).toFixed(0).padStart(3) + ' %  Felder ' + String(r.took).padStart(5) + '  Verluste ' + K(r.lost).padStart(7) + (m ? '  Korridor ' + r.lane + ' Felder, Weg ' + r.len : ''))));
+    if (!(rs[2].depth > rs[0].depth + 0.1)) { bad++; console.log('  FAIL: der Keil kommt nicht tiefer als die ganze Front'); }
+    if (!(rs[1].depth >= rs[0].depth)) { bad++; console.log('  FAIL: der Abschnitt kommt weniger tief als die ganze Front'); }
+  }
+  if (!only || only === 'stoss' || only === 'tal') {
+    const v = valley(map);
+    console.log('Tal: Gebirgszug mit einer Lücke auf Zeile ' + v.gapY + ', der Keil quert auf Zeile ' + v.cross + ' (Weg ' + v.len + ' Felder)');
+    if (!v.ok) { bad++; console.log('  FAIL: der Keil nimmt nicht das Tal'); }
   }
   console.log(bad ? bad + ' Abweichungen' : 'alle Szenarien wie erwartet');
   if (bad) process.exitCode = 1;

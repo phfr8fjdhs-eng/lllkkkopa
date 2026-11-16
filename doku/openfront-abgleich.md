@@ -5,4 +5,8 @@ Die Zahlen stammen aus dem OpenFront-Quellcode (`packages/engine-lib/src/configu
 
 **Kampf am Ort (15.11.2026):** OpenFront vergleicht einen Angriff mit der ganzen Armee des Verteidigers (Verluste pro Feld × Verteidiger/Angreifer zwischen 0.6 und 2, Tempo nach demselben Verhältnis) und zieht ihm pro Feld den Schnitt ab. Hier zählt nur, wer an der Front steht: Truppen pro Feld × Frontlänge × 24 Felder Tiefe. Ein Feld kostet 16 Truppen Grundpreis plus die Verteidiger darauf, gewichtet mit 1/√(örtliche Überzahl) zwischen 0.7 und 1.5 (`G.COMBAT` in `src/03_game.js`). Grund: Mit der Aufstellung kommen Truppen in Portionen an, und jede kleine Portion traf auf die volle Armee. Gelände, Posten, Fallout und die Faktoren für grosse Reiche sind unverändert. Messbank: `node test/kampf.js`.
 
+**Stösse (15.11.2026):** OpenFront kennt nur den Angriff auf die ganze Grenze. Hier gibt es dazu Abschnitt und Keil mit Weg, Korridor, Flanken und Tempo der Spitze (`G.THRUST`, `thrustRoute` in `src/03_game.js`, Regeln in `doku/spielregeln.md`). Die ganze Front nimmt ihre Truppen aus dem ganzen Land, wie OpenFront.
+
+**Mehr Bots (15.11.2026):** Vorgabe ein Bot je 630 Landfelder statt je 950, höchstens 600 statt 400 (`defaultBots` in `src/07_ui.js`).
+
 **Klima (14.11.2026, nur hier):** OpenFront kennt keine Temperatur. Hier bremst Kälte unter 0 °C jeden Angriff und Marsch, bis zum Doppelten bei −45 °C (`G.CLIMATE`, `G.groundSpeed`; `doku/erde.md`).

@@ -9,9 +9,9 @@ Alle Tests liegen in `test/` und laufen mit `node test/<name>.js`. Mehrere brauc
 | --- | --- |
 | `sim.js` | Simulation ohne Browser: Regeln, Buchhaltung, Tempo |
 | `all.js` | jede Karte kurz mit Prüfungen, dazu die erfundene Karte |
-| `det.js` | zwei Kopien desselben Spiels bleiben mit denselben Befehlen gleich |
+| `det.js` | zwei Kopien desselben Spiels bleiben mit denselben Befehlen gleich, auch mit Stössen |
 | `posture.js` | Aufstellung: Buchhaltung, Marsch, Befehl, Rückzug, Gleichlauf |
-| `kampf.js [teil des namens]` | Messbank Bodenkampf: feste Szenarien (40K gegen 10K bis 400K gegen 100K, ein oder mehrere Klicks), erwartet erobert oder steckt, Aufstellung gegen einen Topf |
+| `kampf.js [teil des namens \| stoss \| tal]` | Messbank Bodenkampf: feste Szenarien (40K gegen 10K bis 400K gegen 100K, ein oder mehrere Klicks), erwartet erobert oder steckt, Aufstellung gegen einen Topf; Stösse: ganze Front, Abschnitt und Keil mit gleichen Truppen (Keil kommt tiefer), Tal durch einen Gebirgszug |
 | `human.js` | ein Skript führt alle Aktionen des menschlichen Spielers aus |
 | `sea.js [karte] [routen]` | Seerouten über den Seegraphen, jedes Feld geprüft |
 | `erde.js [ticks] [bots]` | die Erde ohne Browser, Tempo und Speicher (`node --max-old-space-size=4096`) |

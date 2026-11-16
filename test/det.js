@@ -12,7 +12,7 @@ let r = 12345; const rnd = (n) => { r = (Math.imul(r, 1103515245) + 12345) >>> 0
 const both = (id, c) => { const x = a.exec(id, c), y = b.exec(id, c); if (x !== y) throw new Error('order answered differently: ' + JSON.stringify(c) + ' ' + x + ' / ' + y); };
 let n = 0;
 for (let t = 0; t < map.N && n < 2; t += 53) if (a.canSpawnAt(t) && !map.shore[t]) { both(++n, { k: 'spawn', t: t }); t += 20000; }
-let diff = 0, cruise = 0, orders = 0;
+let diff = 0, cruise = 0, orders = 0, thrusts = 0;
 for (let i = 0; i < 4000; i++) {
   a.tick(); b.tick();
   a.dirtyN = b.dirtyN = 0; a.dirtyFlag.fill(0); b.dirtyFlag.fill(0); a.events.length = b.events.length = 0;
@@ -27,7 +27,15 @@ for (let i = 0; i < 4000; i++) {
     const t = [t0 - 1, t0 + 1, t0 - W, t0 + W][rnd(4)];
     const kind = i < 400 ? 0 : rnd(10);
     orders++;
-    if (kind < 5) both(id, { k: 'strike', t: t, r: 0.6 });
+    if (kind < 5) {
+      // the whole front, a section or a wedge; a thrust aims at a tile further inside whatever lies
+      // next door (the same owner as the tile beside the border, so it is reachable over land)
+      const w = rnd(3), o = a.owner[t];
+      let goal = t;
+      if (w) for (let k = 0; k < 40; k++) { const g = t + (rnd(41) - 20) * W + rnd(41) - 20; if (g >= 0 && g < map.N && map.land[g] && a.owner[g] === o) { goal = g; break; } }
+      both(id, { k: 'strike', t: goal, r: 0.6, w: w });
+      if (w) thrusts++;
+    }
     else if (kind < 8) both(id, { k: 'build', u: [UT.CITY, UT.SILO, UT.SAM, UT.FACTORY, UT.DEFENSE, UT.PORT][rnd(6)], t: t0 });
     else if (kind < 9) both(id, { k: 'up', t: t0 });
     else { const foe = a.players[3 - id]; if (foe.alive && a.immuneUntil <= a.ticks) { const ft = Array.from(foe.border)[0]; both(id, { k: 'build', u: rnd(2) ? UT.CRUISE : UT.ATOM, t: ft }); cruise++; } }
@@ -36,5 +44,5 @@ for (let i = 0; i < 4000; i++) {
 }
 let same = true;
 for (let t = 0; t < map.N; t++) if (a.owner[t] !== b.owner[t] || a.fallout[t] !== b.fallout[t]) { same = false; break; }
-console.log('orders', orders, 'missiles ordered', cruise, 'tiles A/B', a.players[1].tiles, a.players[2].tiles, 'fallout', a.falloutCount, 'identical map:', same, 'checksum differences:', diff);
+console.log('orders', orders, 'thrusts', thrusts, 'missiles ordered', cruise, 'tiles A/B', a.players[1].tiles, a.players[2].tiles, 'fallout', a.falloutCount, 'identical map:', same, 'checksum differences:', diff);
 process.exit(same && !diff ? 0 : 1);
