@@ -1907,12 +1907,12 @@
     return best;
   };
 
-  // Version «Pfeile»: the rally points (a flag, and the circle the troops gather in) and, close
-  // up, the troops standing in each cell along the border.
+  // Version «Pfeile»: the rally points (a flag, and the circle the troops gather in). How many
+  // troops stand where is shown by the tint of the own land only, no numbers (too busy).
   View.prototype.drawRally = function (ctx, g, z, ox, oy, now) {
     const h = g.human;
     if (!g.pfeile || !h || !h.alive || !h.post || g.phase !== 'play') return;
-    const W = g.W, CS = G.POST.cell, cell = CS * z, cw = this.cw, ch = this.ch;
+    const W = g.W, cell = G.POST.cell * z, cw = this.cw, ch = this.ch;
     ctx.save();
     const rl = h.post.rally, R = G.RALLY.r * cell;
     for (let i = 0; i < rl.length; i++) {
@@ -1925,31 +1925,6 @@
       ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y - 22); ctx.stroke();
       ctx.beginPath(); ctx.moveTo(x + 1, y - 22); ctx.lineTo(x + 15, y - 17); ctx.lineTo(x + 1, y - 12); ctx.closePath();
       ctx.fillStyle = '#ffd65e'; ctx.fill(); ctx.lineWidth = 1.4; ctx.stroke();
-    }
-    // troops per border cell, once a cell is big enough on the screen to carry a number
-    if (cell >= 30) {
-      const L = this.rallyLab || (this.rallyLab = { at: -1e9, list: [] });
-      if (now - L.at > 500) {
-        L.at = now; L.list.length = 0;
-        const seen = new Set(), cells = h.post.cells;
-        for (const b of h.border) {
-          const id = g.cellOf(b);
-          if (seen.has(id)) continue;
-          seen.add(id);
-          const c = cells.get(id);
-          if (c) L.list.push(id, g.postReal(h, c));
-        }
-      }
-      const CW = g.CW, fmtT = G.fmtTroops;
-      ctx.font = '700 11px ' + FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      for (let i = 0; i < L.list.length; i += 2) {
-        const id = L.list[i], cx = id % CW, cy = (id - cx) / CW;
-        const x = (cx + 0.5) * cell + ox, y = (cy + 0.5) * cell + oy;
-        if (x < -20 || y < -10 || x > cw + 20 || y > ch + 10) continue;
-        const s = fmtT(L.list[i + 1]), tw = ctx.measureText(s).width + 8;
-        ctx.fillStyle = 'rgba(10,16,24,.78)'; ctx.fillRect(x - tw / 2, y - 8, tw, 16);
-        ctx.fillStyle = '#fff'; ctx.fillText(s, x, y + 0.5);
-      }
     }
     ctx.restore();
   };
