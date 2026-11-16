@@ -1415,7 +1415,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
         if (!c) c = P[k % P.length].slice();
         this.palUsed = k;
       } else {
-        c = G.hsl((id * 137.508) % 360, 0.04 + (id % 3) * 0.02, 0.56 + (id % 6) * 0.03);   // bot land is a pale grey, in different shades: it recedes, and is easy to tell from nations
+        c = [196, 196, 196];   // every bot is the same light grey: it recedes, and is easy to tell from nations; the border still parts two bots
       }
     } else if (info.type === PT.HUMAN) {
       // Two people who picked the same colour: the later one is moved round the colour wheel.
