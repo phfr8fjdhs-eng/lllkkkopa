@@ -114,8 +114,3 @@ Ziel: die Karte so ruhig wie in OpenFront. Alles in `06_view.js`, die Palette in
 - **Dichte nur für die Verteidigung:** Ein Stoss nimmt seine Truppen wie die ganze Front sofort aus dem ganzen Land (`attack`), nichts marschiert mehr nach. Grund: Die Idee des Netzes ist die Verteidigung; ein Stoss aus einer dünnen Ecke blieb sonst stecken, bevor die Truppen da waren.
 - **Weg des Stosses in acht Richtungen** (`thrustRoute`): Mit vier Richtungen kosten alle Treppen gleich viel, und der Weg kam als L heraus (erst quer, dann gerade hoch). Jetzt mit Schrägschritten (Kosten √2, nicht über eine fremde Ecke).
 - **Vorschau ehrlich** (`thrustEstimate`): Vorher rechnete sie mit den vollen Truppen bis zum Ziel und ohne Flanken: «reicht etwa 60 %», im Spiel kam der Keil 10 % weit. Jetzt spielt sie den Kampf auf einer Schattenkopie des Korridors Tick für Tick durch, mit derselben Reihenfolge der Felder (eigener Würfel, damit der Spielwürfel unberührt bleibt), dem Tempo der Spitze, der Front-Länge, schrumpfenden Truppen beim Angreifer und beim Verteidiger, dünner werdenden Zellen und grob den Reserven. Gemessen (`node test/kampf.js stoss`): Vorschau und echt treffen in fünf von sechs Fällen auf 10 % genau (z. B. Keil 10 %: 64 % / 67 %). Grün heisst jetzt: kommt an und hat noch ein Viertel übrig.
-
-## Kampfsysteme zum Ausprobieren (16.11.2026)
-- **Warum:** Angriff und Verteilung der Truppen mit dem Raster überzeugten noch nicht. Statt eines Systems gibt es fünf zur Wahl, um sie im Spiel zu vergleichen.
-- **Startbildschirm «Kampfsystem»:** Klassisch, Auto, Fahnen, Pfeile, Netz (Vorgabe Netz = bisheriges Spiel). Regeln in `doku/kampfsysteme.md`.
-- Test: `node test/kampfsysteme.js`.

@@ -37,7 +37,7 @@
       this.cellCost = new Float32Array(this.CW * this.CH); this.cellRail = new Float32Array(this.CW * this.CH).fill(1); this.railSeen = -1;
       this.cellCoast = new Int8Array(this.CW * this.CH).fill(-1);
     }
-    p.post = { cells: new Map(), H: 0, edits: 0, autoAt: 0, stance: 1, flags: [] };
+    p.post = { cells: new Map(), H: 0, edits: 0, autoAt: 0 };
     (this.posted || (this.posted = [])).push(p);
   };
   // How well a cell holds, beyond its number of troops: dug in, or cut off.
@@ -386,7 +386,7 @@
     for (let i = 0; i < ps.length; i++) {
       const p = ps[i];
       if (!p.post || !p.alive || (T + p.id) % FLOW !== 0) continue;
-      if ((p.type !== G.PT.HUMAN || this.kampf === 2 || this.kampf === 3) && T - p.post.autoAt >= AUTO) { p.post.autoAt = T; this.postAuto(p); }
+      if (p.type !== G.PT.HUMAN && T - p.post.autoAt >= AUTO) { p.post.autoAt = T; this.postAuto(p); }
       this.postFlow(p);
       this.postStarve(p);
     }
@@ -397,10 +397,6 @@
   // come on top of that by themselves (`alarm`).
   const AUTO = 50;
   Game.prototype.postAuto = function (p) {
-    const human = p.type === G.PT.HUMAN;
-    if (human && this.kampf === 3) { this.postFlagsAuto(p); return; }
-    // stance: 0 attack, 1 balanced (as every nation), 2 defence; only people in system 2 choose
-    const st = human && this.kampf === 2 ? p.post.stance : 1;
     const cells = p.post.cells, own = this.owner, W = this.W, N = this.N, ps = this.players, pid = p.id;
     for (const c of cells.values()) c.thr = 0;
     const T = Math.max(1, p.troops);
@@ -413,76 +409,12 @@
         const o = own[n];
         if (!o || o === pid) continue;
         const q = ps[o];
-        let v;
-        if (st === 0) v = this.friendly(p, q) ? 0 : within(T / Math.max(1, q.troops), 0.3, 3) / 1.5 * (q.type === G.PT.BOT ? 0.6 : 1);   // attack: dense where the neighbour is weak
-        else v = (this.friendly(p, q) ? 0.4 : 1) * within(q.troops / T, 0.2, 2) * (q.type === G.PT.BOT ? 0.3 : 1);                // where the neighbour could hurt
+        const v = (this.friendly(p, q) ? 0.4 : 1) * within(q.troops / T, 0.2, 2) * (q.type === G.PT.BOT ? 0.3 : 1);
         if (v > thr) thr = v;
       }
       if (thr > 0) { const c = cells.get(this.cellOf(b)); if (c && thr > c.thr) c.thr = thr; }
     }
-    for (const c of cells.values()) {
-      const m = st === 2 ? (c.thr > 0 ? 1 + 2 * c.thr : 0.5)       // defence: much denser along the borders, almost nothing inland
-        : st === 0 ? (c.thr > 0 ? 1 + c.thr : 0.6)                 // attack: dense where it is easy to break in
-        : (c.thr > 0 ? 1 + c.thr : 0.7);                           // balanced: at most 3 : 0.7, a reserve stays inland
-      c.m = within(m, M_MIN, M_MAX);
-    }
-    // attack: the troops stand where the own thrusts break in, to hold the ground they open
-    if (st === 0) {
-      const CW = this.CW;
-      for (const at of p.out) {
-        if (!at.active || !at.path || !at.path.length) continue;
-        const id = this.cellOf(at.path[0]), cx = id % CW;
-        for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
-          if (cx + dx < 0 || cx + dx >= CW) continue;
-          const o = cells.get(id + dy * CW + dx);
-          if (o) o.m = Math.max(o.m, dx || dy ? 3 : 4);
-        }
-      }
-    }
-  };
-  Game.prototype.postStance = function (p, v) {
-    if (!p.post || this.kampf !== 2 || !(v === 0 || v === 1 || v === 2)) return false;
-    p.post.stance = v;
-    this.postAuto(p); p.post.autoAt = this.ticks; p.post.edits++;
-    return true;
-  };
-
-  // ---------- rally flags (system 3) ----------
-  // Up to three flags on the own land. The troops gather around them (within FLAG_R cells), the
-  // rest of the realm stands thin. Without a flag everything stands evenly.
-  const FLAG_MAX = 3, FLAG_R = 4;
-  G.FLAG = { max: FLAG_MAX, r: FLAG_R };
-  Game.prototype.postFlagsAuto = function (p) {
-    const post = p.post, cells = post.cells, own = this.owner, W = this.W, CW = this.CW;
-    post.flags = post.flags.filter(function (t) { return own[t] === p.id; });   // a flag on lost ground falls
-    const fl = post.flags;
-    if (!fl.length) { for (const c of cells.values()) c.m = 1; return; }
-    const fx = [], fy = [];
-    for (let i = 0; i < fl.length; i++) { fx.push((fl[i] % W) / CS - 0.5); fy.push(((fl[i] / W) | 0) / CS - 0.5); }
-    for (const c of cells.values()) {
-      const cx = c.id % CW, cy = (c.id - cx) / CW;
-      let best = 0;
-      for (let i = 0; i < fl.length; i++) {
-        const d = Math.sqrt((cx - fx[i]) * (cx - fx[i]) + (cy - fy[i]) * (cy - fy[i])), f = 1 - d / FLAG_R;
-        if (f > best) best = f;
-      }
-      c.m = within(0.5 + 5.5 * best, M_MIN, M_MAX);
-    }
-  };
-  // A flag on the own land, or off again when there is one close by. Returns '' or the reason.
-  Game.prototype.postFlag = function (p, t) {
-    if (!p.post || this.kampf !== 3) return 'Nicht möglich';
-    t = Math.floor(t);
-    const fl = p.post.flags, W = this.W, tx = t % W, ty = (t / W) | 0;
-    for (let i = 0; i < fl.length; i++) {
-      const dx = fl[i] % W - tx, dy = ((fl[i] / W) | 0) - ty;
-      if (dx * dx + dy * dy <= (CS * 1.5) * (CS * 1.5)) { fl.splice(i, 1); this.postAuto(p); p.post.autoAt = this.ticks; p.post.edits++; return ''; }
-    }
-    if (this.owner[t] !== p.id) return 'Eine Fahne gehört auf dein eigenes Land';
-    fl.push(t);
-    if (fl.length > FLAG_MAX) fl.shift();
-    this.postAuto(p); p.post.autoAt = this.ticks; p.post.edits++;
-    return '';
+    for (const c of cells.values()) c.m = within(c.thr > 0 ? 1 + c.thr : 0.7, M_MIN, M_MAX);     // at most 3 : 0.7, a reserve stays inland
   };
 
   // ---------- the net ----------

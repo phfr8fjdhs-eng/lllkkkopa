@@ -144,9 +144,7 @@ input[type=range] { width: 100%; height: 30px; margin: 0; accent-color: var(--ac
   .modes { grid-template-columns: auto 1fr 1fr; }
   .modes .mlab { display: block; }
   .modes .touchOnly { display: none; }
-  #stance.modes { grid-template-columns: auto 1fr 1fr 1fr; }
 }
-.modes.two { grid-template-columns: 1fr 1fr; }
 #thrustCard { position: absolute; z-index: 35; display: flex; flex-direction: column; gap: 5px; padding: 9px; min-width: 168px; background: var(--panel-solid); border: 1px solid var(--line); border-radius: 11px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45); }
 #thrustCard[hidden] { display: none; }
 #thrustCard b { font: 700 14px var(--display); letter-spacing: .02em; padding: 0 2px 2px; }
@@ -301,9 +299,6 @@ button.ldRow:hover { background: rgba(255, 255, 255, 0.07); }
 .netSeg button { padding: 9px 6px; font: 600 15px var(--display); color: var(--muted); background: none; border: 0; }
 .netSeg button.on { color: var(--ink); background: rgba(255, 255, 255, 0.13); }
 #netBar .aimBtns .btn { margin-top: 0; }
-.tb[aria-pressed=true]#bFlag { color: #ffd65e; background: rgba(255, 214, 94, 0.16); }
-.seg.seg5 { grid-template-columns: repeat(5, 1fr); }
-.seg.seg5 button { font-size: 12.5px; }
 .tb[aria-pressed=true]#bNet { color: #ffb199; background: rgba(255, 140, 110, 0.16); }
 #aimBar { pointer-events: auto; padding: 10px 12px 12px; border-color: rgba(255, 107, 94, 0.6); }
 .aimTop { display: flex; align-items: center; gap: 11px; }
@@ -451,7 +446,6 @@ body.placing #cv { cursor: crosshair; }
       <button id="bPause" class="tb" type="button" aria-label="Pause"></button>
       <button id="bSpeed" class="tb" type="button" aria-label="Tempo">1×</button>
       <button id="bNet" class="tb" type="button" aria-label="Aufstellung bearbeiten" aria-pressed="false" hidden></button>
-      <button id="bFlag" class="tb" type="button" aria-label="Sammelpunkte setzen" aria-pressed="false" hidden></button>
       <button id="bHome" class="tb" type="button" aria-label="Zu meinem Gebiet"></button>
       <button id="bSound" class="tb" type="button" aria-label="Ton aus" aria-pressed="true"></button>
       <button id="bFull" class="tb" type="button" aria-label="Vollbild" aria-pressed="false"></button>
@@ -477,7 +471,6 @@ body.placing #cv { cursor: crosshair; }
         <div id="incLine" hidden></div>
         <label class="ratio" for="ratio"><span>Angriff<b id="ratioPct">20%</b></span><input id="ratio" type="range" min="1" max="100" value="20"><span id="ratioTroops">0</span></label>
         <div id="modes" class="modes" role="group" aria-label="Angriffsart" title="Taste F wechselt"><span class="mlab">Rechts ziehen</span><button type="button" data-w="0" class="touchOnly">Ganze Front</button><button type="button" data-w="2">Keil</button><button type="button" data-w="1">Abschnitt</button></div>
-        <div id="stance" class="modes" role="group" aria-label="Haltung" hidden><span class="mlab">Haltung</span><button type="button" data-s="0">Angriff</button><button type="button" data-s="1">Ausgeglichen</button><button type="button" data-s="2">Verteidigung</button></div>
         <div id="commit" aria-live="off"></div>
       </div>
       <div id="netBar" class="panel" hidden>

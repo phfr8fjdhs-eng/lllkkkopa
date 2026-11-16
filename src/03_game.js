@@ -90,12 +90,8 @@
     this.map = map; this.W = map.W; this.H = map.H; this.N = map.N; this.S = map.S;
     this.opts = Object.assign({
       seed: 1, difficulty: 1, bots: 100, nations: true, instantBuild: false,
-      infiniteGold: false, infiniteTroops: false, spawnTicks: 150, autoSpawn: false, me: 0, kampf: 5
+      infiniteGold: false, infiniteTroops: false, spawnTicks: 150, autoSpawn: false, me: 0
     }, opts || {});
-    // The combat system of this round (see doku/kampfsysteme.md): 1 classic, 2 automatic front,
-    // 3 rally flags, 4 arrows only, 5 net by hand. 1 and 4 have no posture at all.
-    const ks = this.opts.kampf | 0;
-    this.kampf = ks >= 1 && ks <= 5 ? ks : 5;
     this.rng = new G.RNG(this.opts.seed);
     const N = this.N, S = this.S;
     this.owner = new Uint16Array(N);
@@ -155,7 +151,7 @@
       nameX: 0, nameY: 0, nameSize: 0, tradeGold: 0, conquests: 0, cc: null, ccAt: -1, post: null
     };
     // people and nations stand in cells (src/03b_posture.js); bots are too small to need it
-    if ((info.type === PT.HUMAN || info.type === PT.NATION) && this.postInit && this.kampf !== 1 && this.kampf !== 4) this.postInit(p);
+    if ((info.type === PT.HUMAN || info.type === PT.NATION) && this.postInit) this.postInit(p);
     let c = info.color;
     if (!c) {
       if (info.type === PT.NATION) {
@@ -1409,9 +1405,7 @@
         if (!tileOk) return 'Nicht möglich';
         const a = this.actionsAt(p, c.t);
         if (a.canAttack && !c.sea) {
-          let mode = c.w === 1 || c.w === 2 ? c.w : 0, st = c.s >= 0 && c.s < this.N ? Math.floor(c.s) : -1;
-          if (this.kampf === 1) { mode = 0; st = -1; }                                       // classic: only the whole front
-          else if (this.kampf === 4 && !mode && a.tid && ps[a.tid].type !== PT.BOT) mode = 2;   // arrows only: against a realm always a thrust
+          const mode = c.w === 1 || c.w === 2 ? c.w : 0, st = c.s >= 0 && c.s < this.N ? Math.floor(c.s) : -1;
           return this.attack(p, a.tid, p.troops * r, -1, c.t, mode, st) ? '' : (this.attackWhy || 'Zu wenig Truppen');
         }
         if (a.boat) return this.sendBoat(p, a.boat, p.troops * r) ? '' : 'Boot kann nicht auslaufen';
@@ -1441,10 +1435,8 @@
         const chk = this.digCheck(p, i);
         return chk.ok && this.dig(p, i) ? '' : chk.why || 'Nicht möglich';
       }
-      case 'mesh': return this.kampf === 5 && this.postPaint && this.postPaint(p, c.c, c.v) ? '' : 'Nicht möglich';
-      case 'even': return this.kampf === 5 && this.postReset && this.postReset(p) ? '' : 'Nicht möglich';
-      case 'stance': return this.postStance && this.postStance(p, c.v) ? '' : 'Nicht möglich';
-      case 'flag': return tileOk && this.postFlag ? this.postFlag(p, c.t) : 'Nicht möglich';
+      case 'mesh': return this.postPaint && this.postPaint(p, c.c, c.v) ? '' : 'Nicht möglich';
+      case 'even': return this.postReset && this.postReset(p) ? '' : 'Nicht möglich';
       case 'ret': { for (const a of p.out) if (a.id === c.a) { this.retreat(a); return ''; } return 'Nicht möglich'; }
       case 'bret': { for (const u of p.units) if (u.id === c.u && u.type === UT.TRANSPORT) { u.retreat = true; return ''; } return 'Nicht möglich'; }
       case 'ally': return q && this.requestAlliance(p, q) ? '' : 'Gerade nicht möglich';
