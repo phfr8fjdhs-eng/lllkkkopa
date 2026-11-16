@@ -22,3 +22,4 @@ Alle Tests liegen in `test/` und laufen mit `node test/<name>.js`. Mehrere brauc
 | `vollbild.js` | Browser: Vollbild-Knopf, Vollbild beim Start auf dem Handy, Hinweis auf dem iPhone |
 | `net.js` | zwei Browser spielen über einen lokalen Vermittler zusammen |
 | `load.js` | Hilfsdatei, lädt die Karten für die anderen Tests (kein Test) |
+- `node test/pfeile.js`: Version «Pfeile»: Sammelpunkte sammeln die Truppen, nicht auf fremdem Land, wieder weg mit zweitem Doppelklick, mehrere Pfeile teilen den Anteil gleichmässig, Netz malen ist aus, zwei Läufe gleich.

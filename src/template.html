@@ -145,6 +145,7 @@ input[type=range] { width: 100%; height: 30px; margin: 0; accent-color: var(--ac
   .modes .mlab { display: block; }
   .modes .touchOnly { display: none; }
 }
+#bGo { width: 100%; margin-top: 8px; }
 #thrustCard { position: absolute; z-index: 35; display: flex; flex-direction: column; gap: 5px; padding: 9px; min-width: 168px; background: var(--panel-solid); border: 1px solid var(--line); border-radius: 11px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45); }
 #thrustCard[hidden] { display: none; }
 #thrustCard b { font: 700 14px var(--display); letter-spacing: .02em; padding: 0 2px 2px; }
@@ -471,6 +472,7 @@ body.placing #cv { cursor: crosshair; }
         <div id="incLine" hidden></div>
         <label class="ratio" for="ratio"><span>Angriff<b id="ratioPct">20%</b></span><input id="ratio" type="range" min="1" max="100" value="20"><span id="ratioTroops">0</span></label>
         <div id="modes" class="modes" role="group" aria-label="Angriffsart" title="Taste F wechselt"><span class="mlab">Rechts ziehen</span><button type="button" data-w="0" class="touchOnly">Ganze Front</button><button type="button" data-w="2">Keil</button><button type="button" data-w="1">Abschnitt</button></div>
+        <button id="bGo" class="btn" type="button" hidden>Angreifen</button>
         <div id="commit" aria-live="off"></div>
       </div>
       <div id="netBar" class="panel" hidden>

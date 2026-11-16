@@ -64,7 +64,11 @@
   let toastTimer = 0, endShown = false, botsTouched = false;
   let mp = null, turnLeft = 0, aim = null, joinCode = '', lobbyNote = '', goldTimer = 0;
   const chips = new Map(), asks = new Map();
-  const cfg = { name: 'Spieler', color: 0, map: 'erde', diff: 1, bots: -1, nations: true, instant: false, gold: false, troops: false, tap: false, music: true, sfx: true, mode: 'klassisch', thrust: 0, botsV2: true };
+  const cfg = { name: 'Spieler', color: 0, map: 'erde', diff: 1, bots: -1, nations: true, instant: false, gold: false, troops: false, tap: false, music: true, sfx: true, mode: 'klassisch', thrust: 0, botsV2: true, pfeile: true };
+  // the two versions of the fight (doku/pfeile.md); true goes to the game as opts.pfeile
+  const KAMPF = [[false, 'Bisher', 'Wie bisher: Pfeil mit der rechten Maustaste greift sofort an, das Netz (Taste N) verteilt die Truppen.'],
+    [true, 'Pfeile', 'Pfeile mit der rechten Maustaste planen, dann «Angreifen» (oder Enter). Klick auf einen laufenden Pfeil schickt Truppen nach. Verteidigen: Doppelklick auf dein Land setzt einen Sammelpunkt.']];
+  let plans = [];          // version «Pfeile»: arrows planned, not launched yet
   const MODES = [['klassisch', 'Klassisch', 'Das Spiel wie gewohnt.'], ['arsenal', 'Arsenal', 'Zusätzliche Waffe: der Satellitenstrahl. Er kommt aus dem All, braucht kein Silo und lässt sich nicht abfangen. Auch die Nationen setzen ihn ein.']];
   let hoverX = -1, hoverY = -1;
   const RES = G.VARIANT === 'rohstoffe';   // this page is the game version «Rohstoffe» (src/03c_res.js)
@@ -259,6 +263,9 @@
       h += '<div class="field"><div class="lab">Spielmodus</div><div class="seg" id="fMode">' + MODES.map(function (m) {
         return '<button type="button" data-id="' + m[0] + '" aria-pressed="' + (m[0] === cfg.mode) + '">' + m[1] + '</button>';
       }).join('') + '</div><p class="hint" id="fModeNote">' + MODES.find(function (m) { return m[0] === cfg.mode; })[2] + '</p></div>';
+      h += '<div class="field"><div class="lab">Kampf</div><div class="seg" id="fKampf">' + KAMPF.map(function (k, i) {
+        return '<button type="button" data-i="' + i + '" aria-pressed="' + (k[0] === !!cfg.pfeile) + '">' + k[1] + '</button>';
+      }).join('') + '</div><p class="hint" id="fKampfNote">' + KAMPF[cfg.pfeile ? 1 : 0][2] + '</p></div>';
       h += '<div class="field"><div class="lab">Schwierigkeit</div><div class="seg" id="fDiff">' + G.DIFF_NAMES.map(function (n, i) {
         return '<button type="button" data-i="' + i + '" aria-pressed="' + (i === cfg.diff) + '">' + n + '</button>';
       }).join('') + '</div></div>';
@@ -296,6 +303,12 @@
       if (!b) return;
       cfg.mode = b.dataset.id; press(this, b);
       $('fModeNote').textContent = MODES.find(function (m) { return m[0] === cfg.mode; })[2];
+    });
+    $('fKampf').addEventListener('click', function (e) {
+      const b = e.target.closest('button');
+      if (!b) return;
+      cfg.pfeile = KAMPF[+b.dataset.i][0]; press(this, b); saveCfg();
+      $('fKampfNote').textContent = KAMPF[+b.dataset.i][2];
     });
     $('fDiff').addEventListener('click', function (e) {
       const b = e.target.closest('button');
@@ -393,7 +406,7 @@
       this.disabled = true;
       mp.begin({
         seed: (Math.random() * 2e9) | 0, map: cfg.map, mapSeed: (Math.random() * 2e9) | 0,
-        diff: cfg.diff, bots: Math.max(0, cfg.bots), nations: cfg.nations, arsenal: cfg.mode === 'arsenal', res: RES
+        diff: cfg.diff, bots: Math.max(0, cfg.bots), nations: cfg.nations, arsenal: cfg.mode === 'arsenal', res: RES, pfeile: !!cfg.pfeile
       });
     });
   }
@@ -402,7 +415,7 @@
     turnLeft = 0;
     loadMap(m.map, m.mapSeed).then(function (map) {
       begin(map, {
-        seed: m.seed, difficulty: m.diff, bots: m.bots, nations: m.nations, arsenal: !!m.arsenal, res: !!m.res, spawnTicks: 300, autoSpawn: true, me: me
+        seed: m.seed, difficulty: m.diff, bots: m.bots, nations: m.nations, arsenal: !!m.arsenal, res: !!m.res, pfeile: !!m.pfeile, spawnTicks: 300, autoSpawn: true, me: me
       }, m.players.map(function (p) { return { name: p.name, color: COLORS[p.color % 6] }; }));
       $('bSpeed').hidden = true; $('bPause').hidden = !mp.host;
       addMsg(m.players.length > 1 ? m.players.length + ' Spieler sind dabei. Wählt eure Startpunkte.' : 'Du bist allein im Raum.', 'info');
@@ -504,7 +517,7 @@
     $('fStart').disabled = true; $('fStart').textContent = 'Karte wird vorbereitet';
     loadMap(cfg.map).then(function (map) {
       begin(map, {
-        seed: (Math.random() * 2e9) | 0, difficulty: cfg.diff, bots: cfg.bots, nations: cfg.nations, arsenal: cfg.mode === 'arsenal', res: RES,
+        seed: (Math.random() * 2e9) | 0, difficulty: cfg.diff, bots: cfg.bots, nations: cfg.nations, arsenal: cfg.mode === 'arsenal', res: RES, pfeile: !!cfg.pfeile,
         instantBuild: cfg.instant, infiniteGold: cfg.gold, infiniteTroops: cfg.troops
       }, { name: cfg.name, color: COLORS[cfg.color] });
     }).catch(function (e) {
@@ -526,6 +539,7 @@
     netOn = false; stroke = null; netQueue.clear(); lastTile = -1; commitAt = -99; view.net.on = false; view.net.edit.clear(); view.net.w = 0; view.net.at = -1e9;
     $('peek').hidden = true; trainSeen = 0; incAt = -99; incLog.length = 0; $('incLine').hidden = true; $('incLine').dataset.html = '';
     $('bNet').hidden = true; $('bNet').setAttribute('aria-pressed', 'false'); $('netBar').hidden = true; $('commit').textContent = '';
+    plans.length = 0; syncPlans();
     $('feedMsgs').innerHTML = ''; $('feedLive').innerHTML = ''; chips.clear(); asks.clear();
     $('lbRows').innerHTML = ''; $('clock').textContent = '0:00';
     speed = 1; $('bSpeed').textContent = '1×'; acc = 0; endShown = false; lbAt = liveAt = -99; tradeAt = 0; aim = null;
@@ -610,7 +624,8 @@
         addAsk('r' + q.id, 'Die Allianz mit ' + q.name + ' läuft bald ab', 'Verlängern', 'Auslaufen lassen',
           function () { act({ k: 'renew', p: q.id }); }, function () { /* let it run out */ });
       } else if (e.k === 'start') {
-        $('spawnBar').hidden = true; $('ctrl').hidden = false; $('lb').hidden = false; $('bNet').hidden = !h.post;
+        $('spawnBar').hidden = true; $('ctrl').hidden = false; $('lb').hidden = false; $('bNet').hidden = !h.post || game.pfeile;
+        if (game.pfeile) addMsg('Pfeile mit der rechten Maustaste planen, dann «Angreifen». Doppelklick auf dein Land: Sammelpunkt für die Verteidigung.', 'info');
         const W = game.W;
         view.flyTo(h.spawnTile % W, (h.spawnTile / W) | 0, within(Math.min(view.cw, view.ch) / 70, 2.2, 6));
         addMsg('Los geht es. Breite dich aus, bevor es andere tun.', 'good');
@@ -629,7 +644,7 @@
         else addMsg('Vorkommen verloren: ' + say, 'warn');
       } else if (e.k === 'loot') {
         if (e.by === h.id && e.gold > 0) { view.floatText(e.x, e.y, '+ ' + fmt(e.gold)); goldPop(e.gold); }
-      } else if (e.k === 'defeat') { setNet(false); $('bNet').hidden = true; showEnd('defeat', null); }
+      } else if (e.k === 'defeat') { setNet(false); plans.length = 0; syncPlans(); $('bNet').hidden = true; showEnd('defeat', null); }
       else if (e.k === 'win') showEnd(game.players[e.id] === h ? 'win' : 'other', game.players[e.id]);
     }
     ev.length = 0;
@@ -725,6 +740,7 @@
   }
 
   function hudTick() {
+    if (plans.length) syncPlans();
     const h = game.human, T = game.ticks;
     if (game.phase === 'spawn') {
       if (mp) {
@@ -902,10 +918,11 @@
     if (a.canAttack) mode = 'attack';
     else if (a.boat) mode = 'boat';
     else if (!a.land && h.cnt[UT.WARSHIP] > 0) mode = 'ship';
+    if (!mode && a.own && game.pfeile) mode = 'rally';
     const c = $('rC');
     c.dataset.mode = mode;
     c.classList.toggle('off', !mode);
-    c.innerHTML = svg(mode === 'boat' ? 'boat' : mode === 'ship' ? 'warship' : 'sword', 28) + '<span>' + (mode === 'boat' ? 'Boot' : mode === 'ship' ? 'Schiff' : 'Angreifen') + '</span>';
+    c.innerHTML = svg(mode === 'boat' ? 'boat' : mode === 'ship' ? 'warship' : mode === 'rally' ? 'flag' : 'sword', 28) + '<span>' + (mode === 'boat' ? 'Boot' : mode === 'ship' ? 'Schiff' : mode === 'rally' ? 'Sammeln' : 'Angreifen') + '</span>';
     const near = a.own ? game.structNear(tile, 4) : null, canUp = !!near && near.owner === h && near.built;
     $('rN').firstChild.innerHTML = svg(canUp ? 'up' : 'hammer', 22) + '<span>' + (canUp ? 'Ausbau' : 'Bauen') + '</span>';
     if (canUp) cap = G.UNAME[near.type].replace('\u00AD', '') + ' · Stufe ' + near.level;
@@ -925,6 +942,7 @@
       if (mode === 'attack') strikeAt(a.tile);
       else if (mode === 'boat') sendBoat(a);
       else if (mode === 'ship') act({ k: 'ship', t: a.tile, say: 'Kriegsschiff nimmt Kurs' });
+      else if (mode === 'rally') rally(a.tile);
       else toast(a.why || 'Hier nicht möglich');
     } else if (which === 'E') sendBoat(a);
     else if (which === 'N') { closeRadial(); openBuild(a.tile); return; }
@@ -1198,17 +1216,18 @@
     if ((key === planKey && now - planAt < 1500) || now - planAt < 70) return;
     planKey = key; planAt = now;
     const width = game.thrustWidth(mode);
+    if (game.pfeile && game.thrustCount(h) + plans.length >= G.THRUST.max) { view.plan = null; planInfo = { why: 'Höchstens ' + G.THRUST.max + ' Pfeile gleichzeitig' }; showCommit(); return; }
     if (game.thrustCount(h) >= G.THRUST.max && !h.out.some(function (o) { return o.active && o.goal >= 0 && o.tid === a.tid && o.width === width && Math.hypot(o.goal % game.W - tile % game.W, ((o.goal / game.W) | 0) - ((tile / game.W) | 0)) <= width; })) {
       view.plan = null; planInfo = { why: 'Höchstens ' + G.THRUST.max + ' Stösse gleichzeitig' }; showCommit(); return;
     }
     const r = game.thrustRoute(h, a.tid, tile, width, start);
     if (!r) { view.plan = null; planInfo = { why: 'Kein Weg dorthin' }; showCommit(); return; }
-    const troops = h.troops * ratio, est = game.thrustEstimate(h, r, troops);
+    const troops = h.troops * ratio / (game.pfeile ? plans.length + 1 : 1), est = game.thrustEstimate(h, r, troops);
     // green: arrives with a quarter or more to spare; yellow: arrives, or very nearly; red: stops short
     const verdict = est.reach >= 1 && est.left >= troops * 0.25 ? 0 : est.reach >= 0.9 ? 1 : 2;
     const verdictText = ['reicht bis zum Ziel', 'knapp', 'reicht etwa ' + Math.max(5, Math.round(est.reach * 20) * 5) + ' % des Wegs'][verdict];
     view.plan = { path: r.path, width: width, troops: troops, col: ['rgb(99,211,145)', 'rgb(244,183,64)', 'rgb(255,107,94)'][verdict], label: THRUST_NAME[mode] + ' · ' + fmtT(troops) + ' · ' + verdictText };
-    planInfo = { mode: mode, verdict: verdict, text: verdictText, ci: null };
+    planInfo = { mode: mode, verdict: verdict, text: verdictText, ci: null, path: r.path, tid: a.tid, width: width };
     showCommit();
   }
   // The card for a thrust under way: reinforce it with the share on the slider, or call it back.
@@ -1361,6 +1380,55 @@
     if (sh > 0) s += '<span>' + svg('port', 13) + '+' + fmt(Math.round(sh)) + '/min</span>';
     if (el.dataset.html !== s) { el.innerHTML = s; el.dataset.html = s; el.hidden = !s; }
   }
+  // ---------- version «Pfeile» ----------
+  // Arrows are planned with the right button (on a touch screen: a tap with Keil or Abschnitt),
+  // drawn pale and numbered, and launched together with «Angreifen» or Enter. The share on the
+  // slider is split evenly among them. A click on a planned arrow takes it away again.
+  function addPlan(tile, w, s, info) {
+    const h = game.human;
+    if (game.thrustCount(h) + plans.length >= G.THRUST.max) { toast('Höchstens ' + G.THRUST.max + ' Pfeile gleichzeitig'); snd('deny'); return; }
+    plans.push({ tile: tile, w: w, s: s, path: info && info.path, width: info ? info.width : game.thrustWidth(w), tid: info ? info.tid : game.owner[tile], troops: 0 });
+    syncPlans(); snd('tap');
+  }
+  function planTap(tile) {
+    const h = game.human, a = game.actionsAt(h, tile);
+    if (!a.canAttack) { toast(a.why || 'Hier nicht möglich'); snd('deny'); return; }
+    const width = game.thrustWidth(cfg.thrust), r = game.thrustRoute(h, a.tid, tile, width, -1);
+    if (!r) { toast('Kein Weg dorthin'); snd('deny'); return; }
+    addPlan(tile, cfg.thrust, -1, { path: r.path, width: width, tid: a.tid });
+  }
+  function syncPlans() {
+    if (view) view.plans = plans;
+    const b = $('bGo');
+    if (!b) return;
+    const h = game && game.human, n = plans.length;
+    for (const q of plans) q.troops = h ? h.troops * ratio / Math.max(1, n) : 0;
+    b.hidden = !n;
+    if (n) b.textContent = 'Angreifen · ' + n + (n === 1 ? ' Pfeil · ' : ' Pfeile · ') + fmtT(h.troops * ratio);
+  }
+  function launchPlans() {
+    const n = plans.length;
+    if (!n || !game || game.phase !== 'play' || !game.human.alive) return;
+    const list = plans.slice();
+    plans.length = 0;
+    // each order takes its share of what is left: r_i = (ratio/n) / (1 - ratio*i/n), so all get the same
+    for (let i = 0; i < n; i++) {
+      const q = list[i], r = within(ratio / n / (1 - ratio * i / n), 0.01, 1);
+      act({ k: 'strike', t: q.tile, r: r, w: q.w, s: q.s });
+    }
+    syncPlans();
+    toast(n === 1 ? 'Angriff!' : n + ' Pfeile greifen an');
+  }
+  function rally(tile) {
+    const h = game.human;
+    if (!h.post) return;
+    const W = game.W, R = G.POST.cell * 1.5, x = tile % W, y = (tile / W) | 0;
+    const off = h.post.rally.some(function (t) { return Math.hypot(t % W - x, ((t / W) | 0) - y) <= R; });
+    if (!off && game.owner[tile] !== h.id) { toast('Sammelpunkte gehören auf dein eigenes Land'); return; }
+    act({ k: 'rally', t: tile });
+    snd('tap');
+    toast(off ? 'Sammelpunkt entfernt' : 'Sammelpunkt gesetzt (höchstens ' + G.RALLY.max + '): die Truppen ziehen dorthin');
+  }
   function strikeAt(tile, extra) {
     const c = { k: 'strike', t: tile, r: ratio };
     if (extra) for (const k in extra) c[k] = extra[k];
@@ -1443,6 +1511,7 @@
     const tile = view.tileAt(sx, sy), h = game.human;
     if (tile < 0 || !h.alive) return;
     closeRadial();
+    if (game.owner[tile] === h.id && game.pfeile) { rally(tile); return; }
     if (game.owner[tile] === h.id) {
       const u = game.structNear(tile, 3);
       if (u && u.owner === h && u.built) openBuild(u.tile);
@@ -1464,6 +1533,8 @@
       return;
     }
     if (aim) { aim.tile = tile; refreshAim(); snd('tap'); return; }
+    const pa = game.pfeile && !menu ? view.planAt(sx, sy) : null;
+    if (pa !== null) { plans.splice(pa, 1); syncPlans(); toast('Pfeil entfernt'); snd('tap'); return; }
     const arrow = view.arrowAt(sx, sy);
     if (arrow !== null && !menu) { openThrustCard(arrow, sx, sy); snd('tap'); return; }
     closeThrustCard();
@@ -1473,6 +1544,7 @@
     const o = game.owner[tile], q = o ? game.players[o] : null;
     // an attack that is already running is fed with one tap, whoever it is against
     const running = !!q && h.out.some(function (at) { return at.active && at.tid === q.id; });
+    if (!menu && game.pfeile && cfg.thrust && !running && q && h.alive && o !== h.id && game.map.land[tile]) { planTap(tile); return; }
     if (!menu && (!q || q.type === PT.BOT || running) && h.alive && o !== h.id && game.map.land[tile]) {
       strikeAt(tile, cfg.thrust ? { w: cfg.thrust } : null);
       return;
@@ -1583,7 +1655,8 @@
         rdrag = null; rdragEnd = performance.now(); rdragDrew = d.started;
         if (d.started) {
           const t = view.tileAt(d.x, d.y), ok = planInfo && !planInfo.why && view.plan;
-          if (e.type === 'pointerup' && ok && t >= 0) strikeAt(t, { w: dragWidth(), s: d.tile });
+          if (e.type === 'pointerup' && ok && t >= 0 && game.pfeile) addPlan(t, dragWidth(), d.tile, planInfo);
+          else if (e.type === 'pointerup' && ok && t >= 0) strikeAt(t, { w: dragWidth(), s: d.tile });
           else if (e.type === 'pointerup' && planInfo && planInfo.why) { toast(planInfo.why); snd('deny'); }
           view.plan = null; planInfo = null; planKey = ''; showCommit();
         } else if (d.menu && e.type === 'pointerup') openRadial(view.tileAt(d.x0, d.y0), d.x0, d.y0);
@@ -1687,6 +1760,8 @@
       if (k === '.' || k === ',') { if (!mp) setSpeed(k === '.' ? 1 : -1); return; }
       if (e.repeat || game.phase !== 'play' || !game.human.alive) return;
       if (aim) { if (k === 'enter' && !$('aimGo').disabled) fireAim(); return; }
+      if (k === 'enter' && game.pfeile) { launchPlans(); return; }
+      if (k === 'backspace' && game.pfeile && plans.length) { plans.pop(); syncPlans(); toast('Letzter Pfeil entfernt'); return; }
       // everything below acts on the build menu's tile, or else on the tile under the mouse pointer
       const open = !$('sheet').hidden;
       const tile = open ? buildTile : (hoverX >= 0 ? view.tileAt(hoverX, hoverY) : -1);
@@ -1731,6 +1806,7 @@
       if (b && !b.disabled) onModalAct(b.dataset.act);
     });
     $('ratio').addEventListener('input', function () { setRatio(+this.value); });
+    $('bGo').addEventListener('click', function () { launchPlans(); });
     $('modes').addEventListener('click', function (e) { const b = e.target.closest('button[data-w]'); if (b) { setThrust(+b.dataset.w); snd('ui'); } });
     $('thrustCard').addEventListener('click', function (e) {
       const b = e.target.closest('button[data-act]');
@@ -1805,6 +1881,7 @@
     $('ratio').style.setProperty('--p', pct + '%');
     $('ratioPct').textContent = pct + '%';
     if (game && game.human.alive) $('ratioTroops').textContent = fmtT(game.human.troops * ratio);
+    if (plans.length) syncPlans();
   }
 
   // ---------- main loop ----------

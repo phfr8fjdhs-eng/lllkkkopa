@@ -1,6 +1,10 @@
 # Änderungsprotokoll
 Was seit dem 13.11.2026 geändert wurde und warum. Den heutigen Stand der Regeln beschreiben die anderen Dateien in `doku/`.
 
+## Zwei Versionen statt fünf: Bisher und Pfeile (16.11.2026)
+- **Warum:** Die fünf Kampfsysteme zum Ausprobieren (Klassisch, Auto, Fahnen, Pfeile, Netz) sind wieder entfernt. Wunsch des Besitzers: nur noch das bisherige Spiel und eine neue Pfeil-Version; die Verteidigung soll einfacher sein und man soll immer sehen, wo die Truppen stehen.
+- **Startbildschirm «Kampf»:** Bisher (Pfeil greift sofort an, Netz von Hand) oder Pfeile (Pfeile planen und mit «Angreifen» gemeinsam starten, Klick auf laufenden Pfeil verstärkt; Verteidigung mit bis zu drei Sammelpunkten per Doppelklick, Truppen immer sichtbar). Regeln in `doku/pfeile.md`, Test `node test/pfeile.js`.
+
 ## Alle Bots im selben hellen Grau (16.11.2026)
 Bot-Land hatte verschiedene Grautöne; jetzt haben alle Bots dasselbe helle Grau (196, 196, 196). Nationen und Menschen behalten ihre Farben. Die Grenze trennt weiterhin zwei Bots.
 

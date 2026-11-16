@@ -90,8 +90,11 @@
     this.map = map; this.W = map.W; this.H = map.H; this.N = map.N; this.S = map.S;
     this.opts = Object.assign({
       seed: 1, difficulty: 1, bots: 100, nations: true, instantBuild: false,
-      infiniteGold: false, infiniteTroops: false, spawnTicks: 150, autoSpawn: false, me: 0
+      infiniteGold: false, infiniteTroops: false, spawnTicks: 150, autoSpawn: false, me: 0, pfeile: false
     }, opts || {});
+    // Version «Pfeile» (doku/pfeile.md): arrows are planned and launched together, people defend
+    // with up to three rally points instead of the net. Otherwise the game as before.
+    this.pfeile = !!this.opts.pfeile;
     this.rng = new G.RNG(this.opts.seed);
     const N = this.N, S = this.S;
     this.owner = new Uint16Array(N);
@@ -1435,8 +1438,9 @@
         const chk = this.digCheck(p, i);
         return chk.ok && this.dig(p, i) ? '' : chk.why || 'Nicht möglich';
       }
-      case 'mesh': return this.postPaint && this.postPaint(p, c.c, c.v) ? '' : 'Nicht möglich';
+      case 'mesh': return !this.pfeile && this.postPaint && this.postPaint(p, c.c, c.v) ? '' : 'Nicht möglich';
       case 'even': return this.postReset && this.postReset(p) ? '' : 'Nicht möglich';
+      case 'rally': return this.pfeile && tileOk && this.postRally ? this.postRally(p, c.t) : 'Nicht möglich';
       case 'ret': { for (const a of p.out) if (a.id === c.a) { this.retreat(a); return ''; } return 'Nicht möglich'; }
       case 'bret': { for (const u of p.units) if (u.id === c.u && u.type === UT.TRANSPORT) { u.retreat = true; return ''; } return 'Nicht möglich'; }
       case 'ally': return q && this.requestAlliance(p, q) ? '' : 'Gerade nicht möglich';
