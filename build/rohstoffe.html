@@ -144,9 +144,8 @@ input[type=range] { width: 100%; height: 30px; margin: 0; accent-color: var(--ac
   .modes { grid-template-columns: auto 1fr 1fr; }
   .modes .mlab { display: block; }
   .modes .touchOnly { display: none; }
-  #stance.modes { grid-template-columns: auto 1fr 1fr 1fr; }
 }
-.modes.two { grid-template-columns: 1fr 1fr; }
+#bGo { width: 100%; margin-top: 8px; }
 #thrustCard { position: absolute; z-index: 35; display: flex; flex-direction: column; gap: 5px; padding: 9px; min-width: 168px; background: var(--panel-solid); border: 1px solid var(--line); border-radius: 11px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45); }
 #thrustCard[hidden] { display: none; }
 #thrustCard b { font: 700 14px var(--display); letter-spacing: .02em; padding: 0 2px 2px; }
@@ -301,9 +300,6 @@ button.ldRow:hover { background: rgba(255, 255, 255, 0.07); }
 .netSeg button { padding: 9px 6px; font: 600 15px var(--display); color: var(--muted); background: none; border: 0; }
 .netSeg button.on { color: var(--ink); background: rgba(255, 255, 255, 0.13); }
 #netBar .aimBtns .btn { margin-top: 0; }
-.tb[aria-pressed=true]#bFlag { color: #ffd65e; background: rgba(255, 214, 94, 0.16); }
-.seg.seg5 { grid-template-columns: repeat(5, 1fr); }
-.seg.seg5 button { font-size: 12.5px; }
 .tb[aria-pressed=true]#bNet { color: #ffb199; background: rgba(255, 140, 110, 0.16); }
 #aimBar { pointer-events: auto; padding: 10px 12px 12px; border-color: rgba(255, 107, 94, 0.6); }
 .aimTop { display: flex; align-items: center; gap: 11px; }
@@ -451,7 +447,6 @@ body.placing #cv { cursor: crosshair; }
       <button id="bPause" class="tb" type="button" aria-label="Pause"></button>
       <button id="bSpeed" class="tb" type="button" aria-label="Tempo">1×</button>
       <button id="bNet" class="tb" type="button" aria-label="Aufstellung bearbeiten" aria-pressed="false" hidden></button>
-      <button id="bFlag" class="tb" type="button" aria-label="Sammelpunkte setzen" aria-pressed="false" hidden></button>
       <button id="bHome" class="tb" type="button" aria-label="Zu meinem Gebiet"></button>
       <button id="bSound" class="tb" type="button" aria-label="Ton aus" aria-pressed="true"></button>
       <button id="bFull" class="tb" type="button" aria-label="Vollbild" aria-pressed="false"></button>
@@ -477,7 +472,7 @@ body.placing #cv { cursor: crosshair; }
         <div id="incLine" hidden></div>
         <label class="ratio" for="ratio"><span>Angriff<b id="ratioPct">20%</b></span><input id="ratio" type="range" min="1" max="100" value="20"><span id="ratioTroops">0</span></label>
         <div id="modes" class="modes" role="group" aria-label="Angriffsart" title="Taste F wechselt"><span class="mlab">Rechts ziehen</span><button type="button" data-w="0" class="touchOnly">Ganze Front</button><button type="button" data-w="2">Keil</button><button type="button" data-w="1">Abschnitt</button></div>
-        <div id="stance" class="modes" role="group" aria-label="Haltung" hidden><span class="mlab">Haltung</span><button type="button" data-s="0">Angriff</button><button type="button" data-s="1">Ausgeglichen</button><button type="button" data-s="2">Verteidigung</button></div>
+        <button id="bGo" class="btn" type="button" hidden>Angreifen</button>
         <div id="commit" aria-live="off"></div>
       </div>
       <div id="netBar" class="panel" hidden>
@@ -1340,12 +1335,11 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     this.map = map; this.W = map.W; this.H = map.H; this.N = map.N; this.S = map.S;
     this.opts = Object.assign({
       seed: 1, difficulty: 1, bots: 100, nations: true, instantBuild: false,
-      infiniteGold: false, infiniteTroops: false, spawnTicks: 150, autoSpawn: false, me: 0, kampf: 5
+      infiniteGold: false, infiniteTroops: false, spawnTicks: 150, autoSpawn: false, me: 0, pfeile: false
     }, opts || {});
-    // The combat system of this round (see doku/kampfsysteme.md): 1 classic, 2 automatic front,
-    // 3 rally flags, 4 arrows only, 5 net by hand. 1 and 4 have no posture at all.
-    const ks = this.opts.kampf | 0;
-    this.kampf = ks >= 1 && ks <= 5 ? ks : 5;
+    // Version «Pfeile» (doku/pfeile.md): arrows are planned and launched together, people defend
+    // with up to three rally points instead of the net. Otherwise the game as before.
+    this.pfeile = !!this.opts.pfeile;
     this.rng = new G.RNG(this.opts.seed);
     const N = this.N, S = this.S;
     this.owner = new Uint16Array(N);
@@ -1405,7 +1399,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
       nameX: 0, nameY: 0, nameSize: 0, tradeGold: 0, conquests: 0, cc: null, ccAt: -1, post: null
     };
     // people and nations stand in cells (src/03b_posture.js); bots are too small to need it
-    if ((info.type === PT.HUMAN || info.type === PT.NATION) && this.postInit && this.kampf !== 1 && this.kampf !== 4) this.postInit(p);
+    if ((info.type === PT.HUMAN || info.type === PT.NATION) && this.postInit) this.postInit(p);
     let c = info.color;
     if (!c) {
       if (info.type === PT.NATION) {
@@ -2659,9 +2653,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
         if (!tileOk) return 'Nicht möglich';
         const a = this.actionsAt(p, c.t);
         if (a.canAttack && !c.sea) {
-          let mode = c.w === 1 || c.w === 2 ? c.w : 0, st = c.s >= 0 && c.s < this.N ? Math.floor(c.s) : -1;
-          if (this.kampf === 1) { mode = 0; st = -1; }                                       // classic: only the whole front
-          else if (this.kampf === 4 && !mode && a.tid && ps[a.tid].type !== PT.BOT) mode = 2;   // arrows only: against a realm always a thrust
+          const mode = c.w === 1 || c.w === 2 ? c.w : 0, st = c.s >= 0 && c.s < this.N ? Math.floor(c.s) : -1;
           return this.attack(p, a.tid, p.troops * r, -1, c.t, mode, st) ? '' : (this.attackWhy || 'Zu wenig Truppen');
         }
         if (a.boat) return this.sendBoat(p, a.boat, p.troops * r) ? '' : 'Boot kann nicht auslaufen';
@@ -2691,10 +2683,9 @@ globalThis.G = { VARIANT: 'rohstoffe' };
         const chk = this.digCheck(p, i);
         return chk.ok && this.dig(p, i) ? '' : chk.why || 'Nicht möglich';
       }
-      case 'mesh': return this.kampf === 5 && this.postPaint && this.postPaint(p, c.c, c.v) ? '' : 'Nicht möglich';
-      case 'even': return this.kampf === 5 && this.postReset && this.postReset(p) ? '' : 'Nicht möglich';
-      case 'stance': return this.postStance && this.postStance(p, c.v) ? '' : 'Nicht möglich';
-      case 'flag': return tileOk && this.postFlag ? this.postFlag(p, c.t) : 'Nicht möglich';
+      case 'mesh': return !this.pfeile && this.postPaint && this.postPaint(p, c.c, c.v) ? '' : 'Nicht möglich';
+      case 'even': return this.postReset && this.postReset(p) ? '' : 'Nicht möglich';
+      case 'rally': return this.pfeile && tileOk && this.postRally ? this.postRally(p, c.t) : 'Nicht möglich';
       case 'ret': { for (const a of p.out) if (a.id === c.a) { this.retreat(a); return ''; } return 'Nicht möglich'; }
       case 'bret': { for (const u of p.units) if (u.id === c.u && u.type === UT.TRANSPORT) { u.retreat = true; return ''; } return 'Nicht möglich'; }
       case 'ally': return q && this.requestAlliance(p, q) ? '' : 'Gerade nicht möglich';
@@ -3036,7 +3027,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
       this.cellCost = new Float32Array(this.CW * this.CH); this.cellRail = new Float32Array(this.CW * this.CH).fill(1); this.railSeen = -1;
       this.cellCoast = new Int8Array(this.CW * this.CH).fill(-1);
     }
-    p.post = { cells: new Map(), H: 0, edits: 0, autoAt: 0, stance: 1, flags: [] };
+    p.post = { cells: new Map(), H: 0, edits: 0, autoAt: 0, rally: [] };
     (this.posted || (this.posted = [])).push(p);
   };
   // How well a cell holds, beyond its number of troops: dug in, or cut off.
@@ -3385,7 +3376,10 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     for (let i = 0; i < ps.length; i++) {
       const p = ps[i];
       if (!p.post || !p.alive || (T + p.id) % FLOW !== 0) continue;
-      if ((p.type !== G.PT.HUMAN || this.kampf === 2 || this.kampf === 3) && T - p.post.autoAt >= AUTO) { p.post.autoAt = T; this.postAuto(p); }
+      if (T - p.post.autoAt >= AUTO) {
+        if (p.type !== G.PT.HUMAN) { p.post.autoAt = T; this.postAuto(p); }
+        else if (this.pfeile) { p.post.autoAt = T; this.postRallyAuto(p); }
+      }
       this.postFlow(p);
       this.postStarve(p);
     }
@@ -3396,10 +3390,6 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   // come on top of that by themselves (`alarm`).
   const AUTO = 50;
   Game.prototype.postAuto = function (p) {
-    const human = p.type === G.PT.HUMAN;
-    if (human && this.kampf === 3) { this.postFlagsAuto(p); return; }
-    // stance: 0 attack, 1 balanced (as every nation), 2 defence; only people in system 2 choose
-    const st = human && this.kampf === 2 ? p.post.stance : 1;
     const cells = p.post.cells, own = this.owner, W = this.W, N = this.N, ps = this.players, pid = p.id;
     for (const c of cells.values()) c.thr = 0;
     const T = Math.max(1, p.troops);
@@ -3412,75 +3402,51 @@ globalThis.G = { VARIANT: 'rohstoffe' };
         const o = own[n];
         if (!o || o === pid) continue;
         const q = ps[o];
-        let v;
-        if (st === 0) v = this.friendly(p, q) ? 0 : within(T / Math.max(1, q.troops), 0.3, 3) / 1.5 * (q.type === G.PT.BOT ? 0.6 : 1);   // attack: dense where the neighbour is weak
-        else v = (this.friendly(p, q) ? 0.4 : 1) * within(q.troops / T, 0.2, 2) * (q.type === G.PT.BOT ? 0.3 : 1);                // where the neighbour could hurt
+        const v = (this.friendly(p, q) ? 0.4 : 1) * within(q.troops / T, 0.2, 2) * (q.type === G.PT.BOT ? 0.3 : 1);
         if (v > thr) thr = v;
       }
       if (thr > 0) { const c = cells.get(this.cellOf(b)); if (c && thr > c.thr) c.thr = thr; }
     }
-    for (const c of cells.values()) {
-      const m = st === 2 ? (c.thr > 0 ? 1 + 2 * c.thr : 0.5)       // defence: much denser along the borders, almost nothing inland
-        : st === 0 ? (c.thr > 0 ? 1 + c.thr : 0.6)                 // attack: dense where it is easy to break in
-        : (c.thr > 0 ? 1 + c.thr : 0.7);                           // balanced: at most 3 : 0.7, a reserve stays inland
-      c.m = within(m, M_MIN, M_MAX);
-    }
-    // attack: the troops stand where the own thrusts break in, to hold the ground they open
-    if (st === 0) {
-      const CW = this.CW;
-      for (const at of p.out) {
-        if (!at.active || !at.path || !at.path.length) continue;
-        const id = this.cellOf(at.path[0]), cx = id % CW;
-        for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
-          if (cx + dx < 0 || cx + dx >= CW) continue;
-          const o = cells.get(id + dy * CW + dx);
-          if (o) o.m = Math.max(o.m, dx || dy ? 3 : 4);
-        }
-      }
-    }
-  };
-  Game.prototype.postStance = function (p, v) {
-    if (!p.post || this.kampf !== 2 || !(v === 0 || v === 1 || v === 2)) return false;
-    p.post.stance = v;
-    this.postAuto(p); p.post.autoAt = this.ticks; p.post.edits++;
-    return true;
+    for (const c of cells.values()) c.m = within(c.thr > 0 ? 1 + c.thr : 0.7, M_MIN, M_MAX);     // at most 3 : 0.7, a reserve stays inland
   };
 
-  // ---------- rally flags (system 3) ----------
-  // Up to three flags on the own land. The troops gather around them (within FLAG_R cells), the
-  // rest of the realm stands thin. Without a flag everything stands evenly.
-  const FLAG_MAX = 3, FLAG_R = 4;
-  G.FLAG = { max: FLAG_MAX, r: FLAG_R };
-  Game.prototype.postFlagsAuto = function (p) {
+  // ---------- rally points (version «Pfeile») ----------
+  // A person sets up to three rally points on the own land (double click). The troops gather
+  // around them (within RALLY_R cells) and defend there; the rest of the realm stands thin.
+  // Without a rally point the troops stand evenly. Only the defence feels it: an arrow takes its
+  // troops from the whole realm.
+  const RALLY_MAX = 3, RALLY_R = 4;
+  G.RALLY = { max: RALLY_MAX, r: RALLY_R };
+  Game.prototype.postRallyAuto = function (p) {
     const post = p.post, cells = post.cells, own = this.owner, W = this.W, CW = this.CW;
-    post.flags = post.flags.filter(function (t) { return own[t] === p.id; });   // a flag on lost ground falls
-    const fl = post.flags;
-    if (!fl.length) { for (const c of cells.values()) c.m = 1; return; }
+    post.rally = post.rally.filter(function (t) { return own[t] === p.id; });   // a rally point on lost ground falls
+    const rl = post.rally;
+    if (!rl.length) { for (const c of cells.values()) c.m = 1; return; }
     const fx = [], fy = [];
-    for (let i = 0; i < fl.length; i++) { fx.push((fl[i] % W) / CS - 0.5); fy.push(((fl[i] / W) | 0) / CS - 0.5); }
+    for (let i = 0; i < rl.length; i++) { fx.push((rl[i] % W) / CS - 0.5); fy.push(((rl[i] / W) | 0) / CS - 0.5); }
     for (const c of cells.values()) {
       const cx = c.id % CW, cy = (c.id - cx) / CW;
       let best = 0;
-      for (let i = 0; i < fl.length; i++) {
-        const d = Math.sqrt((cx - fx[i]) * (cx - fx[i]) + (cy - fy[i]) * (cy - fy[i])), f = 1 - d / FLAG_R;
+      for (let i = 0; i < rl.length; i++) {
+        const d = Math.sqrt((cx - fx[i]) * (cx - fx[i]) + (cy - fy[i]) * (cy - fy[i])), f = 1 - d / RALLY_R;
         if (f > best) best = f;
       }
-      c.m = within(0.5 + 5.5 * best, M_MIN, M_MAX);
+      c.m = within(0.4 + 5.6 * best, M_MIN, M_MAX);
     }
   };
-  // A flag on the own land, or off again when there is one close by. Returns '' or the reason.
-  Game.prototype.postFlag = function (p, t) {
-    if (!p.post || this.kampf !== 3) return 'Nicht möglich';
+  // A rally point on the own land, or off again when there is one close by. Returns '' or the reason.
+  Game.prototype.postRally = function (p, t) {
+    if (!p.post) return 'Nicht möglich';
     t = Math.floor(t);
-    const fl = p.post.flags, W = this.W, tx = t % W, ty = (t / W) | 0;
-    for (let i = 0; i < fl.length; i++) {
-      const dx = fl[i] % W - tx, dy = ((fl[i] / W) | 0) - ty;
-      if (dx * dx + dy * dy <= (CS * 1.5) * (CS * 1.5)) { fl.splice(i, 1); this.postAuto(p); p.post.autoAt = this.ticks; p.post.edits++; return ''; }
+    const rl = p.post.rally, W = this.W, tx = t % W, ty = (t / W) | 0;
+    for (let i = 0; i < rl.length; i++) {
+      const dx = rl[i] % W - tx, dy = ((rl[i] / W) | 0) - ty;
+      if (dx * dx + dy * dy <= (CS * 1.5) * (CS * 1.5)) { rl.splice(i, 1); this.postRallyAuto(p); p.post.autoAt = this.ticks; p.post.edits++; return ''; }
     }
-    if (this.owner[t] !== p.id) return 'Eine Fahne gehört auf dein eigenes Land';
-    fl.push(t);
-    if (fl.length > FLAG_MAX) fl.shift();
-    this.postAuto(p); p.post.autoAt = this.ticks; p.post.edits++;
+    if (this.owner[t] !== p.id) return 'Sammelpunkte gehören auf dein eigenes Land';
+    rl.push(t);
+    if (rl.length > RALLY_MAX) rl.shift();
+    this.postRallyAuto(p); p.post.autoAt = this.ticks; p.post.edits++;
     return '';
   };
 
@@ -5745,7 +5711,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     this.drawNames(ctx, g, z, ox, oy);
     this.drawRaids(ctx, g, z, ox, oy, now);
     this.drawThrusts(ctx, g, z, ox, oy, now);
-    this.drawFlags(ctx, g, z, ox, oy);
+    this.drawRally(ctx, g, z, ox, oy, now);
     this.drawFronts(ctx, g, z, ox, oy, now);
     this.drawIncoming(ctx, g, z, ox, oy, alpha, now);
     this.drawMarks(ctx, g, z, ox, oy, now);
@@ -5809,7 +5775,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   View.prototype.drawNet = function (ctx, g, z, ox, oy, now) {
     const p = g.human, N = this.net;
     if (!p || !p.post || !p.alive || g.phase !== 'play' || !p.post.cells.size) return;
-    if (now - N.at > (N.on ? 300 : 1200) || N.dirty) { N.at = now; N.dirty = false; this.buildNet(g, p); }
+    if (now - N.at > (N.on ? 300 : g.pfeile ? 500 : 1200) || N.dirty) { N.at = now; N.dirty = false; this.buildNet(g, p); }
     if (!N.w) return;
     for (const e of N.edit) if (now - e[1].at > 2500) N.edit.delete(e[0]);
     const dpr = this.dpr, cw = this.cw, ch = this.ch, CS = G.POST.cell;
@@ -5818,7 +5784,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     ctx.save();
     ctx.imageSmoothingEnabled = true;
     if (N.on) { ctx.globalAlpha = 0.42; ctx.drawImage(N.mask, sx, sy, sw, sh); }    // a veil over the own colour, so the net reads the same on every colour
-    ctx.globalAlpha = N.on ? 1 : 0.4;
+    ctx.globalAlpha = N.on ? 1 : g.pfeile ? 0.8 : 0.4;   // version «Pfeile»: where the troops stand is always to be seen
     ctx.drawImage(N.tint, sx, sy, sw, sh);
     ctx.globalAlpha = 1;
     if (N.on) {
@@ -7134,32 +7100,6 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   // Own thrusts on their way to the goal, and the preview of the one being drawn with the right
   // mouse button (`view.plan`, set by the interface: way, lane width, colour of the verdict,
   // troops, label). Every drawn arrow is remembered for clicks (`arrowHits`).
-  // Rally flags (combat system 3): a little flag on each, and while they are being set the
-  // circle the troops gather in.
-  View.prototype.drawFlags = function (ctx, g, z, ox, oy) {
-    const h = g.human;
-    if (!h || !h.alive || !h.post || g.kampf !== 3 || g.phase !== 'play') return;
-    const fl = h.post.flags, W = g.W, R = G.FLAG.r * G.POST.cell * z;
-    if (!fl.length) return;
-    ctx.save();
-    for (let i = 0; i < fl.length; i++) {
-      const x = (fl[i] % W + 0.5) * z + ox, y = (((fl[i] / W) | 0) + 0.5) * z + oy;
-      if (x < -R || y < -R || x > this.cw + R || y > this.ch + R) continue;
-      if (this.flagOn) {
-        ctx.beginPath(); ctx.arc(x, y, R, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(255,214,94,0.08)'; ctx.fill();
-        ctx.setLineDash([5, 4]); ctx.strokeStyle = 'rgba(255,214,94,0.75)'; ctx.lineWidth = 1.5; ctx.stroke(); ctx.setLineDash([]);
-      }
-      // pole and cloth, the same size on the screen at every zoom
-      ctx.lineWidth = 2.2; ctx.strokeStyle = 'rgba(10,16,24,.9)';
-      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y - 22); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(x + 1, y - 22); ctx.lineTo(x + 15, y - 17); ctx.lineTo(x + 1, y - 12); ctx.closePath();
-      ctx.fillStyle = h.cssL || 'rgb(240,240,240)'; ctx.fill();
-      ctx.lineWidth = 1.4; ctx.stroke();
-      ctx.beginPath(); ctx.arc(x, y, 2.5, 0, Math.PI * 2); ctx.fillStyle = 'rgba(10,16,24,.9)'; ctx.fill();
-    }
-    ctx.restore();
-  };
   View.prototype.drawThrusts = function (ctx, g, z, ox, oy, now) {
     const h = g.human, W = g.W, hits = this.arrowHits || (this.arrowHits = []);
     hits.length = 0;
@@ -7174,6 +7114,22 @@ globalThis.G = { VARIANT: 'rohstoffe' };
       const pts = wayPoints(at.path, from, W, z, ox, oy);
       wayArrow(ctx, pts, h.cssL || 'rgb(240,240,240)', arrowWidth(at.troops + (at.want || 0), all), 0, 0.95);
       hits.push({ id: at.id, pts: pts });
+    }
+    // version «Pfeile»: arrows planned but not launched yet, pale and numbered (`view.plans`)
+    const ph = this.planHits || (this.planHits = []);
+    ph.length = 0;
+    const plans = this.plans || [];
+    for (let i = 0; i < plans.length; i++) {
+      const q = plans[i];
+      if (!q.path || q.path.length < 2) continue;
+      const pts = wayPoints(q.path, 0, W, z, ox, oy);
+      wayArrow(ctx, pts, 'rgb(255,255,255)', arrowWidth(q.troops, all), q.width * z, 0.5);
+      ph.push({ id: i, pts: pts });
+      const tip = pts[pts.length - 1];
+      ctx.beginPath(); ctx.arc(tip[0], tip[1] - 18, 10, 0, 6.2832);
+      ctx.fillStyle = 'rgba(10,16,24,.92)'; ctx.fill(); ctx.lineWidth = 1.5; ctx.strokeStyle = '#fff'; ctx.stroke();
+      ctx.font = '700 12px ' + FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#fff';
+      ctx.fillText(String(i + 1), tip[0], tip[1] - 17.5);
     }
     const pl = this.plan;
     if (pl && pl.path && pl.path.length > 1) {
@@ -7192,8 +7148,9 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     }
   };
   // Which own thrust arrow lies under a point of the screen (within a few pixels), or null.
-  View.prototype.arrowAt = function (sx, sy) {
-    const hits = this.arrowHits || [];
+  View.prototype.planAt = function (sx, sy) { return this.arrowAt(sx, sy, this.planHits); };
+  View.prototype.arrowAt = function (sx, sy, list) {
+    const hits = list || this.arrowHits || [];
     let best = null, bd = 12;
     for (const e of hits) {
       const p = e.pts;
@@ -7204,6 +7161,53 @@ globalThis.G = { VARIANT: 'rohstoffe' };
       }
     }
     return best;
+  };
+
+  // Version «Pfeile»: the rally points (a flag, and the circle the troops gather in) and, close
+  // up, the troops standing in each cell along the border.
+  View.prototype.drawRally = function (ctx, g, z, ox, oy, now) {
+    const h = g.human;
+    if (!g.pfeile || !h || !h.alive || !h.post || g.phase !== 'play') return;
+    const W = g.W, CS = G.POST.cell, cell = CS * z, cw = this.cw, ch = this.ch;
+    ctx.save();
+    const rl = h.post.rally, R = G.RALLY.r * cell;
+    for (let i = 0; i < rl.length; i++) {
+      const x = (rl[i] % W + 0.5) * z + ox, y = (((rl[i] / W) | 0) + 0.5) * z + oy;
+      if (x < -R || y < -R || x > cw + R || y > ch + R) continue;
+      ctx.beginPath(); ctx.arc(x, y, R, 0, 6.2832);
+      ctx.fillStyle = 'rgba(255,214,94,0.07)'; ctx.fill();
+      ctx.setLineDash([6, 5]); ctx.strokeStyle = 'rgba(255,214,94,0.8)'; ctx.lineWidth = 1.6; ctx.stroke(); ctx.setLineDash([]);
+      ctx.lineWidth = 2.2; ctx.strokeStyle = 'rgba(10,16,24,.9)';
+      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y - 22); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x + 1, y - 22); ctx.lineTo(x + 15, y - 17); ctx.lineTo(x + 1, y - 12); ctx.closePath();
+      ctx.fillStyle = '#ffd65e'; ctx.fill(); ctx.lineWidth = 1.4; ctx.stroke();
+    }
+    // troops per border cell, once a cell is big enough on the screen to carry a number
+    if (cell >= 30) {
+      const L = this.rallyLab || (this.rallyLab = { at: -1e9, list: [] });
+      if (now - L.at > 500) {
+        L.at = now; L.list.length = 0;
+        const seen = new Set(), cells = h.post.cells;
+        for (const b of h.border) {
+          const id = g.cellOf(b);
+          if (seen.has(id)) continue;
+          seen.add(id);
+          const c = cells.get(id);
+          if (c) L.list.push(id, g.postReal(h, c));
+        }
+      }
+      const CW = g.CW, fmtT = G.fmtTroops;
+      ctx.font = '700 11px ' + FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      for (let i = 0; i < L.list.length; i += 2) {
+        const id = L.list[i], cx = id % CW, cy = (id - cx) / CW;
+        const x = (cx + 0.5) * cell + ox, y = (cy + 0.5) * cell + oy;
+        if (x < -20 || y < -10 || x > cw + 20 || y > ch + 10) continue;
+        const s = fmtT(L.list[i + 1]), tw = ctx.measureText(s).width + 8;
+        ctx.fillStyle = 'rgba(10,16,24,.78)'; ctx.fillRect(x - tw / 2, y - 8, tw, 16);
+        ctx.fillStyle = '#fff'; ctx.fillText(s, x, y + 0.5);
+      }
+    }
+    ctx.restore();
   };
 
   View.prototype.drawFronts = function (ctx, g, z, ox, oy, now) {
@@ -7754,16 +7758,12 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   let toastTimer = 0, endShown = false, botsTouched = false;
   let mp = null, turnLeft = 0, aim = null, joinCode = '', lobbyNote = '', goldTimer = 0;
   const chips = new Map(), asks = new Map();
-  const cfg = { name: 'Spieler', color: 0, map: 'erde', diff: 1, bots: -1, nations: true, instant: false, gold: false, troops: false, tap: false, music: true, sfx: true, mode: 'klassisch', thrust: 0, botsV2: true, kampf: 5 };
+  const cfg = { name: 'Spieler', color: 0, map: 'erde', diff: 1, bots: -1, nations: true, instant: false, gold: false, troops: false, tap: false, music: true, sfx: true, mode: 'klassisch', thrust: 0, botsV2: true, pfeile: true };
+  // the two versions of the fight (doku/pfeile.md); true goes to the game as opts.pfeile
+  const KAMPF = [[false, 'Bisher', 'Wie bisher: Pfeil mit der rechten Maustaste greift sofort an, das Netz (Taste N) verteilt die Truppen.'],
+    [true, 'Pfeile', 'Pfeile mit der rechten Maustaste planen, dann «Angreifen» (oder Enter). Klick auf einen laufenden Pfeil schickt Truppen nach. Verteidigen: Doppelklick auf dein Land setzt einen Sammelpunkt.']];
+  let plans = [];          // version «Pfeile»: arrows planned, not launched yet
   const MODES = [['klassisch', 'Klassisch', 'Das Spiel wie gewohnt.'], ['arsenal', 'Arsenal', 'Zusätzliche Waffe: der Satellitenstrahl. Er kommt aus dem All, braucht kein Silo und lässt sich nicht abfangen. Auch die Nationen setzen ihn ein.']];
-  // the combat systems to try out (doku/kampfsysteme.md); the number goes to the game as opts.kampf
-  const KAMPF = [
-    [1, 'Klassisch', 'Wie OpenFront: kein Netz, Antippen greift mit der ganzen Front an. Am einfachsten.'],
-    [2, 'Auto', 'Automatische Front: Die Truppen stellen sich selbst an die Grenzen. Du wählst nur die Haltung: Angriff, Ausgeglichen oder Verteidigung.'],
-    [3, 'Fahnen', 'Sammelpunkte: Setze bis zu drei Fahnen auf dein Land. Dort sammeln sich die Truppen und verteidigen stark, der Rest steht dünn.'],
-    [4, 'Pfeile', 'Nur Pfeile: kein Netz, kein Eingraben. Jeder Angriff auf ein Land ist ein Keil oder Abschnitt.'],
-    [5, 'Netz', 'Netz von Hand: Du malst selbst, wo die Truppen dicht stehen (Knopf mit dem Gitter oder Taste N).']];
-  let flagOn = false;
   let hoverX = -1, hoverY = -1;
   const RES = G.VARIANT === 'rohstoffe';   // this page is the game version «Rohstoffe» (src/03c_res.js)
   let ghost = null, ghostKey = '', shiftHeld = false;   // the thing a build key is about to place
@@ -7781,7 +7781,6 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     if (cfg.map !== 'zufall' && !special(cfg.map) && !MAPS.some(function (m) { return m.id === cfg.map; })) cfg.map = MAPS[0].id;
     G.Audio.on.music = cfg.music; G.Audio.on.sfx = cfg.sfx;
     if (cfg.mode !== 'arsenal') cfg.mode = 'klassisch';
-    if (!(cfg.kampf >= 1 && cfg.kampf <= 5)) cfg.kampf = 5;
     botsTouched = cfg.bots >= 0;
     if (!s0.botsV2) { cfg.bots = -1; botsTouched = false; }   // the default rose: forget a count stored under the old one
   }
@@ -7958,9 +7957,9 @@ globalThis.G = { VARIANT: 'rohstoffe' };
       h += '<div class="field"><div class="lab">Spielmodus</div><div class="seg" id="fMode">' + MODES.map(function (m) {
         return '<button type="button" data-id="' + m[0] + '" aria-pressed="' + (m[0] === cfg.mode) + '">' + m[1] + '</button>';
       }).join('') + '</div><p class="hint" id="fModeNote">' + MODES.find(function (m) { return m[0] === cfg.mode; })[2] + '</p></div>';
-      h += '<div class="field"><div class="lab">Kampfsystem</div><div class="seg seg5" id="fKampf">' + KAMPF.map(function (k) {
-        return '<button type="button" data-k="' + k[0] + '" aria-pressed="' + (k[0] === cfg.kampf) + '">' + k[1] + '</button>';
-      }).join('') + '</div><p class="hint" id="fKampfNote">' + KAMPF[cfg.kampf - 1][2] + '</p></div>';
+      h += '<div class="field"><div class="lab">Kampf</div><div class="seg" id="fKampf">' + KAMPF.map(function (k, i) {
+        return '<button type="button" data-i="' + i + '" aria-pressed="' + (k[0] === !!cfg.pfeile) + '">' + k[1] + '</button>';
+      }).join('') + '</div><p class="hint" id="fKampfNote">' + KAMPF[cfg.pfeile ? 1 : 0][2] + '</p></div>';
       h += '<div class="field"><div class="lab">Schwierigkeit</div><div class="seg" id="fDiff">' + G.DIFF_NAMES.map(function (n, i) {
         return '<button type="button" data-i="' + i + '" aria-pressed="' + (i === cfg.diff) + '">' + n + '</button>';
       }).join('') + '</div></div>';
@@ -8002,8 +8001,8 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     $('fKampf').addEventListener('click', function (e) {
       const b = e.target.closest('button');
       if (!b) return;
-      cfg.kampf = +b.dataset.k; press(this, b); saveCfg();
-      $('fKampfNote').textContent = KAMPF[cfg.kampf - 1][2];
+      cfg.pfeile = KAMPF[+b.dataset.i][0]; press(this, b); saveCfg();
+      $('fKampfNote').textContent = KAMPF[+b.dataset.i][2];
     });
     $('fDiff').addEventListener('click', function (e) {
       const b = e.target.closest('button');
@@ -8101,7 +8100,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
       this.disabled = true;
       mp.begin({
         seed: (Math.random() * 2e9) | 0, map: cfg.map, mapSeed: (Math.random() * 2e9) | 0,
-        diff: cfg.diff, bots: Math.max(0, cfg.bots), nations: cfg.nations, arsenal: cfg.mode === 'arsenal', res: RES, kampf: cfg.kampf
+        diff: cfg.diff, bots: Math.max(0, cfg.bots), nations: cfg.nations, arsenal: cfg.mode === 'arsenal', res: RES, pfeile: !!cfg.pfeile
       });
     });
   }
@@ -8110,7 +8109,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     turnLeft = 0;
     loadMap(m.map, m.mapSeed).then(function (map) {
       begin(map, {
-        seed: m.seed, difficulty: m.diff, bots: m.bots, nations: m.nations, arsenal: !!m.arsenal, res: !!m.res, kampf: m.kampf || 5, spawnTicks: 300, autoSpawn: true, me: me
+        seed: m.seed, difficulty: m.diff, bots: m.bots, nations: m.nations, arsenal: !!m.arsenal, res: !!m.res, pfeile: !!m.pfeile, spawnTicks: 300, autoSpawn: true, me: me
       }, m.players.map(function (p) { return { name: p.name, color: COLORS[p.color % 6] }; }));
       $('bSpeed').hidden = true; $('bPause').hidden = !mp.host;
       addMsg(m.players.length > 1 ? m.players.length + ' Spieler sind dabei. Wählt eure Startpunkte.' : 'Du bist allein im Raum.', 'info');
@@ -8212,7 +8211,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     $('fStart').disabled = true; $('fStart').textContent = 'Karte wird vorbereitet';
     loadMap(cfg.map).then(function (map) {
       begin(map, {
-        seed: (Math.random() * 2e9) | 0, difficulty: cfg.diff, bots: cfg.bots, nations: cfg.nations, arsenal: cfg.mode === 'arsenal', res: RES, kampf: cfg.kampf,
+        seed: (Math.random() * 2e9) | 0, difficulty: cfg.diff, bots: cfg.bots, nations: cfg.nations, arsenal: cfg.mode === 'arsenal', res: RES, pfeile: !!cfg.pfeile,
         instantBuild: cfg.instant, infiniteGold: cfg.gold, infiniteTroops: cfg.troops
       }, { name: cfg.name, color: COLORS[cfg.color] });
     }).catch(function (e) {
@@ -8234,8 +8233,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     netOn = false; stroke = null; netQueue.clear(); lastTile = -1; commitAt = -99; view.net.on = false; view.net.edit.clear(); view.net.w = 0; view.net.at = -1e9;
     $('peek').hidden = true; trainSeen = 0; incAt = -99; incLog.length = 0; $('incLine').hidden = true; $('incLine').dataset.html = '';
     $('bNet').hidden = true; $('bNet').setAttribute('aria-pressed', 'false'); $('netBar').hidden = true; $('commit').textContent = '';
-    flagOn = false; view.flagOn = false; $('bFlag').hidden = true; $('bFlag').setAttribute('aria-pressed', 'false'); $('stance').hidden = true;
-    kampfUi();
+    plans.length = 0; syncPlans();
     $('feedMsgs').innerHTML = ''; $('feedLive').innerHTML = ''; chips.clear(); asks.clear();
     $('lbRows').innerHTML = ''; $('clock').textContent = '0:00';
     speed = 1; $('bSpeed').textContent = '1×'; acc = 0; endShown = false; lbAt = liveAt = -99; tradeAt = 0; aim = null;
@@ -8320,9 +8318,8 @@ globalThis.G = { VARIANT: 'rohstoffe' };
         addAsk('r' + q.id, 'Die Allianz mit ' + q.name + ' läuft bald ab', 'Verlängern', 'Auslaufen lassen',
           function () { act({ k: 'renew', p: q.id }); }, function () { /* let it run out */ });
       } else if (e.k === 'start') {
-        $('spawnBar').hidden = true; $('ctrl').hidden = false; $('lb').hidden = false; $('bNet').hidden = !(h.post && game.kampf === 5);
-        $('bFlag').hidden = !(h.post && game.kampf === 3); $('stance').hidden = !(h.post && game.kampf === 2);
-        if (game.kampf === 3) addMsg('Setze mit der Fahne oben bis zu drei Sammelpunkte auf dein Land.', 'info');
+        $('spawnBar').hidden = true; $('ctrl').hidden = false; $('lb').hidden = false; $('bNet').hidden = !h.post || game.pfeile;
+        if (game.pfeile) addMsg('Pfeile mit der rechten Maustaste planen, dann «Angreifen». Doppelklick auf dein Land: Sammelpunkt für die Verteidigung.', 'info');
         const W = game.W;
         view.flyTo(h.spawnTile % W, (h.spawnTile / W) | 0, within(Math.min(view.cw, view.ch) / 70, 2.2, 6));
         addMsg('Los geht es. Breite dich aus, bevor es andere tun.', 'good');
@@ -8341,7 +8338,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
         else addMsg('Vorkommen verloren: ' + say, 'warn');
       } else if (e.k === 'loot') {
         if (e.by === h.id && e.gold > 0) { view.floatText(e.x, e.y, '+ ' + fmt(e.gold)); goldPop(e.gold); }
-      } else if (e.k === 'defeat') { setNet(false); setFlag(false); $('bNet').hidden = true; $('bFlag').hidden = true; $('stance').hidden = true; showEnd('defeat', null); }
+      } else if (e.k === 'defeat') { setNet(false); plans.length = 0; syncPlans(); $('bNet').hidden = true; showEnd('defeat', null); }
       else if (e.k === 'win') showEnd(game.players[e.id] === h ? 'win' : 'other', game.players[e.id]);
     }
     ev.length = 0;
@@ -8437,7 +8434,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   }
 
   function hudTick() {
-    if (game && game.kampf === 2) stanceUi();
+    if (plans.length) syncPlans();
     const h = game.human, T = game.ticks;
     if (game.phase === 'spawn') {
       if (mp) {
@@ -8615,10 +8612,11 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     if (a.canAttack) mode = 'attack';
     else if (a.boat) mode = 'boat';
     else if (!a.land && h.cnt[UT.WARSHIP] > 0) mode = 'ship';
+    if (!mode && a.own && game.pfeile) mode = 'rally';
     const c = $('rC');
     c.dataset.mode = mode;
     c.classList.toggle('off', !mode);
-    c.innerHTML = svg(mode === 'boat' ? 'boat' : mode === 'ship' ? 'warship' : 'sword', 28) + '<span>' + (mode === 'boat' ? 'Boot' : mode === 'ship' ? 'Schiff' : 'Angreifen') + '</span>';
+    c.innerHTML = svg(mode === 'boat' ? 'boat' : mode === 'ship' ? 'warship' : mode === 'rally' ? 'flag' : 'sword', 28) + '<span>' + (mode === 'boat' ? 'Boot' : mode === 'ship' ? 'Schiff' : mode === 'rally' ? 'Sammeln' : 'Angreifen') + '</span>';
     const near = a.own ? game.structNear(tile, 4) : null, canUp = !!near && near.owner === h && near.built;
     $('rN').firstChild.innerHTML = svg(canUp ? 'up' : 'hammer', 22) + '<span>' + (canUp ? 'Ausbau' : 'Bauen') + '</span>';
     if (canUp) cap = G.UNAME[near.type].replace('\u00AD', '') + ' · Stufe ' + near.level;
@@ -8638,6 +8636,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
       if (mode === 'attack') strikeAt(a.tile);
       else if (mode === 'boat') sendBoat(a);
       else if (mode === 'ship') act({ k: 'ship', t: a.tile, say: 'Kriegsschiff nimmt Kurs' });
+      else if (mode === 'rally') rally(a.tile);
       else toast(a.why || 'Hier nicht möglich');
     } else if (which === 'E') sendBoat(a);
     else if (which === 'N') { closeRadial(); openBuild(a.tile); return; }
@@ -8886,28 +8885,6 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   const THRUST_NAME = ['Ganze Front', 'Abschnitt', 'Keil'];
   const finePointer = function () { return !!(window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches); };
   function dragWidth() { return cfg.thrust === 1 ? 1 : 2; }
-  // what a tap does in this round: classic knows only the whole front, arrows-only never uses it against a realm
-  function tapWidth() { const k = game ? game.kampf : 5; return k === 1 ? 0 : k === 4 ? (cfg.thrust || 2) : cfg.thrust; }
-  // The parts of the panel that belong to the combat system of the round.
-  function kampfUi() {
-    const k = game ? game.kampf : 5;
-    $('modes').hidden = k === 1;
-    const w0 = document.querySelector('#modes button[data-w="0"]');
-    if (w0) w0.style.display = k === 4 ? 'none' : '';
-    $('modes').classList.toggle('two', k === 4 && !finePointer());
-    if (k === 4 && !finePointer() && cfg.thrust === 0) setThrust(2); else setThrust(cfg.thrust);
-    stanceUi();
-  }
-  function stanceUi() {
-    const s = game && game.human && game.human.post ? game.human.post.stance : 1;
-    document.querySelectorAll('#stance button').forEach(function (b) { const on = +b.dataset.s === s; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); });
-  }
-  function setFlag(on) {
-    on = !!on && !!game && game.kampf === 3 && game.phase === 'play' && game.human.alive && !!game.human.post;
-    flagOn = on; view.flagOn = on;
-    $('bFlag').setAttribute('aria-pressed', on ? 'true' : 'false');
-    if (on) { setNet(false); stopAim(); setGhost(null); closeRadial(); toast('Tippe auf dein Land: Fahne setzen (max. ' + G.FLAG.max + ')'); }
-  }
   function setThrust(w) {
     cfg.thrust = within(w | 0, 0, 2); saveCfg();
     const fine = finePointer(), on = fine ? dragWidth() : cfg.thrust;
@@ -8933,17 +8910,18 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     if ((key === planKey && now - planAt < 1500) || now - planAt < 70) return;
     planKey = key; planAt = now;
     const width = game.thrustWidth(mode);
+    if (game.pfeile && game.thrustCount(h) + plans.length >= G.THRUST.max) { view.plan = null; planInfo = { why: 'Höchstens ' + G.THRUST.max + ' Pfeile gleichzeitig' }; showCommit(); return; }
     if (game.thrustCount(h) >= G.THRUST.max && !h.out.some(function (o) { return o.active && o.goal >= 0 && o.tid === a.tid && o.width === width && Math.hypot(o.goal % game.W - tile % game.W, ((o.goal / game.W) | 0) - ((tile / game.W) | 0)) <= width; })) {
       view.plan = null; planInfo = { why: 'Höchstens ' + G.THRUST.max + ' Stösse gleichzeitig' }; showCommit(); return;
     }
     const r = game.thrustRoute(h, a.tid, tile, width, start);
     if (!r) { view.plan = null; planInfo = { why: 'Kein Weg dorthin' }; showCommit(); return; }
-    const troops = h.troops * ratio, est = game.thrustEstimate(h, r, troops);
+    const troops = h.troops * ratio / (game.pfeile ? plans.length + 1 : 1), est = game.thrustEstimate(h, r, troops);
     // green: arrives with a quarter or more to spare; yellow: arrives, or very nearly; red: stops short
     const verdict = est.reach >= 1 && est.left >= troops * 0.25 ? 0 : est.reach >= 0.9 ? 1 : 2;
     const verdictText = ['reicht bis zum Ziel', 'knapp', 'reicht etwa ' + Math.max(5, Math.round(est.reach * 20) * 5) + ' % des Wegs'][verdict];
     view.plan = { path: r.path, width: width, troops: troops, col: ['rgb(99,211,145)', 'rgb(244,183,64)', 'rgb(255,107,94)'][verdict], label: THRUST_NAME[mode] + ' · ' + fmtT(troops) + ' · ' + verdictText };
-    planInfo = { mode: mode, verdict: verdict, text: verdictText, ci: null };
+    planInfo = { mode: mode, verdict: verdict, text: verdictText, ci: null, path: r.path, tid: a.tid, width: width };
     showCommit();
   }
   // The card for a thrust under way: reinforce it with the share on the slider, or call it back.
@@ -9096,6 +9074,55 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     if (sh > 0) s += '<span>' + svg('port', 13) + '+' + fmt(Math.round(sh)) + '/min</span>';
     if (el.dataset.html !== s) { el.innerHTML = s; el.dataset.html = s; el.hidden = !s; }
   }
+  // ---------- version «Pfeile» ----------
+  // Arrows are planned with the right button (on a touch screen: a tap with Keil or Abschnitt),
+  // drawn pale and numbered, and launched together with «Angreifen» or Enter. The share on the
+  // slider is split evenly among them. A click on a planned arrow takes it away again.
+  function addPlan(tile, w, s, info) {
+    const h = game.human;
+    if (game.thrustCount(h) + plans.length >= G.THRUST.max) { toast('Höchstens ' + G.THRUST.max + ' Pfeile gleichzeitig'); snd('deny'); return; }
+    plans.push({ tile: tile, w: w, s: s, path: info && info.path, width: info ? info.width : game.thrustWidth(w), tid: info ? info.tid : game.owner[tile], troops: 0 });
+    syncPlans(); snd('tap');
+  }
+  function planTap(tile) {
+    const h = game.human, a = game.actionsAt(h, tile);
+    if (!a.canAttack) { toast(a.why || 'Hier nicht möglich'); snd('deny'); return; }
+    const width = game.thrustWidth(cfg.thrust), r = game.thrustRoute(h, a.tid, tile, width, -1);
+    if (!r) { toast('Kein Weg dorthin'); snd('deny'); return; }
+    addPlan(tile, cfg.thrust, -1, { path: r.path, width: width, tid: a.tid });
+  }
+  function syncPlans() {
+    if (view) view.plans = plans;
+    const b = $('bGo');
+    if (!b) return;
+    const h = game && game.human, n = plans.length;
+    for (const q of plans) q.troops = h ? h.troops * ratio / Math.max(1, n) : 0;
+    b.hidden = !n;
+    if (n) b.textContent = 'Angreifen · ' + n + (n === 1 ? ' Pfeil · ' : ' Pfeile · ') + fmtT(h.troops * ratio);
+  }
+  function launchPlans() {
+    const n = plans.length;
+    if (!n || !game || game.phase !== 'play' || !game.human.alive) return;
+    const list = plans.slice();
+    plans.length = 0;
+    // each order takes its share of what is left: r_i = (ratio/n) / (1 - ratio*i/n), so all get the same
+    for (let i = 0; i < n; i++) {
+      const q = list[i], r = within(ratio / n / (1 - ratio * i / n), 0.01, 1);
+      act({ k: 'strike', t: q.tile, r: r, w: q.w, s: q.s });
+    }
+    syncPlans();
+    toast(n === 1 ? 'Angriff!' : n + ' Pfeile greifen an');
+  }
+  function rally(tile) {
+    const h = game.human;
+    if (!h.post) return;
+    const W = game.W, R = G.POST.cell * 1.5, x = tile % W, y = (tile / W) | 0;
+    const off = h.post.rally.some(function (t) { return Math.hypot(t % W - x, ((t / W) | 0) - y) <= R; });
+    if (!off && game.owner[tile] !== h.id) { toast('Sammelpunkte gehören auf dein eigenes Land'); return; }
+    act({ k: 'rally', t: tile });
+    snd('tap');
+    toast(off ? 'Sammelpunkt entfernt' : 'Sammelpunkt gesetzt (höchstens ' + G.RALLY.max + '): die Truppen ziehen dorthin');
+  }
   function strikeAt(tile, extra) {
     const c = { k: 'strike', t: tile, r: ratio };
     if (extra) for (const k in extra) c[k] = extra[k];
@@ -9105,7 +9132,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     act(c);
   }
   function setNet(on) {
-    on = !!on && !!game && game.kampf === 5 && game.phase === 'play' && game.human.alive && !!game.human.post;
+    on = !!on && !!game && game.phase === 'play' && game.human.alive && !!game.human.post;
     if (on === netOn) return;
     netOn = on; view.net.on = on; view.net.dirty = true; view.net.brush = null;
     endStroke(false);
@@ -9178,6 +9205,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     const tile = view.tileAt(sx, sy), h = game.human;
     if (tile < 0 || !h.alive) return;
     closeRadial();
+    if (game.owner[tile] === h.id && game.pfeile) { rally(tile); return; }
     if (game.owner[tile] === h.id) {
       const u = game.structNear(tile, 3);
       if (u && u.owner === h && u.built) openBuild(u.tile);
@@ -9199,7 +9227,8 @@ globalThis.G = { VARIANT: 'rohstoffe' };
       return;
     }
     if (aim) { aim.tile = tile; refreshAim(); snd('tap'); return; }
-    if (flagOn && h.alive) { act({ k: 'flag', t: tile }); snd('tap'); return; }
+    const pa = game.pfeile && !menu ? view.planAt(sx, sy) : null;
+    if (pa !== null) { plans.splice(pa, 1); syncPlans(); toast('Pfeil entfernt'); snd('tap'); return; }
     const arrow = view.arrowAt(sx, sy);
     if (arrow !== null && !menu) { openThrustCard(arrow, sx, sy); snd('tap'); return; }
     closeThrustCard();
@@ -9209,9 +9238,9 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     const o = game.owner[tile], q = o ? game.players[o] : null;
     // an attack that is already running is fed with one tap, whoever it is against
     const running = !!q && h.out.some(function (at) { return at.active && at.tid === q.id; });
+    if (!menu && game.pfeile && cfg.thrust && !running && q && h.alive && o !== h.id && game.map.land[tile]) { planTap(tile); return; }
     if (!menu && (!q || q.type === PT.BOT || running) && h.alive && o !== h.id && game.map.land[tile]) {
-      const tw = tapWidth();
-      strikeAt(tile, tw ? { w: tw } : null);
+      strikeAt(tile, cfg.thrust ? { w: cfg.thrust } : null);
       return;
     }
     snd('tap');
@@ -9277,7 +9306,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
       if (e.pointerType === 'mouse') { const r = cv.getBoundingClientRect(); hoverX = e.clientX - r.left; hoverY = e.clientY - r.top; }
       if (rdrag && e.pointerType === 'mouse') {
         rdrag.x = hoverX; rdrag.y = hoverY;
-        if (!rdrag.started && game.kampf !== 1 && Math.hypot(rdrag.x - rdrag.x0, rdrag.y - rdrag.y0) > 10) rdrag.started = true;
+        if (!rdrag.started && Math.hypot(rdrag.x - rdrag.x0, rdrag.y - rdrag.y0) > 10) rdrag.started = true;
         return;
       }
       // version «Rohstoffe»: while the start point is being chosen the card follows the mouse
@@ -9320,7 +9349,8 @@ globalThis.G = { VARIANT: 'rohstoffe' };
         rdrag = null; rdragEnd = performance.now(); rdragDrew = d.started;
         if (d.started) {
           const t = view.tileAt(d.x, d.y), ok = planInfo && !planInfo.why && view.plan;
-          if (e.type === 'pointerup' && ok && t >= 0) strikeAt(t, { w: dragWidth(), s: d.tile });
+          if (e.type === 'pointerup' && ok && t >= 0 && game.pfeile) addPlan(t, dragWidth(), d.tile, planInfo);
+          else if (e.type === 'pointerup' && ok && t >= 0) strikeAt(t, { w: dragWidth(), s: d.tile });
           else if (e.type === 'pointerup' && planInfo && planInfo.why) { toast(planInfo.why); snd('deny'); }
           view.plan = null; planInfo = null; planKey = ''; showCommit();
         } else if (d.menu && e.type === 'pointerup') openRadial(view.tileAt(d.x0, d.y0), d.x0, d.y0);
@@ -9415,10 +9445,8 @@ globalThis.G = { VARIANT: 'rohstoffe' };
       if (k === 't') { setRatio(ratio * 100 - 10); return; }
       if (k === 'y') { setRatio(ratio * 100 + 10); return; }
       if (k === 'c') { $('bHome').click(); return; }
-      if (k === 'n') { if (game.kampf === 5) setNet(!netOn); else if (game.kampf === 3) setFlag(!flagOn); return; }
+      if (k === 'n') { setNet(!netOn); return; }
       if (k === 'f') {
-        if (game.kampf === 1) { toast('Im Kampfsystem «Klassisch» gibt es nur die ganze Front'); return; }
-        if (game.kampf === 4 && !finePointer()) { setThrust(cfg.thrust === 1 ? 2 : 1); toast('Angriff: ' + THRUST_NAME[cfg.thrust]); return; }
         if (finePointer()) { setThrust(dragWidth() === 2 ? 1 : 2); toast('Rechts ziehen: ' + THRUST_NAME[dragWidth()]); }
         else { setThrust((cfg.thrust + 1) % 3); toast('Angriff: ' + THRUST_NAME[cfg.thrust]); }
         return;
@@ -9426,6 +9454,8 @@ globalThis.G = { VARIANT: 'rohstoffe' };
       if (k === '.' || k === ',') { if (!mp) setSpeed(k === '.' ? 1 : -1); return; }
       if (e.repeat || game.phase !== 'play' || !game.human.alive) return;
       if (aim) { if (k === 'enter' && !$('aimGo').disabled) fireAim(); return; }
+      if (k === 'enter' && game.pfeile) { launchPlans(); return; }
+      if (k === 'backspace' && game.pfeile && plans.length) { plans.pop(); syncPlans(); toast('Letzter Pfeil entfernt'); return; }
       // everything below acts on the build menu's tile, or else on the tile under the mouse pointer
       const open = !$('sheet').hidden;
       const tile = open ? buildTile : (hoverX >= 0 ? view.tileAt(hoverX, hoverY) : -1);
@@ -9470,6 +9500,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
       if (b && !b.disabled) onModalAct(b.dataset.act);
     });
     $('ratio').addEventListener('input', function () { setRatio(+this.value); });
+    $('bGo').addEventListener('click', function () { launchPlans(); });
     $('modes').addEventListener('click', function (e) { const b = e.target.closest('button[data-w]'); if (b) { setThrust(+b.dataset.w); snd('ui'); } });
     $('thrustCard').addEventListener('click', function (e) {
       const b = e.target.closest('button[data-act]');
@@ -9493,13 +9524,6 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     });
     $('bPause').addEventListener('click', togglePause);
     $('bNet').addEventListener('click', function () { setNet(!netOn); });
-    $('bFlag').addEventListener('click', function () { setFlag(!flagOn); });
-    $('stance').addEventListener('click', function (e) {
-      const b = e.target.closest('button');
-      if (!b || !game) return;
-      act({ k: 'stance', v: +b.dataset.s });
-      toast('Haltung: ' + b.textContent);
-    });
     $('netDone').addEventListener('click', function () { setNet(false); });
     $('netMore').addEventListener('click', function () { setBrush(false); });
     $('netLess').addEventListener('click', function () { setBrush(true); });
@@ -9551,6 +9575,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     $('ratio').style.setProperty('--p', pct + '%');
     $('ratioPct').textContent = pct + '%';
     if (game && game.human.alive) $('ratioTroops').textContent = fmtT(game.human.troops * ratio);
+    if (plans.length) syncPlans();
   }
 
   // ---------- main loop ----------
@@ -9607,7 +9632,6 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     $('bPause').innerHTML = svg('pause', 18);
     $('bHome').innerHTML = svg('home', 18);
     $('bNet').innerHTML = svg('net', 18);
-    $('bFlag').innerHTML = svg('flag', 18);
     $('bMenu').innerHTML = svg('menu', 18);
     fsShow();
     $('icTroops').innerHTML = svg('troops', 20);

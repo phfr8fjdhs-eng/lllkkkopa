@@ -455,7 +455,7 @@
     this.drawNames(ctx, g, z, ox, oy);
     this.drawRaids(ctx, g, z, ox, oy, now);
     this.drawThrusts(ctx, g, z, ox, oy, now);
-    this.drawFlags(ctx, g, z, ox, oy);
+    this.drawRally(ctx, g, z, ox, oy, now);
     this.drawFronts(ctx, g, z, ox, oy, now);
     this.drawIncoming(ctx, g, z, ox, oy, alpha, now);
     this.drawMarks(ctx, g, z, ox, oy, now);
@@ -519,7 +519,7 @@
   View.prototype.drawNet = function (ctx, g, z, ox, oy, now) {
     const p = g.human, N = this.net;
     if (!p || !p.post || !p.alive || g.phase !== 'play' || !p.post.cells.size) return;
-    if (now - N.at > (N.on ? 300 : 1200) || N.dirty) { N.at = now; N.dirty = false; this.buildNet(g, p); }
+    if (now - N.at > (N.on ? 300 : g.pfeile ? 500 : 1200) || N.dirty) { N.at = now; N.dirty = false; this.buildNet(g, p); }
     if (!N.w) return;
     for (const e of N.edit) if (now - e[1].at > 2500) N.edit.delete(e[0]);
     const dpr = this.dpr, cw = this.cw, ch = this.ch, CS = G.POST.cell;
@@ -528,7 +528,7 @@
     ctx.save();
     ctx.imageSmoothingEnabled = true;
     if (N.on) { ctx.globalAlpha = 0.42; ctx.drawImage(N.mask, sx, sy, sw, sh); }    // a veil over the own colour, so the net reads the same on every colour
-    ctx.globalAlpha = N.on ? 1 : 0.4;
+    ctx.globalAlpha = N.on ? 1 : g.pfeile ? 0.8 : 0.4;   // version «Pfeile»: where the troops stand is always to be seen
     ctx.drawImage(N.tint, sx, sy, sw, sh);
     ctx.globalAlpha = 1;
     if (N.on) {
@@ -1844,32 +1844,6 @@
   // Own thrusts on their way to the goal, and the preview of the one being drawn with the right
   // mouse button (`view.plan`, set by the interface: way, lane width, colour of the verdict,
   // troops, label). Every drawn arrow is remembered for clicks (`arrowHits`).
-  // Rally flags (combat system 3): a little flag on each, and while they are being set the
-  // circle the troops gather in.
-  View.prototype.drawFlags = function (ctx, g, z, ox, oy) {
-    const h = g.human;
-    if (!h || !h.alive || !h.post || g.kampf !== 3 || g.phase !== 'play') return;
-    const fl = h.post.flags, W = g.W, R = G.FLAG.r * G.POST.cell * z;
-    if (!fl.length) return;
-    ctx.save();
-    for (let i = 0; i < fl.length; i++) {
-      const x = (fl[i] % W + 0.5) * z + ox, y = (((fl[i] / W) | 0) + 0.5) * z + oy;
-      if (x < -R || y < -R || x > this.cw + R || y > this.ch + R) continue;
-      if (this.flagOn) {
-        ctx.beginPath(); ctx.arc(x, y, R, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(255,214,94,0.08)'; ctx.fill();
-        ctx.setLineDash([5, 4]); ctx.strokeStyle = 'rgba(255,214,94,0.75)'; ctx.lineWidth = 1.5; ctx.stroke(); ctx.setLineDash([]);
-      }
-      // pole and cloth, the same size on the screen at every zoom
-      ctx.lineWidth = 2.2; ctx.strokeStyle = 'rgba(10,16,24,.9)';
-      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y - 22); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(x + 1, y - 22); ctx.lineTo(x + 15, y - 17); ctx.lineTo(x + 1, y - 12); ctx.closePath();
-      ctx.fillStyle = h.cssL || 'rgb(240,240,240)'; ctx.fill();
-      ctx.lineWidth = 1.4; ctx.stroke();
-      ctx.beginPath(); ctx.arc(x, y, 2.5, 0, Math.PI * 2); ctx.fillStyle = 'rgba(10,16,24,.9)'; ctx.fill();
-    }
-    ctx.restore();
-  };
   View.prototype.drawThrusts = function (ctx, g, z, ox, oy, now) {
     const h = g.human, W = g.W, hits = this.arrowHits || (this.arrowHits = []);
     hits.length = 0;
@@ -1884,6 +1858,22 @@
       const pts = wayPoints(at.path, from, W, z, ox, oy);
       wayArrow(ctx, pts, h.cssL || 'rgb(240,240,240)', arrowWidth(at.troops + (at.want || 0), all), 0, 0.95);
       hits.push({ id: at.id, pts: pts });
+    }
+    // version «Pfeile»: arrows planned but not launched yet, pale and numbered (`view.plans`)
+    const ph = this.planHits || (this.planHits = []);
+    ph.length = 0;
+    const plans = this.plans || [];
+    for (let i = 0; i < plans.length; i++) {
+      const q = plans[i];
+      if (!q.path || q.path.length < 2) continue;
+      const pts = wayPoints(q.path, 0, W, z, ox, oy);
+      wayArrow(ctx, pts, 'rgb(255,255,255)', arrowWidth(q.troops, all), q.width * z, 0.5);
+      ph.push({ id: i, pts: pts });
+      const tip = pts[pts.length - 1];
+      ctx.beginPath(); ctx.arc(tip[0], tip[1] - 18, 10, 0, 6.2832);
+      ctx.fillStyle = 'rgba(10,16,24,.92)'; ctx.fill(); ctx.lineWidth = 1.5; ctx.strokeStyle = '#fff'; ctx.stroke();
+      ctx.font = '700 12px ' + FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#fff';
+      ctx.fillText(String(i + 1), tip[0], tip[1] - 17.5);
     }
     const pl = this.plan;
     if (pl && pl.path && pl.path.length > 1) {
@@ -1902,8 +1892,9 @@
     }
   };
   // Which own thrust arrow lies under a point of the screen (within a few pixels), or null.
-  View.prototype.arrowAt = function (sx, sy) {
-    const hits = this.arrowHits || [];
+  View.prototype.planAt = function (sx, sy) { return this.arrowAt(sx, sy, this.planHits); };
+  View.prototype.arrowAt = function (sx, sy, list) {
+    const hits = list || this.arrowHits || [];
     let best = null, bd = 12;
     for (const e of hits) {
       const p = e.pts;
@@ -1914,6 +1905,53 @@
       }
     }
     return best;
+  };
+
+  // Version «Pfeile»: the rally points (a flag, and the circle the troops gather in) and, close
+  // up, the troops standing in each cell along the border.
+  View.prototype.drawRally = function (ctx, g, z, ox, oy, now) {
+    const h = g.human;
+    if (!g.pfeile || !h || !h.alive || !h.post || g.phase !== 'play') return;
+    const W = g.W, CS = G.POST.cell, cell = CS * z, cw = this.cw, ch = this.ch;
+    ctx.save();
+    const rl = h.post.rally, R = G.RALLY.r * cell;
+    for (let i = 0; i < rl.length; i++) {
+      const x = (rl[i] % W + 0.5) * z + ox, y = (((rl[i] / W) | 0) + 0.5) * z + oy;
+      if (x < -R || y < -R || x > cw + R || y > ch + R) continue;
+      ctx.beginPath(); ctx.arc(x, y, R, 0, 6.2832);
+      ctx.fillStyle = 'rgba(255,214,94,0.07)'; ctx.fill();
+      ctx.setLineDash([6, 5]); ctx.strokeStyle = 'rgba(255,214,94,0.8)'; ctx.lineWidth = 1.6; ctx.stroke(); ctx.setLineDash([]);
+      ctx.lineWidth = 2.2; ctx.strokeStyle = 'rgba(10,16,24,.9)';
+      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y - 22); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x + 1, y - 22); ctx.lineTo(x + 15, y - 17); ctx.lineTo(x + 1, y - 12); ctx.closePath();
+      ctx.fillStyle = '#ffd65e'; ctx.fill(); ctx.lineWidth = 1.4; ctx.stroke();
+    }
+    // troops per border cell, once a cell is big enough on the screen to carry a number
+    if (cell >= 30) {
+      const L = this.rallyLab || (this.rallyLab = { at: -1e9, list: [] });
+      if (now - L.at > 500) {
+        L.at = now; L.list.length = 0;
+        const seen = new Set(), cells = h.post.cells;
+        for (const b of h.border) {
+          const id = g.cellOf(b);
+          if (seen.has(id)) continue;
+          seen.add(id);
+          const c = cells.get(id);
+          if (c) L.list.push(id, g.postReal(h, c));
+        }
+      }
+      const CW = g.CW, fmtT = G.fmtTroops;
+      ctx.font = '700 11px ' + FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      for (let i = 0; i < L.list.length; i += 2) {
+        const id = L.list[i], cx = id % CW, cy = (id - cx) / CW;
+        const x = (cx + 0.5) * cell + ox, y = (cy + 0.5) * cell + oy;
+        if (x < -20 || y < -10 || x > cw + 20 || y > ch + 10) continue;
+        const s = fmtT(L.list[i + 1]), tw = ctx.measureText(s).width + 8;
+        ctx.fillStyle = 'rgba(10,16,24,.78)'; ctx.fillRect(x - tw / 2, y - 8, tw, 16);
+        ctx.fillStyle = '#fff'; ctx.fillText(s, x, y + 0.5);
+      }
+    }
+    ctx.restore();
   };
 
   View.prototype.drawFronts = function (ctx, g, z, ox, oy, now) {
