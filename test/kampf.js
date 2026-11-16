@@ -120,18 +120,25 @@ function runThrust(map, sc, mode, classic) {
   let x0 = W, x1 = 0;
   for (let x = 0; x < W; x++) if (g.owner[row * W + x] === foe.id) { if (x < x0) x0 = x; if (x > x1) x1 = x; }
   const way = g.thrustRoute(h, foe.id, goal, g.thrustWidth(2));     // the same way for every mode, to measure progress on
+  // what the preview promises for this thrust, to set against what it really does
+  const own = mode ? g.thrustRoute(h, foe.id, goal, g.thrustWidth(mode)) : null, est = own ? g.thrustEstimate(h, own, h.troops * sc.share) : null;
   const before = h.troops, why = g.exec(h.id, { k: 'strike', t: goal, r: sc.share, w: mode });
   const at = h.out.find((a) => a.active);
   const lane = at && at.lane ? at.lane.size : 0, len = at && at.path ? at.path.length : 0;
   let hit = -1, t0 = g.ticks;
+  const atHit = { left: -1, took: -1 };
   for (let k = 0; k < LIMIT; k++) {
+    if (at && at.active && hit < 0) { atHit.fs = (atHit.fs || 0) + at.front.size; atHit.fn = (atHit.fn || 0) + 1; atHit.tk = (at.taken || 0); }
     g.tick(); g.dirtyN = 0; g.dirtyFlag.fill(0); g.events.length = 0;
-    if (hit < 0 && g.owner[goal] === h.id) hit = g.ticks - t0;
+    if (hit < 0 && g.owner[goal] === h.id) { hit = g.ticks - t0; if (at) { atHit.left = at.troops; atHit.took = at.taken || 0; } }
     if (!h.out.some((a) => a.active)) break;
   }
   let deep = 0;
   if (way) for (let i = 0; i < way.path.length; i++) if (g.owner[way.path[i]] === h.id) deep = i + 1;
-  return { why: why, hit: hit, depth: way ? deep / way.path.length : 0, took: sc.dt - foe.tiles, lost: before - h.troops, lane: lane, len: len };
+  // how far it really got along its own way, measured like the preview
+  let real = 0;
+  if (own) { const st = own.dist.get(own.entry) || 1; for (const n of own.lane) if (g.owner[n] === h.id) real = Math.max(real, 1 - (own.dist.get(n) || 0) / st); }
+  return { why: why, hit: hit, depth: way ? deep / way.path.length : 0, took: sc.dt - foe.tiles, lost: before - h.troops, lane: lane, len: len, est: est ? est.reach : -1, estLeft: est ? est.left : -1, estTiles: est ? est.counted : -1, atHit: atHit, real: g.owner[goal] === h.id ? 1 : real };
 }
 const THRUSTS = [
   { name: 'Stoss: 150K gegen 40K mit 20 %', at: 3000, dt: 1200, aT: 150000, dT: 40000, share: 0.2 },
@@ -220,7 +227,7 @@ function pocket(map) {
     console.log(sc.name);
     const rs = [0, 1, 2].map((m) => runThrust(map, sc, m, false));
     rs.forEach((r, m) => console.log('  ' + MODES[m].padEnd(12) + (r.why ? 'abgelehnt: ' + r.why : (r.hit >= 0 ? 'Ziel nach ' + (r.hit / 10).toFixed(0).padStart(3) + 's' : 'Ziel nicht erreicht') +
-      '  Weg geschafft ' + (r.depth * 100).toFixed(0).padStart(3) + ' %  Felder ' + String(r.took).padStart(5) + '  Verluste ' + K(r.lost).padStart(7) + (m ? '  Korridor ' + r.lane + ' Felder, Weg ' + r.len : ''))));
+      '  Weg geschafft ' + (r.depth * 100).toFixed(0).padStart(3) + ' %  Felder ' + String(r.took).padStart(5) + '  Verluste ' + K(r.lost).padStart(7) + (m ? '  Korridor ' + r.lane + ' Felder, Weg ' + r.len + '  Vorschau ' + Math.round(r.est * 100) + ' % / echt ' + Math.round(r.real * 100) + ' %' + (process.env.DBG ? ' | am Ziel übrig ' + K(r.atHit.left) + ' (Vorschau ' + K(r.estLeft) + '), Front Ø ' + Math.round(r.atHit.fs / r.atHit.fn) + ', Ticks ' + r.atHit.fn + ', Felder bis Ziel ' + r.atHit.took + ' (Vorschau ' + r.estTiles + ')' : '') : ''))));
     if (!(rs[2].depth > rs[0].depth + 0.1)) { bad++; console.log('  FAIL: der Keil kommt nicht tiefer als die ganze Front'); }
     if (!(rs[1].depth >= rs[0].depth)) { bad++; console.log('  FAIL: der Abschnitt kommt weniger tief als die ganze Front'); }
   }

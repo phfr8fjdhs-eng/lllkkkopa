@@ -1203,11 +1203,12 @@
     }
     const r = game.thrustRoute(h, a.tid, tile, width, start);
     if (!r) { view.plan = null; planInfo = { why: 'Kein Weg dorthin' }; showCommit(); return; }
-    const troops = h.troops * ratio, est = game.thrustEstimate(h, r, troops), k = troops / Math.max(1, est.need);
-    const verdict = k >= 1.25 ? 0 : k >= 0.8 ? 1 : 2;
-    const verdictText = ['reicht bis zum Ziel', 'knapp', 'reicht etwa ' + Math.max(5, Math.round(Math.min(1, k) * 20) * 5) + ' % des Wegs'][verdict];
+    const troops = h.troops * ratio, est = game.thrustEstimate(h, r, troops);
+    // green: arrives with a quarter or more to spare; yellow: arrives, or very nearly; red: stops short
+    const verdict = est.reach >= 1 && est.left >= troops * 0.25 ? 0 : est.reach >= 0.9 ? 1 : 2;
+    const verdictText = ['reicht bis zum Ziel', 'knapp', 'reicht etwa ' + Math.max(5, Math.round(est.reach * 20) * 5) + ' % des Wegs'][verdict];
     view.plan = { path: r.path, width: width, troops: troops, col: ['rgb(99,211,145)', 'rgb(244,183,64)', 'rgb(255,107,94)'][verdict], label: THRUST_NAME[mode] + ' · ' + fmtT(troops) + ' · ' + verdictText };
-    planInfo = { mode: mode, verdict: verdict, text: verdictText, ci: h.post ? game.commitInfo(h, r.path[0], ratio) : null };
+    planInfo = { mode: mode, verdict: verdict, text: verdictText, ci: null };
     showCommit();
   }
   // The card for a thrust under way: reinforce it with the share on the slider, or call it back.

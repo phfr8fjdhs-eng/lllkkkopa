@@ -618,6 +618,7 @@
   //   lane: the tiles within half the width of the way, dist: cost of the way to the goal.
   // start: an own tile the thrust should break in near (the start of a drag), or -1 to let the
   // way-finding choose the cheapest spot on the border.
+  const DIAG = 1.4142135623730951;   // √2, written out so every device uses the same number
   Game.prototype.thrustRoute = function (p, tid, goal, width, start) {
     const own = this.owner, land = this.map.land, W = this.W, H = this.H, N = this.N, pid = p.id;
     if (goal < 0 || goal >= N || own[goal] !== tid || !land[goal] || !(width > 0)) return null;
@@ -646,14 +647,20 @@
           if (sc < best) { best = sc; entry = n; stop = sc + width * 2; }
         } else if (entry < 0) { entry = n; stop = d * 1.3 + width * 2; }
       }
+      // eight directions, a diagonal step costing √2: with four the cost of every staircase is the
+      // same, and the way came out as an L (first across, then straight up) instead of straight on
       const x = n % W, y = (n - x) / W, cn = cost(n);
-      for (let k = 0; k < 4; k++) {
-        let m;
-        if (k === 0) { if (x === 0) continue; m = n - 1; } else if (k === 1) { if (x === W - 1) continue; m = n + 1; }
-        else if (k === 2) { if (y === 0) continue; m = n - W; } else { if (y === H - 1) continue; m = n + W; }
-        if (!land[m] || own[m] !== tid || done.has(m)) continue;
-        const nd = d + (cn + cost(m)) / 2, od = dist.get(m);
-        if (od === undefined || nd < od) { dist.set(m, nd); heap.push(nd, m); }
+      for (let dy = -1; dy <= 1; dy++) {
+        if ((dy < 0 && y === 0) || (dy > 0 && y === H - 1)) continue;
+        for (let dx = -1; dx <= 1; dx++) {
+          if ((!dx && !dy) || (dx < 0 && x === 0) || (dx > 0 && x === W - 1)) continue;
+          const m = n + dy * W + dx;
+          if (!land[m] || own[m] !== tid || done.has(m)) continue;
+          // no cutting a corner between two tiles that are not tid's land
+          if (dx && dy && (own[n + dx] !== tid || own[n + dy * W] !== tid)) continue;
+          const nd = d + (cn + cost(m)) / 2 * (dx && dy ? DIAG : 1), od = dist.get(m);
+          if (od === undefined || nd < od) { dist.set(m, nd); heap.push(nd, m); }
+        }
       }
     }
     if (entry < 0) return null;
@@ -662,8 +669,10 @@
     for (let cur = entry, guard = 0; cur !== goal && guard < 100000; guard++) {
       const x = cur % W;
       let best = -1, bd = dist.get(cur);
-      for (const m of [cur - 1, cur + 1, cur - W, cur + W]) {
-        if (m < 0 || m >= N || (m === cur - 1 && x === 0) || (m === cur + 1 && x === W - 1)) continue;
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+        if ((!dx && !dy) || x + dx < 0 || x + dx >= W) continue;
+        const m = cur + dy * W + dx;
+        if (m < 0 || m >= N) continue;
         const dm = dist.get(m);
         if (dm !== undefined && done.has(m) && dm < bd) { bd = dm; best = m; }
       }
@@ -687,27 +696,111 @@
     for (const n of lane) if (!dist.has(n)) dist.set(n, (dist.get(entry) || 0) + width);
     return { entry: entry, goal: goal, path: path, lane: lane, dist: dist, width: width };
   };
-  // A rough count of what a thrust costs before it is sent, for the preview: the troops it loses on
-  // the way to its goal, the tiles of its lane, and the length of the way in tiles.
+  // What a thrust will likely do, for the preview. It plays the fight through on a shadow copy of
+  // its lane, tick by tick and with the same rules as `addFront` and `tickAttack`: the same order
+  // of tiles (nearer the goal first, gaps filled, rough ground later), the head no faster than
+  // `speed`, the budget of a tick from the length of the front, the troops shrinking with every
+  // tile and the flanks growing with the depth. What it
+  // leaves out (reserves marching in, a counter-attack, a third party taking land) only makes the
+  // real thrust do a little worse.
+  //   reach: share of the way it gets (0..1), left: troops left when the goal falls (0 if it does
+  //   not), secs: seconds until then, counted: tiles taken until then, tiles, len.
   Game.prototype.thrustEstimate = function (p, route, troops) {
-    const tid = this.owner[route.goal], t = tid ? this.players[tid] : null, CB = G.COMBAT, map = this.map;
-    const dAvg = t ? t.troops / Math.max(1, t.tiles) : 0, tp = t ? t.post : null;
-    const face = t ? Math.max(1, Math.min(t.troops, dAvg * Math.max(4, route.width) * CB.depth)) : 1;
-    const dp = t ? t.dposts : null, dr2 = this.R.defense * this.R.defense;
+    const tid = this.owner[route.goal], t = tid ? this.players[tid] : null, CB = G.COMBAT, map = this.map, W = this.W, H = this.H;
+    const own = this.owner, pid = p.id, mg = map.mag;
+    const tp = t ? t.post : null;
+    let tT = t ? t.troops : 0, tN = t ? t.tiles : 1;      // the defender's troops and land, shrinking as the fight goes
+    const dp = t ? t.dposts : null, dr2 = this.R.defense * this.R.defense, TR = G.TERRAIN;
     const easy = !!t && t.type === PT.BOT && p.type !== PT.BOT, botMod = easy ? 0.35 : 1;
-    let need = 0;
-    for (const n of route.lane) {
-      const m = map.mag[n];
-      let gl = (m < 10 ? 1 : m < 20 ? 1.25 : 1.5) * G.groundLoss(map, n);
-      if (map.cover) { const f = map.feat[n]; if (f & 2) gl *= G.TERRAIN.greatLoss; else if (f & 1) gl *= G.TERRAIN.riverLoss; }
-      if (!t) { need += (p.type === PT.BOT ? 8 : 16) * (1 + (gl - 1) * G.TERRAIN.free); continue; }
-      const pc = tp ? tp.cells.get(this.cellOf(n)) : null, pd = pc ? this.postDens(t, pc) * this.postHold(pc) : 1;
-      const r = troops / Math.max(1, Math.min(t.troops, face * pd)), hold = within(1.15 - 0.33 * r, 0.15, 1);
-      let mag = 1 + (gl - 1) * hold;
-      if (dp && dp.length) { const x = n % this.W, y = (n - x) / this.W; for (let i = 0; i < dp.length; i++) { const dx = dp[i].x - x, dy = dp[i].y - y; if (dx * dx + dy * dy <= dr2) { mag *= 3 + 2 * dp[i].level; break; } } }
-      need += (CB.base + CB.exchange * dAvg * pd * within(1 / Math.sqrt(Math.max(r, 0.01)), CB.fMin, CB.fMax)) * mag * botMod;
+    const landTiles = map.landTiles, lossMod = p.tiles > landTiles * 0.17 ? Math.sqrt(landTiles * 0.17 / p.tiles) : 1;
+    const speedMod = p.tiles > landTiles * 0.13 ? Math.pow(landTiles * 0.13 / p.tiles, 0.6) : 1;
+    const traitor = t && t.traitorUntil > this.ticks ? 0.5 : 1;
+    const dist = route.dist, lane = route.lane, start = dist.get(route.entry) || 0, width = route.width;
+    const taken = new Set(), front = new Set(), heap = new G.Heap(256), cells = new Map();
+    const mine = function (n) { return own[n] === pid || taken.has(n); };
+    // the fight rolls a die for every tile it queues; the preview rolls its own, from a fixed start,
+    // so the game's dice are left alone and the same drag always shows the same verdict
+    let T = 0, seed = 12345;
+    // like addFront: the lane tiles next to `tile` join the front, keyed the way the fight keys them
+    const add = function (tile) {
+      const x = tile % W, y = (tile - x) / W;
+      for (let k = 0; k < 4; k++) {
+        let n;
+        if (k === 0) { if (x === 0) continue; n = tile - 1; } else if (k === 1) { if (x === W - 1) continue; n = tile + 1; }
+        else if (k === 2) { if (y === 0) continue; n = tile - W; } else { if (y === H - 1) continue; n = tile + W; }
+        if (!lane.has(n) || taken.has(n)) continue;
+        front.add(n);
+        const nx = n % W, ny = (n - nx) / W;
+        let c = 0;
+        if (nx > 0 && mine(n - 1)) c++;
+        if (nx < W - 1 && mine(n + 1)) c++;
+        if (ny > 0 && mine(n - W)) c++;
+        if (ny < H - 1 && mine(n + W)) c++;
+        if (c > 2) c = 10;
+        const m = mg[n], rough = m < 10 ? 1 : m < 20 ? 1.5 : 2, d = dist.get(n);
+        seed = (Math.imul(seed, 1103515245) + 12345) >>> 0;
+        heap.push((10 + ((seed >>> 16) & 7)) * (1 - c * 0.5 + rough / 2) + T + G.THRUST.pull * (d === undefined ? 1e3 : d), n);
+      }
+    };
+    for (const b of p.border) add(b);
+    const step = G.THRUST.speed * this.attackPace, defer = [];
+    let left = troops, count = 0, head = start, limit = start, carry = 0, reach = 0, done = false, won = false;
+    for (; T < 3000 && !done; T++) {
+      limit = Math.max(limit - step, head - 3 * step);
+      const flank = G.THRUST.flank * 2 * count / Math.max(1, width), dAvg = tT / Math.max(1, tN);
+      const n = front.size + 2;
+      const face = t ? Math.max(1, Math.min(tT, dAvg * Math.max(4, front.size + flank) * CB.depth)) : 1;
+      let budget = (t ? within(10 * left / face, 0.01, 0.5) * n * 3 : n * (p.type === PT.BOT ? 1.4 : 2)) * this.attackPace + carry;
+      if (budget <= 0) { carry = budget; continue; }
+      while (budget > 0) {
+        if (heap.n === 0) { if (!defer.length) done = true; break; }
+        const tile = heap.pop();
+        front.delete(tile);
+        if (taken.has(tile)) continue;
+        const dt = dist.get(tile);
+        if (dt !== undefined && dt < limit) { defer.push(tile); continue; }
+        const x = tile % W, y = (tile - x) / W, m = mg[tile];
+        let gl = (m < 10 ? 1 : m < 20 ? 1.25 : 1.5) * G.groundLoss(map, tile), gs = (m < 10 ? 1 : m < 20 ? 1.2121 : 1.5152) * G.groundSpeed(map, tile);
+        if (map.cover) { const f = map.feat[tile]; if (f & 2) { gl *= TR.greatLoss; gs *= TR.greatSpeed; } else if (f & 1) { gl *= TR.riverLoss; gs *= TR.riverSpeed; } }
+        let loss, used;
+        if (t) {
+          // the cell thins out as its tiles fall and its defenders with them, as postTake does
+          const pc = tp ? tp.cells.get(this.cellOf(tile)) : null;
+          let cs = null, dens = 1;
+          if (pc) {
+            cs = cells.get(pc.id);
+            if (!cs) { cs = { c: this.postDens(t, pc) * dAvg * pc.n, n: pc.n }; cells.set(pc.id, cs); }
+            dens = cs.n > 0 && dAvg > 0 ? cs.c / cs.n / dAvg : 1;
+          }
+          // reserves: a cell under attack calls troops from further back, who arrive over the next
+          // seconds. Roughly: the ground gets up to a quarter denser over the first ten seconds.
+          const pd = pc ? dens * this.postHold(pc) * (1 + 0.25 * Math.min(1, T / 100)) : 1;
+          const r = left / Math.max(1, Math.min(tT, face * pd)), hold = within(1.15 - 0.33 * r, 0.15, 1);
+          let mag = 1 + (gl - 1) * hold, speed = 16.5 * (1 + (gs - 1) * hold);
+          if (dp && dp.length) for (let i = 0; i < dp.length; i++) { const dx = dp[i].x - x, dy = dp[i].y - y; if (dx * dx + dy * dy <= dr2) { mag *= 3 + 2 * dp[i].level; speed *= 1 + 2 * dp[i].level; break; } }
+          loss = (CB.base + CB.exchange * dAvg * pd * within(1 / Math.sqrt(Math.max(r, 0.01)), CB.fMin, CB.fMax)) * mag * botMod * lossMod * traitor;
+          used = within(1 / (5 * Math.max(r, 0.01)), 0.2, 1.5) * speed * speedMod * (easy ? 0.45 : 1);
+          const gone = Math.min(tT, dAvg * (pc ? this.postKeep(dens) : 1));
+          tT -= gone; tN--;
+          if (cs) { cs.c = Math.max(0, cs.c - gone); cs.n--; }
+        } else {
+          const mag = 80 * (1 + (gl - 1) * TR.free), speed = 16.5 * (1 + (gs - 1) * TR.free);
+          loss = p.type === PT.BOT ? mag / 10 : mag / 5;
+          used = within(2000 * Math.max(10, speed) / Math.max(1, left), 5, 100);
+        }
+        budget -= used; left -= loss; taken.add(tile); count++;
+        if (dt !== undefined && dt < head) head = dt;
+        if (start > 0 && dt !== undefined) reach = Math.max(reach, 1 - dt / start);
+        if (left < 1) { left = 0; done = true; break; }
+        if (tile === route.goal) { won = true; done = true; break; }
+        add(tile);
+      }
+      carry = Math.min(0, budget);
+      for (let i = 0; i < defer.length; i++) { if (!taken.has(defer[i])) { front.add(defer[i]); heap.push(T + 1 + i * 1e-3, defer[i]); } }
+      defer.length = 0;
     }
-    return { need: need, tiles: route.lane.size, len: route.path.length };
+    if (won) reach = 1; else left = 0;
+    return { reach: reach, left: left, secs: T / 10, counted: count, tiles: lane.size, len: route.path.length };
   };
   // How many thrusts a player has under way.
   Game.prototype.thrustCount = function (p) {
@@ -743,18 +836,15 @@
         if (!route) { this.attackWhy = 'Kein Weg dorthin'; return null; }
       }
     }
-    const aimed = !!(route || join);
-    // Troops for a thrust come from where it breaks in; for the whole front from everywhere alike.
-    const stream = !!a.post && src < 0 && aimed;
-    if (stream) { for (const o of a.out) if (o.active && o.want > 0) troops = Math.min(troops, a.troops - o.want); }
+    // Every attack, a thrust as well as the whole front, takes its troops at once and from the
+    // whole realm alike. How troops stand (density, digging in, reserves, pockets) only counts
+    // for the defender.
     troops = Math.min(troops, a.troops);
     if (troops < 1) return null;
-    if (!stream) {
-      a.troops -= troops;
-      if (t) {
-        troops = this.meetIncoming(a, t, troops);
-        if (troops < 1) return null;
-      }
+    a.troops -= troops;
+    if (t) {
+      troops = this.meetIncoming(a, t, troops);
+      if (troops < 1) return null;
     }
     if (t) this.relate(t, a, -80);
     let at = join;
@@ -774,11 +864,7 @@
       if (src < 0) this.refreshFront(at);
     }
     if (src >= 0) this.addFront(at, src);
-    if (stream) {
-      const from = at.path ? at.path[0] : near, c = this.postGather(a, from);
-      at.near = from; at.cell = c ? c.id : -1; at.want += troops;
-      this.postDrain(at);
-    } else at.troops += troops;
+    at.troops += troops;
     return at;
   };
   // A thrust whose lane has run out before the goal fell (someone else took the way, or the lane

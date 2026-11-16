@@ -96,14 +96,13 @@ const ok = (c, msg) => { if (!c) { console.log('FAIL', msg); process.exitCode = 
       const why = g.exec(h.id, { k: 'strike', t: target, r: 1, w: 2 });
       ok(why === '', 'order: a wedge with the whole army' + (why ? ' (' + why + ')' : ''));
       const at = h.out.find((a) => a.tid === tid && a.goal >= 0);
-      ok(!!at && at.want > 0 && Math.abs((pool - h.troops) - info.now) < 0.02 * pool + 5, 'only what stood there went at once (' + Math.round(pool - h.troops) + ' of ' + Math.round(pool) + '), ' + Math.round(at ? at.want : 0) + ' on the march');
-      const w0 = at.want;
+      // a thrust takes its troops at once and from the whole realm: density only counts for the defender
+      ok(!!at && at.want === 0 && pool - h.troops > 0.98 * pool - 5, 'a thrust takes everything at once (' + Math.round(pool - h.troops) + ' of ' + Math.round(pool) + '), nothing on the march');
       step(20);
-      ok(!at.active || at.want < w0, 'the rest keeps arriving: ' + Math.round(w0) + ' -> ' + Math.round(at.want));
       if (at.active) {
         const p0 = h.troops, eng = at.troops;
         g.exec(h.id, { k: 'ret', a: at.id });
-        ok(!at.active && at.want === 0 && Math.abs(h.troops - p0 - eng * 0.75) < 1, 'retreat: those marching stay free of charge, those engaged come back at a cost');
+        ok(!at.active && at.want === 0 && Math.abs(h.troops - p0 - eng * 0.75) < 1, 'retreat: those engaged come back at a cost');
       }
       ok(Math.abs(sum(g, h) - h.troops) < 1e-6 * h.troops, 'still adds up after the fight');
     } else console.log('note: no neighbour to attack in this run');

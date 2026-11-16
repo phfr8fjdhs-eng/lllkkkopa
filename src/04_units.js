@@ -931,7 +931,8 @@
     // Contact. An interceptor that reaches its target always kills it, as in OpenFront.
     this.removeUnit(u);
     this.removeUnit(n);
-    this.fx.push({ k: 'pop', x: n.x, y: n.y });
+    // `air`: how high the picture shows the bomb at this point of its arc, so the flash is drawn there
+    this.fx.push({ k: 'pop', x: n.x, y: n.y, air: Math.min(n.dist * 0.28, 70) * (n.type === UT.CRUISE ? 0.12 : 1) * Math.sin(Math.PI * Math.min(1, n.prog)) });
     const h = this.human;
     if (u.owner === h) this.say(G.UNAME[n.type] + ' von ' + n.owner.name + ' abgefangen', 'good');
     else if (n.owner === h) this.say('Deine ' + G.UNAME[n.type] + ' wurde abgefangen', 'warn');

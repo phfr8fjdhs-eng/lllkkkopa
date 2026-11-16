@@ -854,13 +854,13 @@
   };
 
   // The water a ship has crossed. A troop boat keeps its whole course in its owner's colour until it
-  // lands (as in OpenFront); warships and merchants trail a short streak of foam.
+  // lands (as in OpenFront); warships and merchants leave nothing behind.
   View.prototype.drawWakes = function (ctx, g, z, ox, oy, alpha) {
     const us = g.units, W = g.W, cw = this.cw, ch = this.ch;
     ctx.lineJoin = 'round'; ctx.lineCap = 'round';
     for (let i = 0; i < us.length; i++) {
       const u = us[i], ty = u.type;
-      if (!u.active || !u.path || (ty !== UT.TRANSPORT && ty !== UT.WARSHIP && ty !== UT.TRADE)) continue;
+      if (!u.active || !u.path || ty !== UT.TRANSPORT) continue;
       const p = u.path, end = Math.min(u.pi, p.length - 1);
       const hx = (u.vx + 0.5) * z + ox, hy = (u.vy + 0.5) * z + oy;
       if (ty === UT.TRANSPORT) {
@@ -898,16 +898,6 @@
         ctx.globalAlpha = 1;
         continue;
       }
-      if (hx < -60 || hy < -60 || hx > cw + 60 || hy > ch + 60 || z < 1.3 || u.st !== g.ticks) continue;
-      // A ship under way pushes two short lines of foam out from the stern, like the arms of a
-      // V. Nothing more: the long white streak belonged to a speedboat, not to a ship of war.
-      const s = ty === UT.WARSHIP ? warSize(z) : tradeSize(z, u.owner === g.human);
-      const ca = Math.cos(u.va), sa = Math.sin(u.va), len = s * 0.75, sp = s * 0.5;
-      const bx = hx - ca * s * 0.95, by = hy - sa * s * 0.95;
-      ctx.beginPath();
-      ctx.moveTo(bx - sa * s * 0.16, by + ca * s * 0.16); ctx.lineTo(bx - ca * len - sa * sp, by - sa * len + ca * sp);
-      ctx.moveTo(bx + sa * s * 0.16, by - ca * s * 0.16); ctx.lineTo(bx - ca * len + sa * sp, by - sa * len - ca * sp);
-      ctx.lineWidth = Math.max(1, s * 0.13); ctx.strokeStyle = 'rgba(255,255,255,.2)'; ctx.stroke();
     }
   };
 
@@ -1069,7 +1059,8 @@
 
   // A merchant: a white hull, square at the stern and pointed at the bow, the bridge aft and the
   // cargo amidships in the owner's colour, as a row of containers once it is large enough.
-  // Gold-coloured cargo means the ship was captured on its way.
+  // The cargo always takes the colour of whoever owns the ship now; a captured one carries a small
+  // gold mark on the bridge.
   function merchant(ctx, x, y, ang, s, p, captured) {
     hull(ctx, x, y, ang, s, 'trade');
     ctx.lineJoin = 'miter'; ctx.miterLimit = 6;
@@ -1077,13 +1068,20 @@
     ctx.fillStyle = '#f7f5ef'; ctx.fill();
     ctx.save();
     ctx.translate(x, y); ctx.rotate(ang); ctx.scale(s, s);
-    ctx.fillStyle = captured ? '#f4b740' : p.css;
+    ctx.fillStyle = p.css;
     if (s >= 8) {
       for (let k = 0; k < 3; k++) ctx.fillRect(-0.56 + k * 0.33, -0.25, 0.28, 0.5);
     } else ctx.fillRect(-0.56, -0.25, 0.94, 0.5);
     ctx.fillStyle = '#2b323a'; ctx.fillRect(-0.92, -0.26, 0.22, 0.52);
+    if (captured) { ctx.beginPath(); ctx.arc(-0.81, 0, 0.17, 0, 6.2832); ctx.fillStyle = '#f4b740'; ctx.fill(); }
     ctx.restore();
   }
+
+  // How high a bomb's arc rises at its top, in tiles, and how high it is at a point of its flight.
+  // Only the picture flies in an arc; the simulation moves the bomb along the ground line.
+  function liftTop(n) { return Math.min(n.dist * 0.28, 70) * (n.type === UT.CRUISE ? 0.12 : 1); }
+  function liftAt(n, prog) { return liftTop(n) * Math.sin(Math.PI * within(prog, 0, 1)); }
+  View.liftAt = liftAt;
 
   // A rocket or bomb in flight, nose along `ang`. `kind`: 0 cruise missile (slim, swept wings),
   // 1 atom bomb, 2 hydrogen bomb (stubby, tail fins).
@@ -1223,11 +1221,44 @@
           ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(13,20,27,.8)'; ctx.strokeText(G.fmt(u.gold), x, y - s * 0.8);
           ctx.fillStyle = '#fff'; ctx.fillText(G.fmt(u.gold), x, y - s * 0.8);
         }
+      } else if (ty === UT.SAMM) {
+        this.drawInterceptor(ctx, g, u, x, y, z, ox, oy, alpha);
       } else {
         ctx.beginPath(); ctx.arc(x, y, 2.2, 0, 6.2832);
         ctx.fillStyle = '#fff'; ctx.fill();
       }
     }
+  };
+
+  // An interceptor. The simulation flies it along the ground to the point under the bomb; the
+  // picture lifts it as it goes, so that it climbs from the launcher to the bomb up in its arc and
+  // meets it there instead of chasing its shadow.
+  View.prototype.drawInterceptor = function (ctx, g, u, x, y, z, ox, oy, alpha) {
+    const n = u.target, src = u.src;
+    if (!n || !src) return;
+    const lx = (src.x + 0.5) * z + ox, ly = (src.y + 0.5) * z + oy;
+    const gx = u.px + (u.x - u.px) * alpha, gy = u.py + (u.y - u.py) * alpha;
+    const left = Math.hypot(n.x - gx, n.y - gy), done = Math.hypot(gx - src.x, gy - src.y);
+    const f = done + left > 0 ? done / (done + left) : 1;
+    const np = Math.min(1, n.prog + (n.delay > 0 ? 0 : alpha * n.speed / n.dist));
+    const h = liftAt(n, np) * z;
+    const my = y - h * f * (2 - f);                     // steep at first, then levelling off onto the bomb
+    // smoke from the launcher, bending up the same way
+    ctx.lineCap = 'round';
+    let px = lx, py = ly;
+    for (let i = 1; i <= 10; i++) {
+      const q = i / 10, ff = f * q;
+      const qx = lx + (x - lx) * q, qy = ly + (y - ly) * q - h * ff * (2 - ff);
+      ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(qx, qy);
+      ctx.strokeStyle = 'rgba(225,232,240,' + (0.08 + 0.45 * q * q).toFixed(3) + ')';
+      ctx.lineWidth = 0.8 + 1.8 * (1 - q); ctx.stroke();
+      px = qx; py = qy;
+    }
+    ctx.lineCap = 'butt';
+    ctx.beginPath(); ctx.arc(x, my, 2.4, 0, 6.2832);
+    ctx.fillStyle = 'rgba(160,240,255,.45)'; ctx.fill();
+    ctx.beginPath(); ctx.arc(x, my, 1.4, 0, 6.2832);
+    ctx.fillStyle = '#fff'; ctx.fill();
   };
 
   // An engine pulling two wagons along the track.
@@ -1329,7 +1360,7 @@
     this.drawImpact(ctx, g, u, z, ox, oy);
     if (u.delay > 0) return;
     const ty = u.type, prog = Math.min(1, u.prog + alpha * u.speed / u.dist);
-    const liftMax = Math.min(u.dist * 0.28, 70) * (ty === UT.CRUISE ? 0.12 : 1);
+    const liftMax = liftTop(u);
     const col = ty === UT.ATOM ? '255,86,64' : ty === UT.HYDRO ? '255,150,40' : ty === UT.CRUISE ? '110,215,255' : '206,120,255';
     const sx = (u.sx + 0.5) * z + ox, sy = (u.sy + 0.5) * z + oy;
     const ex = (u.dx + 0.5) * z + ox, ey = (u.dy + 0.5) * z + oy;
@@ -1442,7 +1473,7 @@
     const list = this.fxList;
     for (let i = list.length - 1; i >= 0; i--) {
       const f = list[i];
-      const dur = f.k === 'shipboom' ? 2000 : f.k === 'boom' ? (f.big ? 2600 : 1100) : f.k === 'text' ? 2500 : f.k === 'coin' ? 1500 : f.k === 'flag' ? 700 : f.k === 'muzzle' ? 170 : 420, k = (now - f.t0) / dur;
+      const dur = f.k === 'shipboom' ? 2000 : f.k === 'boom' ? (f.big ? 2600 : 1100) : f.k === 'text' ? 2500 : f.k === 'coin' ? 1500 : f.k === 'flag' ? 700 : f.k === 'muzzle' ? 170 : f.air ? 750 : 420, k = (now - f.t0) / dur;
       if (k >= 1 || (f.k === 'coin' && !f.mine)) { list.splice(i, 1); continue; }
       const x = (f.x + 0.5) * z + ox, y = (f.y + 0.5) * z + oy, e = k * (2 - k);
       if (f.k === 'boom') {
@@ -1512,6 +1543,17 @@
         ctx.fillStyle = 'rgba(255,170,60,' + (0.55 * (1 - k)).toFixed(3) + ')'; ctx.fill();
         ctx.beginPath(); ctx.arc(mx, my, r * 0.35, 0, 6.2832);
         ctx.fillStyle = 'rgba(255,250,220,' + (1 - k).toFixed(3) + ')'; ctx.fill();
+      } else if (f.k === 'pop' && f.air) {
+        // a bomb shot down: a flash up where it flew, a ring and a puff of smoke drifting off
+        const ay = y - f.air * z, r = within(z * 3.4, 8, 20);
+        ctx.beginPath(); ctx.arc(x, ay, r * (0.3 + 0.7 * e), 0, 6.2832);
+        ctx.fillStyle = 'rgba(255,190,90,' + (0.8 * (1 - k)).toFixed(3) + ')'; ctx.fill();
+        ctx.beginPath(); ctx.arc(x, ay, r * 0.35 * (1 - k), 0, 6.2832);
+        ctx.fillStyle = 'rgba(255,252,230,' + (1 - k).toFixed(3) + ')'; ctx.fill();
+        ctx.beginPath(); ctx.arc(x, ay, r * (0.5 + 1.3 * e), 0, 6.2832);
+        ctx.strokeStyle = 'rgba(255,255,255,' + (0.75 * (1 - k)).toFixed(3) + ')'; ctx.lineWidth = 1.8; ctx.stroke();
+        ctx.beginPath(); ctx.arc(x, ay - 4 * e, r * (0.4 + 0.5 * e), 0, 6.2832);
+        ctx.fillStyle = 'rgba(150,155,165,' + (0.35 * (1 - k)).toFixed(3) + ')'; ctx.fill();
       } else if (f.k === 'pop' && f.hit) {
         // a shell striking home: a burst of fire, then a ring of spray
         const r = within(z * 3, 7, 16);
