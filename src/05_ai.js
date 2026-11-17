@@ -297,14 +297,16 @@
     if (!q) return;
     p.nukeAt = g.ticks;
     const n = d >= 2 ? G.NUKE_VOLLEY + 1 : G.NUKE_VOLLEY;
-    for (let i = 0; i < n; i++) if (!this.strikeFromAir(q)) break;
+    // the first bomb always flies, each further one only every other time
+    for (let i = 0; i < n; i++) if ((i > 0 && !r.chance(2)) || !this.strikeFromAir(q)) break;
   };
   // Returns true when a missile was launched.
   AI.prototype.strikeFromAir = function (q) {
     const g = this.g, p = this.p, r = g.rng, d = g.opts.difficulty, W = g.W;
     if (q.type === PT.BOT || p.cnt[UT.SILO] < 1 || g.friendly(p, q) || g.ticks < g.immuneUntil) return false;
-    // knock out an air defence first, so the big bombs get through
-    if (q.cnt[UT.SAM] > 0 && p.gold >= 1.5e6 && r.chance(2)) {
+    // now and then knock out an air defence first, so the big bombs get through (not every time:
+    // a nation that always aims at the air defence is too easy to read, doku/openfront-abgleich.md)
+    if (q.cnt[UT.SAM] > 0 && p.gold >= 1.5e6 && r.chance(5)) {
       const s = q.units.find(function (u) { return u.type === UT.SAM && u.built; });
       if (s && g.build(p, UT.CRUISE, s.tile)) return true;
     }
@@ -314,15 +316,16 @@
     else if (p.gold >= 1e6) type = UT.ATOM;
     if (type < 0) return false;
     const rad = type === UT.HYDRO ? g.R.hydroOut : g.R.atomOut;
-    const cands = [];
-    for (const u of q.units) if (u.type <= UT.FACTORY) cands.push(u.tile);
+    // one bomb in three just falls on the land somewhere; the others aim where most buildings are
+    const cands = [], onLand = r.chance(3);
+    if (!onLand) for (const u of q.units) if (u.type <= UT.FACTORY) cands.push(u.tile);
     for (let i = 0; i < 8; i++) { const t = this.tileOf(q, false); if (t >= 0) cands.push(t); }
     let best = -1, bs = -1;
     for (const t of cands) {
       if (type !== UT.MIRV && this.nearOwn(t, rad + 3)) continue;
       const x = t % W, y = (t / W) | 0;
       let s = r.next();
-      for (const u of q.units) {
+      if (!onLand) for (const u of q.units) {
         if (u.type > UT.FACTORY) continue;
         if ((u.x - x) * (u.x - x) + (u.y - y) * (u.y - y) <= rad * rad) s += 1;
       }

@@ -1,6 +1,9 @@
 # Änderungsprotokoll
 Was seit dem 13.11.2026 geändert wurde und warum. Den heutigen Stand der Regeln beschreiben die anderen Dateien in `doku/`.
 
+## Bomben der Nationen nicht mehr immer auf die Flugabwehr (17.11.2026)
+Marschflugkörper auf die Flugabwehr seltener (1 von 5 statt 1 von 2), und jede dritte Bombe fällt irgendwo aufs Land. Siehe `doku/openfront-abgleich.md`.
+
 ## Schiffe in der Farbe des Landes, weniger Atombomben (17.11.2026)
 - Handelsschiffe haben den Rumpf in der Farbe des Besitzers (vorher weiss) und die Ladung in einem dunklen Ton davon; Kriegsschiffe das Deck im dunklen Ton (vorher grau). So erkennt man, wem ein Schiff gehört.
 - Nationen werfen etwa halb so viele Atombomben (`G.NUKE_PAUSE`, `G.NUKE_VOLLEY`, siehe `doku/openfront-abgleich.md`).
