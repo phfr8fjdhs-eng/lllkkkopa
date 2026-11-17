@@ -216,13 +216,15 @@
     return Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0');
   }
   function openModal(html, kind) {
-    $('modalCard').innerHTML = html;
+    if (kind !== 'res') $('modalCard').classList.remove('resCard');
+    $('modalCard').innerHTML = html; $('modalCard').dataset.html = kind === 'res' ? html : '';
     $('modalCard').scrollTop = 0;
     $('modal').hidden = false;
     modalKind = kind;
   }
   function closeModal() {
     $('modal').hidden = true;
+    $('modalCard').classList.remove('resCard'); $('modalCard').dataset.html = '';
     if ((modalKind === 'menu' || modalKind === 'help') && !mp) setPaused(false);
     modalKind = '';
   }
@@ -542,6 +544,7 @@
     netOn = false; stroke = null; netQueue.clear(); lastTile = -1; commitAt = -99; view.net.on = false; view.net.edit.clear(); view.net.w = 0; view.net.at = -1e9;
     $('peek').hidden = true; trainSeen = 0; incAt = -99; incLog.length = 0; $('incLine').hidden = true; $('incLine').dataset.html = '';
     $('bNet').hidden = true; $('bNet').setAttribute('aria-pressed', 'false'); $('netBar').hidden = true; $('commit').textContent = '';
+    $('bRes').hidden = true;
     plans.length = 0; syncPlans();
     $('feedMsgs').innerHTML = ''; $('feedLive').innerHTML = ''; chips.clear(); asks.clear();
     $('lbRows').innerHTML = ''; $('clock').textContent = '0:00';
@@ -627,7 +630,7 @@
         addAsk('r' + q.id, 'Die Allianz mit ' + q.name + ' läuft bald ab', 'Verlängern', 'Auslaufen lassen',
           function () { act({ k: 'renew', p: q.id }); }, function () { /* let it run out */ });
       } else if (e.k === 'start') {
-        $('spawnBar').hidden = true; $('ctrl').hidden = false; $('lb').hidden = false; $('bNet').hidden = !h.post || !game.netz;
+        $('spawnBar').hidden = true; $('ctrl').hidden = false; $('lb').hidden = false; $('bNet').hidden = !h.post || !game.netz; $('bRes').hidden = !game.res;
         if (game.pfeile) addMsg('Pfeile mit der rechten Maustaste planen, dann «Angreifen».', 'info');
         const W = game.W;
         view.flyTo(h.spawnTile % W, (h.spawnTile / W) | 0, within(Math.min(view.cw, view.ch) / 70, 2.2, 6));
@@ -790,6 +793,7 @@
       if (tg > 0) { addMsg('Züge bringen ' + fmt(tg) + ' Gold', 'good'); trainSeen = h.trainTotal || 0; }
     }
     if (modalKind === 'info' && T % 5 === 0) renderInfo();
+    if (modalKind === 'res' && T % 3 === 0) renderRes();
     if (aim && T % 3 === 0) refreshAim();
   }
 
@@ -877,7 +881,7 @@
   function onModalAct(what) {
     const h = game ? game.human : null, p = game ? game.players[infoId] : null;
     if (what === 'start') { showStart(); return; }
-    if (what === 'close' || act === 'resume') { closeModal(); return; }
+    if (what === 'close' || what === 'resume') { closeModal(); return; }
     if (what === 'help') { showHelp(false); return; }
     if (what === 'quit') { quitGame(); return; }
     if (what === 'confirmBreak') { act({ k: 'break', p: p.id }); closeModal(); return; }
@@ -1344,26 +1348,89 @@
     if (el.dataset.html !== s) { el.innerHTML = s; el.dataset.html = s; }
     el.hidden = false;
   }
-  function showIncome() {
-    const h = game.human, cs = game.map.countries, deps = game.map.deposits, raw = new Int32Array(cs.length), rows = [];
-    for (let i = 0; i < deps.length; i++) if (game.owner[deps[i].t] === h.id) raw[deps[i].c] += game.digGold(i);
-    for (let c = 1; c < cs.length; c++) {
-      const ware = h.fac && h.fac[c] ? game.wareOf(c, h.fac[c]) : 0;
-      if (raw[c] + ware > 0) rows.push([raw[c] + ware, cs[c], raw[c], ware]);
+  // ---------- the table «Rohstoffe» ----------
+  // Everything the player holds at a glance: per raw material the deposits, their plants and what
+  // they bring, per country the factory goods; each line can be levelled up right there with the
+  // commands the country card uses (`dig` for a plant, `up` for a factory). Replaces the old
+  // «Einnahmen» window. Opened from the gold or the button in the bar; it stays live while open.
+  function showRes() {
+    $('modalCard').classList.add('resCard');
+    openModal(resHtml(), 'res');
+  }
+  // The weakest built factory of the player in country c, or null.
+  function facIn(h, c) {
+    let best = null;
+    for (const u of h.units) {
+      if (u.type !== UT.FACTORY || !u.built || !u.active || game.map.ctile[u.tile] !== c) continue;
+      if (!best || u.level < best.level) best = u;
     }
-    rows.sort(function (a, b) { return b[0] - a[0] || a[1].id - b[1].id; });
-    let s = '<h2>Einnahmen</h2><div class="facts">' + fact('Grundeinkommen', perSec(100)) + fact('Rohstoffe', perSec(h.resRaw | 0)) + fact('Fabrikwaren', perSec(h.resWare | 0)) + '</div>';
-    if (!rows.length) s += '<p class="notes">Noch kein Vorkommen und keine Fabrik. Klicke auf ein Land, um zu sehen, was es dort gibt.</p>';
-    else {
-      s += '<div class="incList"><div class="incRow head"><b>Land</b><span>Rohstoffe</span><span>Fabriken</span></div>' + rows.slice(0, 14).map(function (r) {
-        const k = r[1];
-        return '<div class="incRow"><b>' + (k.iso ? G.flagOf(k.iso) + ' ' : '') + esc(k.name) + '</b><span>' + (r[2] ? perSec(r[2]) : '–') + '</span><span>' + (r[3] ? perSec(r[3]) : '–') + '</span></div>';
-      }).join('') + '</div>';
-      if (rows.length > 14) s += '<p class="notes">und ' + (rows.length - 14) + ' weitere Länder</p>';
+    return best;
+  }
+  function resHtml() {
+    const h = game.human, cs = game.map.countries, deps = game.map.deposits, R = G.RES, dg = game.dg;
+    const groups = new Map();
+    for (let i = 0; i < deps.length; i++) {
+      if (game.owner[deps[i].t] !== h.id) continue;
+      const d = deps[i];
+      let gr = groups.get(d.raw);
+      if (!gr) { gr = { raw: d.raw, rows: [], now: 0, built: 0 }; groups.set(d.raw, gr); }
+      const lv = dg ? dg.lv[i] : 0, ready = lv > 0 && game.ticks >= dg.at[i], v = game.digGold(i);
+      gr.rows.push({ i: i, d: d, lv: lv, ready: ready, v: v });
+      gr.now += v; if (lv) gr.built++;
     }
-    s += '<p class="notes"><b>Abbauen und ernten:</b> Ein Vorkommen bringt erst Gold, wenn du darauf eine Anlage gebaut hast: Mine, Bohrturm, Staudamm, Holzfällerei, Farm, Plantage, Viehhof oder Fischerei. Klicke dazu auf das Land. <b>Herstellen:</b> Jede Fabrik stellt die Ware des Landes her, in dem sie steht; pro Land zählen ' + G.RES.FACTORY_CAP + ' Stufen.</p>' +
-      '<button class="btn" data-act="resume" type="button">Weiterspielen</button>';
-    openModal(s, 'help');
+    const list = Array.from(groups.values());
+    for (const gr of list) gr.rows.sort(function (a, b) { return b.v - a.v || b.d.gold - a.d.gold || a.i - b.i; });
+    list.sort(function (a, b) { return b.now - a.now || b.rows.length - a.rows.length || (a.raw < b.raw ? -1 : 1); });
+    const raw = h.resRaw | 0, ware = h.resWare | 0;
+    let s = '<h2>Rohstoffe</h2><div class="rtSum">' +
+      '<div><small>Grundeinkommen</small><b>' + perSec(100) + '</b></div>' +
+      '<div><small>Rohstoffe</small><b>' + perSec(raw) + '</b></div>' +
+      '<div><small>Fabrikwaren</small><b>' + perSec(ware) + '</b></div>' +
+      '<div class="all"><small>Zusammen</small><b>' + perSec(100 + raw + ware) + '</b></div></div>';
+    s += '<div class="rtSec">Abbauen und ernten <small>Stufe 1 voller Ertrag, jede weitere die Hälfte dazu</small></div>';
+    if (!list.length) s += '<p class="rtEmpty">Noch kein Vorkommen. Erobere Land mit einem Vorkommen, dann steht es hier.</p>';
+    for (const gr of list) {
+      const g = G.RAW[gr.raw], dk = G.digOf(gr.raw), n = gr.rows.length;
+      s += '<div class="rtGrp"><div class="rtHead">' + resSvg(gr.raw, 22) + '<b>' + g[0] + '<small>' + n + (n === 1 ? ' Vorkommen' : ' Vorkommen') + ' · ' + gr.built + ' mit ' + dk[0] + '</small></b><em>' + (gr.now ? perSec(gr.now) : '–') + '</em></div>';
+      for (const r of gr.rows) {
+        const state = !r.lv ? '<small>ohne ' + dk[0] + '</small>' : !r.ready ? '<small>' + dk[0] + ' im Bau</small>' : '<small class="good">' + dk[0] + ' Stufe ' + r.lv + ' von ' + R.DIG_CAP + '</small>';
+        s += '<div class="rtRow"><button class="rtWhere" type="button" data-go="' + r.i + '">' + esc(cs[r.d.c].name) + (r.v ? ' <i>' + perSec(r.v) + '</i>' : '') + state + '</button>';
+        if (r.lv >= R.DIG_CAP) s += '<span class="rtBtn done">Höchste Stufe</span>';
+        else if (r.lv && !r.ready) s += '<span class="rtBtn done">wird gebaut</span>';
+        else {
+          const c = game.digCheck(h, r.i), more = r.lv ? Math.floor(r.d.gold / 2) : r.d.gold;
+          s += '<button class="rtBtn' + (h.gold < c.cost ? ' poor' : '') + '" type="button" data-dig="' + r.i + '">' + (r.lv ? 'Stufe ' + (r.lv + 1) : dk[0] + ' bauen') + ' · ' + perSec(more) + '<small>' + fmt(c.cost) + '</small></button>';
+        }
+        s += '</div>';
+      }
+      s += '</div>';
+    }
+    // factory goods: one line per country with an own factory
+    const facs = [];
+    if (h.fac) for (let c = 1; c < cs.length; c++) if (h.fac[c] > 0) facs.push([game.wareOf(c, h.fac[c]), c]);
+    facs.sort(function (a, b) { return b[0] - a[0] || a[1] - b[1]; });
+    s += '<div class="rtSec">Herstellen <small>pro Land zählen ' + R.FACTORY_CAP + ' Fabrikstufen</small></div>';
+    if (!facs.length) s += '<p class="rtEmpty">Noch keine Fabrik. Jede Fabrik stellt die Ware des Landes her, in dem sie steht.</p>';
+    for (const f of facs) {
+      const c = f[1], k = cs[c], w = G.WARE[k.ware], lv = h.fac[c], u = facIn(h, c);
+      s += '<div class="rtGrp"><div class="rtRow" style="padding-left:0"><button class="rtWhere" type="button" data-fgo="' + (u ? u.tile : -1) + '">' +
+        '<span style="display:flex;align-items:center;gap:9px">' + resSvg('fabrik', 22) + '<span>' + w[0] + ' <i>' + perSec(f[0]) + '</i>' +
+        '<small' + (lv ? ' class="good"' : '') + '>' + esc(k.name) + ' · Stufe ' + Math.min(lv, R.FACTORY_CAP) + ' von ' + R.FACTORY_CAP + '</small></span></span></button>';
+      if (lv >= R.FACTORY_CAP || !u) s += '<span class="rtBtn done">' + (lv >= R.FACTORY_CAP ? 'Voll' : '') + '</span>';
+      else {
+        const cost = game.cost(h, UT.FACTORY);
+        s += '<button class="rtBtn' + (h.gold < cost ? ' poor' : '') + '" type="button" data-fup="' + u.tile + '">Stufe ' + (Math.min(lv, R.FACTORY_CAP) + 1) + ' · ' + perSec(w[1]) + '<small>' + fmt(cost) + '</small></button>';
+      }
+      s += '</div></div>';
+    }
+    s += '<button class="btn" data-act="resume" type="button">Weiterspielen</button>';
+    return s;
+  }
+  function renderRes() {
+    const card = $('modalCard'), html = resHtml();
+    if (card.dataset.html === html) return;
+    const top = card.scrollTop;
+    card.innerHTML = html; card.dataset.html = html; card.scrollTop = top;
   }
   // One line under the bar: what railways and sea trade have brought in the last minute, and how
   // many stations the own network ties together. Hidden as long as there is neither.
@@ -1791,7 +1858,16 @@
     $('sheetClose').addEventListener('click', closeBuild);
     $('sheet').addEventListener('click', function (e) { if (e.target === this && performance.now() - sheetAt >= 350) closeBuild(); });
     $('modal').addEventListener('click', function (e) {
-      if (e.target === this && (modalKind === 'info' || modalKind === 'menu' || modalKind === 'help' || modalKind === 'confirm')) { closeModal(); return; }
+      if (e.target === this && (modalKind === 'info' || modalKind === 'menu' || modalKind === 'help' || modalKind === 'confirm' || modalKind === 'res')) { closeModal(); return; }
+      if (modalKind === 'res') {
+        const dg = e.target.closest('[data-dig]');        // build or level up a plant from the table
+        if (dg) { const i = +dg.dataset.dig, k = G.digOf(game.map.deposits[i].raw); act({ k: 'dig', d: i, say: k[0] + (game.dg && game.dg.lv[i] ? ' wird ausgebaut' : ' wird gebaut') }); renderRes(); return; }
+        const fu = e.target.closest('[data-fup]');        // level up the weakest factory of a country
+        if (fu) { act({ k: 'up', t: +fu.dataset.fup, n: 1, say: 'Fabrik wird ausgebaut' }); renderRes(); return; }
+        const go = e.target.closest('[data-go]'), fg = e.target.closest('[data-fgo]');
+        if (go) { const d = game.map.deposits[+go.dataset.go]; closeModal(); view.flyTo(d.x, d.y, Math.max(view.cam.z, 4)); return; }
+        if (fg && +fg.dataset.fgo >= 0) { const t = +fg.dataset.fgo; closeModal(); view.flyTo(t % game.W, (t / game.W) | 0, Math.max(view.cam.z, 4)); return; }
+      }
       const b = e.target.closest('[data-act]');
       if (b && !b.disabled) onModalAct(b.dataset.act);
     });
@@ -1805,7 +1881,8 @@
       else act({ k: 'ret', a: cardId });
       closeThrustCard();
     });
-    $('statGold').addEventListener('click', function () { if (game && game.res && game.phase === 'play' && game.human.alive) showIncome(); });
+    $('statGold').addEventListener('click', function () { if (game && game.res && game.phase === 'play' && game.human.alive) showRes(); });
+    $('bRes').addEventListener('click', function () { if (game && game.res && game.phase === 'play' && game.human.alive) showRes(); });
     $('land').addEventListener('click', function (e) {
       if (e.target.id === 'landX') { landC = 0; view.resSel = 0; renderLand(); return; }
       const dg = e.target.closest('[data-dig]');          // build the plant on a deposit, or make it better
@@ -1927,6 +2004,7 @@
     view = new G.View($('cv'));
     $('bPause').innerHTML = svg('pause', 18);
     $('bHome').innerHTML = svg('home', 18);
+    $('bRes').innerHTML = svg('table', 18);
     $('bNet').innerHTML = svg('net', 18);
     $('bMenu').innerHTML = svg('menu', 18);
     fsShow();
