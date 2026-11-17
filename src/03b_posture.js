@@ -37,7 +37,7 @@
       this.cellCost = new Float32Array(this.CW * this.CH); this.cellRail = new Float32Array(this.CW * this.CH).fill(1); this.railSeen = -1;
       this.cellCoast = new Int8Array(this.CW * this.CH).fill(-1);
     }
-    p.post = { cells: new Map(), H: 0, edits: 0, autoAt: 0, rally: [] };
+    p.post = { cells: new Map(), H: 0, edits: 0, autoAt: 0 };
     (this.posted || (this.posted = [])).push(p);
   };
   // How well a cell holds, beyond its number of troops: dug in, or cut off.
@@ -386,10 +386,7 @@
     for (let i = 0; i < ps.length; i++) {
       const p = ps[i];
       if (!p.post || !p.alive || (T + p.id) % FLOW !== 0) continue;
-      if (T - p.post.autoAt >= AUTO) {
-        if (p.type !== G.PT.HUMAN) { p.post.autoAt = T; this.postAuto(p); }
-        else if (this.pfeile) { p.post.autoAt = T; this.postRallyAuto(p); }
-      }
+      if (p.type !== G.PT.HUMAN && T - p.post.autoAt >= AUTO) { p.post.autoAt = T; this.postAuto(p); }
       this.postFlow(p);
       this.postStarve(p);
     }
@@ -418,46 +415,6 @@
       if (thr > 0) { const c = cells.get(this.cellOf(b)); if (c && thr > c.thr) c.thr = thr; }
     }
     for (const c of cells.values()) c.m = within(c.thr > 0 ? 1 + c.thr : 0.7, M_MIN, M_MAX);     // at most 3 : 0.7, a reserve stays inland
-  };
-
-  // ---------- rally points (version «Pfeile») ----------
-  // A person sets up to three rally points on the own land (double click). The troops gather
-  // around them (within RALLY_R cells) and defend there; the rest of the realm stands thin.
-  // Without a rally point the troops stand evenly. Only the defence feels it: an arrow takes its
-  // troops from the whole realm.
-  const RALLY_MAX = 3, RALLY_R = 4;
-  G.RALLY = { max: RALLY_MAX, r: RALLY_R };
-  Game.prototype.postRallyAuto = function (p) {
-    const post = p.post, cells = post.cells, own = this.owner, W = this.W, CW = this.CW;
-    post.rally = post.rally.filter(function (t) { return own[t] === p.id; });   // a rally point on lost ground falls
-    const rl = post.rally;
-    if (!rl.length) { for (const c of cells.values()) c.m = 1; return; }
-    const fx = [], fy = [];
-    for (let i = 0; i < rl.length; i++) { fx.push((rl[i] % W) / CS - 0.5); fy.push(((rl[i] / W) | 0) / CS - 0.5); }
-    for (const c of cells.values()) {
-      const cx = c.id % CW, cy = (c.id - cx) / CW;
-      let best = 0;
-      for (let i = 0; i < rl.length; i++) {
-        const d = Math.sqrt((cx - fx[i]) * (cx - fx[i]) + (cy - fy[i]) * (cy - fy[i])), f = 1 - d / RALLY_R;
-        if (f > best) best = f;
-      }
-      c.m = within(0.4 + 5.6 * best, M_MIN, M_MAX);
-    }
-  };
-  // A rally point on the own land, or off again when there is one close by. Returns '' or the reason.
-  Game.prototype.postRally = function (p, t) {
-    if (!p.post) return 'Nicht möglich';
-    t = Math.floor(t);
-    const rl = p.post.rally, W = this.W, tx = t % W, ty = (t / W) | 0;
-    for (let i = 0; i < rl.length; i++) {
-      const dx = rl[i] % W - tx, dy = ((rl[i] / W) | 0) - ty;
-      if (dx * dx + dy * dy <= (CS * 1.5) * (CS * 1.5)) { rl.splice(i, 1); this.postRallyAuto(p); p.post.autoAt = this.ticks; p.post.edits++; return ''; }
-    }
-    if (this.owner[t] !== p.id) return 'Sammelpunkte gehören auf dein eigenes Land';
-    rl.push(t);
-    if (rl.length > RALLY_MAX) rl.shift();
-    this.postRallyAuto(p); p.post.autoAt = this.ticks; p.post.edits++;
-    return '';
   };
 
   // ---------- the net ----------
