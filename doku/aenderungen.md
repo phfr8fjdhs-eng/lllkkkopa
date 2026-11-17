@@ -1,6 +1,9 @@
 # Änderungsprotokoll
 Was seit dem 13.11.2026 geändert wurde und warum. Den heutigen Stand der Regeln beschreiben die anderen Dateien in `doku/`.
 
+## Inseln mit dem Boot, auch während eines Landangriffs (17.11.2026)
+Ein Tipp auf eine Insel eines Gegners, die man nicht übers Land berührt, schickt jetzt ein Boot statt den Landangriff zu verstärken (Regel in `doku/spielregeln.md`). Wunsch des Besitzers. Test: `node test/insel.js`.
+
 ## Erde: weniger kleine Inseln (17.11.2026)
 Inseln unter 80 Feldern werden beim Laden zu Meer, ausser eine Nation startet darauf (`G.MIN_ISLAND`, siehe `doku/erde.md`). Rund 910 von 1100 Inseln fallen weg. Zuerst 100 Feldern, auf Wunsch des Besitzers 80. Wunsch des Besitzers: viel zu viele zu kleine Inseln.
 

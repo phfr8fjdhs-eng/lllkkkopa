@@ -1210,6 +1210,11 @@
     }
     const a = tile >= 0 && game.map.land[tile] && game.owner[tile] !== h.id ? game.actionsAt(h, tile) : null;
     if (!a || !a.canAttack) {
+      // an island of theirs that we do not border: letting go there sends a boat
+      if (a && a.boat && rdrag && rdrag.started) {
+        if (!planInfo || !planInfo.boat) { view.plan = null; planInfo = { why: 'Insel: Loslassen schickt ein Boot', boat: true }; planKey = ''; showCommit(); }
+        return;
+      }
       if (planInfo || view.plan) { view.plan = null; planInfo = rdrag && rdrag.started ? { why: tile >= 0 && game.owner[tile] === h.id ? 'Ziehe ins Land eines Gegners' : (a && a.why) || 'Hier nicht möglich' } : null; planKey = ''; showCommit(); }
       return;
     }
@@ -1393,6 +1398,7 @@
   }
   function planTap(tile) {
     const h = game.human, a = game.actionsAt(h, tile);
+    if (!a.canAttack && a.boat) { strikeAt(tile, { sea: 1, say: 'Boot läuft aus' }); return; }   // an island of theirs: by boat
     if (!a.canAttack) { toast(a.why || 'Hier nicht möglich'); snd('deny'); return; }
     const width = game.thrustWidth(cfg.thrust), r = game.thrustRoute(h, a.tid, tile, width, -1);
     if (!r) { toast('Kein Weg dorthin'); snd('deny'); return; }
@@ -1647,6 +1653,7 @@
           const t = view.tileAt(d.x, d.y), ok = planInfo && !planInfo.why && view.plan;
           if (e.type === 'pointerup' && ok && t >= 0 && game.pfeile) addPlan(t, dragWidth(), d.tile, planInfo);
           else if (e.type === 'pointerup' && ok && t >= 0) strikeAt(t, { w: dragWidth(), s: d.tile });
+          else if (e.type === 'pointerup' && planInfo && planInfo.boat && t >= 0) strikeAt(t, { sea: 1, say: 'Boot läuft aus' });
           else if (e.type === 'pointerup' && planInfo && planInfo.why) { toast(planInfo.why); snd('deny'); }
           view.plan = null; planInfo = null; planKey = ''; showCommit();
         } else if (d.menu && e.type === 'pointerup') openRadial(view.tileAt(d.x0, d.y0), d.x0, d.y0);

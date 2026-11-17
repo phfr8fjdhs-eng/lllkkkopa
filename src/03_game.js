@@ -518,9 +518,34 @@
     }
     return { tn: tn, ids: ids };
   };
-  Game.prototype.sharesBorder = function (p, tid) {
+  // Which piece of land (continent or island) every land tile belongs to, worked out once per map.
+  // Ids above 65534 share 65535 (only on maps with that many islands).
+  Game.prototype.landBody = function () {
+    const map = this.map;
+    if (map.body) return map.body;
+    const W = this.W, H = this.H, N = this.N, land = map.land, body = new Uint16Array(N), q = new Int32Array(N);
+    let id = 0;
+    for (let s = 0; s < N; s++) {
+      if (!land[s] || body[s]) continue;
+      if (id < 65535) id++;
+      let qh = 0, qt = 0;
+      q[qt++] = s; body[s] = id;
+      while (qh < qt) {
+        const t = q[qh++], x = t % W;
+        if (x > 0 && land[t - 1] && !body[t - 1]) { body[t - 1] = id; q[qt++] = t - 1; }
+        if (x < W - 1 && land[t + 1] && !body[t + 1]) { body[t + 1] = id; q[qt++] = t + 1; }
+        if (t >= W && land[t - W] && !body[t - W]) { body[t - W] = id; q[qt++] = t - W; }
+        if (t + W < N && land[t + W] && !body[t + W]) { body[t + W] = id; q[qt++] = t + W; }
+      }
+    }
+    return (map.body = body);
+  };
+  // Whether p borders tid by land; with `onBody`, only on that piece of land (see landBody).
+  Game.prototype.sharesBorder = function (p, tid, onBody) {
     const own = this.owner, land = this.map.land, W = this.W, H = this.H;
+    const body = onBody ? this.landBody() : null;
     for (const t of p.border) {
+      if (body && body[t] !== onBody) continue;
       const x = t % W, y = (t - x) / W;
       if (x > 0 && own[t - 1] === tid && land[t - 1]) return true;
       if (x < W - 1 && own[t + 1] === tid && land[t + 1]) return true;
@@ -1389,7 +1414,9 @@
     const q = res.target;
     if (q && this.friendly(p, q)) { res.why = 'Verbündet'; return res; }
     if (q && this.ticks < this.immuneUntil) { res.why = 'Schonfrist: Spieler sind noch geschützt'; return res; }
-    if (q ? this.sharesBorder(p, tid) : this.tnTouches(p, tile)) res.canAttack = true;
+    // A realm is attacked by land only where it can be reached by land: on an island of theirs
+    // that we do not border, a tap sends a boat instead (even while a land attack on them runs).
+    if (q ? this.sharesBorder(p, tid, this.landBody()[tile]) : this.tnTouches(p, tile)) res.canAttack = true;
     if (p.boats < 3) res.boat = this.boatPlan(p, tile);
     if (!res.canAttack && !res.boat) res.why = p.boats >= 3 ? 'Höchstens 3 Boote gleichzeitig' : 'Von hier nicht erreichbar';
     return res;
