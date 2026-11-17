@@ -29,6 +29,7 @@ const SCENARIOS = [
   { name: 'gross: 150K gegen 40K, fünf Klicks 20 %', at: 3000, dt: 1200, aT: 150000, dT: 40000, clicks: [[0.2, 0], [0.2, 20], [0.2, 40], [0.2, 60], [0.2, 80]], want: 1 },
   // a small attack against a much stronger defender must not get far (17.11.2026: 5K took a third of 30K's land)
   { name: 'schwach: 5K gegen 30K, 1000 Felder', at: 500, dt: 1000, aT: 5000, dT: 30000, clicks: [[1, 0]], want: 0, maxTook: 0.06 },
+  { name: 'schwach: 5K gegen 30K, 300 Felder', at: 500, dt: 300, aT: 5000, dT: 30000, clicks: [[1, 0]], want: 0, maxTook: 0.12 },
   { name: 'schwach: 5K gegen 30K, 3000 Felder', at: 1000, dt: 3000, aT: 5000, dT: 30000, clicks: [[1, 0]], want: 0, maxTook: 0.06 },
   { name: 'schwach: 10 % von 50K gegen 30K, 3000 Felder', at: 3000, dt: 3000, aT: 50000, dT: 30000, clicks: [[0.1, 0]], want: 0, maxTook: 0.06 },
   { name: 'schwach: Nation 5K gegen Mensch 30K, 3000 Felder', at: 1000, dt: 3000, aT: 5000, dT: 30000, clicks: [[1, 0]], want: 0, maxTook: 0.06, flip: true },
