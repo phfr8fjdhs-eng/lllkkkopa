@@ -898,7 +898,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   // `cls`: one byte per tile as written by the builder (cover in bits 0-2, river bit 3, great
   // river bit 4, taiga bit 5, rain forest bit 6, snow cap bit 7). `cost`: 0..30 per tile. `hgt`: height at half
   // the resolution, for the relief shading only.
-  G.MIN_ISLAND = 100;   // smallest island (in tiles, about 5000 km2) the Earth keeps, see buildWorld
+  G.MIN_ISLAND = 80;    // smallest island (in tiles, about 4000 km2) the Earth keeps, see buildWorld
   G.buildWorld = function (def, cls, cost, hgt) {
     const W = def.w, H = def.h, N = W * H;
     const land = new Uint8Array(N), mag = new Uint8Array(N), shore = new Uint8Array(N);
