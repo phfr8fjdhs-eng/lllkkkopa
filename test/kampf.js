@@ -27,6 +27,14 @@ const SCENARIOS = [
   { name: 'gross: 150K gegen 40K, ein Klick 50 %', at: 3000, dt: 1200, aT: 150000, dT: 40000, clicks: [[0.5, 0]], want: 1 },
   { name: 'gross: 150K gegen 40K, ein Klick 100 %', at: 3000, dt: 1200, aT: 150000, dT: 40000, clicks: [[1, 0]], want: 1 },
   { name: 'gross: 150K gegen 40K, fünf Klicks 20 %', at: 3000, dt: 1200, aT: 150000, dT: 40000, clicks: [[0.2, 0], [0.2, 20], [0.2, 40], [0.2, 60], [0.2, 80]], want: 1 },
+  // a small attack against a much stronger defender must not get far (17.11.2026: 5K took a third of 30K's land)
+  { name: 'schwach: 5K gegen 30K, 1000 Felder', at: 500, dt: 1000, aT: 5000, dT: 30000, clicks: [[1, 0]], want: 0, maxTook: 0.06 },
+  { name: 'schwach: 5K gegen 30K, 3000 Felder', at: 1000, dt: 3000, aT: 5000, dT: 30000, clicks: [[1, 0]], want: 0, maxTook: 0.06 },
+  { name: 'schwach: 10 % von 50K gegen 30K, 3000 Felder', at: 3000, dt: 3000, aT: 50000, dT: 30000, clicks: [[0.1, 0]], want: 0, maxTook: 0.06 },
+  { name: 'schwach: Nation 5K gegen Mensch 30K, 3000 Felder', at: 1000, dt: 3000, aT: 5000, dT: 30000, clicks: [[1, 0]], want: 0, maxTook: 0.06, flip: true },
+  { name: 'schwach: Nation 5K gegen Mensch 30K, 1000 Felder', at: 1000, dt: 1000, aT: 5000, dT: 30000, clicks: [[1, 0]], want: 0, maxTook: 0.06, flip: true },
+  { name: 'schwach: Nation 5K gegen Mensch 30K, dünne Grenze, 1000 Felder', at: 1000, dt: 1000, aT: 5000, dT: 30000, clicks: [[1, 0]], want: 0, maxTook: 0.06, flip: true, thin: true },
+  { name: 'schwach: Nation 5K gegen Mensch 30K, dünne Grenze, 3000 Felder', at: 1000, dt: 3000, aT: 5000, dT: 30000, clicks: [[1, 0]], want: 0, maxTook: 0.06, flip: true, thin: true },
   { name: 'gleich: 80K gegen 80K, ein Klick 50 %', at: 3000, dt: 3000, aT: 80000, dT: 80000, clicks: [[0.5, 0]], want: 0 },
   // since nations stand dense along a threatening border (15.11.2026), two to one against them is a
   // close call either way (want -1: only shown, not checked)
@@ -82,7 +90,18 @@ function arena(map, sc, classic) {
 }
 
 function run(map, sc, classic) {
-  const A = arena(map, sc, classic), g = A.g, h = A.h, foe = A.foe;
+  // flip: the nation attacks and the person (with the posture) defends
+  const A = arena(map, sc.flip ? { at: sc.dt, dt: sc.at, aT: sc.dT, dT: sc.aT } : sc, classic), g = A.g;
+  const h = sc.flip ? A.foe : A.h, foe = sc.flip ? A.h : A.foe;
+  // thin: the defender's cells nearest the attacker stand almost empty (land just taken, or the
+  // net drawn elsewhere); their troops stand further back
+  if (sc.thin && foe.post) {
+    const cs = [...foe.post.cells.entries()], cx = (e) => e[0] % g.CW, east = h.x0 > foe.x0;
+    cs.sort((x, y) => east ? cx(y) - cx(x) : cx(x) - cx(y));
+    let H = 0;
+    cs.forEach((e, i) => { const c = e[1]; c.u = i < cs.length * 0.3 ? c.n * 0.05 : c.n * 1.4; c.e = 0; H += c.u; });
+    foe.post.H = H;
+  }
   const tiles0 = foe.tiles, t0 = g.ticks;
   let sent = 0, half = -1, end = -1, next = 0;
   for (let k = 0; k < LIMIT; k++) {
@@ -91,7 +110,8 @@ function run(map, sc, classic) {
       let tile = -1;
       for (const b of h.border) { for (const n of [b - 1, b + 1, b - g.W, b + g.W]) if (g.owner[n] === foe.id) { tile = n; break; } if (tile >= 0) break; }
       const before = h.troops;
-      if (tile >= 0) g.exec(h.id, { k: 'strike', t: tile, r: sc.clicks[next][0], w: sc.clicks[next][2] || 0 });
+      if (tile >= 0 && sc.flip) g.attack(h, foe.id, h.troops * sc.clicks[next][0], -1, tile);
+      else if (tile >= 0) g.exec(h.id, { k: 'strike', t: tile, r: sc.clicks[next][0], w: sc.clicks[next][2] || 0 });
       sent += classic ? before - h.troops : before * sc.clicks[next][0];
       next++;
     }
@@ -216,6 +236,7 @@ function pocket(map) {
     console.log(line('Aufstellung', p));
     const fits = sc.want < 0 || ((c.won ? 1 : 0) === sc.want && (p.won ? 1 : 0) === sc.want);
     if (!fits) { bad++; console.log('  FAIL: erwartet war ' + (sc.want ? 'erobert' : 'steckt')); }
+    if (sc.maxTook && Math.max(c.took, p.took) > sc.maxTook) { bad++; console.log('  FAIL: nimmt mehr als ' + Math.round(sc.maxTook * 100) + ' % des Landes'); }
     if (sc.want < 0) console.log('  (knapp, nur zur Anzeige)');
     // the posture must not make a fight much slower or dearer than the pool does
     const near = (c.end < 0 || p.end <= c.end * 1.3 + 20) && p.lost <= c.lost * 1.3 + 500;
