@@ -153,3 +153,8 @@ Ziel: die Karte so ruhig wie in OpenFront. Alles in `06_view.js`, die Palette in
 - **Neues Ziel, wenn der Hafen fällt:** Ein gekapertes Schiff fuhr weiter auf seinen Zielhafen zu, auch wenn dieser zerstört war oder einem anderen gehörte (gemessen 479 Schiff-Ticks), und verschwand dann samt Gold. Jetzt wendet es zum nächsten Hafen seines Besitzers (`portNear`); gibt es keinen mehr, wird das Gold gutgeschrieben.
 - **Kapern nur mit Hafen:** Ein Kriegsschiff jagt Handelsschiffe nur, wenn sein Besitzer im selben Gewässer einen Hafen hat. Vorher wurde auch ohne Hafen gekapert (22 Fälle), und das Schiff verschwand auf offener See.
 - Test: `node test/handel.js`.
+
+## Tabelle «Rohstoffe» (17.11.2026)
+- **Neu in der Version «Rohstoffe»:** eine Tabelle mit allem, was man an Rohstoffen und Fabrikwaren hat, und Knöpfen zum Leveln direkt dort (Anlagen auf Vorkommen und die Fabriken pro Land). Einzelheiten in `doku/rohstoffe.md`. Nur Bedienung, keine neuen Regeln; `03c_res.js` ist unverändert.
+- **Behoben:** `showIncome` gab es zweimal in `07_ui.js`, die zweite (Zeile unter dem Balken) überschrieb die erste, darum öffnete ein Klick aufs Gold nichts. Und «Weiterspielen» in der Hilfe schloss das Fenster nicht (`act === 'resume'` statt `what === 'resume'`).
+- Test: `node test/rohstofftabelle.js [desktop]`.

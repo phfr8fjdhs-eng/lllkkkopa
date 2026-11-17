@@ -21,6 +21,7 @@ Alle Tests liegen in `test/` und laufen mit `node test/<name>.js`. Mehrere brauc
 | `pinch.js` | Browser, Handy: Zoom mit zwei Fingern bleibt am Punkt zwischen den Fingern |
 | `vollbild.js` | Browser: Vollbild-Knopf, Vollbild beim Start auf dem Handy, Hinweis auf dem iPhone |
 | `handel.js` | Handelsschiffe über ein langes Spiel auf der Weltkarte: Zähler stimmt, keines auf Land oder ohne Route, gekaperte fahren zu einem Hafen des neuen Besitzers |
+| `rohstofftabelle.js` | Browser, Version «Rohstoffe»: Tabelle öffnen (Knopf und Gold), Anlage bauen und ausbauen, Fabrik ausbauen, zum Vorkommen fliegen; `desktop` als Argument für den Desktop, Bilder `build/rt_*.png` |
 | `net.js` | zwei Browser spielen über einen lokalen Vermittler zusammen |
 | `insel.js` | Tipp auf das Festland eines Gegners greift übers Land an, Tipp auf seine Insel schickt ein Boot, auch während der Landangriff läuft |
 | `load.js` | Hilfsdatei, lädt die Karten für die anderen Tests (kein Test) |
