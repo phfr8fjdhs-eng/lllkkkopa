@@ -1056,6 +1056,8 @@
   })();
   G.BOT_BOUNTY = 60000;
   G.START_GOLD = 250000;
+  G.NUKE_PAUSE = 300;     // ticks a nation waits between two volleys of bombs (30 s)
+  G.NUKE_VOLLEY = 2;      // bombs in a volley (one more from «Schwer» up)
   G.NUKE_PEACE = 6000;    // ticks after the start in which no nation fires a bomb (ten minutes)
   G.LAND_GOLD = 60;
   Game.prototype.bounty = function (t) {

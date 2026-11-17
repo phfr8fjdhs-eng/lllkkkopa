@@ -2300,6 +2300,8 @@ body.placing #cv { cursor: crosshair; }
   })();
   G.BOT_BOUNTY = 60000;
   G.START_GOLD = 250000;
+  G.NUKE_PAUSE = 300;     // ticks a nation waits between two volleys of bombs (30 s)
+  G.NUKE_VOLLEY = 2;      // bombs in a volley (one more from «Schwer» up)
   G.NUKE_PEACE = 6000;    // ticks after the start in which no nation fires a bomb (ten minutes)
   G.LAND_GOLD = 60;
   Game.prototype.bounty = function (t) {
@@ -4737,14 +4739,19 @@ body.placing #cv { cursor: crosshair; }
     }
     return best;
   };
-  // Called every turn of a nation: pick a target and fire as often as the silos allow.
+  // Called every turn of a nation: now and then pick a target and fire a small volley. A nation
+  // waits G.NUKE_PAUSE ticks between volleys (twice as long on the easiest level) and fires at
+  // most G.NUKE_VOLLEY bombs, so the sky does not fill up with bombs (doku/openfront-abgleich.md).
   AI.prototype.nuke = function () {
-    const g = this.g, p = this.p, r = g.rng;
+    const g = this.g, p = this.p, r = g.rng, d = g.opts.difficulty;
     if (p.cnt[UT.SILO] < 1 || g.ticks < g.immuneUntil || g.ticks - g.playStart < G.NUKE_PEACE) return;
-    if (g.opts.difficulty === 0 && !r.chance(3)) return;   // the easiest nations fire less often
+    if (g.ticks - (p.nukeAt === undefined ? -1e9 : p.nukeAt) < G.NUKE_PAUSE * (d === 0 ? 2 : 1)) return;
+    if (!r.chance(2)) return;
     const q = this.nukeTarget();
     if (!q) return;
-    for (let i = 0; i < 4; i++) if (!this.strikeFromAir(q)) break;
+    p.nukeAt = g.ticks;
+    const n = d >= 2 ? G.NUKE_VOLLEY + 1 : G.NUKE_VOLLEY;
+    for (let i = 0; i < n; i++) if (!this.strikeFromAir(q)) break;
   };
   // Returns true when a missile was launched.
   AI.prototype.strikeFromAir = function (q) {
@@ -6007,11 +6014,11 @@ body.placing #cv { cursor: crosshair; }
       ctx.fillStyle = WAR.top; ctx.fillRect(-0.34 * s, -0.1 * s, 0.5 * s, 0.2 * s);
       ctx.restore(); return;
     }
-    // a grey deck inside the coloured hull
+    // the deck in a deep shade of the owner's colour, so the whole ship reads as theirs
     ctx.beginPath();
     ctx.moveTo(-0.95 * s, -0.1 * s); ctx.lineTo(0.48 * s, -0.1 * s); ctx.lineTo(0.84 * s, -0.025 * s);
     ctx.lineTo(0.84 * s, 0.025 * s); ctx.lineTo(0.48 * s, 0.1 * s); ctx.lineTo(-0.95 * s, 0.1 * s); ctx.closePath();
-    ctx.fillStyle = WAR.deck; ctx.fill();
+    ctx.fillStyle = p.cssB; ctx.fill();
     const fine = s >= 11, thin = Math.max(0.7, s * 0.03);
     // helicopter deck at the stern
     if (fine) {
@@ -6085,10 +6092,10 @@ body.placing #cv { cursor: crosshair; }
     hull(ctx, x, y, ang, s, 'trade');
     ctx.lineJoin = 'miter'; ctx.miterLimit = 6;
     ctx.lineWidth = Math.max(1.6, s * 0.2); ctx.strokeStyle = '#0b1016'; ctx.stroke();
-    ctx.fillStyle = '#f7f5ef'; ctx.fill();
+    ctx.fillStyle = p.css; ctx.fill();                  // hull in the owner's colour
     ctx.save();
     ctx.translate(x, y); ctx.rotate(ang); ctx.scale(s, s);
-    ctx.fillStyle = p.css;
+    ctx.fillStyle = p.cssB;                             // cargo in a deep shade of it
     if (s >= 8) {
       for (let k = 0; k < 3; k++) ctx.fillRect(-0.56 + k * 0.33, -0.25, 0.28, 0.5);
     } else ctx.fillRect(-0.56, -0.25, 0.94, 0.5);
@@ -6177,7 +6184,7 @@ body.placing #cv { cursor: crosshair; }
       const ang = sea ? u.va : 0;
       if (z < 1.1 && p !== g.human && ty !== UT.SHELL) {
         // seen from afar, other people's traffic is drawn small but whole: a warship as a slim
-        // hull, a merchant as a white one, a troop boat as a dot in its owner's colour; trains are left out
+        // hull, a merchant in the owner's colour, a troop boat as a dot in its owner's colour; trains are left out
         if (ty === UT.WARSHIP) warship(ctx, x, y, ang, 6, p, null);
         else if (ty === UT.TRADE) merchant(ctx, x, y, ang, 4.6, p, u.captured);
         else if (ty === UT.TRANSPORT) {
@@ -6232,7 +6239,7 @@ body.placing #cv { cursor: crosshair; }
       } else if (ty === UT.TRAIN) {
         if (z >= RAIL_FULL || (z >= RAIL_MIN && p === g.human)) this.drawTrain(ctx, g, u, z, ox, oy, alpha);
       } else if (ty === UT.TRADE) {
-        // White hull, cargo in the owner's colour: readable from far out on any water.
+        // Hull in the owner's colour, cargo in a deep shade of it, dark edge: readable on any water.
         const s = tradeSize(z, p === g.human);
         merchant(ctx, x, y, ang, s, p, u.captured);
         if (z >= 4.5 && p === g.human) {

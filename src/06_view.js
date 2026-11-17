@@ -989,11 +989,11 @@
       ctx.fillStyle = WAR.top; ctx.fillRect(-0.34 * s, -0.1 * s, 0.5 * s, 0.2 * s);
       ctx.restore(); return;
     }
-    // a grey deck inside the coloured hull
+    // the deck in a deep shade of the owner's colour, so the whole ship reads as theirs
     ctx.beginPath();
     ctx.moveTo(-0.95 * s, -0.1 * s); ctx.lineTo(0.48 * s, -0.1 * s); ctx.lineTo(0.84 * s, -0.025 * s);
     ctx.lineTo(0.84 * s, 0.025 * s); ctx.lineTo(0.48 * s, 0.1 * s); ctx.lineTo(-0.95 * s, 0.1 * s); ctx.closePath();
-    ctx.fillStyle = WAR.deck; ctx.fill();
+    ctx.fillStyle = p.cssB; ctx.fill();
     const fine = s >= 11, thin = Math.max(0.7, s * 0.03);
     // helicopter deck at the stern
     if (fine) {
@@ -1067,10 +1067,10 @@
     hull(ctx, x, y, ang, s, 'trade');
     ctx.lineJoin = 'miter'; ctx.miterLimit = 6;
     ctx.lineWidth = Math.max(1.6, s * 0.2); ctx.strokeStyle = '#0b1016'; ctx.stroke();
-    ctx.fillStyle = '#f7f5ef'; ctx.fill();
+    ctx.fillStyle = p.css; ctx.fill();                  // hull in the owner's colour
     ctx.save();
     ctx.translate(x, y); ctx.rotate(ang); ctx.scale(s, s);
-    ctx.fillStyle = p.css;
+    ctx.fillStyle = p.cssB;                             // cargo in a deep shade of it
     if (s >= 8) {
       for (let k = 0; k < 3; k++) ctx.fillRect(-0.56 + k * 0.33, -0.25, 0.28, 0.5);
     } else ctx.fillRect(-0.56, -0.25, 0.94, 0.5);
@@ -1159,7 +1159,7 @@
       const ang = sea ? u.va : 0;
       if (z < 1.1 && p !== g.human && ty !== UT.SHELL) {
         // seen from afar, other people's traffic is drawn small but whole: a warship as a slim
-        // hull, a merchant as a white one, a troop boat as a dot in its owner's colour; trains are left out
+        // hull, a merchant in the owner's colour, a troop boat as a dot in its owner's colour; trains are left out
         if (ty === UT.WARSHIP) warship(ctx, x, y, ang, 6, p, null);
         else if (ty === UT.TRADE) merchant(ctx, x, y, ang, 4.6, p, u.captured);
         else if (ty === UT.TRANSPORT) {
@@ -1214,7 +1214,7 @@
       } else if (ty === UT.TRAIN) {
         if (z >= RAIL_FULL || (z >= RAIL_MIN && p === g.human)) this.drawTrain(ctx, g, u, z, ox, oy, alpha);
       } else if (ty === UT.TRADE) {
-        // White hull, cargo in the owner's colour: readable from far out on any water.
+        // Hull in the owner's colour, cargo in a deep shade of it, dark edge: readable on any water.
         const s = tradeSize(z, p === g.human);
         merchant(ctx, x, y, ang, s, p, u.captured);
         if (z >= 4.5 && p === g.human) {
