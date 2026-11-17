@@ -1,6 +1,9 @@
 # Änderungsprotokoll
 Was seit dem 13.11.2026 geändert wurde und warum. Den heutigen Stand der Regeln beschreiben die anderen Dateien in `doku/`.
 
+## Pfeile und Truppen sammeln einzeln schaltbar (17.11.2026)
+Statt «Kampf: Bisher / Pfeile» zwei Schalter auf dem Startbildschirm: «Pfeile» und «Truppen sammeln», je an oder aus. Wunsch des Besitzers, um beides einzeln wegzulassen. Neue Option `opts.sammeln`.
+
 ## Pfeile: keine Truppenzahlen auf der Karte (16.11.2026)
 Die Zahlen an den Grenzzellen waren zu viele. Wo die Truppen stehen, zeigt nur noch die Färbung des eigenen Landes.
 

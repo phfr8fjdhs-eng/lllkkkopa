@@ -519,7 +519,7 @@
   View.prototype.drawNet = function (ctx, g, z, ox, oy, now) {
     const p = g.human, N = this.net;
     if (!p || !p.post || !p.alive || g.phase !== 'play' || !p.post.cells.size) return;
-    if (now - N.at > (N.on ? 300 : g.pfeile ? 500 : 1200) || N.dirty) { N.at = now; N.dirty = false; this.buildNet(g, p); }
+    if (now - N.at > (N.on ? 300 : g.sammeln ? 500 : 1200) || N.dirty) { N.at = now; N.dirty = false; this.buildNet(g, p); }
     if (!N.w) return;
     for (const e of N.edit) if (now - e[1].at > 2500) N.edit.delete(e[0]);
     const dpr = this.dpr, cw = this.cw, ch = this.ch, CS = G.POST.cell;
@@ -528,7 +528,7 @@
     ctx.save();
     ctx.imageSmoothingEnabled = true;
     if (N.on) { ctx.globalAlpha = 0.42; ctx.drawImage(N.mask, sx, sy, sw, sh); }    // a veil over the own colour, so the net reads the same on every colour
-    ctx.globalAlpha = N.on ? 1 : g.pfeile ? 0.8 : 0.4;   // version «Pfeile»: where the troops stand is always to be seen
+    ctx.globalAlpha = N.on ? 1 : g.sammeln ? 0.8 : 0.4;   // «Truppen sammeln»: where the troops stand is always to be seen
     ctx.drawImage(N.tint, sx, sy, sw, sh);
     ctx.globalAlpha = 1;
     if (N.on) {
@@ -1911,7 +1911,7 @@
   // troops stand where is shown by the tint of the own land only, no numbers (too busy).
   View.prototype.drawRally = function (ctx, g, z, ox, oy, now) {
     const h = g.human;
-    if (!g.pfeile || !h || !h.alive || !h.post || g.phase !== 'play') return;
+    if (!g.sammeln || !h || !h.alive || !h.post || g.phase !== 'play') return;
     const W = g.W, cell = G.POST.cell * z, cw = this.cw, ch = this.ch;
     ctx.save();
     const rl = h.post.rally, R = G.RALLY.r * cell;

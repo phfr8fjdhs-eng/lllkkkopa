@@ -1,7 +1,11 @@
 # Version «Pfeile» (16.11.2026)
-Auf dem Startbildschirm unter «Kampf» gibt es zwei Versionen. Im Mehrspieler gilt die Wahl des Hosts für alle. Option `opts.pfeile` (Vorgabe in der Bedienung: an).
+Auf dem Startbildschirm gibt es zwei Schalter, einzeln an oder aus (Vorgabe: beide an). Im Mehrspieler gilt die Wahl des Hosts für alle.
+- **Pfeile** (`opts.pfeile`): Pfeile planen und gemeinsam starten (Abschnitt «Angriff»). Aus: der Pfeil greift sofort an.
+- **Truppen sammeln** (`opts.sammeln`): Sammelpunkte und Färbung (Abschnitt «Verteidigung»). Aus: Netz von Hand wie bisher.
 
-| | Bisher | Pfeile |
+Beide aus ist das Spiel wie bisher; die Tabelle zeigt die beiden Schalter.
+
+| | aus | an |
 | --- | --- | --- |
 | Angriff | Pfeil mit rechter Maustaste greift sofort an | Pfeile planen, dann gemeinsam starten |
 | Verteidigung | Netz von Hand malen (Taste N, `doku/aufstellung.md`) | bis zu 3 Sammelpunkte per Doppelklick |

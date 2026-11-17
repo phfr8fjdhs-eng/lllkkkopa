@@ -388,7 +388,7 @@
       if (!p.post || !p.alive || (T + p.id) % FLOW !== 0) continue;
       if (T - p.post.autoAt >= AUTO) {
         if (p.type !== G.PT.HUMAN) { p.post.autoAt = T; this.postAuto(p); }
-        else if (this.pfeile) { p.post.autoAt = T; this.postRallyAuto(p); }
+        else if (this.sammeln) { p.post.autoAt = T; this.postRallyAuto(p); }
       }
       this.postFlow(p);
       this.postStarve(p);

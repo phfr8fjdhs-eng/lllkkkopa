@@ -15,7 +15,7 @@ const ok = (c, msg) => { if (!c) { console.log('FAIL', msg); process.exitCode = 
   const map = G.buildMap(m.w, m.h, cls, 12345, { id: m.id, name: m.name, nations: m.nations, lat: m.lat, lon: m.lon });
   const log = {};
   const run = (pfeile) => {
-    const g = new G.Game(map, { seed: 7, bots: 60, difficulty: 1, spawnTicks: 30, pfeile: pfeile });
+    const g = new G.Game(map, { seed: 7, bots: 60, difficulty: 1, spawnTicks: 30, pfeile: pfeile, sammeln: pfeile });
     g.setup({ name: 'Tester', color: [220, 60, 50] });
     const h = g.human, r = new G.RNG(3);
     let t; do { t = r.int(0, g.N); } while (!g.canSpawnAt(t) || map.shore[t]);
@@ -67,4 +67,10 @@ const ok = (c, msg) => { if (!c) { console.log('FAIL', msg); process.exitCode = 
   ok(sumA === sumB, 'two runs, same game: ' + sumA);
   const c = run(false);
   ok(!c.pfeile && c.exec(c.human.id, { k: 'rally', t: c.human.spawnTile }) === 'Nicht möglich', 'version «Bisher»: no rally points, the net as before');
+  const d = new G.Game(map, { seed: 7, bots: 10, spawnTicks: 30, pfeile: true, sammeln: false });
+  d.setup({ name: 'T', color: [220, 60, 50] });
+  let s0; do { s0 = Math.floor(Math.random() * d.N); } while (!d.canSpawnAt(s0) || map.shore[s0]);
+  d.spawn(d.human, s0); for (let i = 0; i < 60; i++) d.tick();
+  ok(d.exec(d.human.id, { k: 'rally', t: d.human.spawnTile }) === 'Nicht möglich', 'Pfeile an, Sammeln aus: no rally points');
+  ok(d.exec(d.human.id, { k: 'mesh', c: [d.cellOf(d.human.spawnTile)], v: [3] }) === '', 'Pfeile an, Sammeln aus: the net works as before');
 })();
