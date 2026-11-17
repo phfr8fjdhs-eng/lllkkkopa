@@ -1,6 +1,9 @@
 # Änderungsprotokoll
 Was seit dem 13.11.2026 geändert wurde und warum. Den heutigen Stand der Regeln beschreiben die anderen Dateien in `doku/`.
 
+## Erde: weniger kleine Inseln (17.11.2026)
+Inseln unter 80 Feldern werden beim Laden zu Meer, ausser eine Nation startet darauf (`G.MIN_ISLAND`, siehe `doku/erde.md`). Rund 910 von 1100 Inseln fallen weg. Zuerst 100 Feldern, auf Wunsch des Besitzers 80. Wunsch des Besitzers: viel zu viele zu kleine Inseln.
+
 ## Kleine Angriffe gegen grosse Armeen schwächer, Anzeige der Angriffsstärke (17.11.2026)
 - **Warum:** Der Besitzer hatte den Eindruck, dass ein Angriff mit 5K gegen seine 30K locker durchkommt und viel Land nimmt.
 - **Gemessen:** Ein einzelner Angriff mit 5K gegen 30K nahm vorher 4–9 % des Landes (mehr bei dünn besetzter Grenze), nicht ein Drittel. Was täuschte: Die Zahl bei «… greift an» ist, was vom Angriff noch übrig ist. In einem Testspiel griff die Türkei mit 158K an; angezeigt waren im Schnitt nur 68K.
