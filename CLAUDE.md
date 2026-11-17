@@ -24,10 +24,10 @@ Echtzeit-Eroberungsspiel im Browser, Nachbau von OpenFront, als eine einzige HTM
 | `00_util.js` | 130 | RNG mit Startwert, `G.M` (Math, überall gleich), `G.fmt`, `G.within` |
 | `01_map.js` | 270 | Karten laden und erzeugen, `G.SPECIAL_MAPS`, `G.COVER`, Gelände, Klima (`G.CLIMATE`, `G.addClimate`, `G.rowLats`, `map.elevOf`, `map.tempOf`, `map.coldOf`) |
 | `02_path.js` | 270 | Seerouten (A*), `G.SeaGraph` |
-| `03_game.js` | 1100 | Spielkern `G.Game`, Spielertypen `PT`, Einheiten `UT`, Eroberung und Angriff (`conquer`, `attack`, `tickAttack`), Konstanten `G.COMBAT` (Bodenkampf), `G.TERRAIN`, `G.groundSpeed`, `G.groundLoss`, `G.PACE`, `G.START_GOLD`, `G.BOT_BOUNTY`, `G.LAND_GOLD`, `G.NUKE_PEACE`, `pathLane` |
+| `03_game.js` | 1100 | Spielkern `G.Game`, Spielertypen `PT`, Einheiten `UT` (Gebäude zuerst, `G.isStruct`), Eroberung und Angriff (`conquer`, `attack`, `tickAttack`), Konstanten `G.COMBAT` (Bodenkampf), `G.TERRAIN`, `G.groundSpeed`, `G.groundLoss`, `G.PACE`, `G.START_GOLD`, `G.BOT_BOUNTY`, `G.LAND_GOLD`, `G.NUKE_PEACE`, `pathLane` |
 | `03c_res.js` | 270 | nur Version «Rohstoffe» (eingefroren): `G.RAW`, `G.WARE`, `G.RES_ICON`, Ländertabelle, Vorkommen (`attachCountries`, `map.deposits`), Anlagen auf Vorkommen (`G.DIG`, `G.DIG_OF`, `digCheck`, `dig`, `digGold`, `digAuto`, Zustand `game.dg`), `resTick`, `wareOf`; im klassischen Build nicht enthalten |
 | `03b_posture.js` | 330 | Aufstellung (Truppen-Netz): `postEffect`, `HAND` |
-| `04_units.js` | 980 | Gebäude und Ausbau (`G.MAX_LEVEL`, `G.BUILD_TICKS`), Bomben, Flugabwehr (`G.CRUISE_RANGE`), Kriegsschiffe (`tickWarship`, `patrolPoint`, `shipboom`, `G.WARSHIP_CAPTURE`) |
+| `04_units.js` | 1050 | Gebäude und Ausbau (`G.MAX_LEVEL`, `G.BUILD_TICKS`), Tarnturm (`cloakScan`, `hiddenFrom`, `seenCount`, `G.CLOAK_COVER`), Bomben, Flugabwehr (`G.CRUISE_RANGE`), Kriegsschiffe (`tickWarship`, `patrolPoint`, `shipboom`, `G.WARSHIP_CAPTURE`) |
 | `04b_rail.js` | 250 | Fabrik, Schienen, Züge: `railPath` (nur waagrecht und senkrecht), `rebuildRails` |
 | `05_ai.js` | 370 | Bots und Nationen: `AI.nukeTarget` |
 | `06a_audio.js` | 190 | Ton und Musik aus dem Browser: `G.Audio` |
@@ -41,7 +41,7 @@ Weitere Ordner: `tools/` (Bauen und Kartenerzeugung, Python), `test/` (Tests, No
 ## Welche Datei in `doku/`
 | Frage | Datei |
 | --- | --- |
-| Tasten, Bots, Ausbau, Flugabwehr, Schienen, Bomben-Anzeige | `spielregeln.md` |
+| Tasten, Bots, Ausbau, Flugabwehr, Schienen, Bomben-Anzeige, Arsenal (Satellitenstrahl, Tarnturm) | `spielregeln.md` |
 | Netz, Marsch, Dichte und ihre Wirkung | `aufstellung.md` |
 | Schalter «Netz» und «Angriffspfeile planen» | `pfeile.md` |
 | Erdkarte, Daten, Lizenzen der Daten, Gelände | `erde.md` |
@@ -55,7 +55,8 @@ Weitere Ordner: `tools/` (Bauen und Kartenerzeugung, Python), `test/` (Tests, No
 ## Welcher Test
 - Regeln und Zahlen: `node test/sim.js`, `node test/all.js`
 - Bodenkampf: `node test/kampf.js` (Messbank)
-- Gleichlauf auf allen Geräten: `node test/det.js`, `node test/posture.js`
+- Gleichlauf auf allen Geräten: `node test/det.js`, `node test/det.js arsenal`, `node test/posture.js`
+- Tarnturm: `node test/tarn.js`
 - Schalter Netz und Pfeile: `node test/pfeile.js`
 - Version «Rohstoffe»: `node --max-old-space-size=4096 test/res.js`
 - Bedienung im Browser: `node test/ui.js` (braucht Playwright und Chrome)

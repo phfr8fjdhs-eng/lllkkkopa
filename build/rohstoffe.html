@@ -1306,9 +1306,11 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   const within = G.within, fmt = G.fmt;
   const PT = G.PT = { HUMAN: 0, NATION: 1, BOT: 2 };
   const UT = G.UT = {
-    CITY: 0, DEFENSE: 1, PORT: 2, SILO: 3, SAM: 4, FACTORY: 5, WARSHIP: 6, TRANSPORT: 7, TRADE: 8,
-    TRAIN: 9, SHELL: 10, SAMM: 11, ATOM: 12, HYDRO: 13, MIRV: 14, WARHEAD: 15, CRUISE: 16, LASER: 17
+    CITY: 0, DEFENSE: 1, PORT: 2, SILO: 3, SAM: 4, FACTORY: 5, CLOAK: 6, WARSHIP: 7, TRANSPORT: 8, TRADE: 9,
+    TRAIN: 10, SHELL: 11, SAMM: 12, ATOM: 13, HYDRO: 14, MIRV: 15, WARHEAD: 16, CRUISE: 17, LASER: 18
   };
+  // Buildings are the kinds up to the cloaking tower; everything after them moves.
+  G.isStruct = function (type) { return type <= UT.CLOAK; };
   // Ground combat. An attack fights the defenders at its front, not the whole army:
   //   base      troops a tile costs even when nobody stands on it (what free land costs a person)
   //   exchange  attackers lost per defender standing on the tile, at even strength
@@ -1332,7 +1334,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
 //   speed   how far the head of a thrust gets per tick at most, in way cost (open lowland: tiles), times attackPace
   //   search  most tiles the way-finding looks at before it gives up
   G.THRUST = { widths: [0, 30, 12], max: 4, pull: 1.2, ring: 0.6, speed: 1.4, flank: 1, search: 250000 };
-  G.UNAME = ['Stadt', 'Verteidigungs\u00ADposten', 'Hafen', 'Raketensilo', 'Flugabwehr', 'Fabrik', 'Kriegsschiff', 'Boot',
+  G.UNAME = ['Stadt', 'Verteidigungs\u00ADposten', 'Hafen', 'Raketensilo', 'Flugabwehr', 'Fabrik', 'Tarnturm', 'Kriegsschiff', 'Boot',
     'Handelsschiff', 'Zug', 'Granate', 'Abwehrrakete', 'Atombombe', 'Wasserstoff\u00ADbombe', 'MIRV', 'Sprengkopf', 'Marschflug\u00ADkörper', 'Satelliten\u00ADstrahl'];
   // Tempo. The numbers of the simulation are OpenFront's, but its maps have two million tiles and
   // ours are smaller (map.S is the scale of a side), so the same tiles per tick looked hectic:
@@ -1433,6 +1435,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
       headIn: Math.max(4, Math.round(12 * S)), headOut: Math.max(6, Math.round(18 * S)),
       cruiseIn: Math.max(3, Math.round(7 * S)), cruiseOut: Math.max(5, Math.round(11 * S)),
       laserIn: Math.max(4, Math.round(10 * S)), laserOut: Math.max(6, Math.round(16 * S)),
+      cloak: Math.max(8, Math.round(26 * S)), reveal: Math.max(7, Math.round(22 * S)),
       sam: Math.round(70 * S), warTarget: Math.round(130 * S), warPatrol: Math.round(100 * S),
       mirvRange: Math.round(1500 * S), mirvCount: Math.max(8, Math.round(120 * S * S)),
       botDist: Math.max(10, Math.round(30 * S)), boatBox: Math.round(150 * S),
@@ -3510,14 +3513,14 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   'use strict';
   const Math = G.M;   // same results on every device, see 00_util.js
   const Game = G.Game, UT = G.UT, PT = G.PT, fmt = G.fmt;
-  const BUILD_TICKS = [20, 50, 50, 100, 300, 20];   // city, defence post, port, silo, air defence, factory
+  const BUILD_TICKS = [20, 50, 50, 100, 300, 20, 60];   // city, defence post, port, silo, air defence, factory, cloaking tower
   G.BUILD_TICKS = BUILD_TICKS;
   G.WARSHIP_CAPTURE = false;
   G.MAX_LEVEL = 100;
   G.SILO_RELOAD = 270;   // ticks a silo slot needs to reload after a launch (27 s, 3x OpenFront's 9 s)
   G.CITY_MAX_LEVEL = 100;
-  // Every building can be upgraded up to level 100.
-  G.maxLevel = function (type) { return G.MAX_LEVEL; };
+  // Every building but the cloaking tower can be upgraded up to level 100.
+  G.maxLevel = function (type) { return type === UT.CLOAK ? 1 : G.MAX_LEVEL; };   // the cloaking tower has no levels: its reach stays small
 
   // Price of the next one of a kind. As in OpenFront every level of a building counts like a
   // building of its own, so an upgrade costs what the next new one would (cities: 125K, 250K,
@@ -3531,6 +3534,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
       case UT.DEFENSE: return Math.min(250000, (c + 1) * 50000);
       case UT.SILO: return 3e6;   // 3x OpenFront (1M), deliberate
       case UT.SAM: return Math.min(3e6, (c + 1) * 1.5e6);
+      case UT.CLOAK: return Math.min(500000, 150000 + c * 100000);   // Arsenal mode only, ours
       case UT.WARSHIP: return Math.min(1e6, (c + 1) * 250000);
       case UT.ATOM: return 750000;
       case UT.CRUISE: return 350000;
@@ -3549,7 +3553,8 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   Game.prototype.setPos = function (u, tile) { u.tile = tile; u.x = tile % this.W; u.y = (tile / this.W) | 0; };
   Game.prototype.addUnit = function (u) {
     this.units.push(u); u.owner.units.push(u); u.owner.cnt[u.type] += u.level;
-    if (u.type <= UT.FACTORY) this.structAt.set(u.tile, u);
+    if (u.type <= UT.CLOAK) this.cloakOk = false;
+    if (u.type <= UT.CLOAK) this.structAt.set(u.tile, u);
     else if (u.type === UT.TRANSPORT) u.owner.boats++;
     else if (u.type === UT.TRADE) this.tradeCount++;
     else if (u.type >= UT.ATOM) this.nukes.push(u);
@@ -3561,8 +3566,8 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     const o = u.owner, i = o.units.indexOf(u);
     if (i >= 0) o.units.splice(i, 1);
     o.cnt[u.type] -= u.level;
-    if (u.type <= UT.FACTORY) {
-      this.structAt.delete(u.tile);
+    if (u.type <= UT.CLOAK) {
+      this.structAt.delete(u.tile); this.cloakOk = false;
       if (u.built) {
         if (u.type === UT.CITY) o.cityLv -= u.level;
         else if (u.type === UT.DEFENSE) { this.refreshPosts(o); this.dirtyDisc(u.tile); }
@@ -3575,6 +3580,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   Game.prototype.captureUnit = function (u, np) {
     const o = u.owner;
     if (o === np) return;
+    this.cloakOk = false;
     if (!u.built) { this.removeUnit(u); return; }
     // A defence post falls with the ground it stands on: as in OpenFront it is torn down, not
     // taken over (every other building changes hands).
@@ -3594,6 +3600,58 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     if (o === this.human) this.say(G.UNAME[u.type] + ' an ' + np.name + ' verloren', 'bad');
     else if (np === this.human) this.say(G.UNAME[u.type] + ' von ' + o.name + ' erobert', 'good');
   };
+  // ---------- cloaking tower (Arsenal mode) ----------
+  G.CLOAK_COVER = 3;   // buildings a cloaking tower hides besides itself
+  // A finished cloaking tower hides itself and up to G.CLOAK_COVER of its owner's nearest buildings
+  // within R.cloak from everyone but the owner and the owner's allies. A hidden building shows up for a player once
+  // that player holds land within R.reveal of it. Derived from the state alone, so the same on
+  // every device; bots and nations only aim at what they can see.
+  Game.prototype.cloakScan = function () {
+    if (this.cloakOk) return;   // reset whenever a building comes, goes, changes hands or is finished
+    this.cloakOk = true;
+    const r2 = this.R.cloak * this.R.cloak;
+    for (const u of this.structAt.values()) u.cloak = false;
+    for (const c of this.structAt.values()) {
+      if (c.type !== UT.CLOAK || !c.built) continue;
+      // itself and the G.CLOAK_COVER nearest of its owner's buildings in reach (ties: older first)
+      c.cloak = true;
+      const near = [];
+      for (const u of c.owner.units) {
+        if (u === c || !G.isStruct(u.type)) continue;
+        const dx = u.x - c.x, dy = u.y - c.y, d2 = dx * dx + dy * dy;
+        if (d2 <= r2) near.push({ u: u, d2: d2 });
+      }
+      near.sort(function (a, b) { return a.d2 - b.d2 || a.u.id - b.u.id; });
+      for (let i = 0; i < near.length && i < G.CLOAK_COVER; i++) near[i].u.cloak = true;
+    }
+  };
+  // Does player p hold land within r tiles of (cx, cy)?
+  Game.prototype.holdsNear = function (p, cx, cy, r) {
+    const W = this.W, H = this.H, own = this.owner, id = p.id, r2 = r * r;
+    if (cx + r < p.x0 || cx - r > p.x1 || cy + r < p.y0 || cy - r > p.y1) return false;
+    for (let y = Math.max(0, cy - r, p.y0); y <= Math.min(H - 1, cy + r, p.y1); y++) {
+      const dy = (y - cy) * (y - cy);
+      for (let x = Math.max(0, cx - r, p.x0); x <= Math.min(W - 1, cx + r, p.x1); x++) {
+        if ((x - cx) * (x - cx) + dy <= r2 && own[y * W + x] === id) return true;
+      }
+    }
+    return false;
+  };
+  // Is building u hidden from player p?
+  Game.prototype.hiddenFrom = function (u, p) {
+    if (!p || u.owner === p || !G.isStruct(u.type)) return false;
+    this.cloakScan();
+    if (!u.cloak || this.friendly(u.owner, p)) return false;
+    return !this.holdsNear(p, u.x, u.y, this.R.reveal);
+  };
+
+  // How many levels of a kind of building player `viewer` can see at player q.
+  Game.prototype.seenCount = function (viewer, q, type) {
+    if (!viewer || this.friendly(q, viewer)) return q.cnt[type];
+    let n = 0;
+    for (const u of q.units) if (u.type === type && !this.hiddenFrom(u, viewer)) n += u.level;
+    return n;
+  };
   Game.prototype.refreshPosts = function (p) {
     p.dposts = p.units.filter(function (u) { return u.type === UT.DEFENSE && u.built; });
   };
@@ -3606,6 +3664,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     }
   };
   Game.prototype.finishBuild = function (u) {
+    this.cloakOk = false;
     u.built = true;
     const p = u.owner;
     if (u.type === UT.CITY) p.cityLv += u.level;
@@ -3703,7 +3762,8 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     const res = { ok: false, why: '', cost: this.cost(p, type), tile: tile, port: null, silo: null };
     const map = this.map, W = this.W;
     if (!p.alive || this.phase !== 'play') { res.why = 'Nicht möglich'; return res; }
-    if (type <= UT.FACTORY) {
+    if (type <= UT.CLOAK) {
+      if (type === UT.CLOAK && !this.opts.arsenal) { res.why = 'Nur im Arsenal-Modus'; return res; }
       if (this.owner[tile] !== p.id) { res.why = 'Nur auf eigenem Gebiet'; return res; }
       if (type === UT.PORT) {
         const t = this.portSite(p, tile);
@@ -3751,7 +3811,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     if (!c.ok) return null;
     p.gold -= c.cost;
     let u;
-    if (type <= UT.FACTORY) {
+    if (type <= UT.CLOAK) {
       u = this.newUnit(type, p, c.tile);
       u.built = false; u.buildStart = this.ticks;
       u.buildEnd = this.ticks + (this.opts.instantBuild ? 0 : BUILD_TICKS[type]);
@@ -3772,7 +3832,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   };
 
   Game.prototype.canUpgrade = function (p, u) {
-    return !!u && u.active && u.owner === p && u.built && u.type <= UT.FACTORY && u.level < G.maxLevel(u.type);
+    return !!u && u.active && u.owner === p && u.built && u.type <= UT.CLOAK && u.level < G.maxLevel(u.type);
   };
   Game.prototype.upgrade = function (p, u) {
     if (!this.canUpgrade(p, u)) return false;
@@ -4495,7 +4555,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     if (type !== undefined && !G.canIntercept(type)) return out;
     const f = type === UT.CRUISE ? G.CRUISE_RANGE : 1;
     for (const u of this.structAt.values()) {
-      if (u.type !== UT.SAM || !u.built || u.owner === p || this.friendly(u.owner, p)) continue;
+      if (u.type !== UT.SAM || !u.built || u.owner === p || this.friendly(u.owner, p) || this.hiddenFrom(u, p)) continue;   // a hidden one is a surprise
       const sr = this.samRange(u) * f, r2 = sr * sr;
       for (let i = 0; i <= 40; i++) {
         const x = sx + (dx - sx) * i / 40, y = sy + (dy - sy) * i / 40;
@@ -4507,7 +4567,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
 
   Game.prototype.tickUnit = function (u) {
     const ty = u.type;
-    if (ty <= UT.FACTORY) {
+    if (ty <= UT.CLOAK) {
       if (!u.built) { if (this.ticks >= u.buildEnd) this.finishBuild(u); return; }
       if (ty === UT.PORT) this.tickPort(u);
       else if (ty === UT.SAM) this.tickSam(u);
@@ -4945,6 +5005,20 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     return -1;
   };
 
+  // An own inland tile free for a building, at most `reach` tiles from the given one.
+  AI.prototype.tileBeside = function (tile, reach) {
+    const g = this.g, p = this.p, W = g.W, H = g.H, r = g.rng, d = g.R.structDist;
+    const cx = tile % W, cy = (tile / W) | 0;
+    for (let i = 0; i < 30; i++) {
+      const a = r.next() * 6.2832, k = d + r.next() * Math.max(1, reach - d);
+      const x = Math.round(cx + Math.cos(a) * k), y = Math.round(cy + Math.sin(a) * k);
+      if (x < 0 || y < 0 || x >= W || y >= H) continue;
+      const t = y * W + x;
+      if (g.owner[t] === p.id && !p.border.has(t) && !g.structNear(t, d)) return t;
+    }
+    return -1;
+  };
+
   // ---------- building ----------
   AI.prototype.construct = function () {
     const g = this.g, p = this.p, r = g.rng, c = p.cnt, d = g.opts.difficulty;
@@ -4979,6 +5053,13 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     if (d >= 1 && c[UT.SAM] < 1 && c[UT.CITY] > 0 && can(UT.SAM, 1.2)) {
       const t = this.tileOf(p, true);
       if (t >= 0 && g.build(p, UT.SAM, t)) return;
+    }
+    // Arsenal mode: a cloaking tower right next to a silo or air defence that is still in plain sight
+    if (g.opts.arsenal && d >= 1 && c[UT.CLOAK] < d && can(UT.CLOAK, 2) && r.chance(3)) {
+      g.cloakScan();
+      const bare = p.units.filter(function (u) { return u.built && !u.cloak && (u.type === UT.SILO || u.type === UT.SAM); });
+      const t = bare.length ? this.tileBeside(r.pick(bare).tile, g.R.cloak * 0.8) : -1;
+      if (t >= 0 && g.build(p, UT.CLOAK, t)) return;
     }
     if (c[UT.PORT] >= 1 && c[UT.PORT] < 2 + d && c[UT.CITY] >= 2 && can(UT.PORT, 2) && r.chance(4)) {
       const t = this.coastTile();
@@ -5031,7 +5112,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     if (g.opts.difficulty < 1 || q.type === PT.BOT || g.friendly(p, q) || g.ticks < g.immuneUntil) return;
     if ((p.laserAt || 0) > g.ticks || p.gold < 900000 || !r.chance(3)) return;
     const cands = [];
-    for (const u of q.units) if (u.type <= UT.FACTORY && !this.nearOwn(u.tile, g.R.laserOut + 3)) cands.push(u.tile);
+    for (const u of q.units) if (u.type <= UT.CLOAK && !this.nearOwn(u.tile, g.R.laserOut + 3) && !g.hiddenFrom(u, this.p)) cands.push(u.tile);
     if (cands.length) g.build(p, UT.LASER, r.pick(cands));
   };
   // Whom to bomb: anybody who is not a bot or a friend, wherever they live (a bomb has no range).
@@ -5077,7 +5158,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     if (type < 0) return false;
     const rad = type === UT.HYDRO ? g.R.hydroOut : g.R.atomOut;
     const cands = [];
-    for (const u of q.units) if (u.type <= UT.FACTORY) cands.push(u.tile);
+    for (const u of q.units) if (u.type <= UT.CLOAK && !g.hiddenFrom(u, this.p)) cands.push(u.tile);
     for (let i = 0; i < 8; i++) { const t = this.tileOf(q, false); if (t >= 0) cands.push(t); }
     let best = -1, bs = -1;
     for (const t of cands) {
@@ -5085,7 +5166,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
       const x = t % W, y = (t / W) | 0;
       let s = r.next();
       for (const u of q.units) {
-        if (u.type > UT.FACTORY) continue;
+        if (u.type > UT.CLOAK || g.hiddenFrom(u, p)) continue;
         if ((u.x - x) * (u.x - x) + (u.y - y) * (u.y - y) <= rad * rad) s += 1;
       }
       if (s > bs) { bs = s; best = t; }
@@ -5350,6 +5431,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     atom: 'M12 2l2 3h-4zM9.5 5h5v2.5c2.6 1 4.5 3.6 4.5 6.6c0 3.9-3.1 7-7 7s-7-3.1-7-7c0-3 1.9-5.6 4.5-6.6z',
     hydro: 'M12 1l2.4 6.2l6.2-2.6l-2.6 6.2L24 12l-6 1.2l2.6 6.2l-6.2-2.6L12 23l-2.4-6.2l-6.2 2.6l2.6-6.2L0 12l6-1.2L3.4 4.6l6.2 2.6z',
     mirv: 'M4 20l2.5-13L9 20zM9.5 20L12 4l2.5 16zM15 20l2.5-13L20 20z',
+    cloak: 'M12 5.5c4.3 0 8 2.6 10 6.5c-.8 1.6-1.9 3-3.3 4.1l-2.6-2.6a4.4 4.4 0 0 0-5.6-5.6L8.3 5.7c1.2-.1 2.4-.2 3.7-.2zM2 12c.8-1.6 1.9-3 3.3-4.1l2.6 2.6a4.4 4.4 0 0 0 5.6 5.6l2.2 2.2c-1.2.4-2.4.6-3.7.6c-4.3 0-8-2.6-10-6.9zM3.2 4.6l1.4-1.4l16.2 16.2l-1.4 1.4z',
     sword: 'M21 3l-1.5 6L10 18.5L5.5 14L15 4.5zM3.5 13L5 11.5l7.5 7.5l-1.5 1.5zM5.2 16.6l2.2 2.2l-2.9 2.9l-2.2-2.2z',
     hammer: 'M13.5 2.5l8 8l-3.5 3.5l-8-8zM11.6 9.6l2.8 2.8L5.3 21.5a2 2 0 0 1-2.8-2.8z',
     info: 'M12 2.5a9.5 9.5 0 1 0 0 19a9.5 9.5 0 0 0 0-19zM12 4.3a7.7 7.7 0 1 1 0 15.4a7.7 7.7 0 0 1 0-15.4zM12 6.3a1.3 1.3 0 1 0 0 2.6a1.3 1.3 0 0 0 0-2.6zM11 10.5h2V18h-2z',
@@ -5374,8 +5456,14 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     copy: 'M8 3h11a2 2 0 0 1 2 2v11h-2V5H8zM5 7h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2z',
     target: 'M11 1h2v3.1a8 8 0 0 1 6.9 6.9H23v2h-3.1a8 8 0 0 1-6.9 6.9V23h-2v-3.1A8 8 0 0 1 4.1 13H1v-2h3.1A8 8 0 0 1 11 4.1zM12 6a6 6 0 1 0 0 12a6 6 0 0 0 0-12zM12 9.5a2.5 2.5 0 1 1 0 5a2.5 2.5 0 0 1 0-5z'
   };
-  const STRUCT_ICON = ['city', 'defense', 'port', 'silo', 'sam', 'factory'];
-  const STRUCT_RANK = [1, 5, 3, 0, 4, 2];     // which kind stands for a cluster seen from afar: silo, city, factory, port, air defence, post
+  const STRUCT_ICON = ['city', 'defense', 'port', 'silo', 'sam', 'factory', 'cloak'];
+  const STRUCT_RANK = [1, 5, 3, 0, 4, 2, 6];     // which kind stands for a cluster seen from afar: silo, city, factory, port, air defence, post, cloaking tower
+  // Is building u hidden from the player at this screen? Asked every frame, so kept for the tick.
+  function hid(g, u) {
+    if (u.hidT !== g.ticks) { u.hidT = g.ticks; u.hidV = g.hiddenFrom(u, g.human); }
+    return u.hidV;
+  }
+  G.hidFromMe = hid;
   const paths = {};
   function glyph(ctx, name, x, y, s) {
     const p = paths[name] || (paths[name] = new Path2D(ICON[name]));
@@ -5923,7 +6011,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   View.prototype.drawReach = function (ctx, g, z, ox, oy) {
     const h = g.human, cw = this.cw, ch = this.ch;
     for (const u of g.structAt.values()) {
-      if (!u.built || (u.type !== UT.DEFENSE && u.type !== UT.SAM)) continue;
+      if (!u.built || (u.type !== UT.DEFENSE && u.type !== UT.SAM) || hid(g, u)) continue;
       const own = h && (u.owner === h || h.allies.has(u.owner.id));
       const rad = u.type === UT.DEFENSE ? g.R.defense : g.samRange(u);
       const x = (u.x + 0.5) * z + ox, y = (u.y + 0.5) * z + oy, r = rad * z;
@@ -5959,9 +6047,10 @@ globalThis.G = { VARIANT: 'rohstoffe' };
       this.aim = keep;
     } else if (rout) {
       telegraph(ctx, x, y, rin * z, rout * z, bad ? '200,208,216' : REL.aim, now);
-    } else if (t <= UT.FACTORY) {
-      // what the building would cover: a defence post its stretch of border, an air defence its sky
-      const reach = t === UT.DEFENSE ? R.defense : t === UT.SAM ? g.samRange({ level: 1 }) : 0;
+    } else if (t <= UT.CLOAK) {
+      // what the building would cover: a defence post its stretch of border, an air defence its sky,
+      // a cloaking tower the few buildings around it that it hides
+      const reach = t === UT.DEFENSE ? R.defense : t === UT.SAM ? g.samRange({ level: 1 }) : t === UT.CLOAK ? R.cloak : 0;
       if (reach && !bad) {
         ctx.beginPath(); ctx.arc(x, y, reach * z, 0, 6.2832);
         ctx.fillStyle = 'rgba(255,255,255,.07)'; ctx.fill();
@@ -5993,7 +6082,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     // a dark rim first, so the marker stands out on any colour of land
     ctx.beginPath(); ctx.arc(x, y, s / 2 + 3, 0, 6.2832);
     ctx.fillStyle = 'rgba(13,20,27,.85)'; ctx.fill();
-    shape(ctx, t <= UT.FACTORY ? t : UT.CITY, x, y, s / 2);
+    shape(ctx, t <= UT.CLOAK ? t : UT.CITY, x, y, s / 2);
     ctx.fillStyle = bad ? '#e02a20' : h.cssD; ctx.fill();
     ctx.lineWidth = 2; ctx.strokeStyle = bad ? '#ffd0cb' : '#fff'; ctx.stroke();
     ctx.fillStyle = '#fff';
@@ -6058,6 +6147,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     const mine = [], other = [];
     for (const e of rails) {
       if (e.x1 < x0 || e.x0 > x1 || e.y1 < y0 || e.y0 > y1) continue;
+      if (hid(g, e.a) || hid(g, e.b)) continue;   // a track would give a hidden station away
       const oa = e.a.owner, ob = e.b.owner;
       ((h && (oa === h || ob === h || h.allies.has(oa.id) || h.allies.has(ob.id))) ? mine : other).push(railGeo(e, W));
     }
@@ -6112,6 +6202,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     else if (type === UT.FACTORY) poly(ctx, x, y, r * 1.08, 6, 0);
     else if (type === UT.DEFENSE) poly(ctx, x, y, r * 1.04, 8, 0.3927);
     else if (type === UT.SAM) { const q = r * 0.88; ctx.rect(x - q, y - q, 2 * q, 2 * q); }
+    else if (type === UT.CLOAK) poly(ctx, x, y, r * 1.12, 4, 0);
     else poly(ctx, x, y + r * 0.2, r * 1.3, 3, -1.5708);
   }
   G.structShape = shape;
@@ -6156,7 +6247,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
       bk.clear();
       for (const u of g.structAt.values()) {
         const x = (u.x + 0.5) * z + ox, y = (u.y + 0.5) * z + oy;
-        if (x < -s || y < -s || x > cw + s || y > ch + s) continue;
+        if (x < -s || y < -s || x > cw + s || y > ch + s || hid(g, u)) continue;
         const key = (u.owner.id * 4096 + ((y / cell) | 0)) * 4096 + ((x / cell) | 0);
         let e = bk.get(key);
         if (!e) { e = { n: 0, x: 0, y: 0, type: u.type, rank: 99, owner: u.owner }; bk.set(key, e); }
@@ -6175,10 +6266,15 @@ globalThis.G = { VARIANT: 'rohstoffe' };
       }
       return;
     }
+    g.cloakScan();
     for (const u of g.structAt.values()) {
       const x = (u.x + 0.5) * z + ox, y = (u.y + 0.5) * z + oy;
-      if (x < -s || y < -s || x > cw + s || y > ch + s) continue;
+      if (x < -s || y < -s || x > cw + s || y > ch + s || hid(g, u)) continue;
+      // your own buildings under a cloaking tower are drawn faded, so you see that others do not see them
+      const veil = u.cloak && u.owner === h;
+      if (veil) ctx.globalAlpha = 0.55;
       structIcon(ctx, u.type, x, y, s, u.owner, u.owner === h, u.built, true);
+      if (veil) ctx.globalAlpha = 1;
       if (!u.built) {
         const k = within((T - u.buildStart) / Math.max(1, u.buildEnd - u.buildStart), 0, 1);
         ctx.beginPath(); ctx.arc(x, y, s / 2 + 4, -1.5708, -1.5708 + 6.2832 * k);
@@ -6482,7 +6578,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     ctx.lineJoin = 'round';
     for (let i = 0; i < us.length; i++) {
       const u = us[i], ty = u.type;
-      if (!u.active || ty <= UT.FACTORY) continue;
+      if (!u.active || ty <= UT.CLOAK) continue;
       if (ty >= UT.ATOM) { this.drawMissile(ctx, g, u, z, ox, oy, alpha, now); continue; }
       const sea = ty === UT.WARSHIP || ty === UT.TRANSPORT || ty === UT.TRADE;
       let x = ((sea ? u.vx : u.px + (u.x - u.px) * alpha) + 0.5) * z + ox, y = ((sea ? u.vy : u.py + (u.y - u.py) * alpha) + 0.5) * z + oy;
@@ -6544,6 +6640,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
         ctx.fillStyle = p.css; ctx.fill();
         ctx.lineWidth = 1.6; ctx.strokeStyle = p.cssD; ctx.stroke();
       } else if (ty === UT.TRAIN) {
+        if (u.edge && (hid(g, u.edge.a) || hid(g, u.edge.b))) continue;
         if (z >= RAIL_FULL || (z >= RAIL_MIN && p === g.human)) this.drawTrain(ctx, g, u, z, ox, oy, alpha);
       } else if (ty === UT.TRADE) {
         // Hull in the owner's colour, cargo in a deep shade of it, dark edge: readable on any water.
@@ -7332,7 +7429,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   View.prototype.drawSamRings = function (ctx, g, z, ox, oy, now, only) {
     const h = g.human, hostile = [];
     for (const u of g.structAt.values()) {
-      if (u.type !== UT.SAM || !u.built) continue;
+      if (u.type !== UT.SAM || !u.built || hid(g, u)) continue;
       const rel = h && u.owner === h ? 'self' : h && h.allies.has(u.owner.id) ? 'ally' : 'enemy';
       if (rel === 'enemy') hostile.push(u);
       if (only && rel !== only) continue;
@@ -7748,6 +7845,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     { t: UT.DEFENSE, icon: 'defense', note: 'Grenze fünfmal zäher', key: '4' },
     { t: UT.SILO, icon: 'silo', note: 'Startet Bomben', key: '5' },
     { t: UT.SAM, icon: 'sam', note: 'Fängt Bomben ab', key: '6' },
+    { t: UT.CLOAK, icon: 'cloak', note: 'Versteckt Gebäude ganz in der Nähe', key: 'x' },
     { t: UT.WARSHIP, icon: 'warship', note: 'Nimmt fremde Schiffe ein', key: '7' },
     { t: UT.CRUISE, icon: 'cruise', note: 'Trifft genau, keine Verstrahlung', key: 'v' },
     { t: UT.ATOM, icon: 'atom', note: 'Kleiner Krater', key: '8' },
@@ -7769,6 +7867,10 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   }
   const snd = function (name, gap) { G.Audio.play(name, gap); };
   const plain = function (t) { return G.UNAME[t].replace('\u00AD', ''); };
+  // what only the Arsenal mode has
+  const armory = function (t) { return t === UT.LASER || t === UT.CLOAK; };
+  // how many of a kind of building you can see at player q (a cloaking tower hides some)
+  const seen = function (q, t) { return game.seenCount(game.human, q, t); };
   const coin = function (n) { return '<span class="price">' + svg('gold', 13) + (n ? fmt(n) : 'gratis') + '</span>'; };
   // What a building does at a given level, for the upgrade card.
   function levelText(type, lv) {
@@ -7777,6 +7879,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     if (type === UT.SILO) return lv === 1 ? '1 Rakete pro Ladung' : lv + ' Raketen pro Ladung';
     if (type === UT.SAM) return (lv === 1 ? '1 Abwehrrakete' : lv + ' Abwehrraketen') + ' pro Ladung, Reichweite ' + Math.round(150 - 480 / (lv + 5));
     if (type === UT.DEFENSE) return 'Grenze ' + (3 + 2 * lv) + '-mal zäher';
+    if (type === UT.CLOAK) return 'Versteckt deine Gebäude ganz in der Nähe vor den anderen, bis sie nahe herankommen';
     return lv === 1 ? 'Schickt Züge los' : 'Züge fahren ' + ((1 + lv) / 2).toLocaleString('de-CH') + '-mal so oft';
   }
 
@@ -7796,7 +7899,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   const SWITCH = [['netz', 'Netz', 'An: mit dem Netz (Taste N) verteilst du deine Truppen zum Verteidigen. Aus: die Truppen stehen gleichmässig, nichts einzustellen.'],
     ['pfeile', 'Angriffspfeile planen', 'An: Pfeile mit der rechten Maustaste planen, dann «Angreifen» (Enter). Aus: der Pfeil greift sofort an.']];
   let plans = [];          // version «Pfeile»: arrows planned, not launched yet
-  const MODES = [['klassisch', 'Klassisch', 'Das Spiel wie gewohnt.'], ['arsenal', 'Arsenal', 'Zusätzliche Waffe: der Satellitenstrahl. Er kommt aus dem All, braucht kein Silo und lässt sich nicht abfangen. Auch die Nationen setzen ihn ein.']];
+  const MODES = [['klassisch', 'Klassisch', 'Das Spiel wie gewohnt.'], ['arsenal', 'Arsenal', 'Zusätzlich: der Satellitenstrahl. Er kommt aus dem All, braucht kein Silo und lässt sich nicht abfangen. Und der Tarnturm: Er versteckt deine Gebäude ganz in seiner Nähe, bis die anderen nahe herankommen. Auch die Nationen setzen beides ein.']];
   let hoverX = -1, hoverY = -1;
   const RES = G.VARIANT === 'rohstoffe';   // this page is the game version «Rohstoffe» (src/03c_res.js)
   let ghost = null, ghostKey = '', shiftHeld = false;   // the thing a build key is about to place
@@ -8225,14 +8328,14 @@ globalThis.G = { VARIANT: 'rohstoffe' };
       '<li><b>Mit Freunden:</b> <b>Mit Freunden spielen</b> öffnet einen Raum. Schick den Link weiter, dann spielt ihr auf derselben Karte.</li>' +
       '<li><b>Schiffe:</b> Handelsschiffe fahren Gold von Hafen zu Hafen, beide Häfen verdienen daran. Ein <b>Kriegsschiff</b> nimmt fremde Schiffe ein, mit deren Besitzer du keine Allianz hast: Handelsschiffe samt Gold, Boote samt der Hälfte der Truppen, und besiegte Kriegsschiffe wechseln die Seite. Ein beschädigtes Kriegsschiff erholt sich langsam, solange ein eigener Hafen in der Nähe ist; unter 75 % fährt es von selbst zum nächsten eigenen Hafen und wird dort schnell repariert (je höher die Hafenstufe, desto schneller).</li>' +
       '<li><b>Züge:</b> Pro Bahnhof gibt es 10K Gold, bei Handelspartnern 25K für beide, bei Verbündeten 35K für beide. Ab dem zehnten Bahnhof einer Fahrt sinkt der Betrag um 5K pro Halt, aber nie unter 5K.</li>' +
-      '<li><b>Spielmodus Arsenal:</b> Zusätzlich gibt es den <b>Satellitenstrahl</b> (600K Gold). Er braucht kein Silo, trifft drei Sekunden nach dem Abfeuern, kann nicht abgefangen werden und hinterlässt keine Verstrahlung. Danach lädt der Satellit 45 Sekunden nach.</li>' +
+      '<li><b>Spielmodus Arsenal:</b> Zusätzlich gibt es den <b>Satellitenstrahl</b> (600K Gold). Er braucht kein Silo, trifft drei Sekunden nach dem Abfeuern, kann nicht abgefangen werden und hinterlässt keine Verstrahlung. Danach lädt der Satellit 45 Sekunden nach. Und den <b>Tarnturm</b> (ab 150K, Taste X): Er versteckt sich selbst und deine Gebäude ganz in seiner Nähe, meist nur zwei oder drei. Die anderen sehen sie erst, wenn ihr Land nahe herankommt; Verbündete sehen sie immer. Bei dir erscheinen versteckte Gebäude blasser.</li>' +
       '<li><b>Ausbauen:</b> Tippe auf eines deiner Gebäude, dann öffnet sich gleich die Ausbaukarte mit drei Knöpfen: eine Stufe, fünf Stufen oder so viele, wie dein Gold reicht. Alle Gebäude gehen bis Stufe 100. Jede Stufe kostet so viel wie ein weiteres Gebäude derselben Art (Stadt: 125K, 250K, 500K, danach je 1M) und bringt bei Städten +25K Truppen-Limit. </li>' +
       '<li><b>Eroberung:</b> Wer ein Reich ganz einnimmt, bekommt dessen Gold (bei Mitspielern die Hälfte) und dazu eine Prämie nach Landgrösse: 60 Gold für jedes Feld, das das Reich zu seiner grössten Zeit hatte. Bots bringen zusätzlich 25K. Die Summe steht in der Spieler-Info.</li>' +
       '<li><b>Maus:</b> Ein einfacher Klick schaut sich nur um (Karte ziehen). Ein Doppelklick greift an, der Rechtsklick öffnet das Kreismenü. Fährst du über ein fremdes Reich, steht oben, was es hat.</li>' +
       '<li><b>Tippen (Handy):</b> Ein Tipp auf freies Land oder auf einen Bot greift sofort an. Bei Nationen und Mitspielern öffnet sich das Menü, dort musst du auf Angreifen tippen. Läuft dein Angriff auf sie schon, schickt jeder weitere Tipp auf ihr Land sofort mehr Truppen. Lange drücken öffnet das Menü überall.</li>' +
       '<li><b>Karte:</b> Ziehen verschiebt, zwei Finger oder das Mausrad zoomen.</li>' +
       '</ul><h2 class="h3">Tastenkürzel</h2><p>Die Belegung ist die von OpenFront.</p><div class="keys">' +
-      BUILD.map(function (b) { return '<span><kbd>' + b.key.toUpperCase() + '</kbd>' + plain(b.t) + (b.t === UT.LASER ? ' (Arsenal)' : '') + '</span>'; }).join('') +
+      BUILD.map(function (b) { return '<span><kbd>' + b.key.toUpperCase() + '</kbd>' + plain(b.t) + (armory(b.t) ? ' (Arsenal)' : '') + '</span>'; }).join('') +
       '<span><kbd>G</kbd>Angreifen</span><span><kbd>B</kbd>Boot schicken</span><span><kbd>T</kbd><kbd>Y</kbd>Truppenanteil −/+ 10 %</span><span>Rechts ziehen: Stoss vom Start zum Ziel</span><span><kbd>F</kbd>Keil oder Abschnitt</span><span>Mausrad beim Ziehen: Truppenanteil</span><span>Klick auf einen Pfeil: verstärken oder zurückziehen</span>' +
       '<span><kbd>K</kbd>Allianz anfragen</span><span><kbd>L</kbd>Allianz brechen</span><span><kbd>I</kbd>Spieler-Info</span>' +
       '<span><kbd>Q</kbd><kbd>E</kbd>Zoom −/+</span><span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>Karte schieben</span><span><kbd>C</kbd>Zum eigenen Gebiet</span>' +
@@ -8458,9 +8561,9 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     if (!h.alive || game.phase !== 'play') { el.hidden = true; return; }
     el.hidden = false;
     const rich = game.opts.infiniteGold;
-    const cells = BUILD.filter(function (b) { return b.t !== UT.LASER || game.opts.arsenal; }).map(function (b) {
+    const cells = BUILD.filter(function (b) { return !armory(b.t) || game.opts.arsenal; }).map(function (b) {
       const cost = game.cost(h, b.t), wait = b.t === UT.LASER ? Math.ceil(((h.laserAt || 0) - game.ticks) / 10) : 0;
-      const have = b.t === UT.WARSHIP ? h.units.filter(function (u) { return u.type === UT.WARSHIP; }).length : b.t <= UT.FACTORY ? h.units.filter(function (u) { return u.type === b.t; }).length : 0;
+      const have = b.t === UT.WARSHIP ? h.units.filter(function (u) { return u.type === UT.WARSHIP; }).length : b.t <= UT.CLOAK ? h.units.filter(function (u) { return u.type === b.t; }).length : 0;
       return { b: b, cost: wait > 0 ? wait + ' s' : fmt(cost), poor: wait > 0 || (!rich && h.gold < cost), have: have, on: !!ghost && ghost.t === b.t };
     });
     const sig = cells.map(function (c) { return c.cost + (c.poor ? '!' : '') + c.have + (c.on ? '*' : ''); }).join('|');
@@ -8558,8 +8661,8 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     let s = '<div class="who"><span class="dot big" style="background:' + p.css + '"></span><div><h2>' + (p.flag ? G.flagOf(p.flag) + ' ' : '') + esc(p.name) + '</h2><p>' + kind + '</p></div></div>';
     s += '<div class="facts">' + fact('Truppen', fmtT(p.troops)) + fact('Gold', me && game.opts.infiniteGold ? '∞' : fmt(p.gold)) + fact('Gebiet', (p.tiles / den * 100).toFixed(1) + ' %') + '</div>';
     if (!me && p.alive) s += '<p class="notes">Eroberung bringt ' + fmt(Math.floor(p.type === PT.HUMAN ? p.gold / 2 : p.gold) + game.bounty(p)) + ' Gold (sein Gold und die Prämie für ' + G.fmt(Math.max(p.peak, p.tiles)) + ' Felder).</p>';
-    s += '<div class="facts six">' + fact('Städte', p.cnt[UT.CITY]) + fact('Häfen', p.cnt[UT.PORT]) + fact('Fabriken', p.cnt[UT.FACTORY]) +
-      fact('Posten', p.cnt[UT.DEFENSE]) + fact('Silos', p.cnt[UT.SILO]) + fact('Abwehr', p.cnt[UT.SAM]) + '</div>';
+    s += '<div class="facts six">' + fact('Städte', seen(p, UT.CITY)) + fact('Häfen', seen(p, UT.PORT)) + fact('Fabriken', seen(p, UT.FACTORY)) +
+      fact('Posten', seen(p, UT.DEFENSE)) + fact('Silos', seen(p, UT.SILO)) + fact('Abwehr', seen(p, UT.SAM)) + '</div>';
     const notes = [];
     if (al) notes.push('Verbündet, noch ' + clock((al.end - T) / 10));
     if (p.traitorUntil > T) notes.push('Verräter, noch ' + Math.ceil((p.traitorUntil - T) / 10) + ' s leichter zu erobern');
@@ -8729,7 +8832,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
       html += '<div class="scard"><div class="shead"><span class="ic big">' + svg(BUILD.find(function (b) { return b.t === near.type; }).icon, 30) + '</span>' +
         '<div class="sinfo"><b>' + G.UNAME[near.type] + ' · Stufe ' + near.level + (top > 10 ? ' von ' + top : '') + '</b>' + bar +
         '<small>Jetzt: ' + levelText(near.type, near.level) + '</small>' +
-        (max ? '<small>Höchste Stufe erreicht</small>' : '<small class="next">Stufe ' + (near.level + 1) + ': ' + levelText(near.type, near.level + 1) + '</small>') + '</div></div>' + btns + '</div>';
+        (max ? '<small>' + (top === 1 ? 'Hat keine Stufen' : 'Höchste Stufe erreicht') + '</small>' : '<small class="next">Stufe ' + (near.level + 1) + ': ' + levelText(near.type, near.level + 1) + '</small>') + '</div></div>' + btns + '</div>';
     }
     const cell = function (b) {
       const nuke = b.t >= UT.ATOM;
@@ -8750,8 +8853,8 @@ globalThis.G = { VARIANT: 'rohstoffe' };
       return '<button class="item' + (nuke ? ' nuke' : '') + (!game.opts.infiniteGold && h.gold < cost ? ' poor' : '') + '" type="button" data-t="' + b.t + '"' + (ok ? '' : ' disabled') + '><kbd>' + b.key.toUpperCase() + '</kbd>' + (have ? '<i class="own">' + have + '</i>' : '') +
         '<span class="ic">' + svg(b.icon, 24) + '</span><b>' + G.UNAME[b.t] + '</b><small>' + esc(note) + '</small>' + coin(cost) + '</button>';
     };
-    html += '<h3>Gebäude</h3><div class="grid">' + BUILD.filter(function (b) { return b.t <= UT.FACTORY; }).map(cell).join('') + '</div>';
-    html += '<h3>Flotte und Raketen</h3><div class="grid">' + BUILD.filter(function (b) { return b.t > UT.FACTORY && (b.t !== UT.LASER || game.opts.arsenal); }).map(cell).join('') + '</div>';
+    html += '<h3>Gebäude</h3><div class="grid">' + BUILD.filter(function (b) { return b.t <= UT.CLOAK && (!armory(b.t) || game.opts.arsenal); }).map(cell).join('') + '</div>';
+    html += '<h3>Flotte und Raketen</h3><div class="grid">' + BUILD.filter(function (b) { return b.t > UT.CLOAK && (!armory(b.t) || game.opts.arsenal); }).map(cell).join('') + '</div>';
     $('sheetBody').innerHTML = html;
     $('purse').innerHTML = svg('gold', 15) + (game.opts.infiniteGold ? '∞' : fmt(h.gold));
     $('sheet').hidden = false; sheetAt = performance.now();
@@ -8760,7 +8863,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   }
   // Build at a tile, or start aiming a bomb at it. Used by the menu and by the keys.
   function doBuild(t, tile) {
-    if (t === UT.LASER && !game.opts.arsenal) { toast('Den Satellitenstrahl gibt es nur im Arsenal-Modus'); snd('deny'); return; }
+    if (armory(t) && !game.opts.arsenal) { toast('Den ' + plain(t) + ' gibt es nur im Arsenal-Modus'); snd('deny'); return; }
     if (t === UT.LASER) { startAim(t, tile); return; }
     if (t >= UT.ATOM) {
       const h = game.human, s = game.readySilo(h, tile);
@@ -8895,7 +8998,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   }
   // The player's own finished building of the kind being placed, if the pointer is on it.
   function ghostUpgrade(tile) {
-    if (!ghost || ghost.t > UT.FACTORY) return null;
+    if (!ghost || ghost.t > UT.CLOAK) return null;
     const u = game.structNear(tile, 3);
     return u && u.owner === game.human && u.built && u.type === ghost.t ? u : null;
   }
@@ -9016,7 +9119,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     let s = '<div class="pkTop"><i style="background:' + q.css + '"></i><b>' + (q.flag ? G.flagOf(q.flag) + ' ' : '') + esc(q.name) + '</b><em class="' + cls + '">' + tag + '</em></div>' +
       '<div class="pkNum"><span>' + svg('troops', 14) + fmtT(q.troops) + '</span><span class="gold">' + svg('gold', 14) + fmt(q.gold) + '</span><span>' + (q.tiles / den * 100).toFixed(1) + '% Land</span></div><div class="pkHas">';
     let any = false;
-    for (const e of PEEK) { const n = q.cnt[e[0]]; if (n > 0) { any = true; s += '<span title="' + G.UNAME[e[0]].replace('\u00AD', '') + '">' + svg(e[1], 15) + n + '</span>'; } }
+    for (const e of PEEK) { const n = seen(q, e[0]); if (n > 0) { any = true; s += '<span title="' + G.UNAME[e[0]].replace('\u00AD', '') + '">' + svg(e[1], 15) + n + '</span>'; } }
     if (!any) s += '<span class="none">keine Gebäude</span>';
     s += '</div>';
     if (el.dataset.html !== s) { el.innerHTML = s; el.dataset.html = s; }
@@ -9558,7 +9661,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
       if (item) {
         // the key only shows the building or bomb at the pointer; the click places it (same key again: put it away)
         if (open) closeBuild();
-        if (item.t === UT.LASER && !game.opts.arsenal) { toast('Den Satellitenstrahl gibt es nur im Arsenal-Modus'); snd('deny'); return; }
+        if (armory(item.t) && !game.opts.arsenal) { toast('Den ' + plain(item.t) + ' gibt es nur im Arsenal-Modus'); snd('deny'); return; }
         setGhost(ghost && ghost.t === item.t ? null : item.t);
         snd('ui');
         return;

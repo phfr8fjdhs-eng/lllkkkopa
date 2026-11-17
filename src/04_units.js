@@ -2,14 +2,14 @@
   'use strict';
   const Math = G.M;   // same results on every device, see 00_util.js
   const Game = G.Game, UT = G.UT, PT = G.PT, fmt = G.fmt;
-  const BUILD_TICKS = [20, 50, 50, 100, 300, 20];   // city, defence post, port, silo, air defence, factory
+  const BUILD_TICKS = [20, 50, 50, 100, 300, 20, 60];   // city, defence post, port, silo, air defence, factory, cloaking tower
   G.BUILD_TICKS = BUILD_TICKS;
   G.WARSHIP_CAPTURE = false;
   G.MAX_LEVEL = 100;
   G.SILO_RELOAD = 270;   // ticks a silo slot needs to reload after a launch (27 s, 3x OpenFront's 9 s)
   G.CITY_MAX_LEVEL = 100;
-  // Every building can be upgraded up to level 100.
-  G.maxLevel = function (type) { return G.MAX_LEVEL; };
+  // Every building but the cloaking tower can be upgraded up to level 100.
+  G.maxLevel = function (type) { return type === UT.CLOAK ? 1 : G.MAX_LEVEL; };   // the cloaking tower has no levels: its reach stays small
 
   // Price of the next one of a kind. As in OpenFront every level of a building counts like a
   // building of its own, so an upgrade costs what the next new one would (cities: 125K, 250K,
@@ -23,6 +23,7 @@
       case UT.DEFENSE: return Math.min(250000, (c + 1) * 50000);
       case UT.SILO: return 3e6;   // 3x OpenFront (1M), deliberate
       case UT.SAM: return Math.min(3e6, (c + 1) * 1.5e6);
+      case UT.CLOAK: return Math.min(500000, 150000 + c * 100000);   // Arsenal mode only, ours
       case UT.WARSHIP: return Math.min(1e6, (c + 1) * 250000);
       case UT.ATOM: return 750000;
       case UT.CRUISE: return 350000;
@@ -41,7 +42,8 @@
   Game.prototype.setPos = function (u, tile) { u.tile = tile; u.x = tile % this.W; u.y = (tile / this.W) | 0; };
   Game.prototype.addUnit = function (u) {
     this.units.push(u); u.owner.units.push(u); u.owner.cnt[u.type] += u.level;
-    if (u.type <= UT.FACTORY) this.structAt.set(u.tile, u);
+    if (u.type <= UT.CLOAK) this.cloakOk = false;
+    if (u.type <= UT.CLOAK) this.structAt.set(u.tile, u);
     else if (u.type === UT.TRANSPORT) u.owner.boats++;
     else if (u.type === UT.TRADE) this.tradeCount++;
     else if (u.type >= UT.ATOM) this.nukes.push(u);
@@ -53,8 +55,8 @@
     const o = u.owner, i = o.units.indexOf(u);
     if (i >= 0) o.units.splice(i, 1);
     o.cnt[u.type] -= u.level;
-    if (u.type <= UT.FACTORY) {
-      this.structAt.delete(u.tile);
+    if (u.type <= UT.CLOAK) {
+      this.structAt.delete(u.tile); this.cloakOk = false;
       if (u.built) {
         if (u.type === UT.CITY) o.cityLv -= u.level;
         else if (u.type === UT.DEFENSE) { this.refreshPosts(o); this.dirtyDisc(u.tile); }
@@ -67,6 +69,7 @@
   Game.prototype.captureUnit = function (u, np) {
     const o = u.owner;
     if (o === np) return;
+    this.cloakOk = false;
     if (!u.built) { this.removeUnit(u); return; }
     // A defence post falls with the ground it stands on: as in OpenFront it is torn down, not
     // taken over (every other building changes hands).
@@ -86,6 +89,58 @@
     if (o === this.human) this.say(G.UNAME[u.type] + ' an ' + np.name + ' verloren', 'bad');
     else if (np === this.human) this.say(G.UNAME[u.type] + ' von ' + o.name + ' erobert', 'good');
   };
+  // ---------- cloaking tower (Arsenal mode) ----------
+  G.CLOAK_COVER = 3;   // buildings a cloaking tower hides besides itself
+  // A finished cloaking tower hides itself and up to G.CLOAK_COVER of its owner's nearest buildings
+  // within R.cloak from everyone but the owner and the owner's allies. A hidden building shows up for a player once
+  // that player holds land within R.reveal of it. Derived from the state alone, so the same on
+  // every device; bots and nations only aim at what they can see.
+  Game.prototype.cloakScan = function () {
+    if (this.cloakOk) return;   // reset whenever a building comes, goes, changes hands or is finished
+    this.cloakOk = true;
+    const r2 = this.R.cloak * this.R.cloak;
+    for (const u of this.structAt.values()) u.cloak = false;
+    for (const c of this.structAt.values()) {
+      if (c.type !== UT.CLOAK || !c.built) continue;
+      // itself and the G.CLOAK_COVER nearest of its owner's buildings in reach (ties: older first)
+      c.cloak = true;
+      const near = [];
+      for (const u of c.owner.units) {
+        if (u === c || !G.isStruct(u.type)) continue;
+        const dx = u.x - c.x, dy = u.y - c.y, d2 = dx * dx + dy * dy;
+        if (d2 <= r2) near.push({ u: u, d2: d2 });
+      }
+      near.sort(function (a, b) { return a.d2 - b.d2 || a.u.id - b.u.id; });
+      for (let i = 0; i < near.length && i < G.CLOAK_COVER; i++) near[i].u.cloak = true;
+    }
+  };
+  // Does player p hold land within r tiles of (cx, cy)?
+  Game.prototype.holdsNear = function (p, cx, cy, r) {
+    const W = this.W, H = this.H, own = this.owner, id = p.id, r2 = r * r;
+    if (cx + r < p.x0 || cx - r > p.x1 || cy + r < p.y0 || cy - r > p.y1) return false;
+    for (let y = Math.max(0, cy - r, p.y0); y <= Math.min(H - 1, cy + r, p.y1); y++) {
+      const dy = (y - cy) * (y - cy);
+      for (let x = Math.max(0, cx - r, p.x0); x <= Math.min(W - 1, cx + r, p.x1); x++) {
+        if ((x - cx) * (x - cx) + dy <= r2 && own[y * W + x] === id) return true;
+      }
+    }
+    return false;
+  };
+  // Is building u hidden from player p?
+  Game.prototype.hiddenFrom = function (u, p) {
+    if (!p || u.owner === p || !G.isStruct(u.type)) return false;
+    this.cloakScan();
+    if (!u.cloak || this.friendly(u.owner, p)) return false;
+    return !this.holdsNear(p, u.x, u.y, this.R.reveal);
+  };
+
+  // How many levels of a kind of building player `viewer` can see at player q.
+  Game.prototype.seenCount = function (viewer, q, type) {
+    if (!viewer || this.friendly(q, viewer)) return q.cnt[type];
+    let n = 0;
+    for (const u of q.units) if (u.type === type && !this.hiddenFrom(u, viewer)) n += u.level;
+    return n;
+  };
   Game.prototype.refreshPosts = function (p) {
     p.dposts = p.units.filter(function (u) { return u.type === UT.DEFENSE && u.built; });
   };
@@ -98,6 +153,7 @@
     }
   };
   Game.prototype.finishBuild = function (u) {
+    this.cloakOk = false;
     u.built = true;
     const p = u.owner;
     if (u.type === UT.CITY) p.cityLv += u.level;
@@ -195,7 +251,8 @@
     const res = { ok: false, why: '', cost: this.cost(p, type), tile: tile, port: null, silo: null };
     const map = this.map, W = this.W;
     if (!p.alive || this.phase !== 'play') { res.why = 'Nicht möglich'; return res; }
-    if (type <= UT.FACTORY) {
+    if (type <= UT.CLOAK) {
+      if (type === UT.CLOAK && !this.opts.arsenal) { res.why = 'Nur im Arsenal-Modus'; return res; }
       if (this.owner[tile] !== p.id) { res.why = 'Nur auf eigenem Gebiet'; return res; }
       if (type === UT.PORT) {
         const t = this.portSite(p, tile);
@@ -243,7 +300,7 @@
     if (!c.ok) return null;
     p.gold -= c.cost;
     let u;
-    if (type <= UT.FACTORY) {
+    if (type <= UT.CLOAK) {
       u = this.newUnit(type, p, c.tile);
       u.built = false; u.buildStart = this.ticks;
       u.buildEnd = this.ticks + (this.opts.instantBuild ? 0 : BUILD_TICKS[type]);
@@ -264,7 +321,7 @@
   };
 
   Game.prototype.canUpgrade = function (p, u) {
-    return !!u && u.active && u.owner === p && u.built && u.type <= UT.FACTORY && u.level < G.maxLevel(u.type);
+    return !!u && u.active && u.owner === p && u.built && u.type <= UT.CLOAK && u.level < G.maxLevel(u.type);
   };
   Game.prototype.upgrade = function (p, u) {
     if (!this.canUpgrade(p, u)) return false;
@@ -987,7 +1044,7 @@
     if (type !== undefined && !G.canIntercept(type)) return out;
     const f = type === UT.CRUISE ? G.CRUISE_RANGE : 1;
     for (const u of this.structAt.values()) {
-      if (u.type !== UT.SAM || !u.built || u.owner === p || this.friendly(u.owner, p)) continue;
+      if (u.type !== UT.SAM || !u.built || u.owner === p || this.friendly(u.owner, p) || this.hiddenFrom(u, p)) continue;   // a hidden one is a surprise
       const sr = this.samRange(u) * f, r2 = sr * sr;
       for (let i = 0; i <= 40; i++) {
         const x = sx + (dx - sx) * i / 40, y = sy + (dy - sy) * i / 40;
@@ -999,7 +1056,7 @@
 
   Game.prototype.tickUnit = function (u) {
     const ty = u.type;
-    if (ty <= UT.FACTORY) {
+    if (ty <= UT.CLOAK) {
       if (!u.built) { if (this.ticks >= u.buildEnd) this.finishBuild(u); return; }
       if (ty === UT.PORT) this.tickPort(u);
       else if (ty === UT.SAM) this.tickSam(u);

@@ -1,6 +1,11 @@
 # Änderungsprotokoll
 Was seit dem 13.11.2026 geändert wurde und warum. Den heutigen Stand der Regeln beschreiben die anderen Dateien in `doku/`.
 
+## Tarnturm im Arsenal-Modus (17.11.2026)
+- **Wunsch des Besitzers:** ein Gebäude, das andere Gebäude unsichtbar macht; die anderen sehen sie erst, wenn sie nahe herankommen. Nicht zu teuer, Radius ganz klein (ein Turm soll etwa zwei, drei Gebäude decken), nur im Modus «Arsenal».
+- **Geändert:** neuer Gebäudetyp `UT.CLOAK` (Regeln in `doku/spielregeln.md`). Damit Gebäude weiterhin die kleinsten Nummern haben, stehen alle Typen ab Kriegsschiff eine Nummer weiter hinten (`G.isStruct`). Erst war die Grenze nur der Umkreis; dicht gebaut hätte ein Turm so 11 Gebäude versteckt, darum höchstens die 3 nächsten.
+- Neuer Test `node test/tarn.js`; `node test/det.js arsenal` prüft den Gleichlauf mit Tarntürmen.
+
 ## MIRV schwächer (17.11.2026)
 - **Warum:** Der Besitzer fand den MIRV viel zu stark: zu viele Sprengköpfe, und die ganze Armee des Ziels ist danach weg.
 - **Gemessen vorher:** Ein MIRV nahm 62–74 % des Landes und 99–100 % der Truppen (Welt, Nationen nach 4000 Ticks), mit 22–110 Sprengköpfen.

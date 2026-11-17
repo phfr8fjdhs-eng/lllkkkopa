@@ -15,7 +15,7 @@ const sharp = require('/opt/npm-tools/node_modules/sharp');
     const g = new G.Game(map, { seed: rich ? 11 : 5, bots: 120, difficulty: 1, spawnTicks: 30, infiniteGold: rich, instantBuild: rich, infiniteTroops: rich });
     g.setup({ name: 'Tester', color: [220, 60, 50] });
     const h = g.human, r = new G.RNG(42);
-    const stats = { strikes: 0, boats: 0, builds: new Int32Array(14), upgrades: 0, ally: 0, donate: 0, retreat: 0, nukes: 0, warmove: 0, fails: {} };
+    const stats = { strikes: 0, boats: 0, builds: new Int32Array(20), upgrades: 0, ally: 0, donate: 0, retreat: 0, nukes: 0, warmove: 0, fails: {} };
     // spawn somewhere free, twice, to test re-spawning
     for (let k = 0; k < 2; k++) { let t; do { t = r.int(0, g.N); } while (!g.canSpawnAt(t) || map.shore[t] !== 1 || g.portWater(t) < 0); if (!g.spawn(h, t)) throw new Error('spawn failed'); }
     const seen = [];

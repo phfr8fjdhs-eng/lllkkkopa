@@ -17,6 +17,7 @@
     atom: 'M12 2l2 3h-4zM9.5 5h5v2.5c2.6 1 4.5 3.6 4.5 6.6c0 3.9-3.1 7-7 7s-7-3.1-7-7c0-3 1.9-5.6 4.5-6.6z',
     hydro: 'M12 1l2.4 6.2l6.2-2.6l-2.6 6.2L24 12l-6 1.2l2.6 6.2l-6.2-2.6L12 23l-2.4-6.2l-6.2 2.6l2.6-6.2L0 12l6-1.2L3.4 4.6l6.2 2.6z',
     mirv: 'M4 20l2.5-13L9 20zM9.5 20L12 4l2.5 16zM15 20l2.5-13L20 20z',
+    cloak: 'M12 5.5c4.3 0 8 2.6 10 6.5c-.8 1.6-1.9 3-3.3 4.1l-2.6-2.6a4.4 4.4 0 0 0-5.6-5.6L8.3 5.7c1.2-.1 2.4-.2 3.7-.2zM2 12c.8-1.6 1.9-3 3.3-4.1l2.6 2.6a4.4 4.4 0 0 0 5.6 5.6l2.2 2.2c-1.2.4-2.4.6-3.7.6c-4.3 0-8-2.6-10-6.9zM3.2 4.6l1.4-1.4l16.2 16.2l-1.4 1.4z',
     sword: 'M21 3l-1.5 6L10 18.5L5.5 14L15 4.5zM3.5 13L5 11.5l7.5 7.5l-1.5 1.5zM5.2 16.6l2.2 2.2l-2.9 2.9l-2.2-2.2z',
     hammer: 'M13.5 2.5l8 8l-3.5 3.5l-8-8zM11.6 9.6l2.8 2.8L5.3 21.5a2 2 0 0 1-2.8-2.8z',
     info: 'M12 2.5a9.5 9.5 0 1 0 0 19a9.5 9.5 0 0 0 0-19zM12 4.3a7.7 7.7 0 1 1 0 15.4a7.7 7.7 0 0 1 0-15.4zM12 6.3a1.3 1.3 0 1 0 0 2.6a1.3 1.3 0 0 0 0-2.6zM11 10.5h2V18h-2z',
@@ -41,8 +42,14 @@
     copy: 'M8 3h11a2 2 0 0 1 2 2v11h-2V5H8zM5 7h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2z',
     target: 'M11 1h2v3.1a8 8 0 0 1 6.9 6.9H23v2h-3.1a8 8 0 0 1-6.9 6.9V23h-2v-3.1A8 8 0 0 1 4.1 13H1v-2h3.1A8 8 0 0 1 11 4.1zM12 6a6 6 0 1 0 0 12a6 6 0 0 0 0-12zM12 9.5a2.5 2.5 0 1 1 0 5a2.5 2.5 0 0 1 0-5z'
   };
-  const STRUCT_ICON = ['city', 'defense', 'port', 'silo', 'sam', 'factory'];
-  const STRUCT_RANK = [1, 5, 3, 0, 4, 2];     // which kind stands for a cluster seen from afar: silo, city, factory, port, air defence, post
+  const STRUCT_ICON = ['city', 'defense', 'port', 'silo', 'sam', 'factory', 'cloak'];
+  const STRUCT_RANK = [1, 5, 3, 0, 4, 2, 6];     // which kind stands for a cluster seen from afar: silo, city, factory, port, air defence, post, cloaking tower
+  // Is building u hidden from the player at this screen? Asked every frame, so kept for the tick.
+  function hid(g, u) {
+    if (u.hidT !== g.ticks) { u.hidT = g.ticks; u.hidV = g.hiddenFrom(u, g.human); }
+    return u.hidV;
+  }
+  G.hidFromMe = hid;
   const paths = {};
   function glyph(ctx, name, x, y, s) {
     const p = paths[name] || (paths[name] = new Path2D(ICON[name]));
@@ -590,7 +597,7 @@
   View.prototype.drawReach = function (ctx, g, z, ox, oy) {
     const h = g.human, cw = this.cw, ch = this.ch;
     for (const u of g.structAt.values()) {
-      if (!u.built || (u.type !== UT.DEFENSE && u.type !== UT.SAM)) continue;
+      if (!u.built || (u.type !== UT.DEFENSE && u.type !== UT.SAM) || hid(g, u)) continue;
       const own = h && (u.owner === h || h.allies.has(u.owner.id));
       const rad = u.type === UT.DEFENSE ? g.R.defense : g.samRange(u);
       const x = (u.x + 0.5) * z + ox, y = (u.y + 0.5) * z + oy, r = rad * z;
@@ -626,9 +633,10 @@
       this.aim = keep;
     } else if (rout) {
       telegraph(ctx, x, y, rin * z, rout * z, bad ? '200,208,216' : REL.aim, now);
-    } else if (t <= UT.FACTORY) {
-      // what the building would cover: a defence post its stretch of border, an air defence its sky
-      const reach = t === UT.DEFENSE ? R.defense : t === UT.SAM ? g.samRange({ level: 1 }) : 0;
+    } else if (t <= UT.CLOAK) {
+      // what the building would cover: a defence post its stretch of border, an air defence its sky,
+      // a cloaking tower the few buildings around it that it hides
+      const reach = t === UT.DEFENSE ? R.defense : t === UT.SAM ? g.samRange({ level: 1 }) : t === UT.CLOAK ? R.cloak : 0;
       if (reach && !bad) {
         ctx.beginPath(); ctx.arc(x, y, reach * z, 0, 6.2832);
         ctx.fillStyle = 'rgba(255,255,255,.07)'; ctx.fill();
@@ -660,7 +668,7 @@
     // a dark rim first, so the marker stands out on any colour of land
     ctx.beginPath(); ctx.arc(x, y, s / 2 + 3, 0, 6.2832);
     ctx.fillStyle = 'rgba(13,20,27,.85)'; ctx.fill();
-    shape(ctx, t <= UT.FACTORY ? t : UT.CITY, x, y, s / 2);
+    shape(ctx, t <= UT.CLOAK ? t : UT.CITY, x, y, s / 2);
     ctx.fillStyle = bad ? '#e02a20' : h.cssD; ctx.fill();
     ctx.lineWidth = 2; ctx.strokeStyle = bad ? '#ffd0cb' : '#fff'; ctx.stroke();
     ctx.fillStyle = '#fff';
@@ -725,6 +733,7 @@
     const mine = [], other = [];
     for (const e of rails) {
       if (e.x1 < x0 || e.x0 > x1 || e.y1 < y0 || e.y0 > y1) continue;
+      if (hid(g, e.a) || hid(g, e.b)) continue;   // a track would give a hidden station away
       const oa = e.a.owner, ob = e.b.owner;
       ((h && (oa === h || ob === h || h.allies.has(oa.id) || h.allies.has(ob.id))) ? mine : other).push(railGeo(e, W));
     }
@@ -779,6 +788,7 @@
     else if (type === UT.FACTORY) poly(ctx, x, y, r * 1.08, 6, 0);
     else if (type === UT.DEFENSE) poly(ctx, x, y, r * 1.04, 8, 0.3927);
     else if (type === UT.SAM) { const q = r * 0.88; ctx.rect(x - q, y - q, 2 * q, 2 * q); }
+    else if (type === UT.CLOAK) poly(ctx, x, y, r * 1.12, 4, 0);
     else poly(ctx, x, y + r * 0.2, r * 1.3, 3, -1.5708);
   }
   G.structShape = shape;
@@ -823,7 +833,7 @@
       bk.clear();
       for (const u of g.structAt.values()) {
         const x = (u.x + 0.5) * z + ox, y = (u.y + 0.5) * z + oy;
-        if (x < -s || y < -s || x > cw + s || y > ch + s) continue;
+        if (x < -s || y < -s || x > cw + s || y > ch + s || hid(g, u)) continue;
         const key = (u.owner.id * 4096 + ((y / cell) | 0)) * 4096 + ((x / cell) | 0);
         let e = bk.get(key);
         if (!e) { e = { n: 0, x: 0, y: 0, type: u.type, rank: 99, owner: u.owner }; bk.set(key, e); }
@@ -842,10 +852,15 @@
       }
       return;
     }
+    g.cloakScan();
     for (const u of g.structAt.values()) {
       const x = (u.x + 0.5) * z + ox, y = (u.y + 0.5) * z + oy;
-      if (x < -s || y < -s || x > cw + s || y > ch + s) continue;
+      if (x < -s || y < -s || x > cw + s || y > ch + s || hid(g, u)) continue;
+      // your own buildings under a cloaking tower are drawn faded, so you see that others do not see them
+      const veil = u.cloak && u.owner === h;
+      if (veil) ctx.globalAlpha = 0.55;
       structIcon(ctx, u.type, x, y, s, u.owner, u.owner === h, u.built, true);
+      if (veil) ctx.globalAlpha = 1;
       if (!u.built) {
         const k = within((T - u.buildStart) / Math.max(1, u.buildEnd - u.buildStart), 0, 1);
         ctx.beginPath(); ctx.arc(x, y, s / 2 + 4, -1.5708, -1.5708 + 6.2832 * k);
@@ -1149,7 +1164,7 @@
     ctx.lineJoin = 'round';
     for (let i = 0; i < us.length; i++) {
       const u = us[i], ty = u.type;
-      if (!u.active || ty <= UT.FACTORY) continue;
+      if (!u.active || ty <= UT.CLOAK) continue;
       if (ty >= UT.ATOM) { this.drawMissile(ctx, g, u, z, ox, oy, alpha, now); continue; }
       const sea = ty === UT.WARSHIP || ty === UT.TRANSPORT || ty === UT.TRADE;
       let x = ((sea ? u.vx : u.px + (u.x - u.px) * alpha) + 0.5) * z + ox, y = ((sea ? u.vy : u.py + (u.y - u.py) * alpha) + 0.5) * z + oy;
@@ -1211,6 +1226,7 @@
         ctx.fillStyle = p.css; ctx.fill();
         ctx.lineWidth = 1.6; ctx.strokeStyle = p.cssD; ctx.stroke();
       } else if (ty === UT.TRAIN) {
+        if (u.edge && (hid(g, u.edge.a) || hid(g, u.edge.b))) continue;
         if (z >= RAIL_FULL || (z >= RAIL_MIN && p === g.human)) this.drawTrain(ctx, g, u, z, ox, oy, alpha);
       } else if (ty === UT.TRADE) {
         // Hull in the owner's colour, cargo in a deep shade of it, dark edge: readable on any water.
@@ -1999,7 +2015,7 @@
   View.prototype.drawSamRings = function (ctx, g, z, ox, oy, now, only) {
     const h = g.human, hostile = [];
     for (const u of g.structAt.values()) {
-      if (u.type !== UT.SAM || !u.built) continue;
+      if (u.type !== UT.SAM || !u.built || hid(g, u)) continue;
       const rel = h && u.owner === h ? 'self' : h && h.allies.has(u.owner.id) ? 'ally' : 'enemy';
       if (rel === 'enemy') hostile.push(u);
       if (only && rel !== only) continue;

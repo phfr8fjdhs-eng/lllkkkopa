@@ -5,8 +5,10 @@ const fs = require('fs'), path = require('path');
 const src = path.join(__dirname, '..', 'src');
 for (const f of ['00_util.js', '01_map.js', '02_path.js', '03_game.js', '03b_posture.js', '04_units.js', '04b_rail.js', '05_ai.js']) require(path.join(src, f));
 const G = globalThis.G, UT = G.UT;
+// `node test/det.js arsenal`: the same with the Arsenal mode, cloaking towers included
+const ARS = process.argv[2] === 'arsenal';
 const seed = 4242, map = G.buildMap(480, 300, G.randomClassMap(480, 300, seed), seed, { id: 'zufall', name: 'Test', nations: [] });
-const make = () => { const g = new G.Game(map, { seed: 99, bots: 40, difficulty: 1, me: 0 }); g.setup([{ name: 'A' }, { name: 'B' }]); return g; };
+const make = () => { const g = new G.Game(map, { seed: 99, bots: 40, difficulty: 1, me: 0, arsenal: ARS }); g.setup([{ name: 'A' }, { name: 'B' }]); return g; };
 const a = make(), b = make();
 let r = 12345; const rnd = (n) => { r = (Math.imul(r, 1103515245) + 12345) >>> 0; return r % n; };
 const both = (id, c) => { const x = a.exec(id, c), y = b.exec(id, c); if (x !== y) throw new Error('order answered differently: ' + JSON.stringify(c) + ' ' + x + ' / ' + y); };
@@ -17,7 +19,7 @@ for (let i = 0; i < 4000; i++) {
   a.tick(); b.tick();
   a.dirtyN = b.dirtyN = 0; a.dirtyFlag.fill(0); b.dirtyFlag.fill(0); a.events.length = b.events.length = 0;
   // the interface of device B looks around; this must not change anything
-  for (let k = 0; k < 3; k++) { const t = rnd(map.N), h = b.players[1 + rnd(2)]; b.actionsAt(h, t); b.buildCheck(h, rnd(6), t); b.readySilo(h, t); b.samsOnPath(h, 1, 1, t % map.W, (t / map.W) | 0); }
+  for (let k = 0; k < 3; k++) { const t = rnd(map.N), h = b.players[1 + rnd(2)]; b.actionsAt(h, t); b.buildCheck(h, rnd(6), t); b.readySilo(h, t); b.samsOnPath(h, 1, 1, t % map.W, (t / map.W) | 0); for (const u of b.structAt.values()) b.hiddenFrom(u, h); b.seenCount(h, b.players[3 - h.id], UT.SAM); }
   if (i % 7 === 0) {
     const id = 1 + rnd(2), h = a.players[id];
     if (!h.alive) continue;
@@ -36,7 +38,7 @@ for (let i = 0; i < 4000; i++) {
       both(id, { k: 'strike', t: goal, r: 0.6, w: w });
       if (w) thrusts++;
     }
-    else if (kind < 8) both(id, { k: 'build', u: [UT.CITY, UT.SILO, UT.SAM, UT.FACTORY, UT.DEFENSE, UT.PORT][rnd(6)], t: t0 });
+    else if (kind < 8) both(id, { k: 'build', u: [UT.CITY, UT.SILO, UT.SAM, UT.FACTORY, UT.DEFENSE, UT.PORT, UT.CLOAK][rnd(ARS ? 7 : 6)], t: t0 });
     else if (kind < 9) both(id, { k: 'up', t: t0 });
     else { const foe = a.players[3 - id]; if (foe.alive && a.immuneUntil <= a.ticks) { const ft = Array.from(foe.border)[0]; both(id, { k: 'build', u: rnd(2) ? UT.CRUISE : UT.ATOM, t: ft }); cruise++; } }
   }
@@ -44,5 +46,5 @@ for (let i = 0; i < 4000; i++) {
 }
 let same = true;
 for (let t = 0; t < map.N; t++) if (a.owner[t] !== b.owner[t] || a.fallout[t] !== b.fallout[t]) { same = false; break; }
-console.log('orders', orders, 'thrusts', thrusts, 'missiles ordered', cruise, 'tiles A/B', a.players[1].tiles, a.players[2].tiles, 'fallout', a.falloutCount, 'identical map:', same, 'checksum differences:', diff);
+console.log(ARS ? 'arsenal' : 'klassisch', 'orders', orders, 'cloaking towers', a.units.filter((u) => u.active && u.type === UT.CLOAK).length, 'thrusts', thrusts, 'missiles ordered', cruise, 'tiles A/B', a.players[1].tiles, a.players[2].tiles, 'fallout', a.falloutCount, 'identical map:', same, 'checksum differences:', diff);
 process.exit(same && !diff ? 0 : 1);

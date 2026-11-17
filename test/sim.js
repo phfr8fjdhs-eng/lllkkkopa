@@ -35,7 +35,7 @@ function check(g) {
     }
     if (p.alive && b !== p.border.size) throw new Error('border size ' + b + ' vs ' + p.border.size + ' ' + p.name);
     for (const u of p.units) { if (!u.active) throw new Error('inactive unit listed'); if (u.owner !== p) throw new Error('unit owner'); }
-    const c = new Int32Array(16); for (const u of p.units) c[u.type] += u.level;
+    const c = new Int32Array(20); for (const u of p.units) c[u.type] += u.level;
     for (let k = 0; k < 16; k++) if (c[k] !== p.cnt[k]) throw new Error('unit count ' + k + ' ' + p.name + ' ' + c[k] + ' vs ' + p.cnt[k]);
   }
   for (const [t, u] of g.structAt) { if (!u.active) throw new Error('dead struct'); if (g.owner[t] !== u.owner.id) throw new Error('struct on foreign tile ' + G.UNAME[u.type] + ' ' + u.owner.name + ' built=' + u.built); }

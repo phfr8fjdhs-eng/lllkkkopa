@@ -4,9 +4,11 @@
   const within = G.within, fmt = G.fmt;
   const PT = G.PT = { HUMAN: 0, NATION: 1, BOT: 2 };
   const UT = G.UT = {
-    CITY: 0, DEFENSE: 1, PORT: 2, SILO: 3, SAM: 4, FACTORY: 5, WARSHIP: 6, TRANSPORT: 7, TRADE: 8,
-    TRAIN: 9, SHELL: 10, SAMM: 11, ATOM: 12, HYDRO: 13, MIRV: 14, WARHEAD: 15, CRUISE: 16, LASER: 17
+    CITY: 0, DEFENSE: 1, PORT: 2, SILO: 3, SAM: 4, FACTORY: 5, CLOAK: 6, WARSHIP: 7, TRANSPORT: 8, TRADE: 9,
+    TRAIN: 10, SHELL: 11, SAMM: 12, ATOM: 13, HYDRO: 14, MIRV: 15, WARHEAD: 16, CRUISE: 17, LASER: 18
   };
+  // Buildings are the kinds up to the cloaking tower; everything after them moves.
+  G.isStruct = function (type) { return type <= UT.CLOAK; };
   // Ground combat. An attack fights the defenders at its front, not the whole army:
   //   base      troops a tile costs even when nobody stands on it (what free land costs a person)
   //   exchange  attackers lost per defender standing on the tile, at even strength
@@ -30,7 +32,7 @@
 //   speed   how far the head of a thrust gets per tick at most, in way cost (open lowland: tiles), times attackPace
   //   search  most tiles the way-finding looks at before it gives up
   G.THRUST = { widths: [0, 30, 12], max: 4, pull: 1.2, ring: 0.6, speed: 1.4, flank: 1, search: 250000 };
-  G.UNAME = ['Stadt', 'Verteidigungs\u00ADposten', 'Hafen', 'Raketensilo', 'Flugabwehr', 'Fabrik', 'Kriegsschiff', 'Boot',
+  G.UNAME = ['Stadt', 'Verteidigungs\u00ADposten', 'Hafen', 'Raketensilo', 'Flugabwehr', 'Fabrik', 'Tarnturm', 'Kriegsschiff', 'Boot',
     'Handelsschiff', 'Zug', 'Granate', 'Abwehrrakete', 'Atombombe', 'Wasserstoff\u00ADbombe', 'MIRV', 'Sprengkopf', 'Marschflug\u00ADkörper', 'Satelliten\u00ADstrahl'];
   // Tempo. The numbers of the simulation are OpenFront's, but its maps have two million tiles and
   // ours are smaller (map.S is the scale of a side), so the same tiles per tick looked hectic:
@@ -131,6 +133,7 @@
       headIn: Math.max(4, Math.round(12 * S)), headOut: Math.max(6, Math.round(18 * S)),
       cruiseIn: Math.max(3, Math.round(7 * S)), cruiseOut: Math.max(5, Math.round(11 * S)),
       laserIn: Math.max(4, Math.round(10 * S)), laserOut: Math.max(6, Math.round(16 * S)),
+      cloak: Math.max(8, Math.round(26 * S)), reveal: Math.max(7, Math.round(22 * S)),
       sam: Math.round(70 * S), warTarget: Math.round(130 * S), warPatrol: Math.round(100 * S),
       mirvRange: Math.round(1500 * S), mirvCount: Math.max(8, Math.round(120 * S * S)),
       botDist: Math.max(10, Math.round(30 * S)), boatBox: Math.round(150 * S),

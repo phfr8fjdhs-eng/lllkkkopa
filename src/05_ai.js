@@ -183,6 +183,20 @@
     return -1;
   };
 
+  // An own inland tile free for a building, at most `reach` tiles from the given one.
+  AI.prototype.tileBeside = function (tile, reach) {
+    const g = this.g, p = this.p, W = g.W, H = g.H, r = g.rng, d = g.R.structDist;
+    const cx = tile % W, cy = (tile / W) | 0;
+    for (let i = 0; i < 30; i++) {
+      const a = r.next() * 6.2832, k = d + r.next() * Math.max(1, reach - d);
+      const x = Math.round(cx + Math.cos(a) * k), y = Math.round(cy + Math.sin(a) * k);
+      if (x < 0 || y < 0 || x >= W || y >= H) continue;
+      const t = y * W + x;
+      if (g.owner[t] === p.id && !p.border.has(t) && !g.structNear(t, d)) return t;
+    }
+    return -1;
+  };
+
   // ---------- building ----------
   AI.prototype.construct = function () {
     const g = this.g, p = this.p, r = g.rng, c = p.cnt, d = g.opts.difficulty;
@@ -217,6 +231,13 @@
     if (d >= 1 && c[UT.SAM] < 1 && c[UT.CITY] > 0 && can(UT.SAM, 1.2)) {
       const t = this.tileOf(p, true);
       if (t >= 0 && g.build(p, UT.SAM, t)) return;
+    }
+    // Arsenal mode: a cloaking tower right next to a silo or air defence that is still in plain sight
+    if (g.opts.arsenal && d >= 1 && c[UT.CLOAK] < d && can(UT.CLOAK, 2) && r.chance(3)) {
+      g.cloakScan();
+      const bare = p.units.filter(function (u) { return u.built && !u.cloak && (u.type === UT.SILO || u.type === UT.SAM); });
+      const t = bare.length ? this.tileBeside(r.pick(bare).tile, g.R.cloak * 0.8) : -1;
+      if (t >= 0 && g.build(p, UT.CLOAK, t)) return;
     }
     if (c[UT.PORT] >= 1 && c[UT.PORT] < 2 + d && c[UT.CITY] >= 2 && can(UT.PORT, 2) && r.chance(4)) {
       const t = this.coastTile();
@@ -269,7 +290,7 @@
     if (g.opts.difficulty < 1 || q.type === PT.BOT || g.friendly(p, q) || g.ticks < g.immuneUntil) return;
     if ((p.laserAt || 0) > g.ticks || p.gold < 900000 || !r.chance(3)) return;
     const cands = [];
-    for (const u of q.units) if (u.type <= UT.FACTORY && !this.nearOwn(u.tile, g.R.laserOut + 3)) cands.push(u.tile);
+    for (const u of q.units) if (u.type <= UT.CLOAK && !this.nearOwn(u.tile, g.R.laserOut + 3) && !g.hiddenFrom(u, this.p)) cands.push(u.tile);
     if (cands.length) g.build(p, UT.LASER, r.pick(cands));
   };
   // Whom to bomb: anybody who is not a bot or a friend, wherever they live (a bomb has no range).
@@ -315,7 +336,7 @@
     if (type < 0) return false;
     const rad = type === UT.HYDRO ? g.R.hydroOut : g.R.atomOut;
     const cands = [];
-    for (const u of q.units) if (u.type <= UT.FACTORY) cands.push(u.tile);
+    for (const u of q.units) if (u.type <= UT.CLOAK && !g.hiddenFrom(u, this.p)) cands.push(u.tile);
     for (let i = 0; i < 8; i++) { const t = this.tileOf(q, false); if (t >= 0) cands.push(t); }
     let best = -1, bs = -1;
     for (const t of cands) {
@@ -323,7 +344,7 @@
       const x = t % W, y = (t / W) | 0;
       let s = r.next();
       for (const u of q.units) {
-        if (u.type > UT.FACTORY) continue;
+        if (u.type > UT.CLOAK || g.hiddenFrom(u, p)) continue;
         if ((u.x - x) * (u.x - x) + (u.y - y) * (u.y - y) <= rad * rad) s += 1;
       }
       if (s > bs) { bs = s; best = t; }
