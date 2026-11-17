@@ -1259,7 +1259,12 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   //   depth     how many tiles behind the front the defenders count as facing the attack
   // OpenFront compares the attack with the defender's whole army and charges per tile whatever
   // stands there; see doku/openfront-abgleich.md.
-  G.COMBAT = { base: 16, exchange: 1, fMin: 0.7, fMax: 1.5, depth: 24 };
+  //   army      as in OpenFront: an attack much smaller than the defender's whole army pays more per
+  //             tile. Once the army is more than `armyFrom` times what is sent against it (all attacks
+  //             on that defender together), by the ratio beyond that, at most `army` times.
+  //             OpenFront: within(defender / attack, 0.6, 2); its discount below 1 is left out,
+  //             outnumbering is already rewarded at the spot.
+  G.COMBAT = { base: 16, exchange: 1, fMin: 0.7, fMax: 1.5, depth: 24, army: 2, armyFrom: 1.5 };
   // Thrusts: an attack aimed at a spot instead of the whole front.
   //   widths  lane width in tiles on the world map for mode 1 (section) and 2 (wedge); scaled by map.S
   //   max     thrusts a player can have under way at once
@@ -2113,7 +2118,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
       if (src < 0) this.refreshFront(at);
     }
     if (src >= 0) this.addFront(at, src);
-    at.troops += troops;
+    at.troops += troops; at.sum = (at.sum || 0) + troops;   // sum: all ever sent, for the display
     return at;
   };
   // A thrust whose lane has run out before the goal fell (someone else took the way, or the lane
@@ -2139,7 +2144,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   };
   Game.prototype.feedAttack = function (at, troops) {
     if (at.tid) troops = this.meetIncoming(at.a, this.players[at.tid], troops);
-    at.troops += troops;
+    at.troops += troops; at.sum = (at.sum || 0) + troops;
   };
 
   Game.prototype.endAttack = function (at, refund) {
@@ -2178,6 +2183,10 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     // than there are). `face` is that number for troops standing evenly; a tile in a denser or
     // thinner cell scales it.
     const CB = G.COMBAT, dAvg = t ? t.troops / Math.max(1, t.tiles) : 0;
+    // everything the attacker has under way against this defender, so several small clicks count
+    // like one big one against the whole army (see `army`)
+    let sent = 0;
+    if (t) for (const o of a.out) if (o.active && o.tid === tid) sent += o.troops;
     // A thrust also meets the defenders along its flanks: two sides as long as it has got deep
     // (tiles taken over the width of its lane). The deeper a wedge gets, the dearer it becomes.
     const flank = at.goal >= 0 ? G.THRUST.flank * 2 * (at.taken || 0) / Math.max(1, at.width) : 0;
@@ -2264,7 +2273,8 @@ globalThis.G = { VARIANT: 'rohstoffe' };
         // one for one at even strength, fewer for an attacker who outnumbers them there, more
         // for one who is outnumbered. Ground, posts and fallout weigh on all of it (`mag`).
         const dd = dAvg * pd;
-        loss = (CB.base + CB.exchange * dd * within(1 / Math.sqrt(Math.max(r, 0.01)), CB.fMin, CB.fMax)) * (mag / 80) * botMod * lossMod * traitor;
+        const army = within(t.troops / Math.max(1, sent) / CB.armyFrom, 1, CB.army);   // outnumbered by the whole army
+        loss = (CB.base + CB.exchange * dd * within(1 / Math.sqrt(Math.max(r, 0.01)), CB.fMin, CB.fMax)) * army * (mag / 80) * botMod * lossMod * traitor;
         used = within(1 / (5 * Math.max(r, 0.01)), 0.2, 1.5) * speed * speedMod * (easy ? 0.45 : 1);
         // the defender loses those who stood there; where they stand dense, part of them fall back
         // into the rest of the cell instead (`postKeep`)
@@ -3442,6 +3452,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   G.BUILD_TICKS = BUILD_TICKS;
   G.WARSHIP_CAPTURE = false;
   G.MAX_LEVEL = 100;
+  G.SILO_RELOAD = 270;   // ticks a silo slot needs to reload after a launch (27 s, 3x OpenFront's 9 s)
   G.CITY_MAX_LEVEL = 100;
   // Every building can be upgraded up to level 100.
   G.maxLevel = function (type) { return G.MAX_LEVEL; };
@@ -3456,7 +3467,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     switch (type) {
       case UT.CITY: case UT.PORT: case UT.FACTORY: return Math.min(1e6, Math.pow(2, c) * 125000);
       case UT.DEFENSE: return Math.min(250000, (c + 1) * 50000);
-      case UT.SILO: return 1e6;
+      case UT.SILO: return 3e6;   // 3x OpenFront (1M), deliberate
       case UT.SAM: return Math.min(3e6, (c + 1) * 1.5e6);
       case UT.WARSHIP: return Math.min(1e6, (c + 1) * 250000);
       case UT.ATOM: return 750000;
@@ -4196,7 +4207,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   };
   Game.prototype.launch = function (p, type, silo, tile) {
     const T = this.ticks, W = this.W;
-    for (let i = 0; i < silo.ready.length; i++) if (silo.ready[i] <= T) { silo.ready[i] = T + 90; break; }
+    for (let i = 0; i < silo.ready.length; i++) if (silo.ready[i] <= T) { silo.ready[i] = T + G.SILO_RELOAD; break; }
     const u = this.newUnit(type, p, silo.tile);
     u.dst = tile; u.sx = u.x; u.sy = u.y; u.dx = tile % W; u.dy = (tile / W) | 0;
     u.dist = Math.max(1, Math.hypot(u.dx - u.sx, u.dy - u.sy));
@@ -6907,7 +6918,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
       if (!p.alive) continue;
       if (!leader || p.tiles > leader.tiles) leader = p;
       if (!p.nameSize) continue;
-      const fs = p.nameSize * z, min = p === h ? 0 : p.type === PT.BOT ? 13 : p.type === PT.NATION ? 10.5 : 9;
+      const fs = p.nameSize * z, min = p === h || (h && h.allies.has(p.id)) ? 0 : p.type === PT.BOT ? 13 : p.type === PT.NATION ? 10.5 : 9;
       if (fs < min) continue;
       const x = p.nameX * z + ox, y = p.nameY * z + oy;
       if (x < -160 || y < -40 || x > cw + 160 || y > ch + 40) continue;
@@ -6926,13 +6937,17 @@ globalThis.G = { VARIANT: 'rohstoffe' };
       const x = p.nameX * z + ox, y = p.nameY * z + oy;
       let label = p.name;
       if (p === leader && fs >= 10 && g.phase === 'play') label = '♛ ' + label;
-      if (h && p !== h && h.allies.has(p.id)) label += ' ✓';
+      if (h && p !== h && h.allies.has(p.id)) {
+        // allied: the tick and how long the alliance still lasts (m:ss), right at the name
+        const left = Math.max(0, Math.ceil((h.allies.get(p.id).end - T) / 10));
+        label += ' ✓ ' + ((left / 60) | 0) + ':' + String(left % 60).padStart(2, '0');
+      }
       if (p.traitorUntil > T) label += ' !';
       ctx.font = '700 ' + fs.toFixed(1) + 'px ' + FONT;
       const hw = ctx.measureText(label).width / 2 + 2, top = y - fs * 0.95, bot = y + fs * 0.95;
       let hit = false;
       for (let k = 0; k < boxes.length; k += 4) if (x - hw < boxes[k + 2] && x + hw > boxes[k] && top < boxes[k + 3] && bot > boxes[k + 1]) { hit = true; break; }
-      if (hit && p !== h) continue;
+      if (hit && p !== h && !(h && h.allies.has(p.id))) continue;
       boxes.push(x - hw, top, x + hw, bot); drawn++;
       const person = p.type === PT.HUMAN;
       ctx.lineWidth = Math.max(2, fs / 5.5);
@@ -8326,7 +8341,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
         put('o' + a.id, 'info', 'Angriff auf ' + (a.tid ? game.players[a.tid].name : 'freies Land') + ' · ' + fmtT(a.troops) + (a.want >= 1 ? ' · +' + fmtT(a.want) + ' unterwegs' : ''), function () { act({ k: 'ret', a: a.id }); });
       }
       const inc = h.inc.slice().sort(function (a, b) { return b.troops - a.troops; });
-      for (let i = 0; i < inc.length && i < 3; i++) put('i' + inc[i].id, 'bad', inc[i].a.name + ' greift an · ' + fmtT(inc[i].troops), null);
+      for (let i = 0; i < inc.length && i < 3; i++) put('i' + inc[i].id, 'bad', inc[i].a.name + ' greift an · ' + fmtT(inc[i].troops) + (inc[i].sum > inc[i].troops * 1.2 ? ' (von ' + fmtT(inc[i].sum) + ')' : ''), null);
       if (inc.length > 3) put('more', 'bad', '+' + (inc.length - 3) + ' weitere Angriffe', null);
       for (const u of h.units) {
         if (u.type !== UT.TRANSPORT) continue;

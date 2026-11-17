@@ -683,7 +683,7 @@
         put('o' + a.id, 'info', 'Angriff auf ' + (a.tid ? game.players[a.tid].name : 'freies Land') + ' · ' + fmtT(a.troops) + (a.want >= 1 ? ' · +' + fmtT(a.want) + ' unterwegs' : ''), function () { act({ k: 'ret', a: a.id }); });
       }
       const inc = h.inc.slice().sort(function (a, b) { return b.troops - a.troops; });
-      for (let i = 0; i < inc.length && i < 3; i++) put('i' + inc[i].id, 'bad', inc[i].a.name + ' greift an · ' + fmtT(inc[i].troops), null);
+      for (let i = 0; i < inc.length && i < 3; i++) put('i' + inc[i].id, 'bad', inc[i].a.name + ' greift an · ' + fmtT(inc[i].troops) + (inc[i].sum > inc[i].troops * 1.2 ? ' (von ' + fmtT(inc[i].sum) + ')' : ''), null);
       if (inc.length > 3) put('more', 'bad', '+' + (inc.length - 3) + ' weitere Angriffe', null);
       for (const u of h.units) {
         if (u.type !== UT.TRANSPORT) continue;

@@ -14,7 +14,12 @@
   //   depth     how many tiles behind the front the defenders count as facing the attack
   // OpenFront compares the attack with the defender's whole army and charges per tile whatever
   // stands there; see doku/openfront-abgleich.md.
-  G.COMBAT = { base: 16, exchange: 1, fMin: 0.7, fMax: 1.5, depth: 24 };
+  //   army      as in OpenFront: an attack much smaller than the defender's whole army pays more per
+  //             tile. Once the army is more than `armyFrom` times what is sent against it (all attacks
+  //             on that defender together), by the ratio beyond that, at most `army` times.
+  //             OpenFront: within(defender / attack, 0.6, 2); its discount below 1 is left out,
+  //             outnumbering is already rewarded at the spot.
+  G.COMBAT = { base: 16, exchange: 1, fMin: 0.7, fMax: 1.5, depth: 24, army: 2, armyFrom: 1.5 };
   // Thrusts: an attack aimed at a spot instead of the whole front.
   //   widths  lane width in tiles on the world map for mode 1 (section) and 2 (wedge); scaled by map.S
   //   max     thrusts a player can have under way at once
@@ -868,7 +873,7 @@
       if (src < 0) this.refreshFront(at);
     }
     if (src >= 0) this.addFront(at, src);
-    at.troops += troops;
+    at.troops += troops; at.sum = (at.sum || 0) + troops;   // sum: all ever sent, for the display
     return at;
   };
   // A thrust whose lane has run out before the goal fell (someone else took the way, or the lane
@@ -894,7 +899,7 @@
   };
   Game.prototype.feedAttack = function (at, troops) {
     if (at.tid) troops = this.meetIncoming(at.a, this.players[at.tid], troops);
-    at.troops += troops;
+    at.troops += troops; at.sum = (at.sum || 0) + troops;
   };
 
   Game.prototype.endAttack = function (at, refund) {
@@ -933,6 +938,10 @@
     // than there are). `face` is that number for troops standing evenly; a tile in a denser or
     // thinner cell scales it.
     const CB = G.COMBAT, dAvg = t ? t.troops / Math.max(1, t.tiles) : 0;
+    // everything the attacker has under way against this defender, so several small clicks count
+    // like one big one against the whole army (see `army`)
+    let sent = 0;
+    if (t) for (const o of a.out) if (o.active && o.tid === tid) sent += o.troops;
     // A thrust also meets the defenders along its flanks: two sides as long as it has got deep
     // (tiles taken over the width of its lane). The deeper a wedge gets, the dearer it becomes.
     const flank = at.goal >= 0 ? G.THRUST.flank * 2 * (at.taken || 0) / Math.max(1, at.width) : 0;
@@ -1019,7 +1028,8 @@
         // one for one at even strength, fewer for an attacker who outnumbers them there, more
         // for one who is outnumbered. Ground, posts and fallout weigh on all of it (`mag`).
         const dd = dAvg * pd;
-        loss = (CB.base + CB.exchange * dd * within(1 / Math.sqrt(Math.max(r, 0.01)), CB.fMin, CB.fMax)) * (mag / 80) * botMod * lossMod * traitor;
+        const army = within(t.troops / Math.max(1, sent) / CB.armyFrom, 1, CB.army);   // outnumbered by the whole army
+        loss = (CB.base + CB.exchange * dd * within(1 / Math.sqrt(Math.max(r, 0.01)), CB.fMin, CB.fMax)) * army * (mag / 80) * botMod * lossMod * traitor;
         used = within(1 / (5 * Math.max(r, 0.01)), 0.2, 1.5) * speed * speedMod * (easy ? 0.45 : 1);
         // the defender loses those who stood there; where they stand dense, part of them fall back
         // into the rest of the cell instead (`postKeep`)

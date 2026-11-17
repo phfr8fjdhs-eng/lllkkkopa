@@ -1,6 +1,19 @@
 # Änderungsprotokoll
 Was seit dem 13.11.2026 geändert wurde und warum. Den heutigen Stand der Regeln beschreiben die anderen Dateien in `doku/`.
 
+## Kleine Angriffe gegen grosse Armeen schwächer, Anzeige der Angriffsstärke (17.11.2026)
+- **Warum:** Der Besitzer hatte den Eindruck, dass ein Angriff mit 5K gegen seine 30K locker durchkommt und viel Land nimmt.
+- **Gemessen:** Ein einzelner Angriff mit 5K gegen 30K nahm vorher 4–9 % des Landes (mehr bei dünn besetzter Grenze), nicht ein Drittel. Was täuschte: Die Zahl bei «… greift an» ist, was vom Angriff noch übrig ist. In einem Testspiel griff die Türkei mit 158K an; angezeigt waren im Schnitt nur 68K.
+- **Geändert:** Wie in OpenFront kostet ein Angriff, der viel kleiner ist als die ganze Armee des Verteidigers, mehr pro Feld (`G.COMBAT.army`, siehe `doku/openfront-abgleich.md`). Jetzt nehmen 5K gegen 30K 2–5 %. Alle anderen Kampf-Szenarien bleiben wie vorher.
+- **Anzeige:** Beim Angriff auf dich steht jetzt auch, wie viele Truppen insgesamt geschickt wurden, z. B. «Türkei greift an · 68K (von 158K)».
+- Neue Szenarien «schwach» in `test/kampf.js` (auch Nation gegen Mensch und mit dünner Grenze).
+
+## Restdauer der Allianz beim Namen (17.11.2026)
+Bei verbündeten Ländern steht hinter dem Namen auf der Karte, wie lange die Allianz noch läuft (z. B. «✓ 4:32»). Wunsch des Besitzers.
+
+## Raketensilo teurer und langsamer (17.11.2026)
+Ein Raketensilo kostet 3M statt 1M, jede Stufe ebenso. Nach jedem Abschuss lädt der Platz 27 s statt 9 s nach (`G.SILO_RELOAD`). Wunsch des Besitzers: beides dreimal so viel.
+
 ## Schiffe in der Farbe des Landes, weniger Atombomben (17.11.2026)
 - Handelsschiffe haben den Rumpf in der Farbe des Besitzers (vorher weiss) und die Ladung in einem dunklen Ton davon; Kriegsschiffe das Deck im dunklen Ton (vorher grau). So erkennt man, wem ein Schiff gehört.
 - Nationen werfen etwa halb so viele Atombomben (`G.NUKE_PAUSE`, `G.NUKE_VOLLEY`, siehe `doku/openfront-abgleich.md`).
