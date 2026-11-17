@@ -3442,6 +3442,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   G.BUILD_TICKS = BUILD_TICKS;
   G.WARSHIP_CAPTURE = false;
   G.MAX_LEVEL = 100;
+  G.SILO_RELOAD = 270;   // ticks a silo slot needs to reload after a launch (27 s, 3x OpenFront's 9 s)
   G.CITY_MAX_LEVEL = 100;
   // Every building can be upgraded up to level 100.
   G.maxLevel = function (type) { return G.MAX_LEVEL; };
@@ -3456,7 +3457,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     switch (type) {
       case UT.CITY: case UT.PORT: case UT.FACTORY: return Math.min(1e6, Math.pow(2, c) * 125000);
       case UT.DEFENSE: return Math.min(250000, (c + 1) * 50000);
-      case UT.SILO: return 1e6;
+      case UT.SILO: return 3e6;   // 3x OpenFront (1M), deliberate
       case UT.SAM: return Math.min(3e6, (c + 1) * 1.5e6);
       case UT.WARSHIP: return Math.min(1e6, (c + 1) * 250000);
       case UT.ATOM: return 750000;
@@ -4196,7 +4197,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   };
   Game.prototype.launch = function (p, type, silo, tile) {
     const T = this.ticks, W = this.W;
-    for (let i = 0; i < silo.ready.length; i++) if (silo.ready[i] <= T) { silo.ready[i] = T + 90; break; }
+    for (let i = 0; i < silo.ready.length; i++) if (silo.ready[i] <= T) { silo.ready[i] = T + G.SILO_RELOAD; break; }
     const u = this.newUnit(type, p, silo.tile);
     u.dst = tile; u.sx = u.x; u.sy = u.y; u.dx = tile % W; u.dy = (tile / W) | 0;
     u.dist = Math.max(1, Math.hypot(u.dx - u.sx, u.dy - u.sy));

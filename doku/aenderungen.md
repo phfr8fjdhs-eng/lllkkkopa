@@ -1,6 +1,9 @@
 # Änderungsprotokoll
 Was seit dem 13.11.2026 geändert wurde und warum. Den heutigen Stand der Regeln beschreiben die anderen Dateien in `doku/`.
 
+## Raketensilo teurer und langsamer (17.11.2026)
+Ein Raketensilo kostet 3M statt 1M, jede Stufe ebenso. Nach jedem Abschuss lädt der Platz 27 s statt 9 s nach (`G.SILO_RELOAD`). Wunsch des Besitzers: beides dreimal so viel.
+
 ## Schiffe in der Farbe des Landes, weniger Atombomben (17.11.2026)
 - Handelsschiffe haben den Rumpf in der Farbe des Besitzers (vorher weiss) und die Ladung in einem dunklen Ton davon; Kriegsschiffe das Deck im dunklen Ton (vorher grau). So erkennt man, wem ein Schiff gehört.
 - Nationen werfen etwa halb so viele Atombomben (`G.NUKE_PAUSE`, `G.NUKE_VOLLEY`, siehe `doku/openfront-abgleich.md`).
