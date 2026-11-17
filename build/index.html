@@ -138,10 +138,10 @@ input[type=range] { width: 100%; height: 30px; margin: 0; accent-color: var(--ac
 #ratio::-moz-range-track { height: 4px; border-radius: 2px; background: rgba(255, 255, 255, 0.12); }
 #ratio::-moz-range-progress { height: 4px; border-radius: 2px; background: var(--accent); }
 #ratio::-moz-range-thumb { width: 10px; height: 10px; border-radius: 50%; background: #fff; border: 3px solid var(--accent); box-shadow: 0 1px 5px rgba(0, 0, 0, 0.55); }
-.modes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; margin-top: 8px; padding: 3px; border-radius: 9px; background: rgba(0, 0, 0, 0.28); align-items: center; }
+.modes { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 3px; margin-top: 8px; padding: 3px; border-radius: 9px; background: rgba(0, 0, 0, 0.28); align-items: center; }
 .modes .mlab { display: none; padding: 0 8px; font: 600 11px var(--display); letter-spacing: .09em; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
 @media (hover: hover) and (pointer: fine) {
-  .modes { grid-template-columns: auto 1fr 1fr; }
+  .modes { grid-template-columns: auto; }
   .modes .mlab { display: block; }
   .modes .touchOnly { display: none; }
 }
@@ -151,6 +151,7 @@ input[type=range] { width: 100%; height: 30px; margin: 0; accent-color: var(--ac
 #thrustCard b { font: 700 14px var(--display); letter-spacing: .02em; padding: 0 2px 2px; }
 #thrustCard button { display: flex; align-items: center; gap: 7px; border: 0; border-radius: 8px; padding: 7px 10px; font: 600 13.5px var(--display); letter-spacing: .02em; color: var(--accent-ink); background: var(--accent); cursor: pointer; }
 #thrustCard button.ghost { color: var(--ink); background: rgba(255, 255, 255, 0.1); }
+.modes button[hidden] { display: none; }
 .modes button { border: 0; border-radius: 7px; padding: 6px 4px; font: 600 13px var(--display); letter-spacing: .03em; color: var(--muted); background: transparent; cursor: pointer; transition: background .12s, color .12s; }
 .modes button:hover:not(.on) { color: var(--ink); background: rgba(255, 255, 255, 0.05); }
 .modes button.on { color: var(--ink); background: rgba(255, 255, 255, 0.13); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14); }
@@ -471,7 +472,7 @@ body.placing #cv { cursor: crosshair; }
         <div id="popBar" title="Truppen daheim (blau) und im Angriff (orange), gemessen am Höchststand"><i id="popHome"></i><i id="popOut"></i></div>
         <div id="incLine" hidden></div>
         <label class="ratio" for="ratio"><span>Angriff<b id="ratioPct">20%</b></span><input id="ratio" type="range" min="1" max="100" value="20"><span id="ratioTroops">0</span></label>
-        <div id="modes" class="modes" role="group" aria-label="Angriffsart" title="Taste F wechselt"><span class="mlab">Rechts ziehen</span><button type="button" data-w="0" class="touchOnly">Ganze Front</button><button type="button" data-w="2">Keil</button><button type="button" data-w="1">Abschnitt</button></div>
+        <div id="modes" class="modes" role="group" aria-label="Angriffsart" title="Taste F wechselt"><span class="mlab">Rechts ziehen</span><button type="button" data-w="0" class="touchOnly">Ganze Front</button><button type="button" data-w="2">Keil</button><button type="button" data-w="1">Abschnitt</button><button type="button" data-w="3" id="mPunkt" hidden>Punkt</button></div>
         <button id="bGo" class="btn" type="button" hidden>Angreifen</button>
         <div id="commit" aria-live="off"></div>
       </div>
@@ -1268,7 +1269,7 @@ body.placing #cv { cursor: crosshair; }
 //           tiles of front (so a wedge 40 tiles deep fights as if its front were 80 tiles longer)
 //   speed   how far the head of a thrust gets per tick at most, in way cost (open lowland: tiles), times attackPace
   //   search  most tiles the way-finding looks at before it gives up
-  G.THRUST = { widths: [0, 30, 12], max: 4, pull: 1.2, ring: 0.6, speed: 1.4, flank: 1, search: 250000 };
+  G.THRUST = { widths: [0, 30, 12], max: 4, pull: 1.2, ring: 0.6, speed: 0.5, flank: 3, search: 250000 };
   G.UNAME = ['Stadt', 'Verteidigungs\u00ADposten', 'Hafen', 'Raketensilo', 'Flugabwehr', 'Fabrik', 'Kriegsschiff', 'Boot',
     'Handelsschiff', 'Zug', 'Granate', 'Abwehrrakete', 'Atombombe', 'Wasserstoff\u00ADbombe', 'MIRV', 'Sprengkopf', 'Marschflug\u00ADkörper', 'Satelliten\u00ADstrahl'];
   // Tempo. The numbers of the simulation are OpenFront's, but its maps have two million tiles and
@@ -1334,12 +1335,14 @@ body.placing #cv { cursor: crosshair; }
     this.map = map; this.W = map.W; this.H = map.H; this.N = map.N; this.S = map.S;
     this.opts = Object.assign({
       seed: 1, difficulty: 1, bots: 100, nations: true, instantBuild: false,
-      infiniteGold: false, infiniteTroops: false, spawnTicks: 150, autoSpawn: false, me: 0, pfeile: false, netz: true
+      infiniteGold: false, infiniteTroops: false, spawnTicks: 150, autoSpawn: false, me: 0, pfeile: false, netz: true, punkt: false
     }, opts || {});
     // two switches (doku/pfeile.md): `pfeile` plans arrows and launches them together;
     // `netz` lets a person paint the net (without it the troops stand evenly, nothing to set)
     this.pfeile = !!this.opts.pfeile;
     this.netz = this.opts.netz !== false;
+    // `punkt`: a click or a right-button drag can also attack just one spot (mode 3)
+    this.punkt = !!this.opts.punkt;
     this.rng = new G.RNG(this.opts.seed);
     const N = this.N, S = this.S;
     this.owner = new Uint16Array(N);
@@ -1803,6 +1806,8 @@ body.placing #cv { cursor: crosshair; }
     // width of `path`) until the goal has fallen (`reached`); `dist` is the cost of the way to the goal
     this.goal = -1; this.width = 0; this.path = null; this.lane = null; this.dist = null; this.reached = false; this.reroute = 0;
     this.head = undefined; this.limit = 0;   // how near the goal the thrust has got, and how near it may get this tick
+    // a point attack (mode 3): fights only within `rad` tiles of `spot`, nearest first, no way to follow
+    this.spot = -1; this.rad = 0;
   }
 
   Game.prototype.addFront = function (at, tile) {
@@ -1817,6 +1822,12 @@ body.placing #cv { cursor: crosshair; }
       else { if (y === H - 1) continue; n = tile + W; }
       if (!land[n] || own[n] !== tid) continue;
       if (at.lane && !at.reached && !at.lane.has(n)) continue;     // a thrust stays in its lane until the goal has fallen
+      let ds = 0;
+      if (at.spot >= 0) {                                           // a point attack stays around its spot
+        const sx = at.spot % W - n % W, sy = ((at.spot / W) | 0) - ((n / W) | 0);
+        ds = Math.sqrt(sx * sx + sy * sy);
+        if (ds > at.rad) continue;
+      }
       at.front.add(n);
       const nx = n % W, ny = (n - nx) / W;
       let mine = 0;
@@ -1827,6 +1838,7 @@ body.placing #cv { cursor: crosshair; }
       if (mine > 2) mine = 10;
       const m = mg[n], rough = m < 10 ? 1 : m < 20 ? 1.5 : 2;
       let key = (rng.int(0, 7) + 10) * (1 - mine * 0.5 + rough / 2) + T;
+      if (at.spot >= 0) key += G.THRUST.ring * 4 * ds;           // nearest the spot first
       if (at.goal >= 0) {
         // a thrust takes first what lies nearer its goal: along the way while it is under way,
         // in rings around the goal once it has fallen
@@ -2051,16 +2063,24 @@ body.placing #cv { cursor: crosshair; }
     return { reach: reach, left: left, secs: T / 10, counted: count, tiles: lane.size, len: route.path.length };
   };
   // How many thrusts a player has under way.
+  // How far around `tile` a point attack of p's fights: its distance from p's border plus a wedge's
+  // width; -1 when it lies more than two widths away from the border. Reads the game only.
+  Game.prototype.spotRadius = function (p, tile) {
+    const R0 = this.thrustWidth(2), W = this.W, nx = tile % W, ny = (tile / W) | 0;
+    let d2 = Infinity;
+    for (const b of p.border) { const dx = b % W - nx, dy = ((b / W) | 0) - ny, d = dx * dx + dy * dy; if (d < d2) d2 = d; }
+    return d2 > 4 * R0 * R0 ? -1 : Math.sqrt(d2) + R0;
+  };
   Game.prototype.thrustCount = function (p) {
     let n = 0;
-    for (const o of p.out) if (o.active && o.goal >= 0) n++;
+    for (const o of p.out) if (o.active && (o.goal >= 0 || o.spot >= 0)) n++;
     return n;
   };
 
   // Send troops against a player (tid) or against free land (tid 0). src is a landing tile, or -1.
   // near: the tile the order was given at. For a realm with a posture the troops are then drawn
   // from the cell at that spot; what is not at hand marches there and joins as it arrives.
-  // mode: 0 the whole front (default), 1 a section, 2 a wedge; for 1 and 2 `near` is the goal.
+  // mode: 0 the whole front (default), 1 a section, 2 a wedge, 3 a point attack; for 1 to 3 `near` is the goal.
   Game.prototype.attack = function (a, tid, troops, src, near, mode, start) {
     this.attackWhy = '';
     if (!a.alive || this.phase !== 'play') return null;
@@ -2070,8 +2090,23 @@ body.placing #cv { cursor: crosshair; }
       if (this.ticks < this.immuneUntil) return null;
     }
     // A thrust needs a way; reinforcing one that aims close by joins it instead of starting another.
-    let route = null, join = null;
-    if (mode && src < 0 && near >= 0) {
+    let route = null, join = null, spot = -1, rad = 0;
+    if (mode === 3 && src < 0 && near >= 0) {
+      // a point attack: around the spot clicked, as far out from the own border as it lies plus a
+      // wedge's width; joins one aimed close by
+      const R0 = this.thrustWidth(2), W = this.W, nx = near % W, ny = (near / W) | 0;
+      for (const o of a.out) {
+        if (!o.active || o.tid !== tid || o.spot < 0) continue;
+        const dx = o.spot % W - nx, dy = ((o.spot / W) | 0) - ny;
+        if (dx * dx + dy * dy <= R0 * R0) { join = o; break; }
+      }
+      if (!join) {
+        if (this.thrustCount(a) >= G.THRUST.max) { this.attackWhy = 'Höchstens ' + G.THRUST.max + ' Stösse gleichzeitig'; return null; }
+        rad = this.spotRadius(a, near);
+        if (rad < 0) { this.attackWhy = 'Zu weit von deiner Grenze'; return null; }
+        spot = near;
+      }
+    } else if (mode && src < 0 && near >= 0) {
       const width = this.thrustWidth(mode);
       for (const o of a.out) {
         if (!o.active || o.tid !== tid || o.goal < 0 || o.width !== width) continue;
@@ -2096,10 +2131,11 @@ body.placing #cv { cursor: crosshair; }
     }
     if (t) this.relate(t, a, -80);
     let at = join;
-    if (!at && !route) for (const o of a.out) if (o.active && o.tid === tid && o.goal < 0) { at = o; break; }
+    if (!at && !route && spot < 0) for (const o of a.out) if (o.active && o.tid === tid && o.goal < 0 && o.spot < 0) { at = o; break; }
     if (!at) {
       at = new Attack(++this.attackSeq, a, tid, 0, this.ticks);
       if (route) { at.goal = route.goal; at.width = route.width; at.path = route.path; at.lane = route.lane; at.dist = route.dist; }
+      if (spot >= 0) { at.spot = spot; at.rad = rad; at.width = this.thrustWidth(2); }
       a.out.push(at);
       if (t) {
         t.inc.push(at);
@@ -2179,7 +2215,7 @@ body.placing #cv { cursor: crosshair; }
     const CB = G.COMBAT, dAvg = t ? t.troops / Math.max(1, t.tiles) : 0;
     // A thrust also meets the defenders along its flanks: two sides as long as it has got deep
     // (tiles taken over the width of its lane). The deeper a wedge gets, the dearer it becomes.
-    const flank = at.goal >= 0 ? G.THRUST.flank * 2 * (at.taken || 0) / Math.max(1, at.width) : 0;
+    const flank = at.goal >= 0 || at.spot >= 0 ? G.THRUST.flank * 2 * (at.taken || 0) / Math.max(1, at.width) : 0;
     const face = t ? Math.max(1, Math.min(t.troops, dAvg * Math.max(4, at.front.size + flank) * CB.depth)) : 1;
     // What the front may take this tick. A tile that costs more than is left is paid off over the
     // following ticks (`carry`), so a weak attack really is slow instead of taking a tile a tick
@@ -2655,7 +2691,7 @@ body.placing #cv { cursor: crosshair; }
         if (!tileOk) return 'Nicht möglich';
         const a = this.actionsAt(p, c.t);
         if (a.canAttack && !c.sea) {
-          const mode = c.w === 1 || c.w === 2 ? c.w : 0, st = c.s >= 0 && c.s < this.N ? Math.floor(c.s) : -1;
+          const mode = c.w === 1 || c.w === 2 || (c.w === 3 && this.punkt) ? c.w : 0, st = c.s >= 0 && c.s < this.N ? Math.floor(c.s) : -1;
           return this.attack(p, a.tid, p.troops * r, -1, c.t, mode, st) ? '' : (this.attackWhy || 'Zu wenig Truppen');
         }
         if (a.boat) return this.sendBoat(p, a.boat, p.troops * r) ? '' : 'Boot kann nicht auslaufen';
@@ -2663,7 +2699,8 @@ body.placing #cv { cursor: crosshair; }
       }
       case 'feed': {                                          // reinforce a thrust with a share of the army
         const at = p.out.find(function (o) { return o.active && o.id === c.a; });
-        if (!at || at.goal < 0) return 'Nicht möglich';
+        if (!at || (at.goal < 0 && at.spot < 0)) return 'Nicht möglich';
+        if (at.spot >= 0) return this.attack(p, at.tid, p.troops * r, -1, at.spot, 3) ? '' : (this.attackWhy || 'Zu wenig Truppen');
         const mode = at.width === this.thrustWidth(1) ? 1 : 2;
         return this.attack(p, at.tid, p.troops * r, -1, at.goal, mode) ? '' : (this.attackWhy || 'Zu wenig Truppen');
       }
@@ -6821,6 +6858,23 @@ body.placing #cv { cursor: crosshair; }
     const k = troops / Math.max(1, all);
     return k < 0.12 ? 7 : k < 0.35 ? 11 : 15;
   }
+  // A point attack: a dashed ring around its spot, a cross hair in the middle, and a number for a plan.
+  function spotRing(ctx, x, y, r, col, alpha, label) {
+    ctx.save(); ctx.globalAlpha = alpha;
+    ctx.beginPath(); ctx.arc(x, y, Math.max(6, r), 0, 6.2832);
+    ctx.fillStyle = 'rgba(255,255,255,0.06)'; ctx.fill();
+    ctx.setLineDash([7, 5]); ctx.lineWidth = 2.4; ctx.strokeStyle = 'rgba(10,16,24,.8)'; ctx.stroke();
+    ctx.lineWidth = 1.6; ctx.strokeStyle = col; ctx.stroke(); ctx.setLineDash([]);
+    ctx.beginPath(); ctx.moveTo(x - 7, y); ctx.lineTo(x + 7, y); ctx.moveTo(x, y - 7); ctx.lineTo(x, y + 7);
+    ctx.lineWidth = 3.4; ctx.strokeStyle = 'rgba(10,16,24,.8)'; ctx.stroke(); ctx.lineWidth = 1.8; ctx.strokeStyle = col; ctx.stroke();
+    if (label) {
+      ctx.beginPath(); ctx.arc(x, y - Math.max(6, r) - 12, 10, 0, 6.2832);
+      ctx.fillStyle = 'rgba(10,16,24,.92)'; ctx.fill(); ctx.lineWidth = 1.5; ctx.strokeStyle = '#fff'; ctx.stroke();
+      ctx.font = '700 12px ' + FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#fff';
+      ctx.fillText(label, x, y - Math.max(6, r) - 11.5);
+    }
+    ctx.restore();
+  }
   // Own thrusts on their way to the goal, and the preview of the one being drawn with the right
   // mouse button (`view.plan`, set by the interface: way, lane width, colour of the verdict,
   // troops, label). Every drawn arrow is remembered for clicks (`arrowHits`).
@@ -6839,12 +6893,25 @@ body.placing #cv { cursor: crosshair; }
       wayArrow(ctx, pts, h.cssL || 'rgb(240,240,240)', arrowWidth(at.troops + (at.want || 0), all), 0, 0.95);
       hits.push({ id: at.id, pts: pts });
     }
+    // point attacks under way: a dashed ring around their spot
+    for (const at of h.out) {
+      if (!at.active || at.spot < 0) continue;
+      const x = (at.spot % W + 0.5) * z + ox, y = (((at.spot / W) | 0) + 0.5) * z + oy;
+      spotRing(ctx, x, y, at.rad * z, h.cssL || 'rgb(240,240,240)', 0.95, '');
+      hits.push({ id: at.id, c: [x, y, at.rad * z] });
+    }
     // version «Pfeile»: arrows planned but not launched yet, pale and numbered (`view.plans`)
     const ph = this.planHits || (this.planHits = []);
     ph.length = 0;
     const plans = this.plans || [];
     for (let i = 0; i < plans.length; i++) {
       const q = plans[i];
+      if (q.spot >= 0) {
+        const x = (q.spot % W + 0.5) * z + ox, y = (((q.spot / W) | 0) + 0.5) * z + oy;
+        spotRing(ctx, x, y, q.rad * z, 'rgb(255,255,255)', 0.6, String(i + 1));
+        ph.push({ id: i, c: [x, y, q.rad * z] });
+        continue;
+      }
       if (!q.path || q.path.length < 2) continue;
       const pts = wayPoints(q.path, 0, W, z, ox, oy);
       wayArrow(ctx, pts, 'rgb(255,255,255)', arrowWidth(q.troops, all), q.width * z, 0.5);
@@ -6856,7 +6923,18 @@ body.placing #cv { cursor: crosshair; }
       ctx.fillText(String(i + 1), tip[0], tip[1] - 17.5);
     }
     const pl = this.plan;
-    if (pl && pl.path && pl.path.length > 1) {
+    if (pl && pl.spot >= 0) {
+      const x = (pl.spot % W + 0.5) * z + ox, y = (((pl.spot / W) | 0) + 0.5) * z + oy;
+      spotRing(ctx, x, y, pl.rad * z, pl.col, 0.9, '');
+      if (pl.label) {
+        ctx.font = '700 13px ' + FONT; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+        const tw = ctx.measureText(pl.label).width + 16, lx = Math.min(x + 14, this.cw - tw - 6), ly = Math.max(16, y - pl.rad * z - 16);
+        ctx.beginPath();
+        if (ctx.roundRect) ctx.roundRect(lx, ly - 11, tw, 22, 11); else ctx.rect(lx, ly - 11, tw, 22);
+        ctx.fillStyle = 'rgba(10,16,24,.92)'; ctx.fill(); ctx.lineWidth = 1.5; ctx.strokeStyle = pl.col; ctx.stroke();
+        ctx.fillStyle = '#fff'; ctx.fillText(pl.label, lx + 8, ly + 0.5);
+      }
+    } else if (pl && pl.path && pl.path.length > 1) {
       const pts = wayPoints(pl.path, 0, W, z, ox, oy);
       wayArrow(ctx, pts, pl.col, arrowWidth(pl.troops, all), pl.width * z, 0.85);
       if (pl.label) {
@@ -6877,6 +6955,7 @@ body.placing #cv { cursor: crosshair; }
     const hits = list || this.arrowHits || [];
     let best = null, bd = 12;
     for (const e of hits) {
+      if (e.c) { const d = Math.hypot(sx - e.c[0], sy - e.c[1]); if (d <= Math.max(14, e.c[2]) && d - Math.max(14, e.c[2]) < bd) { bd = 0; best = e.id; } continue; }
       const p = e.pts;
       for (let i = 1; i < p.length; i++) {
         const ax = p[i - 1][0], ay = p[i - 1][1], dx = p[i][0] - ax, dy = p[i][1] - ay, l2 = dx * dx + dy * dy || 1;
@@ -7435,9 +7514,10 @@ body.placing #cv { cursor: crosshair; }
   let toastTimer = 0, endShown = false, botsTouched = false;
   let mp = null, turnLeft = 0, aim = null, joinCode = '', lobbyNote = '', goldTimer = 0;
   const chips = new Map(), asks = new Map();
-  const cfg = { name: 'Spieler', color: 0, map: 'erde', diff: 1, bots: -1, nations: true, instant: false, gold: false, troops: false, tap: false, music: true, sfx: true, mode: 'klassisch', thrust: 0, botsV2: true, pfeile: true, netz: true };
+  const cfg = { name: 'Spieler', color: 0, map: 'erde', diff: 1, bots: -1, nations: true, instant: false, gold: false, troops: false, tap: false, music: true, sfx: true, mode: 'klassisch', thrust: 0, botsV2: true, pfeile: true, netz: true, punkt: true };
   // two switches of their own (doku/pfeile.md)
   const SWITCH = [['netz', 'Netz', 'An: mit dem Netz (Taste N) verteilst du deine Truppen zum Verteidigen. Aus: die Truppen stehen gleichmässig, nichts einzustellen.'],
+    ['punkt', 'Punktangriff', 'An: als dritte Angriffsart neben Keil und Abschnitt (Taste F): greift nur rund um die Stelle an, mit den Truppen vom Regler. Kein Weg wie beim Pfeil.'],
     ['pfeile', 'Angriffspfeile planen', 'An: Pfeile mit der rechten Maustaste planen, dann «Angreifen» (Enter). Aus: der Pfeil greift sofort an.']];
   let plans = [];          // version «Pfeile»: arrows planned, not launched yet
   const MODES = [['klassisch', 'Klassisch', 'Das Spiel wie gewohnt.'], ['arsenal', 'Arsenal', 'Zusätzliche Waffe: der Satellitenstrahl. Er kommt aus dem All, braucht kein Silo und lässt sich nicht abfangen. Auch die Nationen setzen ihn ein.']];
@@ -7780,7 +7860,7 @@ body.placing #cv { cursor: crosshair; }
       this.disabled = true;
       mp.begin({
         seed: (Math.random() * 2e9) | 0, map: cfg.map, mapSeed: (Math.random() * 2e9) | 0,
-        diff: cfg.diff, bots: Math.max(0, cfg.bots), nations: cfg.nations, arsenal: cfg.mode === 'arsenal', res: RES, pfeile: !!cfg.pfeile, netz: !!cfg.netz
+        diff: cfg.diff, bots: Math.max(0, cfg.bots), nations: cfg.nations, arsenal: cfg.mode === 'arsenal', res: RES, pfeile: !!cfg.pfeile, netz: !!cfg.netz, punkt: !!cfg.punkt
       });
     });
   }
@@ -7789,7 +7869,7 @@ body.placing #cv { cursor: crosshair; }
     turnLeft = 0;
     loadMap(m.map, m.mapSeed).then(function (map) {
       begin(map, {
-        seed: m.seed, difficulty: m.diff, bots: m.bots, nations: m.nations, arsenal: !!m.arsenal, res: !!m.res, pfeile: !!m.pfeile, netz: m.netz !== false, spawnTicks: 300, autoSpawn: true, me: me
+        seed: m.seed, difficulty: m.diff, bots: m.bots, nations: m.nations, arsenal: !!m.arsenal, res: !!m.res, pfeile: !!m.pfeile, netz: m.netz !== false, punkt: !!m.punkt, spawnTicks: 300, autoSpawn: true, me: me
       }, m.players.map(function (p) { return { name: p.name, color: COLORS[p.color % 6] }; }));
       $('bSpeed').hidden = true; $('bPause').hidden = !mp.host;
       addMsg(m.players.length > 1 ? m.players.length + ' Spieler sind dabei. Wählt eure Startpunkte.' : 'Du bist allein im Raum.', 'info');
@@ -7891,7 +7971,7 @@ body.placing #cv { cursor: crosshair; }
     $('fStart').disabled = true; $('fStart').textContent = 'Karte wird vorbereitet';
     loadMap(cfg.map).then(function (map) {
       begin(map, {
-        seed: (Math.random() * 2e9) | 0, difficulty: cfg.diff, bots: cfg.bots, nations: cfg.nations, arsenal: cfg.mode === 'arsenal', res: RES, pfeile: !!cfg.pfeile, netz: !!cfg.netz,
+        seed: (Math.random() * 2e9) | 0, difficulty: cfg.diff, bots: cfg.bots, nations: cfg.nations, arsenal: cfg.mode === 'arsenal', res: RES, pfeile: !!cfg.pfeile, netz: !!cfg.netz, punkt: !!cfg.punkt,
         instantBuild: cfg.instant, infiniteGold: cfg.gold, infiniteTroops: cfg.troops
       }, { name: cfg.name, color: COLORS[cfg.color] });
     }).catch(function (e) {
@@ -7914,6 +7994,7 @@ body.placing #cv { cursor: crosshair; }
     $('peek').hidden = true; trainSeen = 0; incAt = -99; incLog.length = 0; $('incLine').hidden = true; $('incLine').dataset.html = '';
     $('bNet').hidden = true; $('bNet').setAttribute('aria-pressed', 'false'); $('netBar').hidden = true; $('commit').textContent = '';
     plans.length = 0; syncPlans();
+    $('mPunkt').hidden = !game.punkt; setThrust(cfg.thrust);
     $('feedMsgs').innerHTML = ''; $('feedLive').innerHTML = ''; chips.clear(); asks.clear();
     $('lbRows').innerHTML = ''; $('clock').textContent = '0:00';
     speed = 1; $('bSpeed').textContent = '1×'; acc = 0; endShown = false; lbAt = liveAt = -99; tradeAt = 0; aim = null;
@@ -8560,11 +8641,11 @@ body.placing #cv { cursor: crosshair; }
   // 0 the whole front, 1 a section, 2 a wedge. With a mouse the whole front is a double click and
   // a section or a wedge is drawn with the right button (the switch picks which of the two); on a
   // touch screen the switch picks what a tap does.
-  const THRUST_NAME = ['Ganze Front', 'Abschnitt', 'Keil'];
+  const THRUST_NAME = ['Ganze Front', 'Abschnitt', 'Keil', 'Punkt'];
   const finePointer = function () { return !!(window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches); };
-  function dragWidth() { return cfg.thrust === 1 ? 1 : 2; }
+  function dragWidth() { return cfg.thrust === 1 ? 1 : cfg.thrust === 3 && game && game.punkt ? 3 : 2; }
   function setThrust(w) {
-    cfg.thrust = within(w | 0, 0, 2); saveCfg();
+    cfg.thrust = within(w | 0, 0, 3); if (cfg.thrust === 3 && !(game && game.punkt)) cfg.thrust = 2; saveCfg();
     const fine = finePointer(), on = fine ? dragWidth() : cfg.thrust;
     document.querySelectorAll('#modes button').forEach(function (b) { const k = +b.dataset.w; b.classList.toggle('on', k === on); b.setAttribute('aria-pressed', k === on ? 'true' : 'false'); });
     planKey = ''; planInfo = null; if (view) view.plan = null;
@@ -8588,6 +8669,15 @@ body.placing #cv { cursor: crosshair; }
     if ((key === planKey && now - planAt < 1500) || now - planAt < 70) return;
     planKey = key; planAt = now;
     const width = game.thrustWidth(mode);
+    if (mode === 3) {
+      const rad = game.spotRadius(h, tile);
+      if (rad < 0) { view.plan = null; planInfo = { why: 'Zu weit von deiner Grenze' }; showCommit(); return; }
+      if (game.thrustCount(h) + (game.pfeile ? plans.length : 0) >= G.THRUST.max) { view.plan = null; planInfo = { why: 'Höchstens ' + G.THRUST.max + ' Stösse gleichzeitig' }; showCommit(); return; }
+      const troops = h.troops * ratio / (game.pfeile ? plans.length + 1 : 1);
+      view.plan = { spot: tile, rad: rad, troops: troops, col: 'rgb(244,183,64)', label: 'Punkt · ' + fmtT(troops) };
+      planInfo = { mode: 3, verdict: 1, text: 'greift nur hier an', ci: null, spot: tile, rad: rad, tid: a.tid, width: 0 };
+      showCommit(); return;
+    }
     if (game.pfeile && game.thrustCount(h) + plans.length >= G.THRUST.max) { view.plan = null; planInfo = { why: 'Höchstens ' + G.THRUST.max + ' Pfeile gleichzeitig' }; showCommit(); return; }
     if (game.thrustCount(h) >= G.THRUST.max && !h.out.some(function (o) { return o.active && o.goal >= 0 && o.tid === a.tid && o.width === width && Math.hypot(o.goal % game.W - tile % game.W, ((o.goal / game.W) | 0) - ((tile / game.W) | 0)) <= width; })) {
       view.plan = null; planInfo = { why: 'Höchstens ' + G.THRUST.max + ' Stösse gleichzeitig' }; showCommit(); return;
@@ -8609,7 +8699,7 @@ body.placing #cv { cursor: crosshair; }
     if (!at) return;
     cardId = id;
     const el = $('thrustCard');
-    el.innerHTML = '<b>' + THRUST_NAME[at.width === game.thrustWidth(1) ? 1 : 2] + ' · ' + fmtT(at.troops + (at.want || 0)) + '</b>' +
+    el.innerHTML = '<b>' + THRUST_NAME[at.spot >= 0 ? 3 : at.width === game.thrustWidth(1) ? 1 : 2] + ' · ' + fmtT(at.troops + (at.want || 0)) + '</b>' +
       '<button type="button" data-act="feed">' + svg('up', 14) + 'Verstärken +' + fmtT(game.human.troops * ratio) + '</button>' +
       '<button type="button" data-act="ret" class="ghost">' + svg('close', 13) + 'Zurückziehen</button>';
     el.hidden = false;
@@ -8759,12 +8849,18 @@ body.placing #cv { cursor: crosshair; }
   function addPlan(tile, w, s, info) {
     const h = game.human;
     if (game.thrustCount(h) + plans.length >= G.THRUST.max) { toast('Höchstens ' + G.THRUST.max + ' Pfeile gleichzeitig'); snd('deny'); return; }
-    plans.push({ tile: tile, w: w, s: s, path: info && info.path, width: info ? info.width : game.thrustWidth(w), tid: info ? info.tid : game.owner[tile], troops: 0 });
+    plans.push({ tile: tile, w: w, s: s, path: info && info.path, width: info ? info.width : game.thrustWidth(w), tid: info ? info.tid : game.owner[tile], troops: 0, spot: info && info.spot >= 0 ? info.spot : -1, rad: info ? info.rad || 0 : 0 });
     syncPlans(); snd('tap');
   }
   function planTap(tile) {
     const h = game.human, a = game.actionsAt(h, tile);
     if (!a.canAttack) { toast(a.why || 'Hier nicht möglich'); snd('deny'); return; }
+    if (cfg.thrust === 3) {
+      const rad = game.spotRadius(h, tile);
+      if (rad < 0) { toast('Zu weit von deiner Grenze'); snd('deny'); return; }
+      addPlan(tile, 3, -1, { spot: tile, rad: rad, tid: a.tid, width: 0 });
+      return;
+    }
     const width = game.thrustWidth(cfg.thrust), r = game.thrustRoute(h, a.tid, tile, width, -1);
     if (!r) { toast('Kein Weg dorthin'); snd('deny'); return; }
     addPlan(tile, cfg.thrust, -1, { path: r.path, width: width, tid: a.tid });
@@ -9114,8 +9210,9 @@ body.placing #cv { cursor: crosshair; }
       if (k === 'c') { $('bHome').click(); return; }
       if (k === 'n') { if (game.netz) setNet(!netOn); return; }
       if (k === 'f') {
-        if (finePointer()) { setThrust(dragWidth() === 2 ? 1 : 2); toast('Rechts ziehen: ' + THRUST_NAME[dragWidth()]); }
-        else { setThrust((cfg.thrust + 1) % 3); toast('Angriff: ' + THRUST_NAME[cfg.thrust]); }
+        const ring = game.punkt ? [2, 1, 3] : [2, 1];
+        if (finePointer()) { setThrust(ring[(ring.indexOf(dragWidth()) + 1) % ring.length]); toast('Rechts ziehen: ' + THRUST_NAME[dragWidth()]); }
+        else { setThrust((cfg.thrust + 1) % (game.punkt ? 4 : 3)); toast('Angriff: ' + THRUST_NAME[cfg.thrust]); }
         return;
       }
       if (k === '.' || k === ',') { if (!mp) setSpeed(k === '.' ? 1 : -1); return; }

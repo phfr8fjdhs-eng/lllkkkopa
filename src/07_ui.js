@@ -64,9 +64,10 @@
   let toastTimer = 0, endShown = false, botsTouched = false;
   let mp = null, turnLeft = 0, aim = null, joinCode = '', lobbyNote = '', goldTimer = 0;
   const chips = new Map(), asks = new Map();
-  const cfg = { name: 'Spieler', color: 0, map: 'erde', diff: 1, bots: -1, nations: true, instant: false, gold: false, troops: false, tap: false, music: true, sfx: true, mode: 'klassisch', thrust: 0, botsV2: true, pfeile: true, netz: true };
+  const cfg = { name: 'Spieler', color: 0, map: 'erde', diff: 1, bots: -1, nations: true, instant: false, gold: false, troops: false, tap: false, music: true, sfx: true, mode: 'klassisch', thrust: 0, botsV2: true, pfeile: true, netz: true, punkt: true };
   // two switches of their own (doku/pfeile.md)
   const SWITCH = [['netz', 'Netz', 'An: mit dem Netz (Taste N) verteilst du deine Truppen zum Verteidigen. Aus: die Truppen stehen gleichmässig, nichts einzustellen.'],
+    ['punkt', 'Punktangriff', 'An: als dritte Angriffsart neben Keil und Abschnitt (Taste F): greift nur rund um die Stelle an, mit den Truppen vom Regler. Kein Weg wie beim Pfeil.'],
     ['pfeile', 'Angriffspfeile planen', 'An: Pfeile mit der rechten Maustaste planen, dann «Angreifen» (Enter). Aus: der Pfeil greift sofort an.']];
   let plans = [];          // version «Pfeile»: arrows planned, not launched yet
   const MODES = [['klassisch', 'Klassisch', 'Das Spiel wie gewohnt.'], ['arsenal', 'Arsenal', 'Zusätzliche Waffe: der Satellitenstrahl. Er kommt aus dem All, braucht kein Silo und lässt sich nicht abfangen. Auch die Nationen setzen ihn ein.']];
@@ -409,7 +410,7 @@
       this.disabled = true;
       mp.begin({
         seed: (Math.random() * 2e9) | 0, map: cfg.map, mapSeed: (Math.random() * 2e9) | 0,
-        diff: cfg.diff, bots: Math.max(0, cfg.bots), nations: cfg.nations, arsenal: cfg.mode === 'arsenal', res: RES, pfeile: !!cfg.pfeile, netz: !!cfg.netz
+        diff: cfg.diff, bots: Math.max(0, cfg.bots), nations: cfg.nations, arsenal: cfg.mode === 'arsenal', res: RES, pfeile: !!cfg.pfeile, netz: !!cfg.netz, punkt: !!cfg.punkt
       });
     });
   }
@@ -418,7 +419,7 @@
     turnLeft = 0;
     loadMap(m.map, m.mapSeed).then(function (map) {
       begin(map, {
-        seed: m.seed, difficulty: m.diff, bots: m.bots, nations: m.nations, arsenal: !!m.arsenal, res: !!m.res, pfeile: !!m.pfeile, netz: m.netz !== false, spawnTicks: 300, autoSpawn: true, me: me
+        seed: m.seed, difficulty: m.diff, bots: m.bots, nations: m.nations, arsenal: !!m.arsenal, res: !!m.res, pfeile: !!m.pfeile, netz: m.netz !== false, punkt: !!m.punkt, spawnTicks: 300, autoSpawn: true, me: me
       }, m.players.map(function (p) { return { name: p.name, color: COLORS[p.color % 6] }; }));
       $('bSpeed').hidden = true; $('bPause').hidden = !mp.host;
       addMsg(m.players.length > 1 ? m.players.length + ' Spieler sind dabei. Wählt eure Startpunkte.' : 'Du bist allein im Raum.', 'info');
@@ -520,7 +521,7 @@
     $('fStart').disabled = true; $('fStart').textContent = 'Karte wird vorbereitet';
     loadMap(cfg.map).then(function (map) {
       begin(map, {
-        seed: (Math.random() * 2e9) | 0, difficulty: cfg.diff, bots: cfg.bots, nations: cfg.nations, arsenal: cfg.mode === 'arsenal', res: RES, pfeile: !!cfg.pfeile, netz: !!cfg.netz,
+        seed: (Math.random() * 2e9) | 0, difficulty: cfg.diff, bots: cfg.bots, nations: cfg.nations, arsenal: cfg.mode === 'arsenal', res: RES, pfeile: !!cfg.pfeile, netz: !!cfg.netz, punkt: !!cfg.punkt,
         instantBuild: cfg.instant, infiniteGold: cfg.gold, infiniteTroops: cfg.troops
       }, { name: cfg.name, color: COLORS[cfg.color] });
     }).catch(function (e) {
@@ -543,6 +544,7 @@
     $('peek').hidden = true; trainSeen = 0; incAt = -99; incLog.length = 0; $('incLine').hidden = true; $('incLine').dataset.html = '';
     $('bNet').hidden = true; $('bNet').setAttribute('aria-pressed', 'false'); $('netBar').hidden = true; $('commit').textContent = '';
     plans.length = 0; syncPlans();
+    $('mPunkt').hidden = !game.punkt; setThrust(cfg.thrust);
     $('feedMsgs').innerHTML = ''; $('feedLive').innerHTML = ''; chips.clear(); asks.clear();
     $('lbRows').innerHTML = ''; $('clock').textContent = '0:00';
     speed = 1; $('bSpeed').textContent = '1×'; acc = 0; endShown = false; lbAt = liveAt = -99; tradeAt = 0; aim = null;
@@ -1189,11 +1191,11 @@
   // 0 the whole front, 1 a section, 2 a wedge. With a mouse the whole front is a double click and
   // a section or a wedge is drawn with the right button (the switch picks which of the two); on a
   // touch screen the switch picks what a tap does.
-  const THRUST_NAME = ['Ganze Front', 'Abschnitt', 'Keil'];
+  const THRUST_NAME = ['Ganze Front', 'Abschnitt', 'Keil', 'Punkt'];
   const finePointer = function () { return !!(window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches); };
-  function dragWidth() { return cfg.thrust === 1 ? 1 : 2; }
+  function dragWidth() { return cfg.thrust === 1 ? 1 : cfg.thrust === 3 && game && game.punkt ? 3 : 2; }
   function setThrust(w) {
-    cfg.thrust = within(w | 0, 0, 2); saveCfg();
+    cfg.thrust = within(w | 0, 0, 3); if (cfg.thrust === 3 && !(game && game.punkt)) cfg.thrust = 2; saveCfg();
     const fine = finePointer(), on = fine ? dragWidth() : cfg.thrust;
     document.querySelectorAll('#modes button').forEach(function (b) { const k = +b.dataset.w; b.classList.toggle('on', k === on); b.setAttribute('aria-pressed', k === on ? 'true' : 'false'); });
     planKey = ''; planInfo = null; if (view) view.plan = null;
@@ -1217,6 +1219,15 @@
     if ((key === planKey && now - planAt < 1500) || now - planAt < 70) return;
     planKey = key; planAt = now;
     const width = game.thrustWidth(mode);
+    if (mode === 3) {
+      const rad = game.spotRadius(h, tile);
+      if (rad < 0) { view.plan = null; planInfo = { why: 'Zu weit von deiner Grenze' }; showCommit(); return; }
+      if (game.thrustCount(h) + (game.pfeile ? plans.length : 0) >= G.THRUST.max) { view.plan = null; planInfo = { why: 'Höchstens ' + G.THRUST.max + ' Stösse gleichzeitig' }; showCommit(); return; }
+      const troops = h.troops * ratio / (game.pfeile ? plans.length + 1 : 1);
+      view.plan = { spot: tile, rad: rad, troops: troops, col: 'rgb(244,183,64)', label: 'Punkt · ' + fmtT(troops) };
+      planInfo = { mode: 3, verdict: 1, text: 'greift nur hier an', ci: null, spot: tile, rad: rad, tid: a.tid, width: 0 };
+      showCommit(); return;
+    }
     if (game.pfeile && game.thrustCount(h) + plans.length >= G.THRUST.max) { view.plan = null; planInfo = { why: 'Höchstens ' + G.THRUST.max + ' Pfeile gleichzeitig' }; showCommit(); return; }
     if (game.thrustCount(h) >= G.THRUST.max && !h.out.some(function (o) { return o.active && o.goal >= 0 && o.tid === a.tid && o.width === width && Math.hypot(o.goal % game.W - tile % game.W, ((o.goal / game.W) | 0) - ((tile / game.W) | 0)) <= width; })) {
       view.plan = null; planInfo = { why: 'Höchstens ' + G.THRUST.max + ' Stösse gleichzeitig' }; showCommit(); return;
@@ -1238,7 +1249,7 @@
     if (!at) return;
     cardId = id;
     const el = $('thrustCard');
-    el.innerHTML = '<b>' + THRUST_NAME[at.width === game.thrustWidth(1) ? 1 : 2] + ' · ' + fmtT(at.troops + (at.want || 0)) + '</b>' +
+    el.innerHTML = '<b>' + THRUST_NAME[at.spot >= 0 ? 3 : at.width === game.thrustWidth(1) ? 1 : 2] + ' · ' + fmtT(at.troops + (at.want || 0)) + '</b>' +
       '<button type="button" data-act="feed">' + svg('up', 14) + 'Verstärken +' + fmtT(game.human.troops * ratio) + '</button>' +
       '<button type="button" data-act="ret" class="ghost">' + svg('close', 13) + 'Zurückziehen</button>';
     el.hidden = false;
@@ -1388,12 +1399,18 @@
   function addPlan(tile, w, s, info) {
     const h = game.human;
     if (game.thrustCount(h) + plans.length >= G.THRUST.max) { toast('Höchstens ' + G.THRUST.max + ' Pfeile gleichzeitig'); snd('deny'); return; }
-    plans.push({ tile: tile, w: w, s: s, path: info && info.path, width: info ? info.width : game.thrustWidth(w), tid: info ? info.tid : game.owner[tile], troops: 0 });
+    plans.push({ tile: tile, w: w, s: s, path: info && info.path, width: info ? info.width : game.thrustWidth(w), tid: info ? info.tid : game.owner[tile], troops: 0, spot: info && info.spot >= 0 ? info.spot : -1, rad: info ? info.rad || 0 : 0 });
     syncPlans(); snd('tap');
   }
   function planTap(tile) {
     const h = game.human, a = game.actionsAt(h, tile);
     if (!a.canAttack) { toast(a.why || 'Hier nicht möglich'); snd('deny'); return; }
+    if (cfg.thrust === 3) {
+      const rad = game.spotRadius(h, tile);
+      if (rad < 0) { toast('Zu weit von deiner Grenze'); snd('deny'); return; }
+      addPlan(tile, 3, -1, { spot: tile, rad: rad, tid: a.tid, width: 0 });
+      return;
+    }
     const width = game.thrustWidth(cfg.thrust), r = game.thrustRoute(h, a.tid, tile, width, -1);
     if (!r) { toast('Kein Weg dorthin'); snd('deny'); return; }
     addPlan(tile, cfg.thrust, -1, { path: r.path, width: width, tid: a.tid });
@@ -1743,8 +1760,9 @@
       if (k === 'c') { $('bHome').click(); return; }
       if (k === 'n') { if (game.netz) setNet(!netOn); return; }
       if (k === 'f') {
-        if (finePointer()) { setThrust(dragWidth() === 2 ? 1 : 2); toast('Rechts ziehen: ' + THRUST_NAME[dragWidth()]); }
-        else { setThrust((cfg.thrust + 1) % 3); toast('Angriff: ' + THRUST_NAME[cfg.thrust]); }
+        const ring = game.punkt ? [2, 1, 3] : [2, 1];
+        if (finePointer()) { setThrust(ring[(ring.indexOf(dragWidth()) + 1) % ring.length]); toast('Rechts ziehen: ' + THRUST_NAME[dragWidth()]); }
+        else { setThrust((cfg.thrust + 1) % (game.punkt ? 4 : 3)); toast('Angriff: ' + THRUST_NAME[cfg.thrust]); }
         return;
       }
       if (k === '.' || k === ',') { if (!mp) setSpeed(k === '.' ? 1 : -1); return; }
