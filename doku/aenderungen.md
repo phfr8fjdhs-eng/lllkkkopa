@@ -1,6 +1,10 @@
 # Änderungsprotokoll
 Was seit dem 13.11.2026 geändert wurde und warum. Den heutigen Stand der Regeln beschreiben die anderen Dateien in `doku/`.
 
+## Schiffe in der Farbe des Landes, weniger Atombomben (17.11.2026)
+- Handelsschiffe haben den Rumpf in der Farbe des Besitzers (vorher weiss) und die Ladung in einem dunklen Ton davon; Kriegsschiffe das Deck im dunklen Ton (vorher grau). So erkennt man, wem ein Schiff gehört.
+- Nationen werfen etwa halb so viele Atombomben (`G.NUKE_PAUSE`, `G.NUKE_VOLLEY`, siehe `doku/openfront-abgleich.md`).
+
 ## Schalter «Netz» und «Angriffspfeile planen», Fahne entfernt (17.11.2026)
 Statt «Kampf: Bisher / Pfeile» zwei Schalter auf dem Startbildschirm. Die Sammelpunkte mit Fahne sind wieder entfernt (Wunsch des Besitzers: wirkte komisch). Netz aus heisst ganz ohne: Truppen gleichmässig, nichts einzustellen. So gibt es alle Kombinationen; Regeln in `doku/pfeile.md`.
 

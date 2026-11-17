@@ -285,14 +285,19 @@
     }
     return best;
   };
-  // Called every turn of a nation: pick a target and fire as often as the silos allow.
+  // Called every turn of a nation: now and then pick a target and fire a small volley. A nation
+  // waits G.NUKE_PAUSE ticks between volleys (twice as long on the easiest level) and fires at
+  // most G.NUKE_VOLLEY bombs, so the sky does not fill up with bombs (doku/openfront-abgleich.md).
   AI.prototype.nuke = function () {
-    const g = this.g, p = this.p, r = g.rng;
+    const g = this.g, p = this.p, r = g.rng, d = g.opts.difficulty;
     if (p.cnt[UT.SILO] < 1 || g.ticks < g.immuneUntil || g.ticks - g.playStart < G.NUKE_PEACE) return;
-    if (g.opts.difficulty === 0 && !r.chance(3)) return;   // the easiest nations fire less often
+    if (g.ticks - (p.nukeAt === undefined ? -1e9 : p.nukeAt) < G.NUKE_PAUSE * (d === 0 ? 2 : 1)) return;
+    if (!r.chance(2)) return;
     const q = this.nukeTarget();
     if (!q) return;
-    for (let i = 0; i < 4; i++) if (!this.strikeFromAir(q)) break;
+    p.nukeAt = g.ticks;
+    const n = d >= 2 ? G.NUKE_VOLLEY + 1 : G.NUKE_VOLLEY;
+    for (let i = 0; i < n; i++) if (!this.strikeFromAir(q)) break;
   };
   // Returns true when a missile was launched.
   AI.prototype.strikeFromAir = function (q) {
