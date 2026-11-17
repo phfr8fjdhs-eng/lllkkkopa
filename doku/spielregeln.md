@@ -40,3 +40,5 @@ Anfliegende feindliche Bomben zeigen auf der Karte, wo sie einschlagen: ein puls
 
 ## Bomben-Darstellung wie in OpenFront
 Die Werte stammen aus OpenFronts `render-settings.json`: dünne, langsam drehende Strichringe (12/6), drei Farben nach Zugehörigkeit (grün eigen, gelb verbündet, rot feindlich), Zielkreis beim Zielen weiss (gelb, wenn ein Verbündeter getroffen würde), Flugbahn weiss gestrichelt und rot durchgezogen, wo feindliche Flugabwehr sie erreicht, mit Kreisen an den Übergängen und einem Kreuz am ersten Abfangpunkt. Beim Zielen (Bau-Taste oder Zielmodus) sind Flugbahn und alle Flugabwehr-Reichweiten sichtbar; fliegt eine Bombe auf das eigene Land, erscheinen die eigenen Reichweiten. Jede Bombe in der Luft zeigt ihre zwei Sprengkreise. Die Explosion ist ein Feuerball mit Farbverlauf und Druckwelle.
+
+Verbündete tragen auf der Karte hinter dem Namen ein «✓» und die Restdauer der Allianz in Minuten und Sekunden (z. B. «✓ 4:32»).

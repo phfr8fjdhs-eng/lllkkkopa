@@ -6908,7 +6908,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
       if (!p.alive) continue;
       if (!leader || p.tiles > leader.tiles) leader = p;
       if (!p.nameSize) continue;
-      const fs = p.nameSize * z, min = p === h ? 0 : p.type === PT.BOT ? 13 : p.type === PT.NATION ? 10.5 : 9;
+      const fs = p.nameSize * z, min = p === h || (h && h.allies.has(p.id)) ? 0 : p.type === PT.BOT ? 13 : p.type === PT.NATION ? 10.5 : 9;
       if (fs < min) continue;
       const x = p.nameX * z + ox, y = p.nameY * z + oy;
       if (x < -160 || y < -40 || x > cw + 160 || y > ch + 40) continue;
@@ -6927,13 +6927,17 @@ globalThis.G = { VARIANT: 'rohstoffe' };
       const x = p.nameX * z + ox, y = p.nameY * z + oy;
       let label = p.name;
       if (p === leader && fs >= 10 && g.phase === 'play') label = '♛ ' + label;
-      if (h && p !== h && h.allies.has(p.id)) label += ' ✓';
+      if (h && p !== h && h.allies.has(p.id)) {
+        // allied: the tick and how long the alliance still lasts (m:ss), right at the name
+        const left = Math.max(0, Math.ceil((h.allies.get(p.id).end - T) / 10));
+        label += ' ✓ ' + ((left / 60) | 0) + ':' + String(left % 60).padStart(2, '0');
+      }
       if (p.traitorUntil > T) label += ' !';
       ctx.font = '700 ' + fs.toFixed(1) + 'px ' + FONT;
       const hw = ctx.measureText(label).width / 2 + 2, top = y - fs * 0.95, bot = y + fs * 0.95;
       let hit = false;
       for (let k = 0; k < boxes.length; k += 4) if (x - hw < boxes[k + 2] && x + hw > boxes[k] && top < boxes[k + 3] && bot > boxes[k + 1]) { hit = true; break; }
-      if (hit && p !== h) continue;
+      if (hit && p !== h && !(h && h.allies.has(p.id))) continue;
       boxes.push(x - hw, top, x + hw, bot); drawn++;
       const person = p.type === PT.HUMAN;
       ctx.lineWidth = Math.max(2, fs / 5.5);

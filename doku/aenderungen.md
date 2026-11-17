@@ -1,6 +1,9 @@
 # Änderungsprotokoll
 Was seit dem 13.11.2026 geändert wurde und warum. Den heutigen Stand der Regeln beschreiben die anderen Dateien in `doku/`.
 
+## Restdauer der Allianz beim Namen (17.11.2026)
+Bei verbündeten Ländern steht hinter dem Namen auf der Karte, wie lange die Allianz noch läuft (z. B. «✓ 4:32»). Wunsch des Besitzers.
+
 ## Raketensilo teurer und langsamer (17.11.2026)
 Ein Raketensilo kostet 3M statt 1M, jede Stufe ebenso. Nach jedem Abschuss lädt der Platz 27 s statt 9 s nach (`G.SILO_RELOAD`). Wunsch des Besitzers: beides dreimal so viel.
 
