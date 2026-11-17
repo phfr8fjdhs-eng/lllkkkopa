@@ -132,7 +132,7 @@
       cruiseIn: Math.max(3, Math.round(7 * S)), cruiseOut: Math.max(5, Math.round(11 * S)),
       laserIn: Math.max(4, Math.round(10 * S)), laserOut: Math.max(6, Math.round(16 * S)),
       sam: Math.round(70 * S), warTarget: Math.round(130 * S), warPatrol: Math.round(100 * S),
-      mirvRange: Math.round(1500 * S), mirvCount: Math.max(12, Math.round(350 * S * S)),
+      mirvRange: Math.round(1500 * S), mirvCount: Math.max(8, Math.round(120 * S * S)),
       botDist: Math.max(10, Math.round(30 * S)), boatBox: Math.round(150 * S),
       tnSearch: Math.max(60, Math.round(200 * S)), portSearch: Math.max(14, Math.round(40 * S)),
       nukeSpeed: Math.max(2.5, 6 * S), rail: Math.max(30, Math.round(110 * S))
@@ -1070,6 +1070,11 @@
   G.NUKE_PAUSE = 300;     // ticks a nation waits between two volleys of bombs (30 s)
   G.NUKE_VOLLEY = 2;      // bombs in a volley (one more from «Schwer» up)
   G.NUKE_PEACE = 6000;    // ticks after the start in which no nation fires a bomb (ten minutes)
+  // MIRV, deliberately weaker than OpenFront (doku/openfront-abgleich.md): its warheads cover about this
+  // share of the target's land, and each hit tile costs the owner this many tiles' worth of troops
+  // (OpenFront: 5 for every bomb). Together a MIRV takes roughly a third of the army, not all of it.
+  G.MIRV_COVER = 0.25;
+  G.WARHEAD_KILL = 1.5;
   G.LAND_GOLD = 60;
   Game.prototype.bounty = function (t) {
     return Math.round(Math.max(t.peak || 0, t.tiles) * G.LAND_GOLD) + (t.type === PT.BOT ? G.BOT_BOUNTY : 0);

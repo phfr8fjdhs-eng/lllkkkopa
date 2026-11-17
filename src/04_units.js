@@ -832,6 +832,7 @@
     const W = this.W, H = this.H, own = this.owner, land = this.map.land, rng = this.rng, ps = this.players;
     const cx = u.dx, cy = u.dy, in2 = rin * rin, out2 = rout * rout;
     const before = new Map();
+    const kill = type === UT.WARHEAD ? G.WARHEAD_KILL : 5;   // troops lost per hit tile, in tiles' worth of the average
     for (let y = Math.max(0, cy - rout); y <= Math.min(H - 1, cy + rout); y++) {
       for (let x = Math.max(0, cx - rout); x <= Math.min(W - 1, cx + rout); x++) {
         const d2 = (x - cx) * (x - cx) + (y - cy) * (y - cy);
@@ -842,7 +843,7 @@
         if (o) {
           const q = ps[o];
           if (!before.has(o)) before.set(o, q.troops);
-          q.troops = Math.max(0, q.troops - 5 * q.troops / Math.max(1, q.tiles));
+          q.troops = Math.max(0, q.troops - kill * q.troops / Math.max(1, q.tiles));
           this.relinquish(t);
         }
         if (!clean && !this.fallout[t]) { this.fallout[t] = 1; this.falloutCount++; this.markDirty(t); }
@@ -871,10 +872,15 @@
     this.fx.push({ k: 'pop', x: u.dx, y: u.dy });
     if (!tp || !tp.alive) return;
     const R = this.R, W = this.W, rng = this.rng, own = this.owner;
-    const sp2 = Math.pow(R.headOut * 1.4, 2), range2 = R.mirvRange * R.mirvRange;
+    const sp2 = Math.pow(R.headOut * 1.8, 2), range2 = R.mirvRange * R.mirvRange;
+    // Deliberately weaker than OpenFront: the warheads only cover about a quarter of the target's
+    // land (each warhead lays waste to roughly its inner circle plus half its outer ring), so a
+    // MIRV hurts badly but does not wipe a whole empire off the map.
+    const per = Math.PI * (R.headIn * R.headIn + 0.5 * (R.headOut * R.headOut - R.headIn * R.headIn));
+    const want = Math.min(R.mirvCount, Math.max(4, Math.ceil(G.MIRV_COVER * tp.tiles / per)));
     const picks = [];
-    let tries = R.mirvCount * 30;
-    while (picks.length < R.mirvCount && tries-- > 0) {
+    let tries = want * 30;
+    while (picks.length < want && tries-- > 0) {
       const x = rng.int(tp.x0, tp.x1 + 1), y = rng.int(tp.y0, tp.y1 + 1);
       if (own[y * W + x] !== tp.id) continue;
       if ((x - u.dx) * (x - u.dx) + (y - u.dy) * (y - u.dy) > range2) continue;

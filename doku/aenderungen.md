@@ -1,6 +1,12 @@
 # Änderungsprotokoll
 Was seit dem 13.11.2026 geändert wurde und warum. Den heutigen Stand der Regeln beschreiben die anderen Dateien in `doku/`.
 
+## MIRV schwächer (17.11.2026)
+- **Warum:** Der Besitzer fand den MIRV viel zu stark: zu viele Sprengköpfe, und die ganze Armee des Ziels ist danach weg.
+- **Gemessen vorher:** Ein MIRV nahm 62–74 % des Landes und 99–100 % der Truppen (Welt, Nationen nach 4000 Ticks), mit 22–110 Sprengköpfen.
+- **Geändert:** Die Anzahl Sprengköpfe richtet sich nach der Grösse des Ziels, sodass sie rund 25 % seines Landes abdecken (`G.MIRV_COVER`), höchstens 120·S² (vorher 350·S²), mindestens 4; sie liegen weiter auseinander. Ein getroffenes Feld kostet 1,5 statt 5 Felder an Truppen (`G.WARHEAD_KILL`); Atom- und Wasserstoffbombe bleiben wie in OpenFront.
+- **Gemessen nachher:** 7–22 % des Landes und meist 20–35 % der Truppen (bis rund 50 %, wenn das Ziel gleichzeitig im Krieg steht), mit 7–34 Sprengköpfen.
+
 ## Erde: weniger kleine Inseln (17.11.2026)
 Inseln unter 80 Feldern werden beim Laden zu Meer, ausser eine Nation startet darauf (`G.MIN_ISLAND`, siehe `doku/erde.md`). Rund 910 von 1100 Inseln fallen weg. Zuerst 100 Feldern, auf Wunsch des Besitzers 80. Wunsch des Besitzers: viel zu viele zu kleine Inseln.
 

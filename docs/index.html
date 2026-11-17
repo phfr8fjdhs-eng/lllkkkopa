@@ -1433,7 +1433,7 @@ body.placing #cv { cursor: crosshair; }
       cruiseIn: Math.max(3, Math.round(7 * S)), cruiseOut: Math.max(5, Math.round(11 * S)),
       laserIn: Math.max(4, Math.round(10 * S)), laserOut: Math.max(6, Math.round(16 * S)),
       sam: Math.round(70 * S), warTarget: Math.round(130 * S), warPatrol: Math.round(100 * S),
-      mirvRange: Math.round(1500 * S), mirvCount: Math.max(12, Math.round(350 * S * S)),
+      mirvRange: Math.round(1500 * S), mirvCount: Math.max(8, Math.round(120 * S * S)),
       botDist: Math.max(10, Math.round(30 * S)), boatBox: Math.round(150 * S),
       tnSearch: Math.max(60, Math.round(200 * S)), portSearch: Math.max(14, Math.round(40 * S)),
       nukeSpeed: Math.max(2.5, 6 * S), rail: Math.max(30, Math.round(110 * S))
@@ -2371,6 +2371,11 @@ body.placing #cv { cursor: crosshair; }
   G.NUKE_PAUSE = 300;     // ticks a nation waits between two volleys of bombs (30 s)
   G.NUKE_VOLLEY = 2;      // bombs in a volley (one more from «Schwer» up)
   G.NUKE_PEACE = 6000;    // ticks after the start in which no nation fires a bomb (ten minutes)
+  // MIRV, deliberately weaker than OpenFront (doku/openfront-abgleich.md): its warheads cover about this
+  // share of the target's land, and each hit tile costs the owner this many tiles' worth of troops
+  // (OpenFront: 5 for every bomb). Together a MIRV takes roughly a third of the army, not all of it.
+  G.MIRV_COVER = 0.25;
+  G.WARHEAD_KILL = 1.5;
   G.LAND_GOLD = 60;
   Game.prototype.bounty = function (t) {
     return Math.round(Math.max(t.peak || 0, t.tiles) * G.LAND_GOLD) + (t.type === PT.BOT ? G.BOT_BOUNTY : 0);
@@ -4063,6 +4068,7 @@ body.placing #cv { cursor: crosshair; }
     const W = this.W, H = this.H, own = this.owner, land = this.map.land, rng = this.rng, ps = this.players;
     const cx = u.dx, cy = u.dy, in2 = rin * rin, out2 = rout * rout;
     const before = new Map();
+    const kill = type === UT.WARHEAD ? G.WARHEAD_KILL : 5;   // troops lost per hit tile, in tiles' worth of the average
     for (let y = Math.max(0, cy - rout); y <= Math.min(H - 1, cy + rout); y++) {
       for (let x = Math.max(0, cx - rout); x <= Math.min(W - 1, cx + rout); x++) {
         const d2 = (x - cx) * (x - cx) + (y - cy) * (y - cy);
@@ -4073,7 +4079,7 @@ body.placing #cv { cursor: crosshair; }
         if (o) {
           const q = ps[o];
           if (!before.has(o)) before.set(o, q.troops);
-          q.troops = Math.max(0, q.troops - 5 * q.troops / Math.max(1, q.tiles));
+          q.troops = Math.max(0, q.troops - kill * q.troops / Math.max(1, q.tiles));
           this.relinquish(t);
         }
         if (!clean && !this.fallout[t]) { this.fallout[t] = 1; this.falloutCount++; this.markDirty(t); }
@@ -4102,10 +4108,15 @@ body.placing #cv { cursor: crosshair; }
     this.fx.push({ k: 'pop', x: u.dx, y: u.dy });
     if (!tp || !tp.alive) return;
     const R = this.R, W = this.W, rng = this.rng, own = this.owner;
-    const sp2 = Math.pow(R.headOut * 1.4, 2), range2 = R.mirvRange * R.mirvRange;
+    const sp2 = Math.pow(R.headOut * 1.8, 2), range2 = R.mirvRange * R.mirvRange;
+    // Deliberately weaker than OpenFront: the warheads only cover about a quarter of the target's
+    // land (each warhead lays waste to roughly its inner circle plus half its outer ring), so a
+    // MIRV hurts badly but does not wipe a whole empire off the map.
+    const per = Math.PI * (R.headIn * R.headIn + 0.5 * (R.headOut * R.headOut - R.headIn * R.headIn));
+    const want = Math.min(R.mirvCount, Math.max(4, Math.ceil(G.MIRV_COVER * tp.tiles / per)));
     const picks = [];
-    let tries = R.mirvCount * 30;
-    while (picks.length < R.mirvCount && tries-- > 0) {
+    let tries = want * 30;
+    while (picks.length < want && tries-- > 0) {
       const x = rng.int(tp.x0, tp.x1 + 1), y = rng.int(tp.y0, tp.y1 + 1);
       if (own[y * W + x] !== tp.id) continue;
       if ((x - u.dx) * (x - u.dx) + (y - u.dy) * (y - u.dy) > range2) continue;
