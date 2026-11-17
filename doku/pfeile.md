@@ -1,28 +1,22 @@
-# Version «Pfeile» (16.11.2026)
-Auf dem Startbildschirm gibt es zwei Schalter, einzeln an oder aus (Vorgabe: beide an). Im Mehrspieler gilt die Wahl des Hosts für alle.
-- **Pfeile** (`opts.pfeile`): Pfeile planen und gemeinsam starten (Abschnitt «Angriff»). Aus: der Pfeil greift sofort an.
-- **Truppen sammeln** (`opts.sammeln`): Sammelpunkte und Färbung (Abschnitt «Verteidigung»). Aus: Netz von Hand wie bisher.
+# Schalter «Netz» und «Angriffspfeile planen» (17.11.2026)
+Auf dem Startbildschirm zwei Schalter, je an oder aus (Vorgabe: beide an). Im Mehrspieler gilt die Wahl des Hosts für alle. So gibt es alle Kombinationen:
 
-Beide aus ist das Spiel wie bisher; die Tabelle zeigt die beiden Schalter.
-
-| | aus | an |
+| Netz | Pfeile planen | Spiel |
 | --- | --- | --- |
-| Angriff | Pfeil mit rechter Maustaste greift sofort an | Pfeile planen, dann gemeinsam starten |
-| Verteidigung | Netz von Hand malen (Taste N, `doku/aufstellung.md`) | bis zu 3 Sammelpunkte per Doppelklick |
-| Truppen sehen | nur im Netz-Modus deutlich | immer: Färbung des eigenen Landes |
+| aus | aus | ganz ohne: Truppen stehen gleichmässig, Pfeil greift sofort an |
+| an | aus | wie bisher: Netz von Hand (Taste N, `doku/aufstellung.md`), Pfeil greift sofort an |
+| aus | an | Pfeile planen, Truppen gleichmässig |
+| an | an | Pfeile planen und Netz |
 
-## Angriff
-- **Planen:** Mit der rechten Maustaste vom eigenen Land ins Feindesland ziehen. Der Pfeil bleibt blass und nummeriert auf der Karte, es passiert noch nichts. Mehrere Pfeile ins gleiche Gebiet sind möglich, höchstens `G.THRUST.max` (4) samt laufenden. `F` wechselt Keil und Abschnitt.
-- **Starten:** Knopf «Angreifen» unter dem Regler oder Enter. Der Anteil auf dem Regler wird gleichmässig auf alle Pfeile verteilt (jeder Befehl nimmt `ratio/n / (1 − ratio·i/n)` vom Rest, so bekommt jeder gleich viel).
+## Netz (`opts.netz`, Vorgabe an)
+Aus: der Knopf und die Taste N fehlen, der Befehl `mesh` gibt «Nicht möglich». Die Truppen eines Menschen stehen gleichmässig. Eingraben, Reserven und Kessel gelten weiter. Die Sammelpunkte mit Fahne (16.11.2026) sind wieder entfernt.
+
+## Angriffspfeile planen (`opts.pfeile`)
+- **Planen:** Mit der rechten Maustaste vom eigenen Land ins Feindesland ziehen. Der Pfeil bleibt blass und nummeriert, es passiert noch nichts. Mehrere ins gleiche Gebiet, höchstens `G.THRUST.max` (4) samt laufenden. `F` wechselt Keil und Abschnitt.
+- **Starten:** Knopf «Angreifen» unter dem Regler oder Enter. Der Anteil auf dem Regler wird gleichmässig verteilt (jeder Befehl nimmt `ratio/n / (1 − ratio·i/n)` vom Rest).
 - **Wegnehmen:** Klick auf einen geplanten Pfeil, oder Rücktaste für den letzten.
-- **Während des Angriffs:** Klick auf einen laufenden Pfeil öffnet «Verstärken» (schickt den Anteil auf dem Regler nach) und «Zurückziehen».
-- **Handy:** Mit Keil oder Abschnitt auf dem Schalter plant ein Tippen auf ein Land einen Pfeil (Weg vom nächsten eigenen Rand). Mit «Ganze Front» greift Tippen sofort an.
+- **Während des Angriffs:** Klick auf einen laufenden Pfeil: «Verstärken» oder «Zurückziehen».
+- **Handy:** Mit Keil oder Abschnitt plant ein Tippen auf ein Land einen Pfeil.
 - Doppelklick auf Feindesland und das Kreismenü greifen wie bisher sofort mit der ganzen Front an.
-
-## Verteidigung: Sammelpunkte
-- **Doppelklick aufs eigene Land** (Handy: Kreismenü, Knopf «Sammeln») setzt einen Sammelpunkt. Die Truppen ziehen dorthin (Marsch wie beim Netz) und stehen im Umkreis von 4 Zellen dicht: Gewicht `0.4 + 5.6 × (1 − Abstand/4)`, ausserhalb 0.4. Ein Doppelklick auf einen Punkt (1,5 Zellen) nimmt ihn weg. Ein vierter verdrängt den ältesten. Ohne Punkt stehen die Truppen gleichmässig.
-- Befehl `{k:'rally', t:Feld}`, Regeln `postRally`, `postRallyAuto` in `src/03b_posture.js`; Zustand `p.post.rally`. Fällt das Land unter einem Punkt, fällt der Punkt.
-- Wirkt nur auf die Verteidigung: Pfeile nehmen ihre Truppen aus dem ganzen Land. Eingraben, Reserven bei Alarm und Kessel gelten wie in `doku/aufstellung.md`. Das Netz malen (`mesh`) ist in dieser Version aus.
-- **Sichtbar:** Das eigene Land ist rot getönt, wo viele Truppen stehen, und dunkel, wo wenige stehen (immer, nicht nur im Netz-Modus). Keine Zahlen auf der Karte (waren zu viele, am 16.11.2026 wieder entfernt). Sammelpunkte zeigen eine gelbe Fahne und ihren Kreis (`drawRally` in `src/06_view.js`).
 
 Test: `node test/pfeile.js`.

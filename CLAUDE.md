@@ -43,7 +43,7 @@ Weitere Ordner: `tools/` (Bauen und Kartenerzeugung, Python), `test/` (Tests, No
 | --- | --- |
 | Tasten, Bots, Ausbau, Flugabwehr, Schienen, Bomben-Anzeige | `spielregeln.md` |
 | Netz, Marsch, Dichte und ihre Wirkung | `aufstellung.md` |
-| Version «Pfeile»: Pfeile planen, Sammelpunkte | `pfeile.md` |
+| Schalter «Netz» und «Angriffspfeile planen» | `pfeile.md` |
 | Erdkarte, Daten, Lizenzen der Daten, Gelände | `erde.md` |
 | Mehrspieler, Vermittler | `mehrspieler.md` |
 | Version «Rohstoffe»: Länder, Preise, Länderkarte | `rohstoffe.md` |
@@ -56,6 +56,6 @@ Weitere Ordner: `tools/` (Bauen und Kartenerzeugung, Python), `test/` (Tests, No
 - Regeln und Zahlen: `node test/sim.js`, `node test/all.js`
 - Bodenkampf: `node test/kampf.js` (Messbank)
 - Gleichlauf auf allen Geräten: `node test/det.js`, `node test/posture.js`
-- Version «Pfeile»: `node test/pfeile.js`
+- Schalter Netz und Pfeile: `node test/pfeile.js`
 - Version «Rohstoffe»: `node --max-old-space-size=4096 test/res.js`
 - Bedienung im Browser: `node test/ui.js` (braucht Playwright und Chrome)
