@@ -280,6 +280,9 @@ button.ldRow:hover { background: rgba(255, 255, 255, 0.07); }
 .rtHead svg { flex: none; padding: 4px; background: #f6f1e4; border-radius: 50%; box-sizing: content-box; }
 .rtHead b { flex: 1; min-width: 0; font-weight: 700; line-height: 1.1; }
 .rtHead b small { display: block; font: 500 12px var(--display); color: var(--muted); }
+.rtFold { flex: 1; min-width: 0; display: flex; align-items: center; gap: 9px; border: 0; padding: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.rtFold em { margin-left: auto; padding-right: 8px; }
+.rtAll { width: 100%; margin: 8px 0 2px; }
 .rtHead em { font-style: normal; color: var(--accent); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .rtRow { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; padding: 4px 0 4px 40px; }
 .rtWhere { min-width: 0; padding: 3px 6px; margin-left: -6px; border: 0; border-radius: 7px; background: none; text-align: left; font: 600 14px var(--display); color: var(--ink); cursor: pointer; }
@@ -2752,6 +2755,10 @@ body.placing #cv { cursor: crosshair; }
         const u = tileOk ? this.structNear(c.t, 4) : null;
         const n = c.n >= 1 && c.n <= 100 ? Math.floor(c.n) : 1;
         return u && this.upgradeBy(p, u, n) > 0 ? '' : 'Ausbau nicht möglich';
+      }
+      case 'digall': {                                        // version «Rohstoffe»: every own plant one level more
+        if (!this.res) return 'Nicht möglich';
+        return this.digAll(p, typeof c.r === 'string' ? c.r : '') ? '' : 'Zu wenig Gold';
       }
       case 'dig': {                                           // version «Rohstoffe»: a plant on a deposit, or a better one
         const i = Math.floor(+c.d);
@@ -8946,6 +8953,7 @@ body.placing #cv { cursor: crosshair; }
     }
     return best;
   }
+  const resFold = new Map();   // raw material -> list folded open (true) or shut (false); unset: open up to 3 deposits
   function resHtml() {
     const h = game.human, cs = game.map.countries, deps = game.map.deposits, R = G.RES, dg = game.dg;
     const groups = new Map();
@@ -8967,12 +8975,23 @@ body.placing #cv { cursor: crosshair; }
       '<div><small>Rohstoffe</small><b>' + perSec(raw) + '</b></div>' +
       '<div><small>Fabrikwaren</small><b>' + perSec(ware) + '</b></div>' +
       '<div class="all"><small>Zusammen</small><b>' + perSec(100 + raw + ware) + '</b></div></div>';
-    s += '<div class="rtSec">Abbauen und ernten <small>Stufe 1 voller Ertrag, jede weitere die Hälfte dazu</small></div>';
+    // everything one level up at once: what it costs and how many plants the gold reaches
+    const sumUp = function (rw) {
+      let cost = 0, n = 0, all = 0;
+      for (const e of game.digAllList(h, rw)) { all++; if (cost + e[0] <= h.gold || game.opts.infiniteGold) { cost += e[0]; n++; } }
+      return { cost: cost, n: n, all: all };
+    };
+    const tot = sumUp('');
+    if (tot.all) s += '<button class="btn rtAll" type="button" data-digall=""' + (tot.n ? '' : ' disabled') + '>Alles eine Stufe höher · ' + tot.n + ' von ' + tot.all + ' Anlagen · ' + fmt(tot.cost) + '</button>';
+    s += '<div class="rtSec">Abbauen und ernten <small>Stufe 1 voller Ertrag, jede weitere die Hälfte dazu. Antippen klappt die Liste auf.</small></div>';
     if (!list.length) s += '<p class="rtEmpty">Noch kein Vorkommen. Erobere Land mit einem Vorkommen, dann steht es hier.</p>';
     for (const gr of list) {
       const g = G.RAW[gr.raw], dk = G.digOf(gr.raw), n = gr.rows.length;
-      s += '<div class="rtGrp"><div class="rtHead">' + resSvg(gr.raw, 22) + '<b>' + g[0] + '<small>' + n + (n === 1 ? ' Vorkommen' : ' Vorkommen') + ' · ' + gr.built + ' mit ' + dk[0] + '</small></b><em>' + (gr.now ? perSec(gr.now) : '–') + '</em></div>';
-      for (const r of gr.rows) {
+      let lvs = 0; for (const r of gr.rows) lvs += r.lv;
+      const su = sumUp(gr.raw), open = resFold.has(gr.raw) ? resFold.get(gr.raw) : n <= 3;
+      s += '<div class="rtGrp"><div class="rtHead"><button type="button" class="rtFold" data-fold="' + gr.raw + '">' + resSvg(gr.raw, 22) + '<b>' + g[0] + '<small>' + n + ' Vorkommen · ' + gr.built + ' mit ' + dk[0] + (gr.built ? ' · Ø Stufe ' + (lvs / gr.built).toFixed(1) : '') + ' ' + (open ? '▴' : '▾') + '</small></b><em>' + (gr.now ? perSec(gr.now) : '–') + '</em></button>' +
+        (su.all ? '<button class="rtBtn' + (su.n ? '' : ' poor') + '" type="button" data-digall="' + gr.raw + '">Alle +1 · ' + su.n + '/' + su.all + '<small>' + fmt(su.cost) + '</small></button>' : '<span class="rtBtn done">Alle voll</span>') + '</div>';
+      if (open) for (const r of gr.rows) {
         const state = !r.lv ? '<small>ohne ' + dk[0] + '</small>' : !r.ready ? '<small>' + dk[0] + ' im Bau</small>' : '<small class="good">' + dk[0] + ' Stufe ' + r.lv + ' von ' + R.DIG_CAP + '</small>';
         s += '<div class="rtRow"><button class="rtWhere" type="button" data-go="' + r.i + '">' + esc(cs[r.d.c].name) + (r.v ? ' <i>' + perSec(r.v) + '</i>' : '') + state + '</button>';
         if (r.lv >= R.DIG_CAP) s += '<span class="rtBtn done">Höchste Stufe</span>';
@@ -8990,6 +9009,12 @@ body.placing #cv { cursor: crosshair; }
     if (h.fac) for (let c = 1; c < cs.length; c++) if (h.fac[c] > 0) facs.push([game.wareOf(c, h.fac[c]), c]);
     facs.sort(function (a, b) { return b[0] - a[0] || a[1] - b[1]; });
     s += '<div class="rtSec">Herstellen <small>pro Land zählen ' + R.FACTORY_CAP + ' Fabrikstufen</small></div>';
+    {
+      let fc = 0, fn = 0, fall = 0;
+      const one = game.cost(h, UT.FACTORY);
+      for (const f of facs) { const u = facIn(h, f[1]); if (u && h.fac[f[1]] < R.FACTORY_CAP) { fall++; if (fc + one <= h.gold || game.opts.infiniteGold) { fc += one; fn++; } } }
+      if (fall > 1) s += '<button class="btn rtAll" type="button" data-facall="1"' + (fn ? '' : ' disabled') + '>Alle Fabriken eine Stufe höher · ' + fn + ' von ' + fall + ' · ' + fmt(fc) + '</button>';
+    }
     if (!facs.length) s += '<p class="rtEmpty">Noch keine Fabrik. Jede Fabrik stellt die Ware des Landes her, in dem sie steht.</p>';
     for (const f of facs) {
       const c = f[1], k = cs[c], w = G.WARE[k.ware], lv = h.fac[c], u = facIn(h, c);
@@ -9445,6 +9470,18 @@ body.placing #cv { cursor: crosshair; }
       if (modalKind === 'res') {
         const dg = e.target.closest('[data-dig]');        // build or level up a plant from the table
         if (dg) { const i = +dg.dataset.dig, k = G.digOf(game.map.deposits[i].raw); act({ k: 'dig', d: i, say: k[0] + (game.dg && game.dg.lv[i] ? ' wird ausgebaut' : ' wird gebaut') }); renderRes(); return; }
+        const fo = e.target.closest('[data-fold]');       // fold a raw material's list open or shut
+        if (fo) { const k = fo.dataset.fold, n = game.map.deposits.filter(function (d) { return d.raw === k && game.owner[d.t] === game.human.id; }).length; resFold.set(k, !(resFold.has(k) ? resFold.get(k) : n <= 3)); renderRes(); return; }
+        const da = e.target.closest('[data-digall]');     // every plant (of one raw material) one level more
+        if (da && !da.disabled) { act({ k: 'digall', r: da.dataset.digall, say: da.dataset.digall ? G.RAW[da.dataset.digall][0] + ': alle Anlagen werden ausgebaut' : 'Alle Anlagen werden ausgebaut' }); renderRes(); return; }
+        const fa = e.target.closest('[data-facall]');     // every factory below the cap one level more
+        if (fa && !fa.disabled) {
+          const h = game.human, cs = game.map.countries;
+          let n = 0;
+          for (let c = 1; c < cs.length; c++) if (h.fac && h.fac[c] > 0 && h.fac[c] < G.RES.FACTORY_CAP) { const u = facIn(h, c); if (u) { act({ k: 'up', t: u.tile, n: 1 }); n++; } }
+          if (n) toast(n + ' Fabriken werden ausgebaut');
+          renderRes(); return;
+        }
         const fu = e.target.closest('[data-fup]');        // level up the weakest factory of a country
         if (fu) { act({ k: 'up', t: +fu.dataset.fup, n: 1, say: 'Fabrik wird ausgebaut' }); renderRes(); return; }
         const go = e.target.closest('[data-go]'), fg = e.target.closest('[data-fgo]');
