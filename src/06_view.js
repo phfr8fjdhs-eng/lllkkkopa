@@ -1883,20 +1883,26 @@
     const k = troops / Math.max(1, all);
     return k < 0.12 ? 7 : k < 0.35 ? 11 : 15;
   }
-  // A point attack: a dashed ring around its spot, a cross hair in the middle, and a number for a plan.
-  function spotRing(ctx, x, y, r, col, alpha, label) {
-    ctx.save(); ctx.globalAlpha = alpha;
-    ctx.beginPath(); ctx.arc(x, y, Math.max(6, r), 0, 6.2832);
-    ctx.fillStyle = 'rgba(255,255,255,0.06)'; ctx.fill();
-    ctx.setLineDash([7, 5]); ctx.lineWidth = 2.4; ctx.strokeStyle = 'rgba(10,16,24,.8)'; ctx.stroke();
-    ctx.lineWidth = 1.6; ctx.strokeStyle = col; ctx.stroke(); ctx.setLineDash([]);
-    ctx.beginPath(); ctx.moveTo(x - 7, y); ctx.lineTo(x + 7, y); ctx.moveTo(x, y - 7); ctx.lineTo(x, y + 7);
-    ctx.lineWidth = 3.4; ctx.strokeStyle = 'rgba(10,16,24,.8)'; ctx.stroke(); ctx.lineWidth = 1.8; ctx.strokeStyle = col; ctx.stroke();
+  // A direction attack, planned or previewed: the part of the own front that goes (a bar across
+  // the way, as wide as the band) and a short arrow the way it goes; a number for a plan.
+  function bandMark(ctx, x, y, b, z, col, alpha, label) {
+    const h = Math.max(8, b.half * z), px = -b.dy, py = b.dx, L = Math.max(14, h * 0.7);
+    ctx.save(); ctx.globalAlpha = alpha; ctx.lineCap = 'round';
+    const line = function (w, c) {
+      ctx.lineWidth = w; ctx.strokeStyle = c; ctx.beginPath();
+      ctx.moveTo(x - px * h, y - py * h); ctx.lineTo(x + px * h, y + py * h);
+      ctx.moveTo(x, y); ctx.lineTo(x + b.dx * L, y + b.dy * L);
+      ctx.moveTo(x + b.dx * L - b.dx * 7 + px * 6, y + b.dy * L - b.dy * 7 + py * 6); ctx.lineTo(x + b.dx * L, y + b.dy * L);
+      ctx.lineTo(x + b.dx * L - b.dx * 7 - px * 6, y + b.dy * L - b.dy * 7 - py * 6);
+      ctx.stroke();
+    };
+    line(6, 'rgba(10,16,24,.8)'); line(3, col);
     if (label) {
-      ctx.beginPath(); ctx.arc(x, y - Math.max(6, r) - 12, 10, 0, 6.2832);
+      const lx = x - b.dx * 16, ly = y - b.dy * 16;
+      ctx.beginPath(); ctx.arc(lx, ly, 10, 0, 6.2832);
       ctx.fillStyle = 'rgba(10,16,24,.92)'; ctx.fill(); ctx.lineWidth = 1.5; ctx.strokeStyle = '#fff'; ctx.stroke();
       ctx.font = '700 12px ' + FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#fff';
-      ctx.fillText(label, x, y - Math.max(6, r) - 11.5);
+      ctx.fillText(label, lx, ly + 0.5);
     }
     ctx.restore();
   }
@@ -1918,23 +1924,16 @@
       wayArrow(ctx, pts, h.cssL || 'rgb(240,240,240)', arrowWidth(at.troops + (at.want || 0), all), 0, 0.95);
       hits.push({ id: at.id, pts: pts });
     }
-    // point attacks under way: a dashed ring around their spot
-    for (const at of h.out) {
-      if (!at.active || at.spot < 0) continue;
-      const x = (at.spot % W + 0.5) * z + ox, y = (((at.spot / W) | 0) + 0.5) * z + oy;
-      spotRing(ctx, x, y, at.rad * z, h.cssL || 'rgb(240,240,240)', 0.95, '');
-      hits.push({ id: at.id, c: [x, y, at.rad * z] });
-    }
     // version «Pfeile»: arrows planned but not launched yet, pale and numbered (`view.plans`)
     const ph = this.planHits || (this.planHits = []);
     ph.length = 0;
     const plans = this.plans || [];
     for (let i = 0; i < plans.length; i++) {
       const q = plans[i];
-      if (q.spot >= 0) {
-        const x = (q.spot % W + 0.5) * z + ox, y = (((q.spot / W) | 0) + 0.5) * z + oy;
-        spotRing(ctx, x, y, q.rad * z, 'rgb(255,255,255)', 0.6, String(i + 1));
-        ph.push({ id: i, c: [x, y, q.rad * z] });
+      if (q.band) {
+        const x = (q.band.o % W + 0.5) * z + ox, y = (((q.band.o / W) | 0) + 0.5) * z + oy;
+        bandMark(ctx, x, y, q.band, z, 'rgb(255,255,255)', 0.6, String(i + 1));
+        ph.push({ id: i, c: [x, y, q.band.half * z] });
         continue;
       }
       if (!q.path || q.path.length < 2) continue;
@@ -1948,12 +1947,12 @@
       ctx.fillText(String(i + 1), tip[0], tip[1] - 17.5);
     }
     const pl = this.plan;
-    if (pl && pl.spot >= 0) {
-      const x = (pl.spot % W + 0.5) * z + ox, y = (((pl.spot / W) | 0) + 0.5) * z + oy;
-      spotRing(ctx, x, y, pl.rad * z, pl.col, 0.9, '');
+    if (pl && pl.band) {
+      const x = (pl.band.o % W + 0.5) * z + ox, y = (((pl.band.o / W) | 0) + 0.5) * z + oy;
+      bandMark(ctx, x, y, pl.band, z, pl.col, 0.9, '');
       if (pl.label) {
         ctx.font = '700 13px ' + FONT; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-        const tw = ctx.measureText(pl.label).width + 16, lx = Math.min(x + 14, this.cw - tw - 6), ly = Math.max(16, y - pl.rad * z - 16);
+        const tw = ctx.measureText(pl.label).width + 16, lx = Math.min(x + 14, this.cw - tw - 6), ly = Math.max(16, y - pl.band.half * z - 16);
         ctx.beginPath();
         if (ctx.roundRect) ctx.roundRect(lx, ly - 11, tw, 22, 11); else ctx.rect(lx, ly - 11, tw, 22);
         ctx.fillStyle = 'rgba(10,16,24,.92)'; ctx.fill(); ctx.lineWidth = 1.5; ctx.strokeStyle = pl.col; ctx.stroke();

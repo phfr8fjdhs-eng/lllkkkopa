@@ -51,7 +51,7 @@ const ok = (c, msg) => { if (!c) { console.log('FAIL', msg); process.exitCode = 
   ok(L.mesh === 'Nicht möglich', 'Netz aus: the net cannot be painted');
   ok(L.arrows >= 1 && L.sent.every((x) => Math.abs(x - 0.6 / L.arrows) < 0.02), L.arrows + ' arrows, each takes its even share: ' + L.sent.join(' / '));
   ok(sumA === sumB, 'two runs, same game: ' + sumA);
-  // a point attack: takes land only around the spot, then the rest comes home
+  // a direction attack: takes land only in its band, the part of the front facing that way
   {
     const g = new G.Game(map, { seed: 7, bots: 60, difficulty: 1, spawnTicks: 30, punkt: true });
     g.setup({ name: 'Tester', color: [220, 60, 50] });
@@ -68,16 +68,16 @@ const ok = (c, msg) => { if (!c) { console.log('FAIL', msg); process.exitCode = 
     for (let i = 0; i < g.N; i++) if (g.owner[i] === h.id) before.add(i);
     const why = g.exec(h.id, { k: 'strike', t: foe, r: 0.3, w: 3 });
     const at = h.out.find((o) => o.active && o.spot >= 0);
-    const rad = at ? at.rad : 0;
+    const rad = at ? at.rad : 0, o = at ? at.spot : 0, ddx = at ? at.dx : 0, ddy = at ? at.dy : 0;
     step(300);
     let far = 0, got = 0;
     for (let i = 0; i < g.N; i++) if (g.owner[i] === h.id && !before.has(i)) {
       got++;
-      const dx = i % g.W - foe % g.W, dy = ((i / g.W) | 0) - ((foe / g.W) | 0);
-      if (Math.sqrt(dx * dx + dy * dy) > rad + 1.5) far++;
+      const vx = i % g.W - o % g.W, vy = ((i / g.W) | 0) - ((o / g.W) | 0);
+      if (Math.abs(vx * ddy - vy * ddx) > rad + 1.5 || vx * ddx + vy * ddy < -3) far++;
     }
-    ok(why === '' && !!at, 'a point attack starts: ' + (why || 'ok'));
-    ok(got > 0 && far === 0, 'it takes land only around the spot: ' + got + ' tiles, ' + far + ' outside the ring (radius ' + rad.toFixed(1) + ')');
+    ok(why === '' && !!at, 'a direction attack starts: ' + (why || 'ok'));
+    ok(got > 0 && far === 0, 'it takes land only in its band: ' + got + ' tiles, ' + far + ' outside (half width ' + rad.toFixed(1) + ')');
     const off = new G.Game(map, { seed: 7, bots: 10, spawnTicks: 30 });
     off.setup({ name: 'T', color: [1, 2, 3] });
     ok(!off.punkt, 'Punktangriff aus: mode 3 falls back to the whole front');

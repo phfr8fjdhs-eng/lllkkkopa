@@ -74,7 +74,7 @@
   // two switches of their own (doku/pfeile.md)
   const SWITCH = [['aufstellung', 'Truppenkonzentration', 'An: deine Truppen stehen in Zellen, dichte Stellen halten besser, eingegraben, Reserven, Kessel. Aus: wie in OpenFront, alle Truppen sind ein Topf, keine Verteilung.'],
     ['netz', 'Netz', 'An: mit dem Netz (Taste N) verteilst du deine Truppen zum Verteidigen. Aus: die Truppen stehen gleichmässig, nichts einzustellen. Nur mit Truppenkonzentration.'],
-    ['punkt', 'Punktangriff', 'An: als dritte Angriffsart neben Keil und Abschnitt (Taste F): greift nur rund um die Stelle an, mit den Truppen vom Regler. Kein Weg wie beim Pfeil.'],
+    ['punkt', 'Richtungsangriff', 'An: als dritte Angriffsart neben Keil und Abschnitt (Taste F): statt der ganzen Front greift nur der Teil an, der in die gezogene Richtung schaut. Sieht aus wie die ganze Front, kein Pfeil.'],
     ['pfeile', 'Angriffspfeile planen', 'An: Pfeile mit der rechten Maustaste planen, dann «Angreifen» (Enter). Aus: der Pfeil greift sofort an.']];
   let plans = [];          // version «Pfeile»: arrows planned, not launched yet
   const MODES = [['klassisch', 'Klassisch', 'Das Spiel wie gewohnt.'], ['arsenal', 'Arsenal', 'Zusätzlich: der Satellitenstrahl. Er kommt aus dem All, braucht kein Silo und lässt sich nicht abfangen. Und der Tarnturm: Er versteckt deine Gebäude ganz in seiner Nähe, bis die anderen nahe herankommen. Auch die Nationen setzen beides ein.']];
@@ -1202,7 +1202,7 @@
   // 0 the whole front, 1 a section, 2 a wedge. With a mouse the whole front is a double click and
   // a section or a wedge is drawn with the right button (the switch picks which of the two); on a
   // touch screen the switch picks what a tap does.
-  const THRUST_NAME = ['Ganze Front', 'Abschnitt', 'Keil', 'Punkt'];
+  const THRUST_NAME = ['Ganze Front', 'Abschnitt', 'Keil', 'Richtung'];
   const finePointer = function () { return !!(window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches); };
   function dragWidth() { return cfg.thrust === 1 ? 1 : cfg.thrust === 3 && game && game.punkt ? 3 : 2; }
   function setThrust(w) {
@@ -1236,12 +1236,12 @@
     planKey = key; planAt = now;
     const width = game.thrustWidth(mode);
     if (mode === 3) {
-      const rad = game.spotRadius(h, tile);
-      if (rad < 0) { view.plan = null; planInfo = { why: 'Zu weit von deiner Grenze' }; showCommit(); return; }
+      const dir = game.dirFrom(h, tile);
+      if (!dir) { view.plan = null; planInfo = { why: 'Zu weit von deiner Grenze' }; showCommit(); return; }
       if (game.thrustCount(h) + (game.pfeile ? plans.length : 0) >= G.THRUST.max) { view.plan = null; planInfo = { why: 'Höchstens ' + G.THRUST.max + ' Stösse gleichzeitig' }; showCommit(); return; }
       const troops = h.troops * ratio / (game.pfeile ? plans.length + 1 : 1);
-      view.plan = { spot: tile, rad: rad, troops: troops, col: 'rgb(244,183,64)', label: 'Punkt · ' + fmtT(troops) };
-      planInfo = { mode: 3, verdict: 1, text: 'greift nur hier an', ci: null, spot: tile, rad: rad, tid: a.tid, width: 0 };
+      view.plan = { band: dir, troops: troops, col: 'rgb(244,183,64)', label: 'Richtung · ' + fmtT(troops) };
+      planInfo = { mode: 3, verdict: 1, text: 'nur dieser Teil der Front', ci: null, band: dir, tid: a.tid, width: 0 };
       showCommit(); return;
     }
     if (game.pfeile && game.thrustCount(h) + plans.length >= G.THRUST.max) { view.plan = null; planInfo = { why: 'Höchstens ' + G.THRUST.max + ' Pfeile gleichzeitig' }; showCommit(); return; }
@@ -1496,7 +1496,7 @@
   function addPlan(tile, w, s, info) {
     const h = game.human;
     if (game.thrustCount(h) + plans.length >= G.THRUST.max) { toast('Höchstens ' + G.THRUST.max + ' Pfeile gleichzeitig'); snd('deny'); return; }
-    plans.push({ tile: tile, w: w, s: s, path: info && info.path, width: info ? info.width : game.thrustWidth(w), tid: info ? info.tid : game.owner[tile], troops: 0, spot: info && info.spot >= 0 ? info.spot : -1, rad: info ? info.rad || 0 : 0 });
+    plans.push({ tile: tile, w: w, s: s, path: info && info.path, width: info ? info.width : game.thrustWidth(w), tid: info ? info.tid : game.owner[tile], troops: 0, band: info && info.band ? info.band : null });
     syncPlans(); snd('tap');
   }
   function planTap(tile) {
@@ -1504,9 +1504,9 @@
     if (!a.canAttack && a.boat) { strikeAt(tile, { sea: 1, say: 'Boot läuft aus' }); return; }   // an island of theirs: by boat
     if (!a.canAttack) { toast(a.why || 'Hier nicht möglich'); snd('deny'); return; }
     if (cfg.thrust === 3) {
-      const rad = game.spotRadius(h, tile);
-      if (rad < 0) { toast('Zu weit von deiner Grenze'); snd('deny'); return; }
-      addPlan(tile, 3, -1, { spot: tile, rad: rad, tid: a.tid, width: 0 });
+      const dir = game.dirFrom(h, tile);
+      if (!dir) { toast('Zu weit von deiner Grenze'); snd('deny'); return; }
+      addPlan(tile, 3, -1, { band: dir, tid: a.tid, width: 0 });
       return;
     }
     const width = game.thrustWidth(cfg.thrust), r = game.thrustRoute(h, a.tid, tile, width, -1);
