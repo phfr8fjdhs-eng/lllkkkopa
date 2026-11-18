@@ -2398,7 +2398,9 @@ globalThis.G = { VARIANT: 'rohstoffe' };
       const pc = tp ? tp.cells.get(this.cellOf(tile)) : null, pd = pc ? this.postDens(t, pc) * this.postHold(pc) : 1;
       if (pc) pc.alarm = this.ticks;          // reserves are called to a cell under attack
       // r: how many attackers there are for every defender they face at this tile
-      const r = t ? use / Math.max(1, Math.min(t.troops, face * pd)) : 0;      // never more defenders than there are
+      // never more defenders than there are; a narrow attack brings at most `crowd` per defender to bear
+      let r = t ? at.troops / Math.max(1, Math.min(t.troops, face * pd)) : 0;
+      if (narrow && r > G.THRUST.crowd) r = G.THRUST.crowd;
       let hold = TR.free;
       if (t) hold = within(1.15 - 0.33 * r, 0.15, 1);
       let mag = 80 * (1 + (gl - 1) * hold), speed = 16.5 * (1 + (gs - 1) * hold);
