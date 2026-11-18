@@ -509,7 +509,7 @@ body.placing #cv { cursor: crosshair; }
         <div id="popBar" title="Truppen daheim (blau) und im Angriff (orange), gemessen am Höchststand"><i id="popHome"></i><i id="popOut"></i></div>
         <div id="incLine" hidden></div>
         <label class="ratio" for="ratio"><span>Angriff<b id="ratioPct">20%</b></span><input id="ratio" type="range" min="1" max="100" value="20"><span id="ratioTroops">0</span></label>
-        <div id="modes" class="modes" role="group" aria-label="Angriffsart" title="Taste F wechselt"><span class="mlab">Rechts ziehen</span><button type="button" data-w="0" class="touchOnly">Ganze Front</button><button type="button" data-w="2">Keil</button><button type="button" data-w="1">Abschnitt</button><button type="button" data-w="3" id="mPunkt" hidden>Punkt</button></div>
+        <div id="modes" class="modes" role="group" aria-label="Angriffsart" title="Taste F wechselt"><span class="mlab">Rechts ziehen</span><button type="button" data-w="0" class="touchOnly">Ganze Front</button><button type="button" data-w="2">Keil</button><button type="button" data-w="1">Abschnitt</button><button type="button" data-w="3" id="mPunkt" hidden>Richtung</button></div>
         <button id="bGo" class="btn" type="button" hidden>Angreifen</button>
         <div id="commit" aria-live="off"></div>
       </div>
@@ -1335,8 +1335,9 @@ globalThis.G = { VARIANT: 'rohstoffe' };
 //   flank   how many defenders per tile of depth a thrust meets along each of its two flanks, as
 //           tiles of front (so a wedge 40 tiles deep fights as if its front were 80 tiles longer)
 //   speed   how far the head of a thrust gets per tick at most, in way cost (open lowland: tiles), times attackPace
+  //   crowd   troops a narrow attack can use at once, per defender it faces (more wait as supply)
   //   search  most tiles the way-finding looks at before it gives up
-  G.THRUST = { widths: [0, 30, 12], max: 4, pull: 1.2, ring: 0.6, speed: 0.5, flank: 3, search: 250000 };
+  G.THRUST = { widths: [0, 30, 12], max: 4, pull: 1.2, ring: 0.6, speed: 0.5, flank: 3, crowd: 2, search: 250000 };
   G.UNAME = ['Stadt', 'Verteidigungs\u00ADposten', 'Hafen', 'Raketensilo', 'Flugabwehr', 'Fabrik', 'Tarnturm', 'Kriegsschiff', 'Boot',
     'Handelsschiff', 'Zug', 'Granate', 'Abwehrrakete', 'Atombombe', 'Wasserstoff\u00ADbombe', 'MIRV', 'Sprengkopf', 'Marschflug\u00ADkörper', 'Satelliten\u00ADstrahl'];
   // Tempo. The numbers of the simulation are OpenFront's, but its maps have two million tiles and
@@ -1902,8 +1903,10 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     // width of `path`) until the goal has fallen (`reached`); `dist` is the cost of the way to the goal
     this.goal = -1; this.width = 0; this.path = null; this.lane = null; this.dist = null; this.reached = false; this.reroute = 0;
     this.head = undefined; this.limit = 0;   // how near the goal the thrust has got, and how near it may get this tick
-    // a point attack (mode 3): fights only within `rad` tiles of `spot`, nearest first, no way to follow
-    this.spot = -1; this.rad = 0;
+    // a direction attack (mode 3): the part of the front facing one way. It fights only within a band
+    // `rad` tiles to each side of the line from `spot` (an own border tile) along (dx, dy), and
+    // moves forward as a front does, no lane and no goal
+    this.spot = -1; this.rad = 0; this.dx = 0; this.dy = 0;
   }
 
   Game.prototype.addFront = function (at, tile) {
@@ -1919,10 +1922,10 @@ globalThis.G = { VARIANT: 'rohstoffe' };
       if (!land[n] || own[n] !== tid) continue;
       if (at.lane && !at.reached && !at.lane.has(n)) continue;     // a thrust stays in its lane until the goal has fallen
       let ds = 0;
-      if (at.spot >= 0) {                                           // a point attack stays around its spot
-        const sx = at.spot % W - n % W, sy = ((at.spot / W) | 0) - ((n / W) | 0);
-        ds = Math.sqrt(sx * sx + sy * sy);
-        if (ds > at.rad) continue;
+      if (at.spot >= 0) {                                           // a direction attack stays in its band
+        const vx = n % W - at.spot % W, vy = ((n / W) | 0) - ((at.spot / W) | 0);
+        ds = vx * at.dx + vy * at.dy;
+        if (ds < -2 || Math.abs(vx * at.dy - vy * at.dx) > at.rad) continue;
       }
       at.front.add(n);
       const nx = n % W, ny = (n - nx) / W;
@@ -1934,7 +1937,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
       if (mine > 2) mine = 10;
       const m = mg[n], rough = m < 10 ? 1 : m < 20 ? 1.5 : 2;
       let key = (rng.int(0, 7) + 10) * (1 - mine * 0.5 + rough / 2) + T;
-      if (at.spot >= 0) key += G.THRUST.ring * 4 * ds;           // nearest the spot first
+      if (at.spot >= 0) key += G.THRUST.ring * 0.5 * ds;         // the band moves forward evenly
       if (at.goal >= 0) {
         // a thrust takes first what lies nearer its goal: along the way while it is under way,
         // in rings around the goal once it has fallen
@@ -2159,13 +2162,17 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     return { reach: reach, left: left, secs: T / 10, counted: count, tiles: lane.size, len: route.path.length };
   };
   // How many thrusts a player has under way.
-  // How far around `tile` a point attack of p's fights: its distance from p's border plus a wedge's
-  // width; -1 when it lies more than two widths away from the border. Reads the game only.
-  Game.prototype.spotRadius = function (p, tile) {
-    const R0 = this.thrustWidth(2), W = this.W, nx = tile % W, ny = (tile / W) | 0;
-    let d2 = Infinity;
-    for (const b of p.border) { const dx = b % W - nx, dy = ((b / W) | 0) - ny, d = dx * dx + dy * dy; if (d < d2) d2 = d; }
-    return d2 > 4 * R0 * R0 ? -1 : Math.sqrt(d2) + R0;
+  // Where a direction attack of p's toward `tile` starts and which way it goes: the own border
+  // tile nearest to it, the direction from there to the tile, and the half width of the band (half
+  // a section). null when the tile lies more than a section's width from the border. Reads only.
+  Game.prototype.dirFrom = function (p, tile) {
+    const W = this.W, nx = tile % W, ny = (tile / W) | 0, half = this.thrustWidth(1) / 2;
+    let d2 = Infinity, o = -1;
+    for (const b of p.border) { const dx = b % W - nx, dy = ((b / W) | 0) - ny, d = dx * dx + dy * dy; if (d < d2 || (d === d2 && b < o)) { d2 = d; o = b; } }
+    if (o < 0 || d2 > 4 * half * half) return null;
+    let dx = nx - o % W, dy = ny - ((o / W) | 0), l = Math.sqrt(dx * dx + dy * dy);
+    if (l < 1) { dx = 1; dy = 0; l = 1; }
+    return { o: o, dx: dx / l, dy: dy / l, half: half };
   };
   Game.prototype.thrustCount = function (p) {
     let n = 0;
@@ -2176,7 +2183,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   // Send troops against a player (tid) or against free land (tid 0). src is a landing tile, or -1.
   // near: the tile the order was given at. For a realm with a posture the troops are then drawn
   // from the cell at that spot; what is not at hand marches there and joins as it arrives.
-  // mode: 0 the whole front (default), 1 a section, 2 a wedge, 3 a point attack; for 1 to 3 `near` is the goal.
+  // mode: 0 the whole front (default), 1 a section, 2 a wedge, 3 a direction; for 1 to 3 `near` is the goal.
   Game.prototype.attack = function (a, tid, troops, src, near, mode, start) {
     this.attackWhy = '';
     if (!a.alive || this.phase !== 'play') return null;
@@ -2188,19 +2195,19 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     // A thrust needs a way; reinforcing one that aims close by joins it instead of starting another.
     let route = null, join = null, spot = -1, rad = 0;
     if (mode === 3 && src < 0 && near >= 0) {
-      // a point attack: around the spot clicked, as far out from the own border as it lies plus a
-      // wedge's width; joins one aimed close by
-      const R0 = this.thrustWidth(2), W = this.W, nx = near % W, ny = (near / W) | 0;
+      // a direction attack: the part of the front facing the tile clicked; joins one that starts
+      // close by and points the same way
+      var dir = this.dirFrom(a, near);
+      if (!dir) { this.attackWhy = 'Zu weit von deiner Grenze'; return null; }
+      const W = this.W, ox = dir.o % W, oy = (dir.o / W) | 0;
       for (const o of a.out) {
         if (!o.active || o.tid !== tid || o.spot < 0) continue;
-        const dx = o.spot % W - nx, dy = ((o.spot / W) | 0) - ny;
-        if (dx * dx + dy * dy <= R0 * R0) { join = o; break; }
+        const dx = o.spot % W - ox, dy = ((o.spot / W) | 0) - oy;
+        if (dx * dx + dy * dy <= dir.half * dir.half && o.dx * dir.dx + o.dy * dir.dy > 0.8) { join = o; break; }
       }
       if (!join) {
         if (this.thrustCount(a) >= G.THRUST.max) { this.attackWhy = 'Höchstens ' + G.THRUST.max + ' Stösse gleichzeitig'; return null; }
-        rad = this.spotRadius(a, near);
-        if (rad < 0) { this.attackWhy = 'Zu weit von deiner Grenze'; return null; }
-        spot = near;
+        spot = dir.o; rad = dir.half;
       }
     } else if (mode && src < 0 && near >= 0) {
       const width = this.thrustWidth(mode);
@@ -2231,7 +2238,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     if (!at) {
       at = new Attack(++this.attackSeq, a, tid, 0, this.ticks);
       if (route) { at.goal = route.goal; at.width = route.width; at.path = route.path; at.lane = route.lane; at.dist = route.dist; }
-      if (spot >= 0) { at.spot = spot; at.rad = rad; at.width = this.thrustWidth(2); }
+      if (spot >= 0) { at.spot = spot; at.rad = rad; at.dx = dir.dx; at.dy = dir.dy; at.width = 2 * rad; }
       a.out.push(at);
       if (t) {
         t.inc.push(at);
@@ -2317,13 +2324,19 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     // (tiles taken over the width of its lane). The deeper a wedge gets, the dearer it becomes.
     const flank = at.goal >= 0 || at.spot >= 0 ? G.THRUST.flank * 2 * (at.taken || 0) / Math.max(1, at.width) : 0;
     const face = t ? Math.max(1, Math.min(t.troops, dAvg * Math.max(4, at.front.size + flank) * CB.depth)) : 1;
+    // A narrow attack (wedge, section, direction) can only bring so many troops to bear at once:
+    // at most `G.THRUST.crowd` for every defender it faces. More waits behind as supply and moves
+    // up as the ones in front fall, but does not make the attack faster or cheaper. So a blitz
+    // through one spot is no faster than the whole front would be.
+    const narrow = at.goal >= 0 || at.spot >= 0;
+    const use = t && narrow ? Math.min(at.troops, G.THRUST.crowd * face) : at.troops;
     // What the front may take this tick. A tile that costs more than is left is paid off over the
     // following ticks (`carry`), so a weak attack really is slow instead of taking a tile a tick
     // regardless.
     // Without a posture (`aufstellung` off) a fight against a realm runs on OpenFront's formula
     // (EngineConfig.attackLogic): a whole tick's budget, each tile a share of it (see below).
     const of = !!t && !this.aufstellung;
-    let budget = (of ? 1 : t ? within(10 * at.troops / face, 0.01, 0.5) * n * 3 : n * (a.type === PT.BOT ? 1.4 : 2)) * this.attackPace + (at.carry || 0);
+    let budget = (of ? 1 : t ? within(10 * use / face, 0.01, 0.5) * n * 3 : n * (a.type === PT.BOT ? 1.4 : 2)) * this.attackPace + (at.carry || 0);
     if (budget <= 0) { at.carry = budget; return; }
     const landTiles = map.landTiles;
     const lossMod = a.tiles > landTiles * 0.17 ? Math.sqrt(landTiles * 0.17 / a.tiles) : 1;
@@ -2385,7 +2398,9 @@ globalThis.G = { VARIANT: 'rohstoffe' };
       const pc = tp ? tp.cells.get(this.cellOf(tile)) : null, pd = pc ? this.postDens(t, pc) * this.postHold(pc) : 1;
       if (pc) pc.alarm = this.ticks;          // reserves are called to a cell under attack
       // r: how many attackers there are for every defender they face at this tile
-      const r = t ? at.troops / Math.max(1, Math.min(t.troops, face * pd)) : 0;      // never more defenders than there are
+      // never more defenders than there are; a narrow attack brings at most `crowd` per defender to bear
+      let r = t ? at.troops / Math.max(1, Math.min(t.troops, face * pd)) : 0;
+      if (narrow && r > G.THRUST.crowd) r = G.THRUST.crowd;
       let hold = TR.free;
       if (t) hold = within(1.15 - 0.33 * r, 0.15, 1);
       let mag = 80 * (1 + (gl - 1) * hold), speed = 16.5 * (1 + (gs - 1) * hold);
@@ -2402,7 +2417,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
         // troops per tile); the defender loses his average per tile; a tile takes a share of the
         // tick of within(ratio, 0.82, 7.5) x within(ratio / 20, 1, 50) / 8.55 x tile cost / border.
         // Ground, posts and fallout as above (`mag`, `speed`), but at full weight, as there.
-        const R = t.troops / Math.max(1, at.troops);
+        const R = t.troops / Math.max(1, at.troops);   // as in OpenFront; a narrow front is slowed by its short border (`used`)
         const m0 = 80 * gl * (mag / (80 * (1 + (gl - 1) * hold))), s0 = 16.5 * gs * (speed / (16.5 * (1 + (gs - 1) * hold)));
         loss = m0 * (a.type !== PT.BOT && t.type === PT.BOT ? 0.7 : 1) * traitor * within(R, 0.6, 2) * (0.463 + 0.0039 * dAvg);
         used = within(R, 0.82, 7.5) * within(R / 20, 1, 50) / 8.55 * s0 * (traitor < 1 ? 0.5 : 1) / Math.max(1, at.front.size + 1);
@@ -2821,7 +2836,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
       case 'feed': {                                          // reinforce a thrust with a share of the army
         const at = p.out.find(function (o) { return o.active && o.id === c.a; });
         if (!at || (at.goal < 0 && at.spot < 0)) return 'Nicht möglich';
-        if (at.spot >= 0) return this.attack(p, at.tid, p.troops * r, -1, at.spot, 3) ? '' : (this.attackWhy || 'Zu wenig Truppen');
+        if (at.spot >= 0) return this.attack(p, at.tid, p.troops * r, -1, Math.round(at.spot + at.dx * 4) + Math.round(at.dy * 4) * this.W, 3) ? '' : (this.attackWhy || 'Zu wenig Truppen');
         const mode = at.width === this.thrustWidth(1) ? 1 : 2;
         return this.attack(p, at.tid, p.troops * r, -1, at.goal, mode) ? '' : (this.attackWhy || 'Zu wenig Truppen');
       }
@@ -7403,20 +7418,26 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     const k = troops / Math.max(1, all);
     return k < 0.12 ? 7 : k < 0.35 ? 11 : 15;
   }
-  // A point attack: a dashed ring around its spot, a cross hair in the middle, and a number for a plan.
-  function spotRing(ctx, x, y, r, col, alpha, label) {
-    ctx.save(); ctx.globalAlpha = alpha;
-    ctx.beginPath(); ctx.arc(x, y, Math.max(6, r), 0, 6.2832);
-    ctx.fillStyle = 'rgba(255,255,255,0.06)'; ctx.fill();
-    ctx.setLineDash([7, 5]); ctx.lineWidth = 2.4; ctx.strokeStyle = 'rgba(10,16,24,.8)'; ctx.stroke();
-    ctx.lineWidth = 1.6; ctx.strokeStyle = col; ctx.stroke(); ctx.setLineDash([]);
-    ctx.beginPath(); ctx.moveTo(x - 7, y); ctx.lineTo(x + 7, y); ctx.moveTo(x, y - 7); ctx.lineTo(x, y + 7);
-    ctx.lineWidth = 3.4; ctx.strokeStyle = 'rgba(10,16,24,.8)'; ctx.stroke(); ctx.lineWidth = 1.8; ctx.strokeStyle = col; ctx.stroke();
+  // A direction attack, planned or previewed: the part of the own front that goes (a bar across
+  // the way, as wide as the band) and a short arrow the way it goes; a number for a plan.
+  function bandMark(ctx, x, y, b, z, col, alpha, label) {
+    const h = Math.max(8, b.half * z), px = -b.dy, py = b.dx, L = Math.max(14, h * 0.7);
+    ctx.save(); ctx.globalAlpha = alpha; ctx.lineCap = 'round';
+    const line = function (w, c) {
+      ctx.lineWidth = w; ctx.strokeStyle = c; ctx.beginPath();
+      ctx.moveTo(x - px * h, y - py * h); ctx.lineTo(x + px * h, y + py * h);
+      ctx.moveTo(x, y); ctx.lineTo(x + b.dx * L, y + b.dy * L);
+      ctx.moveTo(x + b.dx * L - b.dx * 7 + px * 6, y + b.dy * L - b.dy * 7 + py * 6); ctx.lineTo(x + b.dx * L, y + b.dy * L);
+      ctx.lineTo(x + b.dx * L - b.dx * 7 - px * 6, y + b.dy * L - b.dy * 7 - py * 6);
+      ctx.stroke();
+    };
+    line(6, 'rgba(10,16,24,.8)'); line(3, col);
     if (label) {
-      ctx.beginPath(); ctx.arc(x, y - Math.max(6, r) - 12, 10, 0, 6.2832);
+      const lx = x - b.dx * 16, ly = y - b.dy * 16;
+      ctx.beginPath(); ctx.arc(lx, ly, 10, 0, 6.2832);
       ctx.fillStyle = 'rgba(10,16,24,.92)'; ctx.fill(); ctx.lineWidth = 1.5; ctx.strokeStyle = '#fff'; ctx.stroke();
       ctx.font = '700 12px ' + FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#fff';
-      ctx.fillText(label, x, y - Math.max(6, r) - 11.5);
+      ctx.fillText(label, lx, ly + 0.5);
     }
     ctx.restore();
   }
@@ -7438,23 +7459,16 @@ globalThis.G = { VARIANT: 'rohstoffe' };
       wayArrow(ctx, pts, h.cssL || 'rgb(240,240,240)', arrowWidth(at.troops + (at.want || 0), all), 0, 0.95);
       hits.push({ id: at.id, pts: pts });
     }
-    // point attacks under way: a dashed ring around their spot
-    for (const at of h.out) {
-      if (!at.active || at.spot < 0) continue;
-      const x = (at.spot % W + 0.5) * z + ox, y = (((at.spot / W) | 0) + 0.5) * z + oy;
-      spotRing(ctx, x, y, at.rad * z, h.cssL || 'rgb(240,240,240)', 0.95, '');
-      hits.push({ id: at.id, c: [x, y, at.rad * z] });
-    }
     // version «Pfeile»: arrows planned but not launched yet, pale and numbered (`view.plans`)
     const ph = this.planHits || (this.planHits = []);
     ph.length = 0;
     const plans = this.plans || [];
     for (let i = 0; i < plans.length; i++) {
       const q = plans[i];
-      if (q.spot >= 0) {
-        const x = (q.spot % W + 0.5) * z + ox, y = (((q.spot / W) | 0) + 0.5) * z + oy;
-        spotRing(ctx, x, y, q.rad * z, 'rgb(255,255,255)', 0.6, String(i + 1));
-        ph.push({ id: i, c: [x, y, q.rad * z] });
+      if (q.band) {
+        const x = (q.band.o % W + 0.5) * z + ox, y = (((q.band.o / W) | 0) + 0.5) * z + oy;
+        bandMark(ctx, x, y, q.band, z, 'rgb(255,255,255)', 0.6, String(i + 1));
+        ph.push({ id: i, c: [x, y, q.band.half * z] });
         continue;
       }
       if (!q.path || q.path.length < 2) continue;
@@ -7468,12 +7482,12 @@ globalThis.G = { VARIANT: 'rohstoffe' };
       ctx.fillText(String(i + 1), tip[0], tip[1] - 17.5);
     }
     const pl = this.plan;
-    if (pl && pl.spot >= 0) {
-      const x = (pl.spot % W + 0.5) * z + ox, y = (((pl.spot / W) | 0) + 0.5) * z + oy;
-      spotRing(ctx, x, y, pl.rad * z, pl.col, 0.9, '');
+    if (pl && pl.band) {
+      const x = (pl.band.o % W + 0.5) * z + ox, y = (((pl.band.o / W) | 0) + 0.5) * z + oy;
+      bandMark(ctx, x, y, pl.band, z, pl.col, 0.9, '');
       if (pl.label) {
         ctx.font = '700 13px ' + FONT; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-        const tw = ctx.measureText(pl.label).width + 16, lx = Math.min(x + 14, this.cw - tw - 6), ly = Math.max(16, y - pl.rad * z - 16);
+        const tw = ctx.measureText(pl.label).width + 16, lx = Math.min(x + 14, this.cw - tw - 6), ly = Math.max(16, y - pl.band.half * z - 16);
         ctx.beginPath();
         if (ctx.roundRect) ctx.roundRect(lx, ly - 11, tw, 22, 11); else ctx.rect(lx, ly - 11, tw, 22);
         ctx.fillStyle = 'rgba(10,16,24,.92)'; ctx.fill(); ctx.lineWidth = 1.5; ctx.strokeStyle = pl.col; ctx.stroke();
@@ -8069,7 +8083,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   // two switches of their own (doku/pfeile.md)
   const SWITCH = [['aufstellung', 'Truppenkonzentration', 'An: deine Truppen stehen in Zellen, dichte Stellen halten besser, eingegraben, Reserven, Kessel. Aus: wie in OpenFront, alle Truppen sind ein Topf, keine Verteilung.'],
     ['netz', 'Netz', 'An: mit dem Netz (Taste N) verteilst du deine Truppen zum Verteidigen. Aus: die Truppen stehen gleichmässig, nichts einzustellen. Nur mit Truppenkonzentration.'],
-    ['punkt', 'Punktangriff', 'An: als dritte Angriffsart neben Keil und Abschnitt (Taste F): greift nur rund um die Stelle an, mit den Truppen vom Regler. Kein Weg wie beim Pfeil.'],
+    ['punkt', 'Richtungsangriff', 'An: als dritte Angriffsart neben Keil und Abschnitt (Taste F): statt der ganzen Front greift nur der Teil an, der in die gezogene Richtung schaut. Sieht aus wie die ganze Front, kein Pfeil.'],
     ['pfeile', 'Angriffspfeile planen', 'An: Pfeile mit der rechten Maustaste planen, dann «Angreifen» (Enter). Aus: der Pfeil greift sofort an.']];
   let plans = [];          // version «Pfeile»: arrows planned, not launched yet
   const MODES = [['klassisch', 'Klassisch', 'Das Spiel wie gewohnt.'], ['arsenal', 'Arsenal', 'Zusätzlich: der Satellitenstrahl. Er kommt aus dem All, braucht kein Silo und lässt sich nicht abfangen. Und der Tarnturm: Er versteckt deine Gebäude ganz in seiner Nähe, bis die anderen nahe herankommen. Auch die Nationen setzen beides ein.']];
@@ -9197,7 +9211,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   // 0 the whole front, 1 a section, 2 a wedge. With a mouse the whole front is a double click and
   // a section or a wedge is drawn with the right button (the switch picks which of the two); on a
   // touch screen the switch picks what a tap does.
-  const THRUST_NAME = ['Ganze Front', 'Abschnitt', 'Keil', 'Punkt'];
+  const THRUST_NAME = ['Ganze Front', 'Abschnitt', 'Keil', 'Richtung'];
   const finePointer = function () { return !!(window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches); };
   function dragWidth() { return cfg.thrust === 1 ? 1 : cfg.thrust === 3 && game && game.punkt ? 3 : 2; }
   function setThrust(w) {
@@ -9231,12 +9245,12 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     planKey = key; planAt = now;
     const width = game.thrustWidth(mode);
     if (mode === 3) {
-      const rad = game.spotRadius(h, tile);
-      if (rad < 0) { view.plan = null; planInfo = { why: 'Zu weit von deiner Grenze' }; showCommit(); return; }
+      const dir = game.dirFrom(h, tile);
+      if (!dir) { view.plan = null; planInfo = { why: 'Zu weit von deiner Grenze' }; showCommit(); return; }
       if (game.thrustCount(h) + (game.pfeile ? plans.length : 0) >= G.THRUST.max) { view.plan = null; planInfo = { why: 'Höchstens ' + G.THRUST.max + ' Stösse gleichzeitig' }; showCommit(); return; }
       const troops = h.troops * ratio / (game.pfeile ? plans.length + 1 : 1);
-      view.plan = { spot: tile, rad: rad, troops: troops, col: 'rgb(244,183,64)', label: 'Punkt · ' + fmtT(troops) };
-      planInfo = { mode: 3, verdict: 1, text: 'greift nur hier an', ci: null, spot: tile, rad: rad, tid: a.tid, width: 0 };
+      view.plan = { band: dir, troops: troops, col: 'rgb(244,183,64)', label: 'Richtung · ' + fmtT(troops) };
+      planInfo = { mode: 3, verdict: 1, text: 'nur dieser Teil der Front', ci: null, band: dir, tid: a.tid, width: 0 };
       showCommit(); return;
     }
     if (game.pfeile && game.thrustCount(h) + plans.length >= G.THRUST.max) { view.plan = null; planInfo = { why: 'Höchstens ' + G.THRUST.max + ' Pfeile gleichzeitig' }; showCommit(); return; }
@@ -9491,7 +9505,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   function addPlan(tile, w, s, info) {
     const h = game.human;
     if (game.thrustCount(h) + plans.length >= G.THRUST.max) { toast('Höchstens ' + G.THRUST.max + ' Pfeile gleichzeitig'); snd('deny'); return; }
-    plans.push({ tile: tile, w: w, s: s, path: info && info.path, width: info ? info.width : game.thrustWidth(w), tid: info ? info.tid : game.owner[tile], troops: 0, spot: info && info.spot >= 0 ? info.spot : -1, rad: info ? info.rad || 0 : 0 });
+    plans.push({ tile: tile, w: w, s: s, path: info && info.path, width: info ? info.width : game.thrustWidth(w), tid: info ? info.tid : game.owner[tile], troops: 0, band: info && info.band ? info.band : null });
     syncPlans(); snd('tap');
   }
   function planTap(tile) {
@@ -9499,9 +9513,9 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     if (!a.canAttack && a.boat) { strikeAt(tile, { sea: 1, say: 'Boot läuft aus' }); return; }   // an island of theirs: by boat
     if (!a.canAttack) { toast(a.why || 'Hier nicht möglich'); snd('deny'); return; }
     if (cfg.thrust === 3) {
-      const rad = game.spotRadius(h, tile);
-      if (rad < 0) { toast('Zu weit von deiner Grenze'); snd('deny'); return; }
-      addPlan(tile, 3, -1, { spot: tile, rad: rad, tid: a.tid, width: 0 });
+      const dir = game.dirFrom(h, tile);
+      if (!dir) { toast('Zu weit von deiner Grenze'); snd('deny'); return; }
+      addPlan(tile, 3, -1, { band: dir, tid: a.tid, width: 0 });
       return;
     }
     const width = game.thrustWidth(cfg.thrust), r = game.thrustRoute(h, a.tid, tile, width, -1);

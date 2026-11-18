@@ -14,10 +14,13 @@ Aus: wie OpenFront, keine Aufstellung für Menschen und Nationen, alle Truppen e
 ## Netz (`opts.netz`, Vorgabe an)
 Aus: der Knopf und die Taste N fehlen, der Befehl `mesh` gibt «Nicht möglich». Die Truppen eines Menschen stehen gleichmässig. Eingraben, Reserven und Kessel gelten weiter. Die Sammelpunkte mit Fahne (16.11.2026) sind wieder entfernt.
 
-## Punktangriff (`opts.punkt`)
-- Dritte Angriffsart neben Keil und Abschnitt: Knopf «Punkt» bei «Rechts ziehen», Taste F wechselt Keil → Abschnitt → Punkt. Daneben bleibt die ganze Front (Doppelklick, Kreismenü, Handy «Ganze Front»).
-- Mit der rechten Maustaste auf eine Stelle im Feindesland ziehen: die Truppen vom Regler greifen nur rund um diese Stelle an, die nächsten Felder zuerst, ohne Weg wie beim Pfeil. Der Ring reicht so weit wie die Stelle von der eigenen Grenze entfernt ist plus die Breite eines Keils (`spotRadius`); weiter als zwei Keilbreiten von der Grenze geht nicht. Ist der Ring erobert oder die Kraft aufgebraucht, kommt der Rest zurück.
-- Befehl `{k:'strike', w:3}` (`attack` mit `mode` 3, Zustand `at.spot`, `at.rad`). Zählt wie ein Pfeil zu den höchstens 4. Flanken wie beim Keil. Klick auf den Ring: verstärken oder zurückziehen. Mit «Angriffspfeile planen» wird auch der Punkt erst geplant (Kreis mit Nummer).
+## Richtungsangriff (`opts.punkt`, 18.11.2026 statt des Punktangriffs)
+- Dritte Angriffsart neben Keil und Abschnitt: Knopf «Richtung» bei «Rechts ziehen», Taste F wechselt Keil → Abschnitt → Richtung.
+- Mit der rechten Maustaste in eine Richtung ziehen: statt der ganzen Front greift nur der Teil an, der dorthin schaut. Er sieht aus wie die ganze Front und rückt wie sie vor, ohne Pfeil und ohne Ziel. Er bleibt in einem Band so breit wie ein Abschnitt (`dirFrom`: vom eigenen Grenzfeld, das der Stelle am nächsten liegt, in Richtung der Stelle; `at.spot`, `at.dx`, `at.dy`, halbe Breite `at.rad`). Weiter als eine Abschnittsbreite von der Grenze geht nicht.
+- Ein zweiter Angriff in dieselbe Richtung vom selben Teil der Grenze verstärkt ihn. Zählt zu den höchstens 4 Stössen. Mit «Angriffspfeile planen» wird er zuerst geplant (Balken mit Pfeil und Nummer).
+
+## Kein Blitzkrieg durch eine schmale Stelle (18.11.2026)
+Ein schmaler Angriff (Keil, Abschnitt, Richtung) setzt höchstens `G.THRUST.crowd` (2) Angreifer pro Verteidiger ein, dem er gegenübersteht (`use` und die Grenze für `r` in `tickAttack`). Was darüber hinausgeht, wartet als Nachschub und rückt nach, macht den Angriff aber weder schneller noch billiger. Messbank (`node test/kampf.js Stoss`), 150K gegen 40K mit 20 %: ganze Front 273 Felder, Abschnitt 273, Keil 295. Der schmale Angriff kommt tiefer, nimmt aber nicht mehr Land als die Front. Ohne Truppenkonzentration (OpenFront-Formel) gilt die Grenze nicht; dort bremst schon die kurze Front.
 
 ## Pfeile weniger stark (17.11.2026)
 Ein Keil nahm mit denselben Truppen so viel oder mehr Land als die ganze Front und war in 4 bis 7 s am Ziel (`node test/kampf.js Stoss`). Jetzt `G.THRUST.speed` 0.5 (vorher 1.4: die Spitze ist langsamer) und `G.THRUST.flank` 3 (vorher 1: je tiefer, desto mehr Verteidiger an den Seiten). Messbank: 150K gegen 40K mit 20 %: Keil 79 % des Wegs, 350 Felder (Front 347); 400K gegen 100K mit 15 %: Keil 78 % des Wegs, 569 Felder (vorher 1785; Front 812). Der Keil kommt tief, nimmt aber nicht mehr Land als die Front.

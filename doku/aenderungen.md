@@ -1,6 +1,10 @@
 # Änderungsprotokoll
 Was seit dem 13.11.2026 geändert wurde und warum. Den heutigen Stand der Regeln beschreiben die anderen Dateien in `doku/`.
 
+## Richtungsangriff statt Punktangriff, kein Blitzkrieg (18.11.2026)
+- Der Punktangriff (Ring) war komisch. Jetzt greift statt der ganzen Front nur der Teil an, der in die gezogene Richtung schaut, und sieht aus wie die ganze Front.
+- Schmale Angriffe setzen höchstens 2 Angreifer pro gegenüberstehenden Verteidiger ein; der Rest ist Nachschub. So überrennt man niemanden mehr an einer Stelle. Messwerte in `doku/pfeile.md`.
+
 ## Rohstoffe: alles auf einmal ausbauen (18.11.2026)
 Knöpfe «Alles eine Stufe höher», «Alle +1» pro Rohstoff und «Alle Fabriken eine Stufe höher» in der Tabelle; grosse Listen eingeklappt. Wunsch des Besitzers: einzeln leveln war mit einem grossen Land zu mühsam. Siehe `doku/rohstoffe.md`.
 
