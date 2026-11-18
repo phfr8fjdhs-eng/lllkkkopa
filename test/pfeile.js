@@ -81,6 +81,7 @@ const ok = (c, msg) => { if (!c) { console.log('FAIL', msg); process.exitCode = 
     const off = new G.Game(map, { seed: 7, bots: 10, spawnTicks: 30 });
     off.setup({ name: 'T', color: [1, 2, 3] });
     ok(!off.punkt, 'Punktangriff aus: mode 3 falls back to the whole front');
+  }
   // Truppenkonzentration aus: one pool of troops as in OpenFront, for people and nations alike
   {
     const g = new G.Game(map, { seed: 7, bots: 30, spawnTicks: 30, aufstellung: false });
