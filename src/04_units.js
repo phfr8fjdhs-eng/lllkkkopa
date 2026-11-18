@@ -889,7 +889,9 @@
     const W = this.W, H = this.H, own = this.owner, land = this.map.land, rng = this.rng, ps = this.players;
     const cx = u.dx, cy = u.dy, in2 = rin * rin, out2 = rout * rout;
     const before = new Map();
-    const kill = type === UT.WARHEAD ? G.WARHEAD_KILL : 5;   // troops lost per hit tile, in tiles' worth of the average
+    // troops lost per hit tile, in tiles' worth of the average (OpenFront: 5; ours less, see
+    // doku/openfront-abgleich.md: a bomb costs about as large a share of the army as of the land)
+    const kill = type === UT.WARHEAD ? G.WARHEAD_KILL : G.NUKE_KILL;
     for (let y = Math.max(0, cy - rout); y <= Math.min(H - 1, cy + rout); y++) {
       for (let x = Math.max(0, cx - rout); x <= Math.min(W - 1, cx + rout); x++) {
         const d2 = (x - cx) * (x - cx) + (y - cy) * (y - cy);
