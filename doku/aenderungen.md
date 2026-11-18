@@ -1,6 +1,9 @@
 # Änderungsprotokoll
 Was seit dem 13.11.2026 geändert wurde und warum. Den heutigen Stand der Regeln beschreiben die anderen Dateien in `doku/`.
 
+## Erde: keine Inseln unter 100 Feldern mehr (18.11.2026)
+`G.MIN_ISLAND` 100 statt 80, und die Ausnahme für Inseln mit einer Nation fällt weg (Wunsch des Besitzers: alle Inseln unter 100 raus). 30 Landmassen weniger; Mauritius, Komoren, Salomonen, Kap Verde, Malediven, Malta und Bahamas spielen nicht mehr mit.
+
 ## Tarnturm: Ring nur beim Bauen oder nach einem Klick (18.11.2026)
 Eigene Tarntürme zeigen ihren Bereich (gestrichelter türkiser Ring) und die Gebäude, die sie verstecken (gestrichelter Kreis), nur solange man baut (Baukarte offen oder ein Gebäude am Mauszeiger) oder nachdem man auf den Turm geklickt hat. Sonst ist nichts zu sehen. `drawReach` in `src/06_view.js`, `view.showCloak`, `view.cloakTap`.
 
