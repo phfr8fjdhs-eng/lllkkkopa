@@ -8,6 +8,9 @@ Auf dem Startbildschirm drei Schalter, je an oder aus (Vorgabe: alle an), frei k
 | aus | an | Pfeile planen, Truppen gleichmässig |
 | an | an | Pfeile planen und Netz |
 
+## Truppenkonzentration (`opts.aufstellung`, Vorgabe an)
+Aus: wie OpenFront, keine Aufstellung für Menschen und Nationen, alle Truppen ein Topf, Kampf nach der OpenFront-Formel (`doku/openfront-abgleich.md`). Das Netz gibt es dann nicht.
+
 ## Netz (`opts.netz`, Vorgabe an)
 Aus: der Knopf und die Taste N fehlen, der Befehl `mesh` gibt «Nicht möglich». Die Truppen eines Menschen stehen gleichmässig. Eingraben, Reserven und Kessel gelten weiter. Die Sammelpunkte mit Fahne (16.11.2026) sind wieder entfernt.
 

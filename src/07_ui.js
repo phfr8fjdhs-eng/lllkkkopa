@@ -70,9 +70,10 @@
   let toastTimer = 0, endShown = false, botsTouched = false;
   let mp = null, turnLeft = 0, aim = null, joinCode = '', lobbyNote = '', goldTimer = 0;
   const chips = new Map(), asks = new Map();
-  const cfg = { name: 'Spieler', color: 0, map: 'erde', diff: 1, bots: -1, nations: true, instant: false, gold: false, troops: false, tap: false, music: true, sfx: true, mode: 'klassisch', thrust: 0, botsV2: true, pfeile: true, netz: true, punkt: true };
+  const cfg = { name: 'Spieler', color: 0, map: 'erde', diff: 1, bots: -1, nations: true, instant: false, gold: false, troops: false, tap: false, music: true, sfx: true, mode: 'klassisch', thrust: 0, botsV2: true, pfeile: true, netz: true, punkt: true, aufstellung: true };
   // two switches of their own (doku/pfeile.md)
-  const SWITCH = [['netz', 'Netz', 'An: mit dem Netz (Taste N) verteilst du deine Truppen zum Verteidigen. Aus: die Truppen stehen gleichmässig, nichts einzustellen.'],
+  const SWITCH = [['aufstellung', 'Truppenkonzentration', 'An: deine Truppen stehen in Zellen, dichte Stellen halten besser, eingegraben, Reserven, Kessel. Aus: wie in OpenFront, alle Truppen sind ein Topf, keine Verteilung.'],
+    ['netz', 'Netz', 'An: mit dem Netz (Taste N) verteilst du deine Truppen zum Verteidigen. Aus: die Truppen stehen gleichmässig, nichts einzustellen. Nur mit Truppenkonzentration.'],
     ['punkt', 'Punktangriff', 'An: als dritte Angriffsart neben Keil und Abschnitt (Taste F): greift nur rund um die Stelle an, mit den Truppen vom Regler. Kein Weg wie beim Pfeil.'],
     ['pfeile', 'Angriffspfeile planen', 'An: Pfeile mit der rechten Maustaste planen, dann «Angreifen» (Enter). Aus: der Pfeil greift sofort an.']];
   let plans = [];          // version «Pfeile»: arrows planned, not launched yet
@@ -418,7 +419,7 @@
       this.disabled = true;
       mp.begin({
         seed: (Math.random() * 2e9) | 0, map: cfg.map, mapSeed: (Math.random() * 2e9) | 0,
-        diff: cfg.diff, bots: Math.max(0, cfg.bots), nations: cfg.nations, arsenal: cfg.mode === 'arsenal', res: RES, pfeile: !!cfg.pfeile, netz: !!cfg.netz, punkt: !!cfg.punkt
+        diff: cfg.diff, bots: Math.max(0, cfg.bots), nations: cfg.nations, arsenal: cfg.mode === 'arsenal', res: RES, pfeile: !!cfg.pfeile, netz: !!cfg.netz, punkt: !!cfg.punkt, aufstellung: cfg.aufstellung !== false
       });
     });
   }
@@ -427,7 +428,7 @@
     turnLeft = 0;
     loadMap(m.map, m.mapSeed).then(function (map) {
       begin(map, {
-        seed: m.seed, difficulty: m.diff, bots: m.bots, nations: m.nations, arsenal: !!m.arsenal, res: !!m.res, pfeile: !!m.pfeile, netz: m.netz !== false, punkt: !!m.punkt, spawnTicks: 300, autoSpawn: true, me: me
+        seed: m.seed, difficulty: m.diff, bots: m.bots, nations: m.nations, arsenal: !!m.arsenal, res: !!m.res, pfeile: !!m.pfeile, netz: m.netz !== false, punkt: !!m.punkt, aufstellung: m.aufstellung !== false, spawnTicks: 300, autoSpawn: true, me: me
       }, m.players.map(function (p) { return { name: p.name, color: COLORS[p.color % 6] }; }));
       $('bSpeed').hidden = true; $('bPause').hidden = !mp.host;
       addMsg(m.players.length > 1 ? m.players.length + ' Spieler sind dabei. Wählt eure Startpunkte.' : 'Du bist allein im Raum.', 'info');
@@ -529,7 +530,7 @@
     $('fStart').disabled = true; $('fStart').textContent = 'Karte wird vorbereitet';
     loadMap(cfg.map).then(function (map) {
       begin(map, {
-        seed: (Math.random() * 2e9) | 0, difficulty: cfg.diff, bots: cfg.bots, nations: cfg.nations, arsenal: cfg.mode === 'arsenal', res: RES, pfeile: !!cfg.pfeile, netz: !!cfg.netz, punkt: !!cfg.punkt,
+        seed: (Math.random() * 2e9) | 0, difficulty: cfg.diff, bots: cfg.bots, nations: cfg.nations, arsenal: cfg.mode === 'arsenal', res: RES, pfeile: !!cfg.pfeile, netz: !!cfg.netz, punkt: !!cfg.punkt, aufstellung: cfg.aufstellung !== false,
         instantBuild: cfg.instant, infiniteGold: cfg.gold, infiniteTroops: cfg.troops
       }, { name: cfg.name, color: COLORS[cfg.color] });
     }).catch(function (e) {
