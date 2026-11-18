@@ -1,6 +1,9 @@
 # Änderungsprotokoll
 Was seit dem 13.11.2026 geändert wurde und warum. Den heutigen Stand der Regeln beschreiben die anderen Dateien in `doku/`.
 
+## Tarnturm: Ring nur beim Bauen oder nach einem Klick (18.11.2026)
+Eigene Tarntürme zeigen ihren Bereich (gestrichelter türkiser Ring) und die Gebäude, die sie verstecken (gestrichelter Kreis), nur solange man baut (Baukarte offen oder ein Gebäude am Mauszeiger) oder nachdem man auf den Turm geklickt hat. Sonst ist nichts zu sehen. `drawReach` in `src/06_view.js`, `view.showCloak`, `view.cloakTap`.
+
 ## Tarnturm im Arsenal-Modus (17.11.2026)
 - **Wunsch des Besitzers:** ein Gebäude, das andere Gebäude unsichtbar macht; die anderen sehen sie erst, wenn sie nahe herankommen. Nicht zu teuer, Radius ganz klein (ein Turm soll etwa zwei, drei Gebäude decken), nur im Modus «Arsenal».
 - **Geändert:** neuer Gebäudetyp `UT.CLOAK` (Regeln in `doku/spielregeln.md`). Damit Gebäude weiterhin die kleinsten Nummern haben, stehen alle Typen ab Kriegsschiff eine Nummer weiter hinten (`G.isStruct`). Erst war die Grenze nur der Umkreis; dicht gebaut hätte ein Turm so 11 Gebäude versteckt, darum höchstens die 3 nächsten.

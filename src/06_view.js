@@ -596,6 +596,29 @@
 
   View.prototype.drawReach = function (ctx, g, z, ox, oy) {
     const h = g.human, cw = this.cw, ch = this.ch;
+    // own cloaking towers: what they cover, only while building (build card open or a building
+    // under the pointer) or after a click on one (`cloakTap`); the buildings they hide get a dashed ring
+    if (h && (this.showCloak || this.cloakTap || (this.ghost && this.ghost.tile >= 0))) {
+      g.cloakScan && g.cloakScan();
+      ctx.save();
+      for (const u of h.units) {
+        if (!u.built || u.type !== UT.CLOAK) continue;
+        const x = (u.x + 0.5) * z + ox, y = (u.y + 0.5) * z + oy, r = g.R.cloak * z;
+        if (r < 4 || x < -r || y < -r || x > cw + r || y > ch + r) continue;
+        ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832);
+        ctx.fillStyle = 'rgba(120,230,200,0.10)'; ctx.fill();
+        ctx.setLineDash([8, 6]); ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(120,230,200,0.85)'; ctx.stroke(); ctx.setLineDash([]);
+      }
+      const s = Math.max(10, z * 3.2);
+      for (const u of h.units) {
+        if (!u.built || !u.cloak || u.type === UT.CLOAK) continue;
+        const x = (u.x + 0.5) * z + ox, y = (u.y + 0.5) * z + oy;
+        if (x < -s || y < -s || x > cw + s || y > ch + s) continue;
+        ctx.beginPath(); ctx.arc(x, y, s, 0, 6.2832);
+        ctx.setLineDash([4, 3]); ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(120,230,200,0.95)'; ctx.stroke(); ctx.setLineDash([]);
+      }
+      ctx.restore();
+    }
     for (const u of g.structAt.values()) {
       if (!u.built || (u.type !== UT.DEFENSE && u.type !== UT.SAM) || hid(g, u)) continue;
       const own = h && (u.owner === h || h.allies.has(u.owner.id));

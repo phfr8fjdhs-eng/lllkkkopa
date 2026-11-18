@@ -587,7 +587,7 @@
     }
   }
   function quitGame() {
-    game = null; closeRadial(); $('sheet').hidden = true; stopAim();
+    game = null; closeRadial(); $('sheet').hidden = true; if (view) view.showCloak = false; stopAim();
     $('hud').hidden = true;
     leaveRoom();
     if (cfg.map === 'zufall') delete maps.zufall;
@@ -809,7 +809,7 @@
     else if (endShown && kind !== 'other') return;
     endShown = kind;
     snd(kind === 'win' ? 'win' : 'lose');
-    closeRadial(); $('sheet').hidden = true;
+    closeRadial(); $('sheet').hidden = true; if (view) view.showCloak = false;
     const h = game.human, den = Math.max(1, game.map.landTiles - game.falloutCount);
     let s;
     if (kind === 'win') s = '<h2>Sieg!</h2><p>Du hältst ' + (h.tiles / den * 100).toFixed(0) + ' % des Landes. Die Karte gehört dir.</p>';
@@ -1034,7 +1034,7 @@
     $('sheetBody').innerHTML = html;
     $('purse').innerHTML = svg('gold', 15) + (game.opts.infiniteGold ? '∞' : fmt(h.gold));
     $('sheet').hidden = false; sheetAt = performance.now();
-    view.mark = tile;
+    view.mark = tile; view.showCloak = true;
     snd('open');
   }
   // Build at a tile, or start aiming a bomb at it. Used by the menu and by the keys.
@@ -1071,7 +1071,7 @@
   // The tap that opens the card must not also press a button of it: on a phone the browser sends a click
   // to whatever lies under the finger after the touch, and that is the card by then.
   let sheetAt = 0;
-  function closeBuild() { $('sheet').hidden = true; if (view) view.mark = -1; }
+  function closeBuild() { $('sheet').hidden = true; if (view) { view.mark = -1; view.showCloak = false; } }
   function onBuild(e) {
     if (performance.now() - sheetAt < 350) return;
     const b = e.target.closest('[data-t],[data-up]');
@@ -1601,6 +1601,9 @@
     const arrow = view.arrowAt(sx, sy);
     if (arrow !== null && !menu) { openThrustCard(arrow, sx, sy); snd('tap'); return; }
     closeThrustCard();
+    // a click on an own cloaking tower shows what it covers, until the next click elsewhere
+    const su = game.owner[tile] === h.id ? game.structNear(tile, 3) : null;
+    view.cloakTap = !!su && su.owner === h && su.built && su.type === UT.CLOAK;
     // With a mouse a single click only looks around. A double click attacks, the right button
     // opens the circle menu. Touch keeps its taps: there is no second button on a screen.
     if (mouse) return;
