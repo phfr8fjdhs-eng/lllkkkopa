@@ -223,6 +223,23 @@
     if (c.lv === 0) dg.at[i] = this.ticks + (this.opts.instantBuild ? 0 : G.digOf(this.map.deposits[i].raw)[2]);
     return true;
   };
+  // Everything at once: every own deposit (of one raw material, or all) gets one level more, the
+  // cheapest first, as far as the gold goes. Returns how many plants were built or made better.
+  Game.prototype.digAllList = function (p, raw) {
+    const deps = this.map.deposits, out = [];
+    for (let i = 0; i < deps.length; i++) {
+      if ((raw && deps[i].raw !== raw) || this.owner[deps[i].t] !== p.id) continue;
+      const c = this.digCheck(p, i);
+      if (c.ok || c.why === 'Zu wenig Gold') out.push([c.cost, i]);
+    }
+    out.sort(function (a, b) { return a[0] - b[0] || a[1] - b[1]; });
+    return out;
+  };
+  Game.prototype.digAll = function (p, raw) {
+    let n = 0;
+    for (const e of this.digAllList(p, raw)) { if (p.gold < e[0]) break; if (this.dig(p, e[1])) n++; }
+    return n;
+  };
   // For the nations: build the plant on the best deposit of their own that has none, and only when
   // they are well off, make a plant one level better (up to level 3).
   Game.prototype.digAuto = function (p) {

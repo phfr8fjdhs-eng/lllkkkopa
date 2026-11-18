@@ -1453,6 +1453,10 @@
         const n = c.n >= 1 && c.n <= 100 ? Math.floor(c.n) : 1;
         return u && this.upgradeBy(p, u, n) > 0 ? '' : 'Ausbau nicht möglich';
       }
+      case 'digall': {                                        // version «Rohstoffe»: every own plant one level more
+        if (!this.res) return 'Nicht möglich';
+        return this.digAll(p, typeof c.r === 'string' ? c.r : '') ? '' : 'Zu wenig Gold';
+      }
       case 'dig': {                                           // version «Rohstoffe»: a plant on a deposit, or a better one
         const i = Math.floor(+c.d);
         if (!this.res || !(i >= 0 && i < this.map.deposits.length)) return 'Nicht möglich';

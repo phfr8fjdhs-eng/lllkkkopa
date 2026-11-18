@@ -1,6 +1,9 @@
 # Änderungsprotokoll
 Was seit dem 13.11.2026 geändert wurde und warum. Den heutigen Stand der Regeln beschreiben die anderen Dateien in `doku/`.
 
+## Rohstoffe: alles auf einmal ausbauen (18.11.2026)
+Knöpfe «Alles eine Stufe höher», «Alle +1» pro Rohstoff und «Alle Fabriken eine Stufe höher» in der Tabelle; grosse Listen eingeklappt. Wunsch des Besitzers: einzeln leveln war mit einem grossen Land zu mühsam. Siehe `doku/rohstoffe.md`.
+
 ## Erde: keine Inseln unter 100 Feldern mehr (18.11.2026)
 `G.MIN_ISLAND` 100 statt 80, und die Ausnahme für Inseln mit einer Nation fällt weg (Wunsch des Besitzers: alle Inseln unter 100 raus). 30 Landmassen weniger; Mauritius, Komoren, Salomonen, Kap Verde, Malediven, Malta und Bahamas spielen nicht mehr mit.
 
