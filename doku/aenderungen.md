@@ -6,6 +6,8 @@ Knöpfe «Alles eine Stufe höher», «Alle +1» pro Rohstoff und «Alle Fabrike
 
 ## Erde: keine Inseln unter 100 Feldern mehr (18.11.2026)
 `G.MIN_ISLAND` 100 statt 80, und die Ausnahme für Inseln mit einer Nation fällt weg (Wunsch des Besitzers: alle Inseln unter 100 raus). 30 Landmassen weniger; Mauritius, Komoren, Salomonen, Kap Verde, Malediven, Malta und Bahamas spielen nicht mehr mit.
+## Schalter «Truppenkonzentration» (18.11.2026)
+Neuer Schalter auf dem Startbildschirm. Aus: wie früher und wie OpenFront, keine Truppenverteilung, alle Truppen ein Topf, Bodenkampf nach der Formel aus dem OpenFront-Quellcode. Wunsch des Besitzers.
 
 ## Tarnturm: Ring nur beim Bauen oder nach einem Klick (18.11.2026)
 Eigene Tarntürme zeigen ihren Bereich (gestrichelter türkiser Ring) und die Gebäude, die sie verstecken (gestrichelter Kreis), nur solange man baut (Baukarte offen oder ein Gebäude am Mauszeiger) oder nachdem man auf den Turm geklickt hat. Sonst ist nichts zu sehen. `drawReach` in `src/06_view.js`, `view.showCloak`, `view.cloakTap`.
@@ -20,6 +22,8 @@ Eigene Tarntürme zeigen ihren Bereich (gestrichelter türkiser Ring) und die Ge
 - **Gemessen vorher:** Ein MIRV nahm 62–74 % des Landes und 99–100 % der Truppen (Welt, Nationen nach 4000 Ticks), mit 22–110 Sprengköpfen.
 - **Geändert:** Die Anzahl Sprengköpfe richtet sich nach der Grösse des Ziels, sodass sie rund 25 % seines Landes abdecken (`G.MIRV_COVER`), höchstens 120·S² (vorher 350·S²), mindestens 4; sie liegen weiter auseinander. Ein getroffenes Feld kostet 1,5 statt 5 Felder an Truppen (`G.WARHEAD_KILL`); Atom- und Wasserstoffbombe bleiben wie in OpenFront.
 - **Gemessen nachher:** 7–22 % des Landes und meist 20–35 % der Truppen (bis rund 50 %, wenn das Ziel gleichzeitig im Krieg steht), mit 7–34 Sprengköpfen.
+## Inseln mit dem Boot, auch während eines Landangriffs (17.11.2026)
+Ein Tipp auf eine Insel eines Gegners, die man nicht übers Land berührt, schickt jetzt ein Boot statt den Landangriff zu verstärken (Regel in `doku/spielregeln.md`). Wunsch des Besitzers. Test: `node test/insel.js`.
 
 ## Erde: weniger kleine Inseln (17.11.2026)
 Inseln unter 80 Feldern werden beim Laden zu Meer, ausser eine Nation startet darauf (`G.MIN_ISLAND`, siehe `doku/erde.md`). Rund 910 von 1100 Inseln fallen weg. Zuerst 100 Feldern, auf Wunsch des Besitzers 80. Wunsch des Besitzers: viel zu viele zu kleine Inseln.
@@ -36,6 +40,11 @@ Bei verbündeten Ländern steht hinter dem Namen auf der Karte, wie lange die Al
 
 ## Raketensilo teurer und langsamer (17.11.2026)
 Ein Raketensilo kostet 3M statt 1M, jede Stufe ebenso. Nach jedem Abschuss lädt der Platz 27 s statt 9 s nach (`G.SILO_RELOAD`). Wunsch des Besitzers: beides dreimal so viel.
+## Bomben der Nationen nicht mehr immer auf die Flugabwehr (17.11.2026)
+Marschflugkörper auf die Flugabwehr seltener (1 von 5 statt 1 von 2), und jede dritte Bombe fällt irgendwo aufs Land. Siehe `doku/openfront-abgleich.md`.
+## Punktangriff als dritter Schalter, Pfeile weniger stark (17.11.2026)
+- Neuer Schalter «Punktangriff»: greift nur rund um eine Stelle an, ohne Weg wie beim Pfeil. Alle drei Schalter (Netz, Punktangriff, Pfeile planen) frei kombinierbar.
+- Keil und Abschnitt langsamer und an den Flanken teurer: sie nahmen mit denselben Truppen mehr Land als die ganze Front und überrannten in Sekunden. Messwerte in `doku/pfeile.md`.
 
 ## Schiffe in der Farbe des Landes, weniger Atombomben (17.11.2026)
 - Handelsschiffe haben den Rumpf in der Farbe des Besitzers (vorher weiss) und die Ladung in einem dunklen Ton davon; Kriegsschiffe das Deck im dunklen Ton (vorher grau). So erkennt man, wem ein Schiff gehört.

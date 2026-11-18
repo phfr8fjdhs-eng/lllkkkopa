@@ -43,7 +43,7 @@ Weitere Ordner: `tools/` (Bauen und Kartenerzeugung, Python), `test/` (Tests, No
 | --- | --- |
 | Tasten, Bots, Ausbau, Flugabwehr, Schienen, Bomben-Anzeige, Arsenal (Satellitenstrahl, Tarnturm) | `spielregeln.md` |
 | Netz, Marsch, Dichte und ihre Wirkung | `aufstellung.md` |
-| Schalter «Netz» und «Angriffspfeile planen» | `pfeile.md` |
+| Schalter «Netz», «Punktangriff», «Angriffspfeile planen» | `pfeile.md` |
 | Erdkarte, Daten, Lizenzen der Daten, Gelände | `erde.md` |
 | Mehrspieler, Vermittler | `mehrspieler.md` |
 | Version «Rohstoffe»: Länder, Preise, Länderkarte | `rohstoffe.md` |
@@ -58,5 +58,7 @@ Weitere Ordner: `tools/` (Bauen und Kartenerzeugung, Python), `test/` (Tests, No
 - Gleichlauf auf allen Geräten: `node test/det.js`, `node test/det.js arsenal`, `node test/posture.js`
 - Tarnturm: `node test/tarn.js`
 - Schalter Netz und Pfeile: `node test/pfeile.js`
+- Gleichlauf auf allen Geräten: `node test/det.js`, `node test/posture.js`
+- Schalter Netz, Punkt und Pfeile: `node test/pfeile.js`
 - Version «Rohstoffe»: `node --max-old-space-size=4096 test/res.js`
 - Bedienung im Browser: `node test/ui.js` (braucht Playwright und Chrome)
