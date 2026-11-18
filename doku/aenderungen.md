@@ -1,6 +1,9 @@
 # Änderungsprotokoll
 Was seit dem 13.11.2026 geändert wurde und warum. Den heutigen Stand der Regeln beschreiben die anderen Dateien in `doku/`.
 
+## Schalter «Truppenkonzentration» (18.11.2026)
+Neuer Schalter auf dem Startbildschirm. Aus: wie früher und wie OpenFront, keine Truppenverteilung, alle Truppen ein Topf, Bodenkampf nach der Formel aus dem OpenFront-Quellcode. Wunsch des Besitzers.
+
 ## Tarnturm: Ring nur beim Bauen oder nach einem Klick (18.11.2026)
 Eigene Tarntürme zeigen ihren Bereich (gestrichelter türkiser Ring) und die Gebäude, die sie verstecken (gestrichelter Kreis), nur solange man baut (Baukarte offen oder ein Gebäude am Mauszeiger) oder nachdem man auf den Turm geklickt hat. Sonst ist nichts zu sehen. `drawReach` in `src/06_view.js`, `view.showCloak`, `view.cloakTap`.
 

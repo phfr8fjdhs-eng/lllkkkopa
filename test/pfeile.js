@@ -51,6 +51,21 @@ const ok = (c, msg) => { if (!c) { console.log('FAIL', msg); process.exitCode = 
   ok(L.mesh === 'Nicht möglich', 'Netz aus: the net cannot be painted');
   ok(L.arrows >= 1 && L.sent.every((x) => Math.abs(x - 0.6 / L.arrows) < 0.02), L.arrows + ' arrows, each takes its even share: ' + L.sent.join(' / '));
   ok(sumA === sumB, 'two runs, same game: ' + sumA);
+  // Truppenkonzentration aus: one pool of troops as in OpenFront, for people and nations alike
+  {
+    const g = new G.Game(map, { seed: 7, bots: 30, spawnTicks: 30, aufstellung: false });
+    g.setup({ name: 'T', color: [220, 60, 50] });
+    const h = g.human, r = new G.RNG(3);
+    let t; do { t = r.int(0, g.N); } while (!g.canSpawnAt(t) || map.shore[t]);
+    g.spawn(h, t);
+    for (let i = 0; i < 300; i++) g.tick();
+    const nat = g.players.filter((p) => p && p.type === G.PT.NATION);
+    ok(!h.post && nat.every((p) => !p.post), 'Truppenkonzentration aus: no posture for the person or the ' + nat.length + ' nations');
+    ok(g.exec(h.id, { k: 'mesh', c: [0], v: [3] }) !== '', 'Truppenkonzentration aus: no net to paint');
+    let n = 0; for (const b of h.border) { const m = [b - 1, b + 1, b - g.W, b + g.W].find((x) => map.land[x] && g.owner[x] === 0); if (m !== undefined) { g.exec(h.id, { k: 'strike', t: m, r: 0.3 }); n = h.tiles; break; } }
+    for (let i = 0; i < 200; i++) g.tick();
+    ok(h.tiles > n, 'Truppenkonzentration aus: attacking works: ' + n + ' -> ' + h.tiles + ' tiles');
+  }
   const c = run(false);
   ok(!c.pfeile && c.exec(c.human.id, { k: 'mesh', c: [c.cellOf(c.human.spawnTile)], v: [3] }) === '', 'Netz an: the net works as before');
 })();

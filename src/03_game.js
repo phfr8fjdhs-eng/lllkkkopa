@@ -97,12 +97,15 @@
     this.map = map; this.W = map.W; this.H = map.H; this.N = map.N; this.S = map.S;
     this.opts = Object.assign({
       seed: 1, difficulty: 1, bots: 100, nations: true, instantBuild: false,
-      infiniteGold: false, infiniteTroops: false, spawnTicks: 150, autoSpawn: false, me: 0, pfeile: false, netz: true
+      infiniteGold: false, infiniteTroops: false, spawnTicks: 150, autoSpawn: false, me: 0, pfeile: false, netz: true, aufstellung: true
     }, opts || {});
     // two switches (doku/pfeile.md): `pfeile` plans arrows and launches them together;
     // `netz` lets a person paint the net (without it the troops stand evenly, nothing to set)
     this.pfeile = !!this.opts.pfeile;
     this.netz = this.opts.netz !== false;
+    // `aufstellung` off: no posture at all, every realm is one pool of troops as in OpenFront (no
+    // density, digging in, reserves or pockets; the net is gone with it)
+    this.aufstellung = this.opts.aufstellung !== false;
     this.rng = new G.RNG(this.opts.seed);
     const N = this.N, S = this.S;
     this.owner = new Uint16Array(N);
@@ -163,7 +166,7 @@
       nameX: 0, nameY: 0, nameSize: 0, tradeGold: 0, conquests: 0, cc: null, ccAt: -1, post: null
     };
     // people and nations stand in cells (src/03b_posture.js); bots are too small to need it
-    if ((info.type === PT.HUMAN || info.type === PT.NATION) && this.postInit) this.postInit(p);
+    if ((info.type === PT.HUMAN || info.type === PT.NATION) && this.postInit && this.aufstellung) this.postInit(p);
     let c = info.color;
     if (!c) {
       if (info.type === PT.NATION) {
@@ -952,7 +955,10 @@
     // What the front may take this tick. A tile that costs more than is left is paid off over the
     // following ticks (`carry`), so a weak attack really is slow instead of taking a tile a tick
     // regardless.
-    let budget = (t ? within(10 * at.troops / face, 0.01, 0.5) * n * 3 : n * (a.type === PT.BOT ? 1.4 : 2)) * this.attackPace + (at.carry || 0);
+    // Without a posture (`aufstellung` off) a fight against a realm runs on OpenFront's formula
+    // (EngineConfig.attackLogic): a whole tick's budget, each tile a share of it (see below).
+    const of = !!t && !this.aufstellung;
+    let budget = (of ? 1 : t ? within(10 * at.troops / face, 0.01, 0.5) * n * 3 : n * (a.type === PT.BOT ? 1.4 : 2)) * this.attackPace + (at.carry || 0);
     if (budget <= 0) { at.carry = budget; return; }
     const landTiles = map.landTiles;
     const lossMod = a.tiles > landTiles * 0.17 ? Math.sqrt(landTiles * 0.17 / a.tiles) : 1;
@@ -1026,7 +1032,17 @@
       }
       if (fo[tile]) { const f = 5 - 2 * this.falloutCount / landTiles; mag *= f; speed *= f; }
       let loss, used;
-      if (t) {
+      if (of) {
+        // OpenFront, attackLogic: loss = mag x within(army / attack, 0.6, 2) x (0.463 + 0.0039 x
+        // troops per tile); the defender loses his average per tile; a tile takes a share of the
+        // tick of within(ratio, 0.82, 7.5) x within(ratio / 20, 1, 50) / 8.55 x tile cost / border.
+        // Ground, posts and fallout as above (`mag`, `speed`), but at full weight, as there.
+        const R = t.troops / Math.max(1, at.troops);
+        const m0 = 80 * gl * (mag / (80 * (1 + (gl - 1) * hold))), s0 = 16.5 * gs * (speed / (16.5 * (1 + (gs - 1) * hold)));
+        loss = m0 * (a.type !== PT.BOT && t.type === PT.BOT ? 0.7 : 1) * traitor * within(R, 0.6, 2) * (0.463 + 0.0039 * dAvg);
+        used = within(R, 0.82, 7.5) * within(R / 20, 1, 50) / 8.55 * s0 * (traitor < 1 ? 0.5 : 1) / Math.max(1, at.front.size + 1);
+        t.troops = Math.max(0, t.troops - dAvg);
+      } else if (t) {
         // A tile costs what it takes to hold ground at all, plus the defenders standing on it:
         // one for one at even strength, fewer for an attacker who outnumbers them there, more
         // for one who is outnumbered. Ground, posts and fallout weigh on all of it (`mag`).
