@@ -38,6 +38,9 @@ Bei verbündeten Ländern steht hinter dem Namen auf der Karte, wie lange die Al
 Ein Raketensilo kostet 3M statt 1M, jede Stufe ebenso. Nach jedem Abschuss lädt der Platz 27 s statt 9 s nach (`G.SILO_RELOAD`). Wunsch des Besitzers: beides dreimal so viel.
 ## Bomben der Nationen nicht mehr immer auf die Flugabwehr (17.11.2026)
 Marschflugkörper auf die Flugabwehr seltener (1 von 5 statt 1 von 2), und jede dritte Bombe fällt irgendwo aufs Land. Siehe `doku/openfront-abgleich.md`.
+## Punktangriff als dritter Schalter, Pfeile weniger stark (17.11.2026)
+- Neuer Schalter «Punktangriff»: greift nur rund um eine Stelle an, ohne Weg wie beim Pfeil. Alle drei Schalter (Netz, Punktangriff, Pfeile planen) frei kombinierbar.
+- Keil und Abschnitt langsamer und an den Flanken teurer: sie nahmen mit denselben Truppen mehr Land als die ganze Front und überrannten in Sekunden. Messwerte in `doku/pfeile.md`.
 
 ## Schiffe in der Farbe des Landes, weniger Atombomben (17.11.2026)
 - Handelsschiffe haben den Rumpf in der Farbe des Besitzers (vorher weiss) und die Ladung in einem dunklen Ton davon; Kriegsschiffe das Deck im dunklen Ton (vorher grau). So erkennt man, wem ein Schiff gehört.

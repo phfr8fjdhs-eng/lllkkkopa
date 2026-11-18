@@ -31,7 +31,7 @@
 //           tiles of front (so a wedge 40 tiles deep fights as if its front were 80 tiles longer)
 //   speed   how far the head of a thrust gets per tick at most, in way cost (open lowland: tiles), times attackPace
   //   search  most tiles the way-finding looks at before it gives up
-  G.THRUST = { widths: [0, 30, 12], max: 4, pull: 1.2, ring: 0.6, speed: 1.4, flank: 1, search: 250000 };
+  G.THRUST = { widths: [0, 30, 12], max: 4, pull: 1.2, ring: 0.6, speed: 0.5, flank: 3, search: 250000 };
   G.UNAME = ['Stadt', 'Verteidigungs\u00ADposten', 'Hafen', 'Raketensilo', 'Flugabwehr', 'Fabrik', 'Tarnturm', 'Kriegsschiff', 'Boot',
     'Handelsschiff', 'Zug', 'Granate', 'Abwehrrakete', 'Atombombe', 'Wasserstoff\u00ADbombe', 'MIRV', 'Sprengkopf', 'Marschflug\u00ADkörper', 'Satelliten\u00ADstrahl'];
   // Tempo. The numbers of the simulation are OpenFront's, but its maps have two million tiles and
@@ -97,12 +97,14 @@
     this.map = map; this.W = map.W; this.H = map.H; this.N = map.N; this.S = map.S;
     this.opts = Object.assign({
       seed: 1, difficulty: 1, bots: 100, nations: true, instantBuild: false,
-      infiniteGold: false, infiniteTroops: false, spawnTicks: 150, autoSpawn: false, me: 0, pfeile: false, netz: true
+      infiniteGold: false, infiniteTroops: false, spawnTicks: 150, autoSpawn: false, me: 0, pfeile: false, netz: true, punkt: false
     }, opts || {});
     // two switches (doku/pfeile.md): `pfeile` plans arrows and launches them together;
     // `netz` lets a person paint the net (without it the troops stand evenly, nothing to set)
     this.pfeile = !!this.opts.pfeile;
     this.netz = this.opts.netz !== false;
+    // `punkt`: a click or a right-button drag can also attack just one spot (mode 3)
+    this.punkt = !!this.opts.punkt;
     this.rng = new G.RNG(this.opts.seed);
     const N = this.N, S = this.S;
     this.owner = new Uint16Array(N);
@@ -567,6 +569,8 @@
     // width of `path`) until the goal has fallen (`reached`); `dist` is the cost of the way to the goal
     this.goal = -1; this.width = 0; this.path = null; this.lane = null; this.dist = null; this.reached = false; this.reroute = 0;
     this.head = undefined; this.limit = 0;   // how near the goal the thrust has got, and how near it may get this tick
+    // a point attack (mode 3): fights only within `rad` tiles of `spot`, nearest first, no way to follow
+    this.spot = -1; this.rad = 0;
   }
 
   Game.prototype.addFront = function (at, tile) {
@@ -581,6 +585,12 @@
       else { if (y === H - 1) continue; n = tile + W; }
       if (!land[n] || own[n] !== tid) continue;
       if (at.lane && !at.reached && !at.lane.has(n)) continue;     // a thrust stays in its lane until the goal has fallen
+      let ds = 0;
+      if (at.spot >= 0) {                                           // a point attack stays around its spot
+        const sx = at.spot % W - n % W, sy = ((at.spot / W) | 0) - ((n / W) | 0);
+        ds = Math.sqrt(sx * sx + sy * sy);
+        if (ds > at.rad) continue;
+      }
       at.front.add(n);
       const nx = n % W, ny = (n - nx) / W;
       let mine = 0;
@@ -591,6 +601,7 @@
       if (mine > 2) mine = 10;
       const m = mg[n], rough = m < 10 ? 1 : m < 20 ? 1.5 : 2;
       let key = (rng.int(0, 7) + 10) * (1 - mine * 0.5 + rough / 2) + T;
+      if (at.spot >= 0) key += G.THRUST.ring * 4 * ds;           // nearest the spot first
       if (at.goal >= 0) {
         // a thrust takes first what lies nearer its goal: along the way while it is under way,
         // in rings around the goal once it has fallen
@@ -815,16 +826,24 @@
     return { reach: reach, left: left, secs: T / 10, counted: count, tiles: lane.size, len: route.path.length };
   };
   // How many thrusts a player has under way.
+  // How far around `tile` a point attack of p's fights: its distance from p's border plus a wedge's
+  // width; -1 when it lies more than two widths away from the border. Reads the game only.
+  Game.prototype.spotRadius = function (p, tile) {
+    const R0 = this.thrustWidth(2), W = this.W, nx = tile % W, ny = (tile / W) | 0;
+    let d2 = Infinity;
+    for (const b of p.border) { const dx = b % W - nx, dy = ((b / W) | 0) - ny, d = dx * dx + dy * dy; if (d < d2) d2 = d; }
+    return d2 > 4 * R0 * R0 ? -1 : Math.sqrt(d2) + R0;
+  };
   Game.prototype.thrustCount = function (p) {
     let n = 0;
-    for (const o of p.out) if (o.active && o.goal >= 0) n++;
+    for (const o of p.out) if (o.active && (o.goal >= 0 || o.spot >= 0)) n++;
     return n;
   };
 
   // Send troops against a player (tid) or against free land (tid 0). src is a landing tile, or -1.
   // near: the tile the order was given at. For a realm with a posture the troops are then drawn
   // from the cell at that spot; what is not at hand marches there and joins as it arrives.
-  // mode: 0 the whole front (default), 1 a section, 2 a wedge; for 1 and 2 `near` is the goal.
+  // mode: 0 the whole front (default), 1 a section, 2 a wedge, 3 a point attack; for 1 to 3 `near` is the goal.
   Game.prototype.attack = function (a, tid, troops, src, near, mode, start) {
     this.attackWhy = '';
     if (!a.alive || this.phase !== 'play') return null;
@@ -834,8 +853,23 @@
       if (this.ticks < this.immuneUntil) return null;
     }
     // A thrust needs a way; reinforcing one that aims close by joins it instead of starting another.
-    let route = null, join = null;
-    if (mode && src < 0 && near >= 0) {
+    let route = null, join = null, spot = -1, rad = 0;
+    if (mode === 3 && src < 0 && near >= 0) {
+      // a point attack: around the spot clicked, as far out from the own border as it lies plus a
+      // wedge's width; joins one aimed close by
+      const R0 = this.thrustWidth(2), W = this.W, nx = near % W, ny = (near / W) | 0;
+      for (const o of a.out) {
+        if (!o.active || o.tid !== tid || o.spot < 0) continue;
+        const dx = o.spot % W - nx, dy = ((o.spot / W) | 0) - ny;
+        if (dx * dx + dy * dy <= R0 * R0) { join = o; break; }
+      }
+      if (!join) {
+        if (this.thrustCount(a) >= G.THRUST.max) { this.attackWhy = 'Höchstens ' + G.THRUST.max + ' Stösse gleichzeitig'; return null; }
+        rad = this.spotRadius(a, near);
+        if (rad < 0) { this.attackWhy = 'Zu weit von deiner Grenze'; return null; }
+        spot = near;
+      }
+    } else if (mode && src < 0 && near >= 0) {
       const width = this.thrustWidth(mode);
       for (const o of a.out) {
         if (!o.active || o.tid !== tid || o.goal < 0 || o.width !== width) continue;
@@ -860,10 +894,11 @@
     }
     if (t) this.relate(t, a, -80);
     let at = join;
-    if (!at && !route) for (const o of a.out) if (o.active && o.tid === tid && o.goal < 0) { at = o; break; }
+    if (!at && !route && spot < 0) for (const o of a.out) if (o.active && o.tid === tid && o.goal < 0 && o.spot < 0) { at = o; break; }
     if (!at) {
       at = new Attack(++this.attackSeq, a, tid, 0, this.ticks);
       if (route) { at.goal = route.goal; at.width = route.width; at.path = route.path; at.lane = route.lane; at.dist = route.dist; }
+      if (spot >= 0) { at.spot = spot; at.rad = rad; at.width = this.thrustWidth(2); }
       a.out.push(at);
       if (t) {
         t.inc.push(at);
@@ -947,7 +982,7 @@
     if (t) for (const o of a.out) if (o.active && o.tid === tid) sent += o.troops;
     // A thrust also meets the defenders along its flanks: two sides as long as it has got deep
     // (tiles taken over the width of its lane). The deeper a wedge gets, the dearer it becomes.
-    const flank = at.goal >= 0 ? G.THRUST.flank * 2 * (at.taken || 0) / Math.max(1, at.width) : 0;
+    const flank = at.goal >= 0 || at.spot >= 0 ? G.THRUST.flank * 2 * (at.taken || 0) / Math.max(1, at.width) : 0;
     const face = t ? Math.max(1, Math.min(t.troops, dAvg * Math.max(4, at.front.size + flank) * CB.depth)) : 1;
     // What the front may take this tick. A tile that costs more than is left is paid off over the
     // following ticks (`carry`), so a weak attack really is slow instead of taking a tile a tick
@@ -1429,7 +1464,7 @@
         if (!tileOk) return 'Nicht möglich';
         const a = this.actionsAt(p, c.t);
         if (a.canAttack && !c.sea) {
-          const mode = c.w === 1 || c.w === 2 ? c.w : 0, st = c.s >= 0 && c.s < this.N ? Math.floor(c.s) : -1;
+          const mode = c.w === 1 || c.w === 2 || (c.w === 3 && this.punkt) ? c.w : 0, st = c.s >= 0 && c.s < this.N ? Math.floor(c.s) : -1;
           return this.attack(p, a.tid, p.troops * r, -1, c.t, mode, st) ? '' : (this.attackWhy || 'Zu wenig Truppen');
         }
         if (a.boat) return this.sendBoat(p, a.boat, p.troops * r) ? '' : 'Boot kann nicht auslaufen';
@@ -1437,7 +1472,8 @@
       }
       case 'feed': {                                          // reinforce a thrust with a share of the army
         const at = p.out.find(function (o) { return o.active && o.id === c.a; });
-        if (!at || at.goal < 0) return 'Nicht möglich';
+        if (!at || (at.goal < 0 && at.spot < 0)) return 'Nicht möglich';
+        if (at.spot >= 0) return this.attack(p, at.tid, p.troops * r, -1, at.spot, 3) ? '' : (this.attackWhy || 'Zu wenig Truppen');
         const mode = at.width === this.thrustWidth(1) ? 1 : 2;
         return this.attack(p, at.tid, p.troops * r, -1, at.goal, mode) ? '' : (this.attackWhy || 'Zu wenig Truppen');
       }

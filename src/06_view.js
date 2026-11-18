@@ -1883,6 +1883,23 @@
     const k = troops / Math.max(1, all);
     return k < 0.12 ? 7 : k < 0.35 ? 11 : 15;
   }
+  // A point attack: a dashed ring around its spot, a cross hair in the middle, and a number for a plan.
+  function spotRing(ctx, x, y, r, col, alpha, label) {
+    ctx.save(); ctx.globalAlpha = alpha;
+    ctx.beginPath(); ctx.arc(x, y, Math.max(6, r), 0, 6.2832);
+    ctx.fillStyle = 'rgba(255,255,255,0.06)'; ctx.fill();
+    ctx.setLineDash([7, 5]); ctx.lineWidth = 2.4; ctx.strokeStyle = 'rgba(10,16,24,.8)'; ctx.stroke();
+    ctx.lineWidth = 1.6; ctx.strokeStyle = col; ctx.stroke(); ctx.setLineDash([]);
+    ctx.beginPath(); ctx.moveTo(x - 7, y); ctx.lineTo(x + 7, y); ctx.moveTo(x, y - 7); ctx.lineTo(x, y + 7);
+    ctx.lineWidth = 3.4; ctx.strokeStyle = 'rgba(10,16,24,.8)'; ctx.stroke(); ctx.lineWidth = 1.8; ctx.strokeStyle = col; ctx.stroke();
+    if (label) {
+      ctx.beginPath(); ctx.arc(x, y - Math.max(6, r) - 12, 10, 0, 6.2832);
+      ctx.fillStyle = 'rgba(10,16,24,.92)'; ctx.fill(); ctx.lineWidth = 1.5; ctx.strokeStyle = '#fff'; ctx.stroke();
+      ctx.font = '700 12px ' + FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#fff';
+      ctx.fillText(label, x, y - Math.max(6, r) - 11.5);
+    }
+    ctx.restore();
+  }
   // Own thrusts on their way to the goal, and the preview of the one being drawn with the right
   // mouse button (`view.plan`, set by the interface: way, lane width, colour of the verdict,
   // troops, label). Every drawn arrow is remembered for clicks (`arrowHits`).
@@ -1901,12 +1918,25 @@
       wayArrow(ctx, pts, h.cssL || 'rgb(240,240,240)', arrowWidth(at.troops + (at.want || 0), all), 0, 0.95);
       hits.push({ id: at.id, pts: pts });
     }
+    // point attacks under way: a dashed ring around their spot
+    for (const at of h.out) {
+      if (!at.active || at.spot < 0) continue;
+      const x = (at.spot % W + 0.5) * z + ox, y = (((at.spot / W) | 0) + 0.5) * z + oy;
+      spotRing(ctx, x, y, at.rad * z, h.cssL || 'rgb(240,240,240)', 0.95, '');
+      hits.push({ id: at.id, c: [x, y, at.rad * z] });
+    }
     // version «Pfeile»: arrows planned but not launched yet, pale and numbered (`view.plans`)
     const ph = this.planHits || (this.planHits = []);
     ph.length = 0;
     const plans = this.plans || [];
     for (let i = 0; i < plans.length; i++) {
       const q = plans[i];
+      if (q.spot >= 0) {
+        const x = (q.spot % W + 0.5) * z + ox, y = (((q.spot / W) | 0) + 0.5) * z + oy;
+        spotRing(ctx, x, y, q.rad * z, 'rgb(255,255,255)', 0.6, String(i + 1));
+        ph.push({ id: i, c: [x, y, q.rad * z] });
+        continue;
+      }
       if (!q.path || q.path.length < 2) continue;
       const pts = wayPoints(q.path, 0, W, z, ox, oy);
       wayArrow(ctx, pts, 'rgb(255,255,255)', arrowWidth(q.troops, all), q.width * z, 0.5);
@@ -1918,7 +1948,18 @@
       ctx.fillText(String(i + 1), tip[0], tip[1] - 17.5);
     }
     const pl = this.plan;
-    if (pl && pl.path && pl.path.length > 1) {
+    if (pl && pl.spot >= 0) {
+      const x = (pl.spot % W + 0.5) * z + ox, y = (((pl.spot / W) | 0) + 0.5) * z + oy;
+      spotRing(ctx, x, y, pl.rad * z, pl.col, 0.9, '');
+      if (pl.label) {
+        ctx.font = '700 13px ' + FONT; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+        const tw = ctx.measureText(pl.label).width + 16, lx = Math.min(x + 14, this.cw - tw - 6), ly = Math.max(16, y - pl.rad * z - 16);
+        ctx.beginPath();
+        if (ctx.roundRect) ctx.roundRect(lx, ly - 11, tw, 22, 11); else ctx.rect(lx, ly - 11, tw, 22);
+        ctx.fillStyle = 'rgba(10,16,24,.92)'; ctx.fill(); ctx.lineWidth = 1.5; ctx.strokeStyle = pl.col; ctx.stroke();
+        ctx.fillStyle = '#fff'; ctx.fillText(pl.label, lx + 8, ly + 0.5);
+      }
+    } else if (pl && pl.path && pl.path.length > 1) {
       const pts = wayPoints(pl.path, 0, W, z, ox, oy);
       wayArrow(ctx, pts, pl.col, arrowWidth(pl.troops, all), pl.width * z, 0.85);
       if (pl.label) {
@@ -1939,6 +1980,7 @@
     const hits = list || this.arrowHits || [];
     let best = null, bd = 12;
     for (const e of hits) {
+      if (e.c) { const d = Math.hypot(sx - e.c[0], sy - e.c[1]); if (d <= Math.max(14, e.c[2]) && d - Math.max(14, e.c[2]) < bd) { bd = 0; best = e.id; } continue; }
       const p = e.pts;
       for (let i = 1; i < p.length; i++) {
         const ax = p[i - 1][0], ay = p[i - 1][1], dx = p[i][0] - ax, dy = p[i][1] - ay, l2 = dx * dx + dy * dy || 1;
