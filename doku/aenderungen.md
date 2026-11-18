@@ -1,6 +1,9 @@
 # Änderungsprotokoll
 Was seit dem 13.11.2026 geändert wurde und warum. Den heutigen Stand der Regeln beschreiben die anderen Dateien in `doku/`.
 
+## Bomben kosten etwas weniger Truppen (18.11.2026)
+Ein getroffenes Feld kostet 3 statt 5 Felder an Durchschnittstruppen. Atombombe auf Angola: 33 % statt 49 % der Truppen. Siehe `doku/openfront-abgleich.md`.
+
 ## Richtungsangriff statt Punktangriff, kein Blitzkrieg (18.11.2026)
 - Der Punktangriff (Ring) war komisch. Jetzt greift statt der ganzen Front nur der Teil an, der in die gezogene Richtung schaut, und sieht aus wie die ganze Front.
 - Schmale Angriffe setzen höchstens 2 Angreifer pro gegenüberstehenden Verteidiger ein; der Rest ist Nachschub. So überrennt man niemanden mehr an einer Stelle. Messwerte in `doku/pfeile.md`.
