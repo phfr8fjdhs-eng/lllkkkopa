@@ -2474,6 +2474,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   // (OpenFront: 5 for every bomb). Together a MIRV takes roughly a third of the army, not all of it.
   G.MIRV_COVER = 0.25;
   G.WARHEAD_KILL = 1.5;
+  G.NUKE_KILL = 3;        // the same for atom and hydrogen bombs, cruise missiles and the beam (OpenFront: 5)
   G.LAND_GOLD = 60;
   Game.prototype.bounty = function (t) {
     return Math.round(Math.max(t.peak || 0, t.tiles) * G.LAND_GOLD) + (t.type === PT.BOT ? G.BOT_BOUNTY : 0);
@@ -4518,7 +4519,9 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     const W = this.W, H = this.H, own = this.owner, land = this.map.land, rng = this.rng, ps = this.players;
     const cx = u.dx, cy = u.dy, in2 = rin * rin, out2 = rout * rout;
     const before = new Map();
-    const kill = type === UT.WARHEAD ? G.WARHEAD_KILL : 5;   // troops lost per hit tile, in tiles' worth of the average
+    // troops lost per hit tile, in tiles' worth of the average (OpenFront: 5; ours 3, see
+    // doku/openfront-abgleich.md)
+    const kill = type === UT.WARHEAD ? G.WARHEAD_KILL : G.NUKE_KILL;
     for (let y = Math.max(0, cy - rout); y <= Math.min(H - 1, cy + rout); y++) {
       for (let x = Math.max(0, cx - rout); x <= Math.min(W - 1, cx + rout); x++) {
         const d2 = (x - cx) * (x - cx) + (y - cy) * (y - cy);

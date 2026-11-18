@@ -1169,6 +1169,7 @@
   // (OpenFront: 5 for every bomb). Together a MIRV takes roughly a third of the army, not all of it.
   G.MIRV_COVER = 0.25;
   G.WARHEAD_KILL = 1.5;
+  G.NUKE_KILL = 3;        // the same for atom and hydrogen bombs, cruise missiles and the beam (OpenFront: 5)
   G.LAND_GOLD = 60;
   Game.prototype.bounty = function (t) {
     return Math.round(Math.max(t.peak || 0, t.tiles) * G.LAND_GOLD) + (t.type === PT.BOT ? G.BOT_BOUNTY : 0);
