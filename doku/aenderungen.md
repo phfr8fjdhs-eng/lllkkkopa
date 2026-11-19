@@ -1,6 +1,9 @@
 # Änderungsprotokoll
 Was seit dem 13.11.2026 geändert wurde und warum. Den heutigen Stand der Regeln beschreiben die anderen Dateien in `doku/`.
 
+## 3D-Nahansicht beim normalen Spielen, viel grösser (20.11.2026)
+Rückmeldung des Besitzers: viel zu klein, die Hälfte sieht man gar nicht. Grund: die Nahansicht begann erst bei Zoom 7, die Kamera stellt sich nach dem Start aber auf 5,6 bis 6. Jetzt ab 2,5. Gebäude doppelt so gross, Panzer grösser und weiter draussen in Gruppen, Städte unter Stufe 5 als Ortschaften mit Häusern und Kirche, Relief aus den Höhendaten, Schiffe, Boote und Züge als Modelle, Lichtreflexe auf dem Meer, Antippen der Modelle öffnet die Ausbaukarte. Weiter draussen nur die Panzer, die einen betreffen. Auf dem Handy verdecken Tempo und Meldungen weniger. Siehe `doku/nahansicht.md`.
+
 ## 3D-Nahansicht und Wachstumstempo (19.11.2026)
 Wunsch des Besitzers: das Spiel soll sich realistischer anfühlen, nach Aufbau und nach Krieg, und man soll spüren, ob man schneller wächst als die anderen. Ab 7 Pixel pro Feld zeigt die Karte 3D-Modelle statt Zeichen: Städte wachsen mit der Stufe vom Dorf zur Hochhausstadt, Fabriken rauchen, Truppen stehen als Panzer (die eigenen nach dem Netz, die anderen gleichmässig), Angriffe sind feuernde Panzerreihen, umkämpftes Land hat Krater, eingegrabene Grenzen Sandsäcke, dazu Wald, Felsen und Gipfel. Nur Bild, die Simulation bleibt unberührt. Unter der Rangliste neu: dein Landgewinn der letzten Minute gegen den Schnellsten der anderen. Taste `J` oder Menü schaltet die Nahansicht aus. Siehe `doku/nahansicht.md`.
 

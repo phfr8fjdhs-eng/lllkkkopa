@@ -63,16 +63,32 @@ const ok = (c, m) => { console.log((c ? 'ok   ' : 'FAIL ') + m); if (!c) fails++
   ok(setup.edge >= 0 && setup.out > 0, 'a war is on (' + setup.out + ' attacks' + (setup.why ? ', ' + setup.why : '') + ')');
 
   // far: signs as before; close: the models
-  await look(page, setup.edge, 4);
+  await page.waitForTimeout(1200);   // let the flight to the own land after the start end first
+  await look(page, setup.edge, 1.6);
   await page.waitForTimeout(300);
-  ok(await page.evaluate(() => !(G.debug.view.nah && G.debug.view.nah.live)), 'zoomed out: no close-up');
+  ok(await page.evaluate(() => !(G.debug.view.nah && G.debug.view.nah.live)), 'zoomed out (1.6): no close-up, the signs as before');
+  await look(page, setup.edge, 5.6);
+  await page.waitForTimeout(400);
+  ok(await page.evaluate(() => G.debug.view.nah.live), 'the zoom the camera takes after the start (5.6): the close-up is on');
   await look(page, setup.edge, 12);
   await page.waitForTimeout(1200);
   const st = await page.evaluate(() => { const S = G.debug.view.nah; let mine = 0, fight = 0; for (const t of S.tanks.values()) { if (t.p === G.debug.game.human) mine++; if (t.fight) fight++; } return { live: S.live, tanks: S.tanks.size, mine, fight }; });
   ok(st.live, 'zoomed in: the close-up is on');
   ok(st.tanks > 0 && st.fight > 0, 'tanks stand on the map (' + st.tanks + '), some of them at the front (' + st.fight + ')');
   await page.screenshot({ path: out('nah_front.png') });
-  if (setup.city >= 0) { await look(page, setup.city, 16); await page.waitForTimeout(600); await page.screenshot({ path: out('nah_city.png') }); }
+  if (setup.city >= 0) {
+    await look(page, setup.city, 16); await page.waitForTimeout(600); await page.screenshot({ path: out('nah_city.png') });
+    // a tap on the model of the own city (well above its tile) opens its upgrade card
+    await look(page, setup.city, 6); await page.waitForTimeout(500);
+    const pt = await page.evaluate((t) => { const v = G.debug.view, e = v.nah.hits.find((h) => h[0].tile === t); return e ? { x: (e[1] + e[3]) / 2, y: e[2] + (e[4] - e[2]) * 0.3, foot: v.screenOf(t) } : null; }, setup.city);
+    ok(!!pt && pt.foot.y - pt.y > 8, 'the model stands above its tile (' + (pt ? Math.round(pt.foot.y - pt.y) : '?') + ' px)');
+    if (pt) {
+      await page.evaluate((p) => G.debug.tap(p.x, p.y), pt);
+      await page.waitForTimeout(400);
+      ok(await page.evaluate(() => !document.getElementById('sheet').hidden && !!document.querySelector('.uprow')), 'a tap on the model opens the upgrade card');
+      await page.keyboard.press('Escape');
+    }
+  }
 
   // drawing changes nothing in the game
   const same = await page.evaluate(() => {

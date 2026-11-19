@@ -14,13 +14,15 @@
 (function (G) {
   'use strict';
   const View = G.View, UT = G.UT, PT = G.PT, within = G.within;
-  const Z3D = G.Z3D = 7;                      // pixels per tile from which on the close-up is drawn
+  const Z3D = G.Z3D = 2.5;                    // pixels per tile from which on the close-up is drawn (the camera
+                                              // flies to 2.2-6 after the start, so this is the normal view)
   const LEAN = 0.3;                           // how far a height leans to the right
   const LX = -0.45, LY = -0.5, LZ = 0.74;     // the light, from the north west and above
   const SHX = 0.36, SHY = 0.4;               // a shadow per pixel of height (shortened, the map must stay readable)
-  const TANK_CAP = 180;                       // at most so many tanks on the screen
-  const PLATOON = 9;                          // at most so many tanks in one cell
-  const Z_PARK = 11;                          // from this zoom on also the tanks parked in the hinterland
+  const TANK_CAP = 200;                       // at most so many tanks on the screen
+  const PLATOON = 9;                          // at most so many tanks in one group of cells
+  const Z_PARK = 7;                           // from this zoom on also the tanks parked in the hinterland, and the rest of the world's
+  const GROUP_PX = 110;                       // a group of cells (one platoon) is at least so many pixels wide
   const SCORCH = 18000;                       // ms a crater stays
   let BASE = 1;                               // the opacity everything is drawn with (below 1 while the models fade in)
 
@@ -62,6 +64,13 @@
     for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
     ctx.closePath();
   }
+
+  // How big a building model stands on the screen: far bigger than its tile when zoomed out, as the
+  // signs are, but never so big that neighbours built at the closest allowed distance bury each other.
+  function modelSize(g, z) { return Math.min(within(40 + z * 5, 72, 210), Math.max(50, g.R.structDist * z * 2.8)); }
+  // How long a tank is on the screen.
+  function tankLen(z) { return within(8 + z * 1.15, 16, 42); }
+  G.closeSize = modelSize;
 
   // ---------- bodies ----------
   // A body: a ground outline `g` (convex, screen pixels) raised from h0 to h1 pixels. Drawn: the walls
@@ -131,8 +140,8 @@
     [0.02, -0.04, 0.28, 0.28], [-0.27, 0.16, 0.22, 0.2], [0.26, 0.16, 0.2, 0.22], [-0.25, -0.25, 0.22, 0.19], [0.27, -0.24, 0.19, 0.19],
     [0.0, 0.33, 0.24, 0.13], [-0.02, -0.38, 0.22, 0.11], [-0.42, -0.03, 0.12, 0.24], [0.42, -0.02, 0.12, 0.24]
   ];
-  // How a city of level lv looks: how many blocks, how high. Grows smoothly with lv (also between
-  // levels while it is being built up). Level 1 and 2 are a village of houses with pitched roofs.
+  // How a city of level lv (5 and more) looks: how many blocks, how high. Grows smoothly with lv
+  // (also between levels while it is being built up). Below level 5 it is a town (drawTown).
   function cityParts(cx, cy, s, lv, seed, own) {
     const parts = [], roof = mix(own, [60, 60, 60], 0.22), glass = mix([92, 128, 158], own, 0.1);
     const n = Math.min(LAYOUT.length, 3 + 2.4 * Math.log2(Math.max(1, lv)));
@@ -140,15 +149,13 @@
     for (let i = 0; i < n; i++) {
       const L = LAYOUT[i], grow = within(n - i, 0, 1);
       const w = L[2] * s, d = L[3] * s, x = cx + L[0] * s, y = cy + L[1] * s;
-      const village = lv < 3;
       let h = (i === 0 ? (lv >= 10 ? 1.3 : 1) : 0.3 + 0.5 * hash(seed, i)) * top;
-      if (village) h = s * (i === 0 ? 0.13 : 0.09);
       h *= grow;
       if (h < 0.8) continue;
       const tall = i === 0 && lv >= 20;
       const wall = mix(WALLS[(hash(seed, i + 40) * WALLS.length) | 0], own, 0.07);
       const key = y + d / 2 + (x - w / 2) * 0.01;
-      parts.push({ b: body([[x - w / 2, y - d / 2], [x + w / 2, y - d / 2], [x + w / 2, y + d / 2], [x - w / 2, y + d / 2]], 0, h, tall ? glass : wall, i < 3 || village ? roof : mix(wall, [90, 90, 90], 0.45)), x0: x - w / 2, y0: y - d / 2, x1: x + w / 2, y1: y + d / 2, key: key, gable: village, tall: tall, seed: seed + i * 7 });
+      parts.push({ b: body([[x - w / 2, y - d / 2], [x + w / 2, y - d / 2], [x + w / 2, y + d / 2], [x - w / 2, y + d / 2]], 0, h, tall ? glass : wall, i < 3 ? roof : mix(wall, [90, 90, 90], 0.45)), x0: x - w / 2, y0: y - d / 2, x1: x + w / 2, y1: y + d / 2, key: key, tall: tall, seed: seed + i * 7 });
       if (tall) {   // a set-back crown on the tower, and a mast on the highest
         const w2 = w * 0.62, d2 = d * 0.62;
         parts.push({ b: body([[x - w2 / 2, y - d2 / 2], [x + w2 / 2, y - d2 / 2], [x + w2 / 2, y + d2 / 2], [x - w2 / 2, y + d2 / 2]], h, h + top * 0.22 * grow, glass, roof), x0: x - w2 / 2, y0: y - d2 / 2, x1: x + w2 / 2, y1: y + d2 / 2, key: key + 1e-3, tall: true, crown: true, mast: lv >= 50 ? top * 0.3 : 0, seed: seed + 3 });
@@ -174,45 +181,130 @@
       for (let c = 0; c < k; c++) if (hash(seed + r * 31, c) < 0.22) ctx.fillRect(x0 + LEAN * h + 1.5 + c * 3, y1 - h - 1.7, 1.8, 1.7);
     }
   }
-  function drawCity(ctx, u, x, y, s, own, lv, now) {
-    const seed = u.id * 13;
+  // A pitched roof on the box from (x0, y0) to (x1, y1), its eaves at height h. The ridge runs
+  // along the longer side; the slopes are lit by the sun in the north west, the gable ends are wall.
+  function gable(ctx, x0, y0, x1, y1, h, roof, wall) {
+    ctx.lineJoin = 'round';
+    const face = function (pts, col) {
+      ctx.beginPath(); ctx.moveTo(pts[0][0] + LEAN * pts[0][2], pts[0][1] - pts[0][2]);
+      for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0] + LEAN * pts[i][2], pts[i][1] - pts[i][2]);
+      ctx.closePath(); ctx.fillStyle = col; ctx.fill(); ctx.lineWidth = 0.5; ctx.strokeStyle = col; ctx.stroke();
+    };
+    if (x1 - x0 >= y1 - y0) {          // ridge east-west: the south slope and the west gable are seen
+      const r = (y1 - y0) * 0.5, my = (y0 + y1) / 2;
+      face([[x0, y1, h], [x1, y1, h], [x1, my, h + r], [x0, my, h + r]], css(roof, lit(0, 0.7, 0.7)));
+      face([[x0, y0, h], [x0, y1, h], [x0, my, h + r]], css(wall, lit(-1, 0, 0)));
+      ctx.beginPath(); ctx.moveTo(x0 + LEAN * (h + r), my - h - r); ctx.lineTo(x1 + LEAN * (h + r), my - h - r);
+    } else {                           // ridge north-south: both slopes from above, the south gable
+      const r = (x1 - x0) * 0.5, mx = (x0 + x1) / 2;
+      face([[mx, y0, h + r], [x1, y0, h], [x1, y1, h], [mx, y1, h + r]], css(roof, lit(0.7, 0, 0.7)));
+      face([[x0, y0, h], [mx, y0, h + r], [mx, y1, h + r], [x0, y1, h]], css(roof, lit(-0.7, 0, 0.7)));
+      face([[x0, y1, h], [x1, y1, h], [mx, y1, h + r]], css(wall, lit(0, 1, 0)));
+      ctx.beginPath(); ctx.moveTo(mx + LEAN * (h + r), y0 - h - r); ctx.lineTo(mx + LEAN * (h + r), y1 - h - r);
+    }
+    ctx.lineWidth = 0.8; ctx.strokeStyle = 'rgba(30,20,16,.35)'; ctx.stroke();
+  }
+  // A pointed spire on a square tower top at height h: the four faces, back ones first.
+  function spire(ctx, cx, cy, r, h, top, col) {
+    const ax = cx + LEAN * (h + top), ay = cy - h - top;
+    const c = [[cx - r, cy - r], [cx + r, cy - r], [cx + r, cy + r], [cx - r, cy + r]].map(function (q) { return [q[0] + LEAN * h, q[1] - h]; });
+    const tri = function (a, b, k) { ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.lineTo(ax, ay); ctx.closePath(); ctx.fillStyle = css(col, k); ctx.fill(); };
+    tri(c[0], c[1], 0.7); tri(c[1], c[2], 0.82); tri(c[2], c[3], 0.92); tri(c[3], c[0], 1.12);
+  }
+  function tree(ctx, x, y, r, k) {
+    ctx.fillStyle = 'rgba(14,18,10,.22)'; ctx.beginPath(); ctx.ellipse(x + r * 0.5, y + r * 0.2, r, r * 0.5, 0, 0, 6.2832); ctx.fill();
+    ctx.fillStyle = '#5a4430'; ctx.fillRect(x - r * 0.12, y - r * 0.9, r * 0.24, r * 0.9);
+    ctx.fillStyle = k ? '#4f7f3e' : '#5c8a42'; ctx.beginPath(); ctx.arc(x + LEAN * r, y - r * 1.25, r * 0.8, 0, 6.2832); ctx.fill();
+    ctx.fillStyle = k ? '#679a4f' : '#77a856'; ctx.beginPath(); ctx.arc(x + LEAN * r - r * 0.22, y - r * 1.45, r * 0.45, 0, 6.2832); ctx.fill();
+  }
+  // A town (level 1 to 4): houses with pitched roofs around a church on a little square, dirt roads
+  // out of town, trees between the houses. More houses with every level; from level 3 a town hall.
+  const RING = [[-2, -1], [-1, -2], [0, -2], [1, -2], [2, -1], [2, 0], [2, 1], [1, 2], [0, 2], [-1, 2], [-2, 1], [-2, 0], [-1, -1], [1, -1], [1, 1], [-1, 1]];
+  function drawTown(ctx, u, x, y, s, own, lv, info) {
+    const seed = u.id * 13, roofs = [mix(own, [150, 70, 50], 0.35), mix(own, [60, 50, 50], 0.3), mix(own, [170, 110, 70], 0.5)];
+    // the ground: trodden earth around the square, the roads out of town
+    ctx.fillStyle = 'rgba(196,178,132,.5)';
+    ctx.beginPath(); ctx.ellipse(x, y, s * 0.48, s * 0.42, 0, 0, 6.2832); ctx.fill();
+    ctx.strokeStyle = 'rgba(214,198,156,.85)'; ctx.lineCap = 'round'; ctx.lineWidth = Math.max(1.4, s * 0.045);
+    ctx.beginPath(); ctx.moveTo(x - s * 0.62, y + s * 0.06); ctx.lineTo(x + s * 0.62, y - s * 0.02); ctx.moveTo(x + s * 0.02, y - s * 0.58); ctx.lineTo(x - s * 0.04, y + s * 0.6); ctx.stroke();
+    ctx.lineCap = 'butt';
+    const parts = [], n = Math.min(RING.length, 5 + 3 * (Math.floor(lv) - 1)), g = s * 0.19;
+    const order = RING.map(function (c, i) { return [hash(seed, i), c]; }).sort(function (a, b) { return a[0] - b[0]; });
+    for (let i = 0; i < n; i++) {
+      const c = order[i][1], k = hash(seed + 3, i);
+      if (Math.abs(c[0]) <= 1 && Math.abs(c[1]) <= 1 && lv >= 3 && c[0] > 0 && c[1] < 0) continue;   // the town hall's place
+      const along = k < 0.5, w = s * (along ? 0.15 + 0.03 * k : 0.1 + 0.02 * k), d = s * (along ? 0.1 : 0.14 + 0.03 * k);
+      const hx = x + c[0] * g + (hash(seed + 5, i) - 0.5) * s * 0.05, hy = y + c[1] * g + (hash(seed + 7, i) - 0.5) * s * 0.05;
+      parts.push({ x0: hx - w / 2, y0: hy - d / 2, x1: hx + w / 2, y1: hy + d / 2, h: s * (0.06 + 0.03 * hash(seed + 9, i)), wall: WALLS[(hash(seed, i + 40) * WALLS.length) | 0], roof: roofs[i % 3] });
+    }
+    // the church: nave east-west, tower at the west end with a spire in the owner's colour
+    parts.push({ x0: x - s * 0.06, y0: y - s * 0.055, x1: x + s * 0.12, y1: y + s * 0.055, h: s * 0.1, wall: [232, 226, 212], roof: [92, 96, 104] });
+    parts.push({ x0: x - s * 0.12, y0: y - s * 0.045, x1: x - s * 0.03, y1: y + s * 0.045, h: s * 0.22, wall: [236, 230, 216], roof: null, spire: mix(own, [40, 40, 40], 0.2) });
+    if (lv >= 3) parts.push({ x0: x + s * 0.1, y0: y - s * 0.3, x1: x + s * 0.3, y1: y - s * 0.14, h: s * 0.16, wall: [226, 214, 190], roof: mix(own, [60, 60, 60], 0.3), flat: true });
+    const bodies = parts.map(function (q) { return body([[q.x0, q.y0], [q.x1, q.y0], [q.x1, q.y1], [q.x0, q.y1]], 0, q.h + (q.roof && !q.flat ? Math.min(q.x1 - q.x0, q.y1 - q.y0) * 0.45 : 0), q.wall); });
+    drawShadow(ctx, bodies, 0.24);
+    // trees in the gaps
+    for (let i = 0; i < 3 + Math.floor(lv); i++) {
+      const a = hash(seed + 11, i) * 6.2832, r = s * (0.36 + 0.12 * hash(seed + 13, i));
+      tree(ctx, x + Math.cos(a) * r, y + Math.sin(a) * r * 0.9, Math.max(1.6, s * 0.035), i & 1);
+    }
+    parts.sort(function (a, b) { return (a.y1 + a.x0 * 0.01) - (b.y1 + b.x0 * 0.01); });
+    let hi = 0;
+    for (const q of parts) {
+      drawBody(ctx, body([[q.x0, q.y0], [q.x1, q.y0], [q.x1, q.y1], [q.x0, q.y1]], 0, q.h, q.wall, q.flat ? q.roof : q.wall));
+      // windows: a dark dot or two on the south wall
+      if (s > 40) {
+        ctx.fillStyle = 'rgba(40,46,56,.6)';
+        const nw = Math.max(1, Math.floor((q.x1 - q.x0) / (s * 0.05)));
+        for (let k = 0; k < nw; k++) { const wx = q.x0 + (k + 0.5) * (q.x1 - q.x0) / nw; ctx.fillRect(wx + LEAN * q.h * 0.5 - 0.7, q.y1 - q.h * 0.55 - 1, 1.4, Math.max(1.2, q.h * 0.25)); }
+      }
+      if (q.spire) { spire(ctx, (q.x0 + q.x1) / 2, (q.y0 + q.y1) / 2, (q.x1 - q.x0) / 2, q.h, s * 0.2, q.spire); hi = Math.max(hi, q.h + s * 0.2); continue; }
+      if (q.roof && !q.flat) { gable(ctx, q.x0, q.y0, q.x1, q.y1, q.h, q.roof, q.wall); hi = Math.max(hi, q.h + Math.min(q.x1 - q.x0, q.y1 - q.y0) / 2); }
+      else hi = Math.max(hi, q.h);
+    }
+    if (info) info.top = hi;
+    return hi;
+  }
+  function drawCity(ctx, u, x, y, s, own, lv, now, info) {
     s *= 1 + 0.2 * Math.log10(Math.max(1, lv));           // a big city takes more ground
-    const village = lv < 3;
-    const pad = body(rect(x, y, -0.5, -0.46, 0.5, 0.48, s), 0, s * 0.025, village ? [150, 146, 118] : [104, 108, 112], village ? [164, 160, 128] : [112, 116, 120]);
+    if (lv < 5) return drawTown(ctx, u, x, y, s, own, lv, info);
+    const seed = u.id * 13;
+    const pad = body(rect(x, y, -0.5, -0.46, 0.5, 0.48, s), 0, s * 0.02, [150, 150, 144], [162, 162, 156]);
     const parts = cityParts(x, y, s, lv, seed, own);
     drawShadow(ctx, [pad].concat(parts.map(function (p) { return p.b; })), 0.24);
     drawBody(ctx, pad);
-    if (!village) {   // the streets between the blocks
-      const h = s * 0.025;
-      ctx.strokeStyle = 'rgba(214,214,206,.5)'; ctx.lineWidth = Math.max(0.8, s * 0.012); ctx.setLineDash([s * 0.05, s * 0.04]);
+    {   // the streets between the blocks, and trees along them
+      const h = s * 0.02;
+      ctx.strokeStyle = 'rgba(70,72,76,.75)'; ctx.lineWidth = Math.max(1.2, s * 0.03);
       ctx.beginPath();
-      ctx.moveTo(x - 0.48 * s + LEAN * h, y + 0.04 * s - h); ctx.lineTo(x + 0.48 * s + LEAN * h, y + 0.04 * s - h);
-      ctx.moveTo(x - 0.11 * s + LEAN * h, y - 0.44 * s - h); ctx.lineTo(x - 0.11 * s + LEAN * h, y + 0.46 * s - h);
-      ctx.stroke(); ctx.setLineDash([]);
+      ctx.moveTo(x - 0.5 * s + LEAN * h, y + 0.05 * s - h); ctx.lineTo(x + 0.5 * s + LEAN * h, y + 0.05 * s - h);
+      ctx.moveTo(x - 0.12 * s + LEAN * h, y - 0.46 * s - h); ctx.lineTo(x - 0.12 * s + LEAN * h, y + 0.48 * s - h);
+      ctx.stroke();
+      for (let i = 0; i < 6; i++) tree(ctx, x - 0.44 * s + i * 0.17 * s + LEAN * h, y + 0.43 * s - h, Math.max(1.4, s * 0.026), i & 1);
     }
     parts.sort(function (a, b) { return a.key - b.key; });
     for (const p of parts) {
       drawBody(ctx, p.b);
-      if (p.gable) {   // a pitched roof in the owner's colour on a small house
-        const h = p.b.h1, r = (p.y1 - p.y0) * 0.45, my = (p.y0 + p.y1) / 2;
-        ctx.beginPath();
-        ctx.moveTo(p.x0 + LEAN * h, p.y1 - h); ctx.lineTo(p.x1 + LEAN * h, p.y1 - h);
-        ctx.lineTo(p.x1 + LEAN * (h + r), my - h - r); ctx.lineTo(p.x0 + LEAN * (h + r), my - h - r); ctx.closePath();
-        ctx.fillStyle = css(mix(own, [40, 40, 40], 0.15), 0.95); ctx.fill();
-        ctx.lineWidth = 0.7; ctx.strokeStyle = 'rgba(30,20,20,.5)'; ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(p.x0 + LEAN * h, p.y0 - h); ctx.lineTo(p.x0 + LEAN * h, p.y1 - h); ctx.lineTo(p.x0 + LEAN * (h + r), my - h - r); ctx.closePath();
-        ctx.fillStyle = css(CONCRETE, 0.86); ctx.fill();
-      } else if (!p.crown) floors(ctx, p.x0, p.y0, p.x1, p.y1, p.b.h0, p.b.h1, p.seed, p.tall);
+      if (!p.crown) floors(ctx, p.x0, p.y0, p.x1, p.y1, p.b.h0, p.b.h1, p.seed, p.tall);
+      if (!p.tall && p.x1 - p.x0 > s * 0.15) {   // a stair house and an air conditioner on the roof
+        const h = p.b.h1, bx = p.x0 + (p.x1 - p.x0) * 0.62, by = p.y0 + (p.y1 - p.y0) * 0.3;
+        drawBody(ctx, body(rect(bx, by, -0.025, -0.025, 0.025, 0.025, s), h, h + s * 0.03, [170, 168, 160]));
+        drawBody(ctx, body(rect(bx - s * 0.07, by + s * 0.05, -0.015, -0.015, 0.015, 0.015, s), h, h + s * 0.015, [200, 200, 196]));
+      }
       if (p.mast) {
         const tx = (p.x0 + p.x1) / 2 + LEAN * p.b.h1, ty = (p.y0 + p.y1) / 2 - p.b.h1;
         ctx.beginPath(); ctx.moveTo(tx, ty); ctx.lineTo(tx + LEAN * p.mast, ty - p.mast);
         ctx.lineWidth = 1.4; ctx.strokeStyle = '#dfe5ea'; ctx.stroke();
-        if ((now / 600 | 0) % 2) { ctx.beginPath(); ctx.arc(tx + LEAN * p.mast, ty - p.mast, 1.6, 0, 6.2832); ctx.fillStyle = '#ff5040'; ctx.fill(); }
+        if (info) info.mast = [tx + LEAN * p.mast - x, ty - p.mast - y];
+        if (now && (now / 600 | 0) % 2) { ctx.beginPath(); ctx.arc(tx + LEAN * p.mast, ty - p.mast, 1.6, 0, 6.2832); ctx.fillStyle = '#ff5040'; ctx.fill(); }
+      } else if (p.crown && lv >= 30) {   // a helipad on the crown
+        const h = p.b.h1, cx = (p.x0 + p.x1) / 2 + LEAN * h, cy = (p.y0 + p.y1) / 2 - h, r = (p.x1 - p.x0) * 0.32;
+        ctx.beginPath(); ctx.ellipse(cx, cy, r, r * 0.92, 0, 0, 6.2832); ctx.lineWidth = Math.max(0.8, r * 0.15); ctx.strokeStyle = 'rgba(255,255,255,.8)'; ctx.stroke();
       }
     }
     let hi = 0;
-    for (const p of parts) hi = Math.max(hi, p.b.h1 + (p.mast || 0) + (p.gable ? (p.y1 - p.y0) * 0.45 : 0));
+    for (const p of parts) hi = Math.max(hi, p.b.h1 + (p.mast || 0));
+    if (info) info.top = hi;
     return hi;
   }
   function drawFactory(ctx, u, x, y, s, own, now, lv) {
@@ -401,6 +493,115 @@
     if (alpha < 0.98) ctx.globalAlpha = BASE;
   }
 
+  // ---------- ships and trains ----------
+  // Points in a ship's own frame (x along it, bow at +0.5, y across, both in lengths) on the screen.
+  function shipPts(x, y, ang, L, pts) { return turn(x, y, pts.map(function (q) { return [q[0] * L, q[1] * L]; }), ang); }
+  function ownCol(p) {
+    if (!p.tankCol || p.tankKey !== p.r + ',' + p.g + ',' + p.b) {
+      const mx = Math.max(p.r, p.g, p.b), mn = Math.min(p.r, p.g, p.b);
+      p.tankCol = mx - mn < 26 ? [104, 110, 118] : G.hsl(G.hueOf([p.r, p.g, p.b]), 0.5, 0.4);
+      p.tankKey = p.r + ',' + p.g + ',' + p.b;
+    }
+    return p.tankCol;
+  }
+  // Foam at the bow and a short white trail at the stern: the ship is under way.
+  function foam(ctx, x, y, ang, L, now, seed) {
+    const c = Math.cos(ang), s = Math.sin(ang), bx = x + c * L * 0.5, by = y + s * L * 0.5;
+    ctx.strokeStyle = 'rgba(240,248,255,.75)'; ctx.lineWidth = Math.max(1, L * 0.03); ctx.lineCap = 'round';
+    for (const side of [-1, 1]) {
+      ctx.beginPath(); ctx.moveTo(bx, by);
+      ctx.lineTo(bx - c * L * 0.28 - s * side * L * 0.14, by - s * L * 0.28 + c * side * L * 0.14); ctx.stroke();
+    }
+    for (let k = 0; k < 3; k++) {
+      const f = (now / 900 + k / 3 + seed) % 1, d = L * (0.52 + 0.45 * f);
+      ctx.beginPath(); ctx.arc(x - c * d, y - s * d, L * (0.03 + 0.05 * f), 0, 6.2832);
+      ctx.fillStyle = 'rgba(240,248,255,' + (0.6 * (1 - f)).toFixed(2) + ')'; ctx.fill();
+    }
+    ctx.lineCap = 'butt';
+  }
+  const HULL = [[-0.5, -0.085], [-0.4, -0.11], [0.26, -0.11], [0.5, 0], [0.26, 0.11], [-0.4, 0.11], [-0.5, 0.085]];
+  // A warship of length L: grey hull, deck in the owner's colour, bridge, two turrets that train on
+  // the target (`aim`, relative to the heading) or look ahead.
+  G.closeWarship = function (ctx, x, y, ang, L, p, aim, now, seed) {
+    const own = ownCol(p), hh = L * 0.07;
+    foam(ctx, x, y, ang, L, now, seed);
+    const hull = body(shipPts(x, y, ang, L, HULL), 0, hh, [112, 118, 124], own);
+    const deck = body(shipPts(x, y, ang, L, [[-0.36, -0.06], [0.1, -0.06], [0.1, 0.06], [-0.36, 0.06]]), hh, hh + L * 0.07, [196, 200, 204]);
+    const bridge = body(shipPts(x, y, ang, L, [[-0.2, -0.04], [0.02, -0.04], [0.02, 0.04], [-0.2, 0.04]]), hh + L * 0.07, hh + L * 0.13, [214, 218, 222]);
+    const stack = body(ngon(x - Math.cos(ang) * L * 0.25, y - Math.sin(ang) * L * 0.25, L * 0.035, 8, 0), hh + L * 0.07, hh + L * 0.16, [70, 74, 80]);
+    drawShadow(ctx, [hull, deck, bridge, stack], 0.22);
+    drawBody(ctx, hull);
+    ctx.beginPath(); path(ctx, hull.g.map(function (q) { return [q[0] + LEAN * hh, q[1] - hh]; }));
+    ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(12,16,20,.7)'; ctx.stroke();
+    drawBody(ctx, deck); drawBody(ctx, stack); drawBody(ctx, bridge);
+    // the mast and its flag in the owner's colour
+    const mx = x - Math.cos(ang) * L * 0.08 + LEAN * (hh + L * 0.13), my = y - Math.sin(ang) * L * 0.08 - (hh + L * 0.13), mh = L * 0.2;
+    ctx.lineWidth = Math.max(1, L * 0.012); ctx.strokeStyle = '#2b3036';
+    ctx.beginPath(); ctx.moveTo(mx, my); ctx.lineTo(mx + LEAN * mh, my - mh); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(mx + LEAN * mh, my - mh); ctx.lineTo(mx + LEAN * mh + L * 0.09, my - mh + L * 0.025); ctx.lineTo(mx + LEAN * mh, my - mh + L * 0.05); ctx.closePath();
+    ctx.fillStyle = css(own, 1.1); ctx.fill();
+    // turrets fore and aft
+    for (const f of [0.26, -0.38]) {
+      const tx = x + Math.cos(ang) * L * f, ty = y + Math.sin(ang) * L * f, a = ang + (aim === null || aim === undefined ? (f > 0 ? 0 : Math.PI) : aim);
+      const tur = body(ngon(tx, ty, L * 0.05, 8, a), hh, hh + L * 0.045, [150, 156, 162]);
+      drawBody(ctx, tur);
+      const h = hh + L * 0.035, bx = tx + LEAN * h, by = ty - h;
+      ctx.lineCap = 'round'; ctx.lineWidth = Math.max(1.2, L * 0.022); ctx.strokeStyle = '#2b3036';
+      ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(bx + Math.cos(a) * L * 0.12, by + Math.sin(a) * L * 0.12); ctx.stroke(); ctx.lineCap = 'butt';
+    }
+  };
+  // A merchant of length L: dark hull, deck in the owner's colour, stacks of containers, the bridge aft.
+  G.closeMerchant = function (ctx, x, y, ang, L, p, now, seed, captured) {
+    const own = ownCol(p), hh = L * 0.07;
+    foam(ctx, x, y, ang, L, now, seed);
+    const hull = body(shipPts(x, y, ang, L, [[-0.5, -0.1], [0.3, -0.12], [0.5, 0], [0.3, 0.12], [-0.5, 0.1]]), 0, hh, captured ? [150, 120, 60] : [58, 62, 70], own);
+    const bridge = body(shipPts(x, y, ang, L, [[-0.47, -0.09], [-0.33, -0.09], [-0.33, 0.09], [-0.47, 0.09]]), hh, hh + L * 0.14, [232, 234, 236]);
+    const tones = [[196, 70, 52], [52, 104, 168], [222, 150, 46], [70, 140, 92], [140, 70, 140]];
+    const boxes = [];
+    for (let i = 0; i < 4; i++) for (let j = 0; j < 2; j++) {
+      const fx = -0.26 + i * 0.13, fy = j ? 0.045 : -0.045, hgt = (hash(seed * 999 | 0, i * 2 + j) < 0.6 ? 2 : 1);
+      boxes.push(body(shipPts(x, y, ang, L, [[fx - 0.055, fy - 0.04], [fx + 0.055, fy - 0.04], [fx + 0.055, fy + 0.04], [fx - 0.055, fy + 0.04]]), hh, hh + L * 0.04 * hgt, tones[(i * 2 + j + (seed * 7 | 0)) % 5]));
+    }
+    drawShadow(ctx, [hull, bridge].concat(boxes), 0.2);
+    drawBody(ctx, hull);
+    ctx.beginPath(); path(ctx, hull.g.map(function (q) { return [q[0] + LEAN * hh, q[1] - hh]; }));
+    ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(12,16,20,.7)'; ctx.stroke();
+    boxes.sort(function (a, b) { return a.g[2][1] - b.g[2][1]; });
+    for (const b of boxes) drawBody(ctx, b);
+    drawBody(ctx, bridge);
+  };
+  // A troop boat of length L: a landing craft in the owner's colour, soldiers on deck, a ramp ahead.
+  G.closeBoat = function (ctx, x, y, ang, L, p, now, seed) {
+    const own = ownCol(p), hh = L * 0.1;
+    foam(ctx, x, y, ang, L, now, seed);
+    const hull = body(shipPts(x, y, ang, L, [[-0.5, -0.17], [0.42, -0.17], [0.5, -0.1], [0.5, 0.1], [0.42, 0.17], [-0.5, 0.17]]), 0, hh, mix(own, [40, 40, 40], 0.3), own);
+    const cab = body(shipPts(x, y, ang, L, [[-0.48, -0.1], [-0.3, -0.1], [-0.3, 0.1], [-0.48, 0.1]]), hh, hh + L * 0.12, [200, 204, 208]);
+    drawShadow(ctx, [hull, cab], 0.22);
+    drawBody(ctx, hull);
+    ctx.beginPath(); path(ctx, hull.g.map(function (q) { return [q[0] + LEAN * hh, q[1] - hh]; }));
+    ctx.lineWidth = 1.2; ctx.strokeStyle = 'rgba(255,255,255,.85)'; ctx.stroke();
+    // the soldiers: rows of helmets
+    ctx.fillStyle = '#3f4a32';
+    for (let i = 0; i < 4; i++) for (let j = -1; j <= 1; j++) {
+      const q = turn(x, y, [[(-0.2 + i * 0.15) * L, j * 0.08 * L]], ang)[0];
+      ctx.beginPath(); ctx.arc(q[0] + LEAN * hh * 1.4, q[1] - hh * 1.4, Math.max(0.9, L * 0.035), 0, 6.2832); ctx.fill();
+    }
+    drawBody(ctx, cab);
+  };
+  // One carriage of a train, `L` long, along the angle `a`: the engine (k = 0) in a deep shade of the
+  // owner's colour with a cab, the wagons in the owner's colour with a grey roof.
+  G.closeWagon = function (ctx, x, y, a, L, k, p) {
+    const own = ownCol(p), B = L * 0.42, h = L * 0.3;
+    const pts = turn(x, y, [[-L / 2, -B / 2], [L / 2, -B / 2], [L / 2, B / 2], [-L / 2, B / 2]], a);
+    const car = body(pts, L * 0.06, h, k ? mix(own, [255, 255, 255], 0.15) : mix(own, [20, 20, 20], 0.35), k ? [176, 180, 184] : mix(own, [20, 20, 20], 0.5));
+    const parts = [car];
+    if (!k) parts.push(body(turn(x, y, [[-L / 2, -B / 2.4], [-L * 0.15, -B / 2.4], [-L * 0.15, B / 2.4], [-L / 2, B / 2.4]], a), h, h + L * 0.12, [210, 214, 218]));
+    drawShadow(ctx, parts, 0.26);
+    for (const b of parts) drawBody(ctx, b);
+    ctx.beginPath(); path(ctx, pts.map(function (q) { return [q[0] + LEAN * h, q[1] - h]; }));
+    ctx.lineWidth = 0.8; ctx.strokeStyle = 'rgba(12,16,20,.6)'; ctx.stroke();
+  };
+
   // ---------- the land: trees, rocks and peaks ----------
   // Drawn from small pictures made once per size, so a forest costs little.
   const sprites = new Map();
@@ -461,11 +662,13 @@
     return c;
   }
   // Which trees, rocks and peaks stand on the screen: from the ground under them (forest on the
-  // Earth, height everywhere), never on a building or a railway. Worked out when the view moves.
-  View.prototype.closeDecor = function (g, z, x0, y0, x1, y1) {
-    // a little more than the screen, in steps of 8 tiles, so a small move needs no new list
-    x0 = (x0 >> 3) * 8 - 8; y0 = (y0 >> 3) * 8 - 8; x1 = (x1 >> 3) * 8 + 16; y1 = (y1 >> 3) * 8 + 16;
-    const S = this.nah, key = x0 + ',' + y0 + ',' + x1 + ',' + y1 + ',' + g.structAt.size + ',' + g.rails.length;
+  // Earth, height everywhere), never on a building, a railway or poisoned ground. Zoomed out, one
+  // spot is looked at for every `st` x `st` tiles and stands for all of them (a grove, a range), so
+  // there are never more than a few thousand. Worked out again only when the view moves on.
+  View.prototype.closeDecor = function (g, z, x0, y0, x1, y1, st) {
+    const q = 8 * st;   // a little more than the screen, in steps, so a small move needs no new list
+    x0 = Math.floor(x0 / q) * q - q; y0 = Math.floor(y0 / q) * q - q; x1 = Math.floor(x1 / q) * q + 2 * q; y1 = Math.floor(y1 / q) * q + 2 * q;
+    const S = this.nah, s = modelSize(g, z), key = x0 + ',' + y0 + ',' + x1 + ',' + y1 + ',' + st + ',' + Math.round(s) + ',' + g.structAt.size + ',' + g.rails.length;
     if (S.decorKey === key) return S.decor;
     S.decorKey = key;
     const map = g.map, W = g.W, H = g.H, land = map.land, mg = map.mag, cov = map.cover, shore = map.shore, C = G.COVER;
@@ -473,26 +676,30 @@
       S.railN = g.rails.length; S.rail = new Set();
       for (const r of g.rails) for (const t of r.path) S.rail.add(t);
     }
+    // keep clear of the building models: a disc as wide as the model (on the ground) around each
+    const near = [], br = Math.max(2, s * 0.5 / z);
+    for (const u of g.structAt.values()) if (u.x >= x0 - br && u.x <= x1 + br && u.y >= y0 - br && u.y <= y1 + br) near.push(u);
+    const a2 = st * st, pPeak = Math.min(0.2, 0.055 * a2 * 0.4), pRock = Math.min(0.2, 0.025 * a2), pPine = Math.min(0.3, 0.05 * a2), pTree = Math.min(0.32, 0.03 * a2);
     const out = [];
-    for (let y = Math.max(0, y0); y <= Math.min(H - 1, y1); y++) {
-      for (let x = Math.max(0, x0); x <= Math.min(W - 1, x1); x++) {
-        const t = y * W + x;
+    for (let by = Math.max(0, y0); by <= Math.min(H - 1, y1); by += st) {
+      for (let bx = Math.max(0, x0); bx <= Math.min(W - 1, x1); bx += st) {
+        const x = Math.min(W - 1, bx + ((hash(bx, by + 77) * st) | 0)), y = Math.min(H - 1, by + ((hash(bx + 77, by) * st) | 0)), t = y * W + x;
         if (!land[t] || shore[t]) continue;
         const d = hash(x * 3 + 1, y * 5 + 2), m = mg[t];
-        if (d >= 0.32) continue;                       // most tiles stay bare: no need to look further
+        if (d >= 0.5) continue;                        // most spots stay bare: no need to look further
         let kind = null;
         const cold = map.temp10 ? map.temp10(t) : 100;
-        if (m >= 20) { if (d < 0.055 && !((x + y) & 1)) kind = 'peak'; }
-        else if (m >= 10) { if (d < 0.025) kind = 'rock'; else if (d < 0.05 && cold > -150) kind = 'pine'; }
+        if (m >= 20) { if (d < pPeak && (st > 1 || !((x + y) & 1))) kind = 'peak'; }
+        else if (m >= 10) { if (d < pRock) kind = 'rock'; else if (d < pRock + pPine && cold > -150) kind = 'pine'; }
         else if (cov) {
           const c = cov[t];
-          if (c === C.FOREST) { if (d < 0.32) kind = cold < 0 ? 'pine' : 'tree'; }
-          else if (c === C.GRASS || c === C.SWAMP) { if (d < 0.025) kind = cold < 0 ? 'pine' : 'tree'; }
-          else if (c === C.TUNDRA) { if (d < 0.02) kind = 'pine'; }
-        } else if (d < 0.035 && cold > -150) kind = cold < -20 ? 'pine' : 'tree';
+          if (c === C.FOREST) { if (d < 0.34) kind = cold < 0 ? 'pine' : 'tree'; }
+          else if (c === C.GRASS || c === C.SWAMP) { if (d < pTree * 0.8) kind = cold < 0 ? 'pine' : 'tree'; }
+          else if (c === C.TUNDRA) { if (d < pTree * 0.6) kind = 'pine'; }
+        } else if (d < pTree && cold > -150) kind = cold < -20 ? 'pine' : 'tree';
         if (!kind || S.rail.has(t) || g.fallout[t]) continue;
         let free = true;
-        if (g.structAt.size) for (let dy = -2; dy <= 2 && free; dy++) for (let dx = -2; dx <= 2; dx++) if (g.structAt.has(t + dy * W + dx)) { free = false; break; }
+        for (const u of near) if ((u.x - x) * (u.x - x) + (u.y - y) * (u.y - y) < br * br) { free = false; break; }
         if (!free) continue;
         out.push([x + 0.2 + hash(x, y + 9) * 0.6, y + 0.2 + hash(x + 9, y) * 0.6, kind, (d * 997 | 0) % 3]);
       }
@@ -501,9 +708,94 @@
     return out;
   };
 
+  // ---------- the relief: the land in light and shade ----------
+  // Worked out once per map from the heights (on the Earth the height picture, at half the map's
+  // size; elsewhere the crossing cost, which stands for height): every spot of land gets the light
+  // of a sun in the north west, a hill's north-west side bright, its south-east side in shade. Lies
+  // over the map as a picture of its own, smoothed when stretched, so the land reads in 3D.
+  function relief(map) {
+    if (map.relief !== undefined) return map.relief;
+    const W = map.W, H = map.H, land = map.land, hg = map.hgt;
+    const gw = hg ? map.hw : W, gh = hg ? map.hh : H, k = hg ? 2 : 1;
+    let e = new Float32Array(gw * gh);
+    for (let y = 0; y < gh; y++) for (let x = 0; x < gw; x++) {
+      const t = Math.min(H - 1, y * k) * W + Math.min(W - 1, x * k);
+      if (!land[t]) continue;
+      e[y * gw + x] = hg ? hg[y * gw + x] * hg[y * gw + x] * 8850 / 65025 : map.mag[t] * 150;
+    }
+    // smooth twice (the crossing cost comes in steps, which would show as terraces)
+    for (let pass = 0; pass < (hg ? 1 : 2); pass++) {
+      const f = new Float32Array(gw * gh);
+      for (let y = 0; y < gh; y++) for (let x = 0; x < gw; x++) {
+        let sum = 0, n = 0;
+        for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+          const xx = x + dx, yy = y + dy;
+          if (xx < 0 || yy < 0 || xx >= gw || yy >= gh) continue;
+          sum += e[yy * gw + xx]; n++;
+        }
+        f[y * gw + x] = sum / n;
+      }
+      e = f;
+    }
+    const cellM = hg ? 40075000 / gw : 7000 / Math.max(0.4, map.S || 1);   // metres one cell spans, about
+    const kx = 22 / cellM, L = [-1, -1, 1.5], Ll = Math.hypot(L[0], L[1], L[2]), flat = L[2] / Ll;
+    const c = document.createElement('canvas');
+    c.width = gw; c.height = gh;
+    const cx = c.getContext('2d'), img = cx.createImageData(gw, gh), px = new Uint32Array(img.data.buffer);
+    for (let y = 1; y < gh - 1; y++) for (let x = 1; x < gw - 1; x++) {
+      const i = y * gw + x, t = Math.min(H - 1, y * k) * W + Math.min(W - 1, x * k);
+      if (!land[t]) continue;
+      const sx = (e[i + 1] - e[i - 1]) * 0.5 * kx, sy = (e[i + gw] - e[i - gw]) * 0.5 * kx;
+      const nl = Math.hypot(sx, sy, 1), d = (-sx * L[0] - sy * L[1] + L[2]) / (nl * Ll) - flat;
+      if (d > 0.01) { const a = Math.min(110, d * 380) | 0; px[i] = (a << 24) | 0xffffff; }
+      else if (d < -0.01) { const a = Math.min(125, -d * 400) | 0; px[i] = (a << 24) | 0x101408; }
+    }
+    cx.putImageData(img, 0, 0);
+    map.relief = c;
+    if (window.createImageBitmap) createImageBitmap(c).then(function (b) { map.relief = b; }, function () {});   // faster to draw
+    return c;
+  }
+  // Drawn right after the map picture, under the same transform. Fades in with the close-up.
+  View.prototype.drawRelief = function (ctx, z, ox, oy, now) {
+    const map = this.map;
+    if (!map || !map.land) return;
+    if (map.relief === undefined) { try { relief(map); } catch (e) { map.relief = null; } }
+    if (!map.relief) return;
+    if (!this.reliefAt || now - this.reliefLast > 300) this.reliefAt = now;
+    this.reliefLast = now;
+    // close in, the soft shade of a whole mountain side would lie as a smudge over every field: fainter
+    const a = Math.min(1, (now - this.reliefAt) / 300) * within(1.25 - z / 24, 0.45, 1), dpr = this.dpr;
+    ctx.save();
+    ctx.setTransform(z * dpr, 0, 0, z * dpr, ox * dpr, oy * dpr);
+    ctx.imageSmoothingEnabled = true;
+    ctx.globalAlpha = a;
+    ctx.drawImage(map.relief, 0, 0, map.W, map.H);
+    ctx.restore();
+  };
+
+  // A tank as a picture, made once for each colour, size and one of 48 headings: drawing a few
+  // hundred tanks body by body every frame is too slow, drawing a few hundred pictures is not.
+  const tankSprites = new Map();
+  function tankSprite(col, ai, L, mine, dpr) {
+    const key = col.join(',') + '|' + ai + '|' + L + '|' + (mine ? 1 : 0) + '|' + dpr;
+    let c = tankSprites.get(key);
+    if (c) return c;
+    if (tankSprites.size > 900) tankSprites.clear();
+    const size = Math.ceil(L * 2.6);
+    c = document.createElement('canvas');
+    c.width = Math.ceil(size * dpr); c.height = Math.ceil(size * dpr); c.w = size; c.ax = size / 2; c.ay = size * 0.56;
+    const x = c.getContext('2d');
+    x.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const b0 = BASE; BASE = 1;
+    drawTank(x, c.ax, c.ay, L, ai * 6.2832 / 48, 0, col, 1, 0, mine);
+    BASE = b0;
+    tankSprites.set(key, c);
+    return c;
+  }
+
   // ---------- state of the close-up ----------
   function state(v) {
-    return v.nah || (v.nah = { own: null, scorch: [], pend: [], flips: 0, tanks: new Map(), cellAt: 0, U: 0, Uat: -1e9, units: new Map(), rect: [0, 0, 0, 0], live: false, front: new Set(), sand: null, sandAt: 0, aim: new Map() });
+    return v.nah || (v.nah = { own: null, scorch: [], pend: [], flips: 0, hits: [], tanks: new Map(), cellAt: 0, U: 0, Uat: -1e9, units: new Map(), rect: [0, 0, 0, 0], live: false, front: new Set(), sand: null, sandAt: 0, aim: new Map() });
   }
   View.prototype.closeOn = function (z) { return this.close3d !== false && !!this.game && z >= Z3D; };
   // Called by flush for every tile that was repainted: notes land that changed hands in a fight.
@@ -562,11 +854,14 @@
   // Where the tanks of the cells on the screen stand. Worked out a few times a second; in between
   // every tank glides to its spot, so reserves are seen rolling to where they are needed.
   View.prototype.closeTanks = function (g, z, now, x0, y0, x1, y1) {
-    const S = state(this), W = g.W, H = g.H, own = g.owner, land = g.map.land, h = g.human, CS = 16, CW = Math.ceil(W / CS);
-    const U = tankUnit(g, S, now);
-    const Lt = within(z * 1.3, 11, 30) / z;           // a tank's length in tiles
+    const S = state(this), W = g.W, H = g.H, own = g.owner, land = g.map.land, h = g.human, CS = 16, CW = Math.ceil(W / CS), CH = Math.ceil(H / CS);
+    // A platoon stands for a group of cells: one cell (16 x 16 tiles) close in, 2 x 2, 4 x 4 or
+    // 8 x 8 cells further out, so that a group is always about GROUP_PX wide and nothing crowds.
+    const GC = Math.min(8, Math.pow(2, Math.max(0, Math.ceil(Math.log2(GROUP_PX / (CS * z)))))), GS = GC * CS;
+    const U = tankUnit(g, S, now) * GC * GC;          // troops one tank stands for: the middle realm shows ~3 per group
+    const Lt = tankLen(z) / z;                         // a tank's length in tiles
     const gap = Lt * 1.55;
-    const want = new Map();
+    const want = new Map(), gid = function (gx, gy) { return GC * 1e8 + gy * 1e4 + gx; };
     // 1. the attacks: a line of tanks along the front of every attack on a realm, on the attacker's
     //    side, each facing the tile it is taking. They stand for the troops of the attack.
     S.front.clear();
@@ -577,7 +872,7 @@
       if (!a || !a.alive) continue;
       for (const at of a.out) {
         if (!at.active || !at.tid || at.troops < 1) continue;
-        const nMax = Math.min(24, Math.max(2, Math.round(at.troops / U * 1.2)));
+        const nMax = Math.min(24, Math.max(2, Math.round(at.troops / (U / (GC * GC)) * 1.2)));
         const bucket = new Map();
         let seen = 0;
         for (const f of at.front) {
@@ -603,25 +898,35 @@
           const dx = fx - sx, dy = fy - sy, l = Math.hypot(dx, dy) || 1;
           const px = sx + 0.5 - dx / l * Lt * 0.4, py = sy + 0.5 - dy / l * Lt * 0.4;
           want.set('a' + at.id + ':' + k, { x: px, y: py, ang: Math.atan2(dy, dx), p: a, front: true, fight: true, tx: fx + 0.5, ty: fy + 0.5, seed: hash(at.id, k) });
-          busy.add(a.id + ':' + ((Math.floor(py) >> 4) * CW + (Math.floor(px) >> 4)));
+          busy.add(a.id + ':' + gid(Math.floor(px / GS), Math.floor(py / GS)));
           atkN++;
         }
       }
     }
-    // 2. what stands at home, cell by cell. No tank parks on a building or right next to it.
-    const block = new Set(), br = 3;
+    // 2. what stands at home, group by group. No tank parks on a building model or right next to it.
+    const s = modelSize(g, z), br = Math.max(3, Math.ceil(s * 0.5 / z)), sb = new Map();
     for (const u of g.structAt.values()) {
       if (u.x < x0 - br || u.x > x1 + br || u.y < y0 - br || u.y > y1 + br) continue;
-      for (let dy = -br; dy <= br; dy++) for (let dx = -br; dx <= br; dx++) block.add((u.y + dy) * W + u.x + dx);
+      const k = (u.y >> 4) * 4096 + (u.x >> 4);
+      let l = sb.get(k); if (!l) { l = []; sb.set(k, l); } l.push(u);
     }
-    const cx0 = Math.max(0, Math.floor(x0 / CS)), cy0 = Math.max(0, Math.floor(y0 / CS)), cx1 = Math.min(CW - 1, Math.floor(x1 / CS)), cy1 = Math.min(Math.ceil(H / CS) - 1, Math.floor(y1 / CS));
+    const blocked = function (x, y) {
+      const r = Math.ceil(br / 16);
+      for (let by = (y >> 4) - r; by <= (y >> 4) + r; by++) for (let bx = (x >> 4) - r; bx <= (x >> 4) + r; bx++) {
+        const l = sb.get(by * 4096 + bx);
+        if (l) for (const u of l) if (Math.abs(u.x - x) <= br && Math.abs(u.y - y) <= br) return true;
+      }
+      return false;
+    };
+    const st = Math.max(2, GC * 2), d1 = Math.max(2, st >> 1), d2 = st + 2;   // sample every st tiles: 8 x 8 samples a group
+    const gx0 = Math.max(0, Math.floor(x0 / GS)), gy0 = Math.max(0, Math.floor(y0 / GS)), gx1 = Math.min(Math.ceil(W / GS) - 1, Math.floor(x1 / GS)), gy1 = Math.min(Math.ceil(H / GS) - 1, Math.floor(y1 / GS));
     const park = z >= Z_PARK, groups = [];
     let total = 0;
-    for (let cy = cy0; cy <= cy1; cy++) {
-      for (let cx = cx0; cx <= cx1; cx++) {
-        const id = cy * CW + cx, by = new Map();
-        for (let yy = cy * CS + 1; yy < cy * CS + CS && yy < H; yy += 2) {
-          for (let xx = cx * CS + 1; xx < cx * CS + CS && xx < W; xx += 2) {
+    for (let gy = gy0; gy <= gy1; gy++) {
+      for (let gx = gx0; gx <= gx1; gx++) {
+        const id = gid(gx, gy), by = new Map();
+        for (let yy = gy * GS + (st >> 1); yy < gy * GS + GS && yy < H; yy += st) {
+          for (let xx = gx * GS + (st >> 1); xx < gx * GS + GS && xx < W; xx += st) {
             const t = yy * W + xx, o = own[t];
             if (!o || !land[t]) continue;
             let e = by.get(o);
@@ -629,33 +934,39 @@
             e.n++;
             // near a stranger? then this is a spot at the front, facing him
             let fx = 0, fy = 0, front = false;
-            for (let d = 2; d <= 5 && !front; d += 3) {
+            for (let k = 0; k < 2 && !front; k++) {
+              const d = k ? d2 : d1;
               const q0 = xx - d >= 0 ? own[t - d] : o, q1 = xx + d < W ? own[t + d] : o, q2 = yy - d >= 0 ? own[t - d * W] : o, q3 = yy + d < H ? own[t + d * W] : o;
               if (q0 && q0 !== o) { fx--; front = true; }
               if (q1 && q1 !== o) { fx++; front = true; }
               if (q2 && q2 !== o) { fy--; front = true; }
               if (q3 && q3 !== o) { fy++; front = true; }
             }
-            if (front) e.front++;
-            if (!block.has(t)) e.spots.push([xx, yy, front ? 1 : 0, fx, fy]);
+            if (front) { e.front++; if (h && (own[t - d1] === h.id || own[t + d1] === h.id || own[t - d1 * W] === h.id || own[t + d1 * W] === h.id || own[t - d2] === h.id || own[t + d2] === h.id || own[t - d2 * W] === h.id || own[t + d2 * W] === h.id)) e.hf = 1; }
+            if (!blocked(xx, yy)) e.spots.push([xx, yy, front ? 1 : 0, fx, fy]);
           }
         }
         for (const [o, e] of by) {
           const p = g.players[o];
           if (!p || !p.alive || p.tiles <= 0 || !e.spots.length || busy.has(o + ':' + id)) continue;
           const bot = p.type === PT.BOT;
-          let per = p.troops / p.tiles;                      // others: as even as the plain number says
-          let cut = false;
-          if (p === h && p.post && p.post.H > 0) {           // your own: as the posture puts them
-            const c = p.post.cells.get(id);
-            if (c && c.n > 0) { per = c.u / p.post.H * p.troops / c.n; cut = !!c.cut; }
-          }
-          let n = per * e.n * 4 / U;                           // every sample stands for 4 tiles
-          if (bot) n = e.front && hash(id, o) < 0.5 ? 1 : 0;  // bots keep a guard at the border, no army
-          else if (e.front && n < 1 && per > 0) n = 1;         // whoever holds a front shows at least one tank there
-          if (!e.front && !park && !cut) continue;             // from afar only the fronts, so the eye finds them
+          let n, cut = false;
+          if (p === h && p.post && p.post.H > 0) {         // your own: as the posture puts them
+            let real = 0, cuts = 0, cells = 0;
+            for (let cy = gy * GC; cy < gy * GC + GC && cy < CH; cy++) for (let cx = gx * GC; cx < gx * GC + GC && cx < CW; cx++) {
+              const c = p.post.cells.get(cy * CW + cx);
+              if (!c || c.n <= 0) continue;
+              real += c.u / p.post.H * p.troops; cells++; if (c.cut) cuts++;
+            }
+            n = real / U; cut = cells > 0 && cuts * 2 > cells;
+          } else n = p.troops / p.tiles * e.n * st * st / U;   // others: as even as the plain number says
+          if (bot) n = e.front && (e.hf || z >= 10) && hash(gx * 31 + gy, o) < 0.5 ? 1 : 0;   // bots keep a guard at the border, no army; seen only at yours or close in
+          else if (e.front && n < 1 && p.troops > 0) n = 1;  // whoever holds a front shows at least one tank there
+          // from afar only what concerns you, so the eye finds it: your own fronts, and whoever stands
+          // at your border; the rest of the world's armies and the bots' guards come when you zoom in
+          if (!park && !cut && !(e.front && (p === h || e.hf))) continue;
           if (n < 0.35) continue;
-          groups.push({ id: id, o: o, p: p, e: e, n: n, cut: cut, cx: cx, cy: cy });
+          groups.push({ id: id, o: o, p: p, e: e, n: n, cut: cut, gx: gx, gy: gy });
           total += n;
         }
       }
@@ -663,25 +974,25 @@
     const scale = total > TANK_CAP ? TANK_CAP / total : 1;
     for (const gr of groups) {
       let n = gr.n * scale;
-      n = Math.min(PLATOON, Math.floor(n) + (hash(gr.id, gr.o) < n - Math.floor(n) ? 1 : 0));
+      n = Math.min(PLATOON, Math.floor(n) + (hash(gr.gx * 7 + gr.gy, gr.o) < n - Math.floor(n) ? 1 : 0));
       if (gr.e.front && n < 1) n = 1;
       if (n <= 0) continue;
       const spots = gr.e.spots, p = gr.p;
       let front = null, fw = 0;
       for (const sp of spots) if (sp[2]) { const w = Math.abs(sp[3]) + Math.abs(sp[4]) + hash(sp[0], sp[1]) * 0.1; if (w > fw) { fw = w; front = sp; } }
-      // a platoon: one group per cell, in rows of three behind the leading tank. At the front it
-      // stands a little back from the border and faces the stranger; in the hinterland it parks in
-      // the middle of the cell and faces outwards.
+      // a platoon: in rows of three behind the leading tank. At the front it stands a little back
+      // from the border and faces the stranger; in the hinterland it parks in the middle of the
+      // group, square to the map.
       let ax, ay, ang;
       if (front) {
         ang = front[3] || front[4] ? Math.atan2(front[4], front[3]) : 0;
-        ax = front[0] + 0.5 - Math.cos(ang) * 1.4; ay = front[1] + 0.5 - Math.sin(ang) * 1.4;
+        ax = front[0] + 0.5 - Math.cos(ang) * Math.max(1.4, gap * 0.7); ay = front[1] + 0.5 - Math.sin(ang) * Math.max(1.4, gap * 0.7);
       } else {
-        const mx = gr.cx * CS + CS / 2, my = gr.cy * CS + CS / 2;
+        const mx = gr.gx * GS + GS / 2, my = gr.gy * GS + GS / 2;
         let best = spots[0], bd = 1e9;
         for (const sp of spots) { const d = (sp[0] - mx) * (sp[0] - mx) + (sp[1] - my) * (sp[1] - my); if (d < bd) { bd = d; best = sp; } }
         ax = best[0] + 0.5; ay = best[1] + 0.5;
-        ang = Math.round(Math.atan2(ay - (p.y0 + p.y1) / 2, ax - (p.x0 + p.x1) / 2) / 1.5708) * 1.5708;   // parked: in neat rows, square to the map
+        ang = Math.round(Math.atan2(ay - (p.y0 + p.y1) / 2, ax - (p.x0 + p.x1) / 2) / 1.5708) * 1.5708;
       }
       const fx = Math.cos(ang), fy = Math.sin(ang), rx = -fy, ry = fx, side = [0, -1, 1];
       for (let k = 0; k < n; k++) {
@@ -691,7 +1002,7 @@
         let ok = false;
         for (let tries = 0; tries < 4 && !ok; tries++) {
           const tx = Math.floor(px), ty = Math.floor(py);
-          if (tx >= 0 && ty >= 0 && tx < W && ty < H && own[ty * W + tx] === gr.o && land[ty * W + tx] && !block.has(ty * W + tx)) ok = true;
+          if (tx >= 0 && ty >= 0 && tx < W && ty < H && own[ty * W + tx] === gr.o && land[ty * W + tx]) ok = true;
           else { px = (px + ax) / 2; py = (py + ay) / 2; }
         }
         if (!ok) continue;
@@ -708,6 +1019,25 @@
   };
   const NB8 = [[-1, 0], [1, 0], [0, -1], [0, 1], [-1, -1], [1, 1], [1, -1], [-1, 1]];
 
+  // The sea in the close-up: small glints of light on the waves that come and go, on a grid fixed to
+  // the map so they do not swim along when the view moves.
+  View.prototype.drawSea = function (ctx, g, z, ox, oy, now) {
+    const land = g.map.land, W = g.W, H = g.H, cw = this.cw, ch = this.ch;
+    const st = Math.max(1, Math.round(26 / z)), x0 = Math.max(0, Math.floor(-ox / z / st) * st), y0 = Math.max(0, Math.floor(-oy / z / st) * st);
+    const x1 = Math.min(W - 1, Math.ceil((cw - ox) / z)), y1 = Math.min(H - 1, Math.ceil((ch - oy) / z)), len = within(z * 0.9, 4, 12);
+    ctx.lineCap = 'round'; ctx.lineWidth = within(z * 0.18, 1, 2.2);
+    for (let y = y0; y <= y1; y += st) for (let x = x0; x <= x1; x += st) {
+      const jx = x + ((hash(x, y) * st) | 0), jy = y + ((hash(y, x) * st) | 0);
+      if (jx >= W || jy >= H || land[jy * W + jx]) continue;
+      const ph = (now / 2600 + hash(jx, jy + 5)) % 1, a = Math.sin(ph * Math.PI);
+      if (a < 0.15) continue;
+      const sx = (jx + 0.5) * z + ox, sy = (jy + 0.5) * z + oy;
+      ctx.strokeStyle = 'rgba(225,240,255,' + (0.4 * a).toFixed(2) + ')';
+      ctx.beginPath(); ctx.moveTo(sx - len * 0.5 * a, sy); ctx.lineTo(sx + len * 0.5 * a, sy - len * 0.08); ctx.stroke();
+    }
+    ctx.lineCap = 'butt';
+  };
+
   // ---------- the frame ----------
   View.prototype.drawClose = function (ctx, g, z, ox, oy, now) {
     const S = state(this), cw = this.cw, ch = this.ch, h = g.human, W = g.W;
@@ -719,6 +1049,7 @@
     S.rect[0] = x0; S.rect[1] = y0; S.rect[2] = x1; S.rect[3] = y1;
     const dt = Math.min(0.1, Math.max(0, (now - (S.last || now)) / 1000)); S.last = now;
     ctx.save();
+    this.drawSea(ctx, g, z, ox, oy, now);
     // 1. the ground: scorched patches where land was fought for
     const sc = S.scorch;
     while (sc.length && now - sc[0].t > SCORCH) sc.shift();
@@ -739,15 +1070,16 @@
       }
     }
     // 2. sandbags along your own border where the troops have dug in (from the posture)
-    if (h && h.alive && h.post && z >= 8) this.drawSandbags(ctx, g, z, ox, oy, now, x0, y0, x1, y1);
-    // 3. the bodies, back to front: buildings and tanks
-    const s = within(z * 3.6, 38, 104), L = within(z * 1.3, 11, 30), list = [];
+    if (h && h.alive && h.post && z >= 7) this.drawSandbags(ctx, g, z, ox, oy, now, x0, y0, x1, y1);
+    // 3. the bodies, back to front: buildings, tanks, trees
+    const s = modelSize(g, z), L = tankLen(z), list = [];
     g.cloakScan();
     for (const u of g.structAt.values()) {
       const x = (u.x + 0.5) * z + ox, y = (u.y + 0.5) * z + oy;
-      if (x < -s * 1.2 || x > cw + s * 0.8 || y < -s * 0.6 || y > ch + s * 2.2 || G.hidFromMe(g, u)) continue;
+      if (x < -s * 1.6 || x > cw + s * 0.9 || y < -s * 0.7 || y > ch + s * 2.6 || G.hidFromMe(g, u)) continue;
       list.push({ k: 0, y: y + s * 0.45, u: u, x: x, gy: y });
     }
+    S.hits.length = 0;
     if (now - S.cellAt > 400 || Math.abs((S.z || 0) - z) > z * 0.15) { S.cellAt = now; S.z = z; this.closeTanks(g, z, now, x0, y0, x1, y1); }
     const ease = Math.min(1, dt * 2.2);
     for (const [key, t] of S.tanks) {
@@ -766,9 +1098,11 @@
       if (x < -L || y < -L || x > cw + L || y > ch + L * 2) continue;
       list.push({ k: 1, y: y + L * 0.3, t: t, x: x, gy: y });
     }
-    if (z >= 8) {
-      const ts = Math.round(within(z * 0.9, 7, 22)), rs = Math.round(within(z * 0.7, 5, 16)), ps = Math.round(within(z * 1.9, 14, 46));
-      for (const d of this.closeDecor(g, z, x0, y0, x1, y1)) {
+    {
+      // zoomed out, one tree stands for a grove and one peak for a range: they grow with the spot they stand for
+      const st = Math.max(1, Math.ceil(Math.sqrt(cw * ch / 4000) / z)), k = 1 + (st - 1) * 0.3;
+      const ts = Math.round(within(z * 0.9 * k, 8, 24)), rs = Math.round(within(z * 0.7 * k, 6, 16)), ps = Math.round(within(z * 1.9 * k, 16, 54));
+      for (const d of this.closeDecor(g, z, x0, y0, x1, y1, st)) {
         const sp = sprite(d[2], d[2] === 'peak' ? ps : d[2] === 'rock' ? rs : ts, d[3], this.dpr), x = d[0] * z + ox, y = d[1] * z + oy;
         if (x < -sp.w || x > cw + sp.w || y < -10 || y > ch + sp.h) continue;
         list.push({ k: 2, y: y, sp: sp, x: x, gy: y });
@@ -811,12 +1145,12 @@
     // your own buildings stand on a white ring, as the signs do
     if (p === h) {
       const rs = u.type === UT.CITY && u.built ? s * (1 + 0.2 * Math.log10(Math.max(1, m.lv))) : s;
-      ctx.beginPath(); ctx.ellipse(x, y + rs * 0.02, rs * 0.62, rs * 0.56, 0, 0, 6.2832);
-      ctx.lineWidth = Math.max(1.6, rs * 0.035); ctx.strokeStyle = 'rgba(255,255,255,.85)'; ctx.stroke();
+      ctx.beginPath(); ctx.ellipse(x, y + rs * 0.04, rs * 0.54, rs * 0.48, 0, 0, 6.2832);
+      ctx.lineWidth = Math.max(1.4, rs * 0.025); ctx.strokeStyle = 'rgba(255,255,255,.7)'; ctx.stroke();
     }
     let top;
     if (!u.built) top = drawSite(ctx, u, x, y, s, within((g.ticks - u.buildStart) / Math.max(1, u.buildEnd - u.buildStart), 0, 1), now);
-    else if (u.type === UT.CITY) top = drawCity(ctx, u, x, y, s, own, m.lv, now);
+    else if (u.type === UT.CITY) top = this.closeCity(ctx, u, m, x, y, s, own, now);
     else if (u.type === UT.FACTORY) top = drawFactory(ctx, u, x, y, s, own, now, u.level);
     else if (u.type === UT.PORT) top = drawPort(ctx, u, x, y, s, own, now);
     else if (u.type === UT.DEFENSE) top = drawDefense(ctx, u, x, y, s, own, this.closeAim(g, u));
@@ -835,7 +1169,49 @@
       ctx.lineCap = 'butt';
     }
     if (veil) ctx.globalAlpha = BASE;
+    // the box the model covers on the screen, for taps (`structHit`)
+    const w = u.type === UT.CITY && u.built ? s * (1 + 0.2 * Math.log10(Math.max(1, m.lv))) : s;
+    S.hits.push([u, x - w * 0.62, y - top - w * 0.3, x + w * 0.62 + LEAN * top, y + w * 0.6]);
     return top;
+  };
+  // The building whose model lies under a point of the screen, the front-most one, or null. Only in
+  // the close-up: there a model stands well above and beside its tile, so a tap on the model must
+  // still find it.
+  View.prototype.structHit = function (sx, sy) {
+    const S = this.nah, g = this.game;
+    if (!S || !S.live || !g) return null;
+    let best = null, bd = 1e18;
+    for (let i = S.hits.length - 1; i >= 0; i--) {
+      const e = S.hits[i], u = e[0];
+      if (sx < e[1] || sx > e[3] || sy < e[2] || sy > e[4] || !u.active || g.structAt.get(u.tile) !== u) continue;
+      // overlapping boxes: the one drawn last stands in front, unless the point is much nearer the foot of another
+      const d = (sx - (e[1] + e[3]) / 2) * (sx - (e[1] + e[3]) / 2) + (sy - (e[2] + e[4]) / 2) * (sy - (e[2] + e[4]) / 2);
+      if (!best) { best = u; bd = d; } else if (d < bd * 0.25) { best = u; bd = d; }
+    }
+    return best;
+  };
+  // A city as a picture made once and kept, as long as it is not growing and not drawn huge (a
+  // town of thirty houses or a block of towers is too much to draw anew for every frame). Only the
+  // blinking light on the mast is drawn live.
+  View.prototype.closeCity = function (ctx, u, m, x, y, s, own, now) {
+    const dpr = this.dpr, lv = m.lv, w = s * (1 + 0.2 * Math.log10(Math.max(1, lv)));
+    if (lv !== u.level || w * dpr > 220) return drawCity(ctx, u, x, y, s, own, lv, now);
+    const key = lv + '|' + Math.round(s * 4) + '|' + own.join(',') + '|' + dpr;
+    if (m.sk !== key) {
+      const est = w * (0.3 + 0.75 * Math.log10(1 + lv)), L = w * 0.75, R = w * 0.75 + est * 0.8, U = est + w * 0.62, D = w * 0.72 + est * 0.45;
+      const c = m.spr && m.spr.width === Math.ceil((L + R) * dpr) && m.spr.height === Math.ceil((U + D) * dpr) ? m.spr : document.createElement('canvas');
+      c.width = Math.ceil((L + R) * dpr); c.height = Math.ceil((U + D) * dpr);
+      const cx = c.getContext('2d');
+      cx.setTransform(dpr, 0, 0, dpr, 0, 0); cx.clearRect(0, 0, L + R, U + D);
+      const info = {};
+      const b0 = BASE; BASE = 1;
+      drawCity(cx, u, L, U, s, own, lv, 0, info);
+      BASE = b0;
+      m.spr = c; m.sk = key; m.sL = L; m.sU = U; m.sW = L + R; m.sH = U + D; m.top = info.top || 0; m.mast = info.mast || null;
+    }
+    ctx.drawImage(m.spr, x - m.sL, y - m.sU, m.sW, m.sH);
+    if (m.mast && (now / 600 | 0) % 2) { ctx.beginPath(); ctx.arc(x + m.mast[0], y + m.mast[1], 1.6, 0, 6.2832); ctx.fillStyle = '#ff5040'; ctx.fill(); }
+    return m.top;
   };
   // Which way a defence post points its gun: at the nearest tile of another realm. Looked up now and then.
   View.prototype.closeAim = function (g, u) {
@@ -860,19 +1236,13 @@
     const born = Math.min(1, (now - t.born) / 500), fade = t.gone ? Math.max(0, 1 - (now - t.gone) / 600) : 1;
     const p = t.p;
     // the body in a deep shade of the owner's colour, so a tank stands out from its own land
-    if (!p.tankCol || p.tankKey !== p.r + ',' + p.g + ',' + p.b) {
-      const mx = Math.max(p.r, p.g, p.b), mn = Math.min(p.r, p.g, p.b);
-      p.tankCol = mx - mn < 26 ? [104, 110, 118] : G.hsl(G.hueOf([p.r, p.g, p.b]), 0.5, 0.4);
-      p.tankKey = p.r + ',' + p.g + ',' + p.b;
-    }
-    let col = p.tankCol;
+    let col = ownCol(p);
     if (t.cut) col = mix(col, [120, 120, 120], 0.6);       // cut off: grey, no supply
     // a tank at a front under attack fires back; an attacking tank fires at the tile it is taking
-    let fireK = 0, tur = Math.sin(now / 2300 + t.seed * 20) * 0.25 * (t.front ? 0.4 : 1);
+    let fireK = 0;
     const S = this.nah;
     const fighting = t.fight || (t.front && nearFront(S.front, t.x, t.y, p.id));
     if (fighting) {
-      tur = 0;
       const per = 1700 + t.seed * 1500, ph = ((now + t.seed * 9000) % per) / per;
       if (ph < 0.09) fireK = 1 - ph / 0.09;
       if (t.fight && ph > 0.12 && ph < 0.3 && t.tx !== undefined) {   // the shell lands on the tile under attack
@@ -881,7 +1251,18 @@
         ctx.fillStyle = k < 0.35 ? 'rgba(255,190,80,' + (0.95 - k).toFixed(2) + ')' : 'rgba(80,72,64,' + (0.55 * (1 - k)).toFixed(3) + ')'; ctx.fill();
       }
     }
-    drawTank(ctx, x, y, L, t.ang, tur, col, born * fade, fireK, p === g.human);
+    // the tank itself, from its picture: the heading in 48 steps, the size in whole pixels
+    const ai = ((Math.round(t.ang / (6.2832 / 48)) % 48) + 48) % 48, Lr = Math.round(L), sp = tankSprite(col, ai, Lr, p === g.human, this.dpr);
+    const al = born * fade;
+    if (al < 0.98) ctx.globalAlpha = al * BASE;
+    ctx.drawImage(sp, x - sp.ax, y - sp.ay, sp.w, sp.w);
+    if (al < 0.98) ctx.globalAlpha = BASE;
+    if (fireK > 0) {                    // the muzzle flash, at the end of the barrel
+      const a = ai * 6.2832 / 48, tx = x - Math.cos(a) * 0.08 * Lr, ty = y - Math.sin(a) * 0.08 * Lr, h = 0.31 * Lr;
+      const ex = tx + LEAN * h + Math.cos(a) * 0.74 * Lr, ey = ty - h + Math.sin(a) * 0.74 * Lr;
+      ctx.beginPath(); ctx.arc(ex, ey, Lr * (0.14 + 0.16 * fireK), 0, 6.2832); ctx.fillStyle = 'rgba(255,236,150,' + fireK.toFixed(2) + ')'; ctx.fill();
+      ctx.beginPath(); ctx.arc(ex, ey, Lr * 0.07, 0, 6.2832); ctx.fillStyle = '#fff'; ctx.fill();
+    }
     if (t.moving && !t.gone) {          // dust behind a tank on the move
       const bx = x - Math.cos(t.ang) * L * 0.6, by = y - Math.sin(t.ang) * L * 0.6, f = (now / 400 + t.seed) % 1;
       ctx.beginPath(); ctx.arc(bx - Math.cos(t.ang) * L * 0.3 * f, by - Math.sin(t.ang) * L * 0.3 * f - L * 0.1, L * (0.12 + 0.18 * f), 0, 6.2832);
