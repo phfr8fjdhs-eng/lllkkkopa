@@ -644,7 +644,9 @@
         $('spawnBar').hidden = true; $('ctrl').hidden = false; $('lb').hidden = false; $('bNet').hidden = !h.post || !game.netz; $('bRes').hidden = !game.res;
         if (game.pfeile) addMsg('Pfeile mit der rechten Maustaste planen, dann «Angreifen».', 'info');
         const W = game.W;
-        view.flyTo(h.spawnTile % W, (h.spawnTile / W) | 0, within(Math.min(view.cw, view.ch) / 70, 2.2, 6));
+        // on a narrow screen the panels cover the lower part: the home goes a little above the middle
+        const fz = within(Math.min(view.cw, view.ch) / 70, 2.2, 6);
+        view.flyTo(h.spawnTile % W, ((h.spawnTile / W) | 0) + (view.cw < 640 ? view.ch * 0.12 / fz : 0), fz);
         addMsg('Los geht es. Breite dich aus, bevor es andere tun.', 'good');
         snd('start');
       } else if (e.k === 'raid') {
@@ -696,9 +698,9 @@
       for (const a of h.out) {
         put('o' + a.id, 'info', 'Angriff auf ' + (a.tid ? game.players[a.tid].name : 'freies Land') + ' · ' + fmtT(a.troops) + (a.want >= 1 ? ' · +' + fmtT(a.want) + ' unterwegs' : ''), function () { act({ k: 'ret', a: a.id }); });
       }
-      const inc = h.inc.slice().sort(function (a, b) { return b.troops - a.troops; });
-      for (let i = 0; i < inc.length && i < 3; i++) put('i' + inc[i].id, 'bad', inc[i].a.name + ' greift an · ' + fmtT(inc[i].troops) + (inc[i].sum > inc[i].troops * 1.2 ? ' (von ' + fmtT(inc[i].sum) + ')' : ''), null);
-      if (inc.length > 3) put('more', 'bad', '+' + (inc.length - 3) + ' weitere Angriffe', null);
+      const inc = h.inc.slice().sort(function (a, b) { return b.troops - a.troops; }), most = view.cw < 640 ? 1 : 3;   // a phone shows the biggest only
+      for (let i = 0; i < inc.length && i < most; i++) put('i' + inc[i].id, 'bad', inc[i].a.name + ' greift an · ' + fmtT(inc[i].troops) + (inc[i].sum > inc[i].troops * 1.2 ? ' (von ' + fmtT(inc[i].sum) + ')' : ''), null);
+      if (inc.length > most) put('more', 'bad', '+' + (inc.length - most) + ' weitere Angriffe', null);
       for (const u of h.units) {
         if (u.type !== UT.TRANSPORT) continue;
         put('b' + u.id, 'info', (u.retreat ? 'Boot kehrt um · ' : 'Boot unterwegs · ') + fmtT(u.troops), function () { act({ k: 'bret', u: u.id }); });
@@ -1652,6 +1654,9 @@
     const tile = view.tileAt(sx, sy), h = game.human;
     if (tile < 0 || !h.alive) return;
     closeRadial();
+    // in the 3D close-up a building stands well above its tile: a click on the model finds it
+    const hu = view.structHit(sx, sy);
+    if (hu && hu.owner === h && hu.built) { openBuild(hu.tile); return; }
     if (game.owner[tile] === h.id) {
       const u = game.structNear(tile, 3);
       if (u && u.owner === h && u.built) openBuild(u.tile);
@@ -1679,11 +1684,14 @@
     if (arrow !== null && !menu) { openThrustCard(arrow, sx, sy); snd('tap'); return; }
     closeThrustCard();
     // a click on an own cloaking tower shows what it covers, until the next click elsewhere
-    const su = game.owner[tile] === h.id ? game.structNear(tile, 3) : null;
+    const hit = view.structHit(sx, sy);   // in the 3D close-up: the building whose model is under the finger
+    const su = hit || (game.owner[tile] === h.id ? game.structNear(tile, 3) : null);
     view.cloakTap = !!su && su.owner === h && su.built && su.type === UT.CLOAK;
     // With a mouse a single click only looks around. A double click attacks, the right button
     // opens the circle menu. Touch keeps its taps: there is no second button on a screen.
     if (mouse) return;
+    // a tap on the model of one of your own buildings goes straight to its upgrade card
+    if (!menu && hit && hit.owner === h && hit.built && h.alive) { snd('tap'); openBuild(hit.tile); return; }
     const o = game.owner[tile], q = o ? game.players[o] : null;
     // an attack that is already running is fed with one tap, whoever it is against
     const running = !!q && h.out.some(function (at) { return at.active && at.tid === q.id; });

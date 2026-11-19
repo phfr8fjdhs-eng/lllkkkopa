@@ -32,7 +32,7 @@ Echtzeit-Eroberungsspiel im Browser, Nachbau von OpenFront, als eine einzige HTM
 | `05_ai.js` | 370 | Bots und Nationen: `AI.nukeTarget` |
 | `06a_audio.js` | 190 | Ton und Musik aus dem Browser: `G.Audio` |
 | `06_view.js` | 1570 | Zeichnen: `View.pose`, `drawReach`, `drawRaids`, `drawFronts`, `drawNet`, `railGeo`, `worldColors`, `placeName`, `G.ICON` |
-| `06b_close.js` | 940 | 3D-Nahansicht ab Zoom `G.Z3D` (nur Bild): Gebäudemodelle (`drawCity`, `drawFactory` …), Panzer (`closeTanks`, `drawTank`), Krater (`closeSeen`, `closeFlush`), Sandsäcke, Bäume und Gipfel (`closeDecor`, `sprite`) |
+| `06b_close.js` | 1300 | 3D-Nahansicht ab Zoom `G.Z3D` = 2.5 (nur Bild): Gebäudemodelle (`drawTown`, `drawCity`, `drawFactory` …, Bildspeicher `closeCity`), Panzer (`closeTanks`, `drawTank`, `tankSprite`), Schiffe und Züge (`G.closeWarship`, `G.closeMerchant`, `G.closeBoat`, `G.closeWagon`), Relief (`relief`, `drawRelief`), Meer (`drawSea`), Krater (`closeSeen`, `closeFlush`), Sandsäcke, Bäume und Gipfel (`closeDecor`, `sprite`), Antippen (`structHit`) |
 | `07_ui.js` | 1560 | Bedienung: Tasten, Menüs, Touch, `#hotbar`, `view.ghost`, `showPeek` |
 | `08_net.js` | 310 | Mehrspieler über MQTT: `G.RELAYS` |
 | `template.html` | | Seitengerüst (HTML und CSS) |
