@@ -1,6 +1,9 @@
 # Änderungsprotokoll
 Was seit dem 13.11.2026 geändert wurde und warum. Den heutigen Stand der Regeln beschreiben die anderen Dateien in `doku/`.
 
+## 3D-Nahansicht und Wachstumstempo (19.11.2026)
+Wunsch des Besitzers: das Spiel soll sich realistischer anfühlen, nach Aufbau und nach Krieg, und man soll spüren, ob man schneller wächst als die anderen. Ab 7 Pixel pro Feld zeigt die Karte 3D-Modelle statt Zeichen: Städte wachsen mit der Stufe vom Dorf zur Hochhausstadt, Fabriken rauchen, Truppen stehen als Panzer (die eigenen nach dem Netz, die anderen gleichmässig), Angriffe sind feuernde Panzerreihen, umkämpftes Land hat Krater, eingegrabene Grenzen Sandsäcke, dazu Wald, Felsen und Gipfel. Nur Bild, die Simulation bleibt unberührt. Unter der Rangliste neu: dein Landgewinn der letzten Minute gegen den Schnellsten der anderen. Taste `J` oder Menü schaltet die Nahansicht aus. Siehe `doku/nahansicht.md`.
+
 ## Bomben kosten etwas weniger Truppen (18.11.2026)
 Ein getroffenes Feld kostet 3 statt 5 Felder an Durchschnittstruppen. Atombombe auf Angola: 33 % statt 49 % der Truppen. Siehe `doku/openfront-abgleich.md`.
 

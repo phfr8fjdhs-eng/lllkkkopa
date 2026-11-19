@@ -292,18 +292,20 @@
   View.prototype.flush = function () {
     const g = this.game, n = g.dirtyN;
     if (!n) return;
-    const d = g.dirty, f = g.dirtyFlag, W = g.W;
+    const d = g.dirty, f = g.dirtyFlag, W = g.W, close = this.nah && this.nah.live;
     let x0 = W, x1 = -1, y0 = g.H, y1 = -1;
     for (let i = 0; i < n; i++) {
       const t = d[i], x = t % W, y = (t - x) / W;
       f[t] = 0;
       this.paint(t);
+      if (close) this.closeSeen(t);
       if (x < x0) x0 = x;
       if (x > x1) x1 = x;
       if (y < y0) y0 = y;
       if (y > y1) y1 = y;
     }
     g.dirtyN = 0;
+    if (close) this.closeFlush();
     this.mctx.putImageData(this.img, 0, 0, x0, y0, x1 - x0 + 1, y1 - y0 + 1);
   };
 
@@ -455,7 +457,9 @@
     this.drawNet(ctx, g, z, ox, oy, now);
     this.drawRails(ctx, g, z, ox, oy);
     this.drawReach(ctx, g, z, ox, oy);
-    this.drawStructures(ctx, g, z, ox, oy);
+    // close in, the buildings stand as models and the troops as tanks (src/06b_close.js)
+    if (this.closeOn && this.closeOn(z)) this.drawClose(ctx, g, z, ox, oy, now);
+    else { if (this.nah) this.nah.live = false; this.drawStructures(ctx, g, z, ox, oy); }
     this.drawUnits(ctx, g, z, ox, oy, alpha, now);
     this.drawFx(ctx, g, z, ox, oy, now);
     if (g.res && this.resSigns) this.drawRes(ctx, g, z, ox, oy);
@@ -840,7 +844,7 @@
     ctx.lineWidth = Math.max(3, fs * 0.32); ctx.strokeStyle = '#0b1016'; ctx.strokeText(String(n), x, ty);
     ctx.fillStyle = '#fff'; ctx.fillText(String(n), x, ty);
   }
-  G.structIcon = structIcon;
+  G.structIcon = structIcon; G.levelTag = levelTag;
   // Buildings, in three steps of nearness, so the map of the world is not buried under signs:
   //   close:  large signs with the level on top, growing with the map once one is far in
   //   middle: smaller signs, still with the white symbol inside

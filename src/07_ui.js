@@ -70,7 +70,7 @@
   let toastTimer = 0, endShown = false, botsTouched = false;
   let mp = null, turnLeft = 0, aim = null, joinCode = '', lobbyNote = '', goldTimer = 0;
   const chips = new Map(), asks = new Map();
-  const cfg = { name: 'Spieler', color: 0, map: 'erde', diff: 1, bots: -1, nations: true, instant: false, gold: false, troops: false, tap: false, music: true, sfx: true, mode: 'klassisch', thrust: 0, botsV2: true, pfeile: true, netz: true, punkt: true, aufstellung: true };
+  const cfg = { name: 'Spieler', color: 0, map: 'erde', diff: 1, bots: -1, nations: true, instant: false, gold: false, troops: false, tap: false, music: true, sfx: true, mode: 'klassisch', thrust: 0, botsV2: true, pfeile: true, netz: true, punkt: true, aufstellung: true, nah: true };
   // two switches of their own (doku/pfeile.md)
   const SWITCH = [['aufstellung', 'Truppenkonzentration', 'An: deine Truppen stehen in Zellen, dichte Stellen halten besser, eingegraben, Reserven, Kessel. Aus: wie in OpenFront, alle Truppen sind ein Topf, keine Verteilung.'],
     ['netz', 'Netz', 'An: mit dem Netz (Taste N) verteilst du deine Truppen zum Verteidigen. Aus: die Truppen stehen gleichmässig, nichts einzustellen. Nur mit Truppenkonzentration.'],
@@ -512,12 +512,14 @@
       '<li><b>Maus:</b> Ein einfacher Klick schaut sich nur um (Karte ziehen). Ein Doppelklick greift an, der Rechtsklick öffnet das Kreismenü. Fährst du über ein fremdes Reich, steht oben, was es hat.</li>' +
       '<li><b>Tippen (Handy):</b> Ein Tipp auf freies Land oder auf einen Bot greift sofort an. Bei Nationen und Mitspielern öffnet sich das Menü, dort musst du auf Angreifen tippen. Läuft dein Angriff auf sie schon, schickt jeder weitere Tipp auf ihr Land sofort mehr Truppen. Lange drücken öffnet das Menü überall.</li>' +
       '<li><b>Karte:</b> Ziehen verschiebt, zwei Finger oder das Mausrad zoomen.</li>' +
+      '<li><b>3D-Nahansicht:</b> Zoomst du nah heran, steht die Welt in 3D da. Städte wachsen mit jeder Stufe vom Dorf zur Hochhausstadt, deine Truppen stehen als Panzer dort, wo dein Netz sie hinstellt (je mehr Panzer, desto dichter), Angriffe sind Panzerreihen, die an der Front feuern, umkämpftes Land ist verbrannt, eingegrabene Grenzen haben Sandsäcke. Bei den anderen siehst du nur, was ihre Truppenzahl verrät, nicht ihr Netz. Taste <kbd>J</kbd> oder das Menü schaltet sie aus.</li>' +
+      '<li><b>Tempo:</b> Unter der Rangliste steht, wie schnell dein Land in der letzten Minute gewachsen ist, und wer gerade am schnellsten wächst. Wer schneller wächst als die anderen, übernimmt bald die Führung.</li>' +
       '</ul><h2 class="h3">Tastenkürzel</h2><p>Die Belegung ist die von OpenFront.</p><div class="keys">' +
       BUILD.map(function (b) { return '<span><kbd>' + b.key.toUpperCase() + '</kbd>' + plain(b.t) + (armory(b.t) ? ' (Arsenal)' : '') + '</span>'; }).join('') +
       '<span><kbd>G</kbd>Angreifen</span><span><kbd>B</kbd>Boot schicken</span><span><kbd>T</kbd><kbd>Y</kbd>Truppenanteil −/+ 10 %</span><span>Rechts ziehen: Stoss vom Start zum Ziel</span><span><kbd>F</kbd>Keil oder Abschnitt</span><span>Mausrad beim Ziehen: Truppenanteil</span><span>Klick auf einen Pfeil: verstärken oder zurückziehen</span>' +
       '<span><kbd>K</kbd>Allianz anfragen</span><span><kbd>L</kbd>Allianz brechen</span><span><kbd>I</kbd>Spieler-Info</span>' +
       '<span><kbd>Q</kbd><kbd>E</kbd>Zoom −/+</span><span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>Karte schieben</span><span><kbd>C</kbd>Zum eigenen Gebiet</span>' +
-      '<span><kbd>P</kbd>Pause</span><span><kbd>,</kbd><kbd>.</kbd>Tempo −/+</span><span><kbd>Strg</kbd>+ Klick: Baumenü</span><span>Doppelklick: Angreifen</span><span>Rechtsklick: Kreismenü</span><span><kbd>N</kbd>Aufstellung</span><span><kbd>Shift</kbd>+ Mausrad: Truppenanteil</span>' +
+      '<span><kbd>P</kbd>Pause</span><span><kbd>,</kbd><kbd>.</kbd>Tempo −/+</span><span><kbd>Strg</kbd>+ Klick: Baumenü</span><span>Doppelklick: Angreifen</span><span>Rechtsklick: Kreismenü</span><span><kbd>N</kbd>Aufstellung</span><span><kbd>J</kbd>3D-Nahansicht</span><span><kbd>Shift</kbd>+ Mausrad: Truppenanteil</span>' +
       '<span><kbd>Esc</kbd>Schliessen</span></div><p>Eine Bau-Taste zeigt das Gebäude oder die Bombe zuerst am Mauszeiger: in deiner Farbe, wenn es dort geht, rot, wenn nicht. Fehlt nur das Gold, bleibt der Preis stehen und wird rot; sonst steht der Grund dabei. Bei Bomben siehst du schon beim Zielen die Flugbahn vom Silo (rot, wo gegnerische Flugabwehr sie erreicht), den Sprengradius und die Reichweite jeder Flugabwehr: die gegnerische violett, deine eigene grün. Fliegt eine Bombe auf dein Land zu, wird die Reichweite deiner eigenen Flugabwehr ebenfalls eingeblendet. Ein Klick setzt es, mit gedrückter <kbd>Shift</kbd>-Taste mehrere hintereinander. Klickst du damit auf ein eigenes Gebäude derselben Art, wird es um eine Stufe ausgebaut; dieselbe Taste, <kbd>Esc</kbd> oder ein Rechtsklick legt es wieder weg.</p><p>Zusätzlich, weil es das in OpenFront nicht gibt: <kbd>U</kbd> baut das Gebäude unter dem Mauszeiger aus, <kbd>Shift</kbd> + <kbd>1</kbd>–<kbd>6</kbd> das nächste Gebäude dieser Art, <kbd>Enter</kbd> feuert im Zielmodus des Baumenüs die Bombe ab, <kbd>M</kbd> schaltet den Ton, die Leertaste pausiert ebenfalls.</p><p>' +
       'Befehle gelten für die Stelle unter dem Mauszeiger.</p>';
   }
@@ -556,7 +558,7 @@
     plans.length = 0; syncPlans();
     $('mPunkt').hidden = !game.punkt; setThrust(cfg.thrust);
     $('feedMsgs').innerHTML = ''; $('feedLive').innerHTML = ''; chips.clear(); asks.clear();
-    $('lbRows').innerHTML = ''; $('clock').textContent = '0:00';
+    $('lbRows').innerHTML = ''; $('clock').textContent = '0:00'; tempoLog = []; $('lbTempo').hidden = true;
     speed = 1; $('bSpeed').textContent = '1×'; acc = 0; endShown = false; lbAt = liveAt = -99; tradeAt = 0; aim = null;
     setPaused(false);
     view.placeNames();
@@ -730,6 +732,32 @@
     if (hi >= n) html += row(h, hi);
     $('lbRows').innerHTML = html;
     $('lbCount').textContent = ps.length + ' im Spiel';
+    tempo(ps, den);
+  }
+  // The race: how much land everyone has won in the last minute (in percent of all land), yours
+  // against the fastest of the others. A snapshot every second, the last minute kept.
+  let tempoLog = [];
+  function tempo(ps, den) {
+    const h = game.human, T = game.ticks, el = $('lbTempo');
+    const now = new Map();
+    for (const p of ps) now.set(p.id, p.tiles);
+    tempoLog.push({ T: T, m: now });
+    while (tempoLog.length > 2 && T - tempoLog[0].T > 600) tempoLog.shift();
+    const old = tempoLog[0], span = (T - old.T) / 600;
+    if (!h || !h.alive || span < 1 / 6) { el.hidden = true; return; }
+    const rate = function (p) { return ((now.get(p.id) || 0) - (old.m.get(p.id) || 0)) / den * 100 / span; };
+    const mine = rate(h);
+    let best = null, br = -1e9;
+    for (const p of ps) { if (p === h) continue; const r = rate(p); if (r > br) { br = r; best = p; } }
+    const f = function (r) { return (r >= 0 ? '+' : '−') + Math.abs(r).toFixed(Math.abs(r) >= 10 ? 0 : Math.abs(r) >= 1 ? 1 : 2) + ' %'; };
+    const lead = !best || mine >= br;
+    const top = Math.max(1e-6, Math.abs(mine), Math.abs(br));
+    el.hidden = false;
+    el.innerHTML = '<div class="tp"><span>Dein Tempo</span><b class="' + (mine < 0 ? 'neg' : lead ? 'lead' : '') + '">' + f(mine) + ' /Min</b></div>' +
+      '<div class="tbar"><i style="width:' + (Math.max(0, mine) / top * 100).toFixed(1) + '%"></i></div>' +
+      (lead ? '<div class="tp"><span class="lead">Du wächst am schnellsten</span>' + (best ? '<b>' + f(br) + '</b>' : '') + '</div>'
+        : '<div class="tp"><span><span class="dot" style="background:' + best.css + '"></span>' + esc(best.name) + '</span><b>' + f(br) + ' /Min</b></div>' +
+          '<div class="tbar o"><i style="width:' + (Math.max(0, br) / top * 100).toFixed(1) + '%;background:' + best.css + '"></i></div>');
   }
 
   // The build bar at the bottom of a desktop screen, as in OpenFront: every building and weapon with
@@ -874,9 +902,16 @@
       '<button class="btn ghost" data-act="help" type="button">So wird gespielt</button>' +
       '<label class="check wide" for="mMusic"><input id="mMusic" type="checkbox"' + (cfg.music ? ' checked' : '') + '>Musik</label>' +
       '<label class="check" for="mSfx"><input id="mSfx" type="checkbox"' + (cfg.sfx ? ' checked' : '') + '>Töne bei Aktionen</label>' +
+      '<label class="check" for="mNah"><input id="mNah" type="checkbox"' + (cfg.nah ? ' checked' : '') + '>3D-Nahansicht beim Hineinzoomen (Taste J)</label>' +
       '<button class="btn ghost" data-act="quit" type="button">Spiel beenden</button>', 'menu');
     $('mMusic').addEventListener('change', function () { setSound('music', this.checked); });
     $('mSfx').addEventListener('change', function () { setSound('sfx', this.checked); });
+    $('mNah').addEventListener('change', function () { setNah(this.checked); });
+  }
+  // The close-up in 3D (src/06b_close.js): only a picture, so it can be switched at any time.
+  function setNah(v) {
+    cfg.nah = v; saveCfg(); view.close3d = v;
+    toast(v ? '3D-Nahansicht an: zoome nah heran' : '3D-Nahansicht aus');
   }
   function setSound(kind, v) {
     cfg[kind] = v; saveCfg();
@@ -1861,6 +1896,7 @@
       if (k === 'y') { setRatio(ratio * 100 + 10); return; }
       if (k === 'c') { $('bHome').click(); return; }
       if (k === 'n') { if (game.netz) setNet(!netOn); return; }
+      if (k === 'j') { setNah(!cfg.nah); return; }
       if (k === 'f') {
         const ring = game.punkt ? [2, 1, 3] : [2, 1];
         if (finePointer()) { setThrust(ring[(ring.indexOf(dragWidth()) + 1) % ring.length]); toast('Rechts ziehen: ' + THRUST_NAME[dragWidth()]); }
@@ -2067,6 +2103,7 @@
   G.boot = function (defs) {
     MAPS = defs;
     view = new G.View($('cv'));
+    view.close3d = cfg.nah;
     $('bPause').innerHTML = svg('pause', 18);
     $('bHome').innerHTML = svg('home', 18);
     $('bRes').innerHTML = svg('table', 18);

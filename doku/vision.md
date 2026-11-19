@@ -29,7 +29,7 @@ Vorbereitung ist ein Bonus, nie eine Pflicht. Ein Stoss geht immer sofort mit de
 - **Luftwaffe und Flugzeugträger.**
 - **Blöcke:** Bündnisse mit gemeinsamer Frühwarnung, Durchmarsch, Stützpunkten beim Partner.
 - **Skill-Tree:** Verbesserungen als Faktoren auf Stoss, Marsch, Verteidigung (zum Beispiel Helikopter an der Front).
-- **Karte:** mehr Details, tiefer zoomen. Kann jederzeit nebenher laufen.
+- **Karte:** mehr Details, tiefer zoomen. Kann jederzeit nebenher laufen. Erster Schritt gebaut 19.11.2026: die 3D-Nahansicht (`doku/nahansicht.md`).
 
 ## Reihenfolge
 1. Messbank für den Kampf (`test/kampf.js`) – erledigt
