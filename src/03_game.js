@@ -1167,7 +1167,7 @@
   // MIRV, deliberately weaker than OpenFront (doku/openfront-abgleich.md): its warheads cover about this
   // share of the target's land, and each hit tile costs the owner this many tiles' worth of troops
   // (OpenFront: 5 for every bomb). Together a MIRV takes roughly a third of the army, not all of it.
-  G.MIRV_COVER = 0.25;
+  G.MIRV_COVER = 0.33;
   G.WARHEAD_KILL = 1.5;
   G.NUKE_KILL = 3;        // the same for atom and hydrogen bombs, cruise missiles and the beam (OpenFront: 5)
   G.LAND_GOLD = 60;
