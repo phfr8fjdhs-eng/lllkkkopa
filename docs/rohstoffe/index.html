@@ -2469,6 +2469,9 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   G.NUKE_PAUSE = 300;     // ticks a nation waits between two volleys of bombs (30 s)
   G.NUKE_VOLLEY = 2;      // bombs in a volley (one more from «Schwer» up)
   G.NUKE_PEACE = 6000;    // ticks after the start in which no nation fires a bomb (ten minutes)
+  G.MIRV_LATE = 18000;    // nations fire a MIRV only after this much play (thirty minutes) ...
+  G.MIRV_PAUSE = 6000;    // ... at most one of all nations together every ten minutes ...
+  G.MIRV_RARE = 40;       // ... and then on one turn of a nation in this many
   // MIRV, deliberately weaker than OpenFront (doku/openfront-abgleich.md): its warheads cover about this
   // share of the target's land, and each hit tile costs the owner this many tiles' worth of troops
   // (OpenFront: 5 for every bomb). Together a MIRV takes roughly a third of the army, not all of it.
@@ -5256,6 +5259,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     const g = this.g, p = this.p, r = g.rng, d = g.opts.difficulty;
     if (p.cnt[UT.SILO] < 1 || g.ticks < g.immuneUntil || g.ticks - g.playStart < G.NUKE_PEACE) return;
     if (g.ticks - (p.nukeAt === undefined ? -1e9 : p.nukeAt) < G.NUKE_PAUSE * (d === 0 ? 2 : 1)) return;
+    if (this.mirvLate()) return;
     if (!r.chance(2)) return;
     const q = this.nukeTarget();
     if (!q) return;
@@ -5263,6 +5267,23 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     const n = d >= 2 ? G.NUKE_VOLLEY + 1 : G.NUKE_VOLLEY;
     // the first bomb always flies, each further one only every other time
     for (let i = 0; i < n; i++) if ((i > 0 && !r.chance(2)) || !this.strikeFromAir(q)) break;
+  };
+  // Late in the game, now and then, a MIRV on one of the three biggest realms. Only from
+  // G.MIRV_LATE ticks of play on, not on the easiest level, with a chance of 1 in G.MIRV_RARE per
+  // turn of a nation, and at most one MIRV of all nations together every G.MIRV_PAUSE ticks.
+  // Returns true when one flew.
+  AI.prototype.mirvLate = function () {
+    const g = this.g, p = this.p, r = g.rng;
+    if (g.opts.difficulty === 0 || g.ticks - g.playStart < G.MIRV_LATE) return false;
+    if (g.ticks - (g.mirvAt === undefined ? -1e9 : g.mirvAt) < G.MIRV_PAUSE || !r.chance(G.MIRV_RARE)) return false;
+    const big = [];
+    for (const q of g.players) if (q && q.alive && q !== p && q.type !== PT.BOT && !g.friendly(p, q)) big.push(q);
+    big.sort(function (a, b) { return b.tiles - a.tiles || a.id - b.id; });
+    if (!big.length) return false;
+    const q = big[r.int(0, Math.min(3, big.length))], t = this.tileOf(q, false);
+    if (t < 0 || !g.build(p, UT.MIRV, t)) return false;
+    g.mirvAt = g.ticks; p.nukeAt = g.ticks;
+    return true;
   };
   // Returns true when a missile was launched.
   AI.prototype.strikeFromAir = function (q) {
@@ -5275,8 +5296,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
       if (s && g.build(p, UT.CRUISE, s.tile)) return true;
     }
     let type = -1;
-    if (d >= 2 && p.gold >= 26e6 && q.tiles > g.map.landTiles * 0.12) type = UT.MIRV;
-    else if (d >= 2 && p.gold >= 6e6 && q.tiles > 3000) type = UT.HYDRO;
+    if (d >= 2 && p.gold >= 6e6 && q.tiles > 3000) type = UT.HYDRO;   // a MIRV only late, see mirvLate
     else if (p.gold >= 1e6) type = UT.ATOM;
     if (type < 0) return false;
     const rad = type === UT.HYDRO ? g.R.hydroOut : g.R.atomOut;

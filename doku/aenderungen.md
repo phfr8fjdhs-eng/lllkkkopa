@@ -3,6 +3,7 @@ Was seit dem 13.11.2026 geändert wurde und warum. Den heutigen Stand der Regeln
 
 ## MIRV mit etwas mehr Sprengköpfen (19.11.2026)
 Die Sprengköpfe decken rund ein Drittel statt ein Viertel des Ziellandes ab, und es sind mindestens 6 statt 4. Erde: Land mit 13 000 Feldern 6 statt 5, mit 50 000 Feldern 23 statt 18, mit 140 000 Feldern 63 statt 48 Sprengköpfe. Wunsch des Besitzers: die MIRV warf zu wenige.
+- Die Nationen werfen jetzt ganz selten eine MIRV, nur spät im Spiel (ab 30 Minuten, höchstens eine alle 10 Minuten für alle zusammen), auf eine der drei grössten Nationen. Vorher warfen sie gar keine. Siehe `doku/openfront-abgleich.md`.
 
 ## Bomben kosten etwas weniger Truppen (18.11.2026)
 Ein getroffenes Feld kostet 3 statt 5 Felder an Durchschnittstruppen. Atombombe auf Angola: 33 % statt 49 % der Truppen. Siehe `doku/openfront-abgleich.md`.
