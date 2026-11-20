@@ -4700,8 +4700,10 @@ body.placing #cv { cursor: crosshair; }
     const nb = g.neighbors(p);
     if (p.tiles < this.cap && nb.tn) {
       // never more than the land still missing needs (a free tile costs about ten troops)
-      const troops = Math.min((p.troops - g.maxTroops(p) * this.reserve) * 0.3, (this.cap - p.tiles) * 10, 4800);
-      if (troops >= 1) g.attack(p, 0, troops, -1);
+      // at the start a bot keeps back far less, so it spreads from the first seconds on
+      const keep = g.maxTroops(p) * this.reserve * (p.tiles < this.cap * 0.3 ? 0.5 : 1);
+      const troops = Math.min((p.troops - keep) * 0.3, (this.cap - p.tiles) * 10, 4800);
+      if (troops >= 1 && !this.stretch(troops)) g.attack(p, 0, troops, -1);
     }
     if (g.ticks < g.immuneUntil) return;
     for (const id of nb.ids) {
@@ -4714,6 +4716,30 @@ body.placing #cv { cursor: crosshair; }
       if (!busy) g.attack(p, id, p.troops / 100, -1);
       break;
     }
+  };
+
+  // A bot spreads towards a heading of its own that drifts a little each time, as a band (a
+  // direction attack) instead of a ring all around: it grows into arms and bulges, not a circle.
+  // The heading starts at the border tile that points that way and has free land beside it.
+  // Returns false when no such tile was found, then the bot takes land all around as before.
+  AI.prototype.stretch = function (troops) {
+    const g = this.g, p = this.p, W = g.W, H = g.H, r = g.rng, land = g.map.land, own = g.owner;
+    if (this.ang === undefined) this.ang = r.int(0, 628) / 100;
+    this.ang += r.int(-60, 60) / 100;
+    for (let k = 0; k < 4; k++) {
+      const dx = Math.cos(this.ang), dy = Math.sin(this.ang);
+      let best = -1, bs = -1e9;
+      for (const b of p.border) {
+        if (!((land[b - 1] && !own[b - 1]) || (land[b + 1] && !own[b + 1]) || (b >= W && land[b - W] && !own[b - W]) || (b + W < g.N && land[b + W] && !own[b + W]))) continue;
+        const sc = (b % W) * dx + ((b / W) | 0) * dy;
+        if (sc > bs || (sc === bs && b < best)) { bs = sc; best = b; }
+      }
+      if (best < 0) return false;
+      const tx = Math.round(best % W + dx * 3), ty = Math.round(((best / W) | 0) + dy * 3);
+      if (tx >= 0 && tx < W && ty >= 0 && ty < H && g.attack(p, 0, troops, -1, ty * W + tx, 3)) return true;
+      this.ang += r.int(100, 300) / 100;   // blocked that way: turn away
+    }
+    return false;
   };
 
   AI.prototype.nation = function () {

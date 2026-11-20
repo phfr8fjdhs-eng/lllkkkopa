@@ -195,3 +195,6 @@ Ziel: die Karte so ruhig wie in OpenFront. Alles in `06_view.js`, die Palette in
 - **Neu in der Version «Rohstoffe»:** eine Tabelle mit allem, was man an Rohstoffen und Fabrikwaren hat, und Knöpfen zum Leveln direkt dort (Anlagen auf Vorkommen und die Fabriken pro Land). Einzelheiten in `doku/rohstoffe.md`. Nur Bedienung, keine neuen Regeln; `03c_res.js` ist unverändert.
 - **Behoben:** `showIncome` gab es zweimal in `07_ui.js`, die zweite (Zeile unter dem Balken) überschrieb die erste, darum öffnete ein Klick aufs Gold nichts. Und «Weiterspielen» in der Hilfe schloss das Fenster nicht (`act === 'resume'` statt `what === 'resume'`).
 - Test: `node test/rohstofftabelle.js [desktop]`.
+
+## Bots breiten sich früh aus und nicht mehr rund (20.11.2026)
+Gemessen (Erde, 150 Bots): Die Bots hielten am Anfang so viel Reserve zurück, dass sie in den ersten Sekunden fast nichts nahmen, und wuchsen dann als Kreis (Füllung des umschliessenden Rechtecks 0.68). Jetzt behält ein kleiner Bot nur halb so viel zurück (bis 30 % seiner Zielgrösse) und greift mit einem Richtungsangriff (`AI.stretch`) in eine eigene Richtung an, die sich bei jedem Zug etwas dreht. Ergebnis: nach 10 s 77 statt 49 Felder (Mittelwert), Füllung 0.52, also Arme und Ausbuchtungen. Nach 60 s etwa gleich gross wie vorher.
