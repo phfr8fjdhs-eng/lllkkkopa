@@ -451,6 +451,22 @@ body.placing #cv { cursor: crosshair; }
 .help { margin: 10px 0 0; padding: 0 0 0 18px; font-size: 14px; }
 .help li { margin-top: 7px; }
 .help b { color: var(--accent); font-weight: 600; }
+/* ways to start (start screen, level screen): rows with an icon, a title and a line under it */
+.goes { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; }
+.go { display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 12px 10px 10px; text-align: left; font: inherit; color: var(--ink); background: rgba(255, 255, 255, 0.05); border: 1px solid var(--line); border-radius: 13px; cursor: pointer; transition: background .12s, border-color .12s, transform .08s; }
+.go .gi { display: grid; place-items: center; width: 42px; height: 42px; flex: none; color: var(--accent); background: rgba(244, 183, 64, 0.12); border-radius: 10px; }
+.go .gt { flex: 1; min-width: 0; }
+.go b { display: block; font: 600 17px/1.15 var(--display); letter-spacing: .01em; }
+.go small { display: block; margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12.5px; color: var(--muted); }
+.go .gc { display: grid; color: var(--muted); flex: none; }
+.go.main { color: var(--accent-ink); background: linear-gradient(180deg, #ffc95a, var(--accent)); border-color: transparent; box-shadow: 0 4px 16px rgba(244, 183, 64, 0.22); }
+.go.main .gi { color: var(--accent-ink); background: rgba(28, 21, 5, 0.12); }
+.go.main small, .go.main .gc { color: rgba(28, 21, 5, 0.68); }
+.go:active:not(:disabled) { transform: scale(.985); }
+.go:disabled { opacity: .55; cursor: default; }
+@media (hover: hover) { .go:hover:not(:disabled) { background: rgba(255, 255, 255, 0.09); border-color: rgba(190, 215, 240, 0.3); } .go.main:hover:not(:disabled) { background: linear-gradient(180deg, #ffd476, #f7c04f); } }
+.linkb { display: block; margin: 12px auto 0; padding: 6px 10px; font: 600 14px var(--display); color: var(--muted); background: none; border: 0; cursor: pointer; }
+.linkb:hover { color: var(--ink); }
 /* campaign «Feldzug» (src/07b_level.js): quest bar, tips, level map, cards */
 #lvBar { position: absolute; left: 8px; top: 56px; width: min(64vw, 300px); padding: 8px 12px 10px; pointer-events: none; }
 #lvBar small { display: block; font: 600 11px var(--display); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
@@ -474,6 +490,16 @@ body.placing #cv { cursor: crosshair; }
 .lvSt.next { border-color: var(--accent); background: rgba(244, 183, 64, 0.14); }
 .lvSt.next b { color: var(--accent); }
 .lvSt:disabled { opacity: .4; cursor: default; }
+.lvSt.soon { padding: 6px 2px 5px; }
+.lvSt.soon b { font-size: 17px; }
+.lvSt[aria-pressed=true] { border-color: var(--accent); background: rgba(244, 183, 64, 0.2); box-shadow: 0 0 0 1px var(--accent); }
+.lvSt[aria-pressed=true] b { color: var(--accent); }
+.lvInfo { margin-top: 14px; padding: 12px 13px; background: rgba(255, 255, 255, 0.05); border: 1px solid var(--line); border-radius: 12px; }
+.lvInfo h3 { margin: 0; font: 700 19px/1.15 var(--display); }
+.lvInfo .lvQuest { margin-top: 8px; }
+.lvInfo p { margin-top: 8px; font-size: 13px; }
+.lvFoot { position: sticky; bottom: -14px; margin: 0 -16px -14px; padding: 4px 16px 14px; background: linear-gradient(180deg, rgba(17, 28, 41, 0), var(--panel-solid) 14px); }
+
 .lvStars { display: flex; gap: 1px; color: rgba(255, 255, 255, 0.18); }
 .lvStars .on { color: var(--accent); }
 .lvBig { justify-content: center; margin: 12px 0 2px; }

@@ -1,7 +1,10 @@
 # Änderungsprotokoll
 Was seit dem 13.11.2026 geändert wurde und warum. Den heutigen Stand der Regeln beschreiben die anderen Dateien in `doku/`.
 
-## Feldzug: Levels 1–10 (20.11.2026)
+## Startbildschirm und Levelseite aufgeräumt (20.11.2026)
+- Die Knöpfe «Spiel starten», «Levels» und «Mit Freunden spielen» sind jetzt Zeilen mit Symbol, Titel und einer Zeile darunter (Karte und Schwierigkeit, das nächste Level mit Sternen, «Raum öffnen und Link teilen»). «So wird gespielt» ist ein schlichter Textknopf. Wunsch des Besitzers: die alten Knöpfe sahen nicht professionell aus.
+- «Feldzug · Levels» heisst nur noch «Levels». Die Levelseite ist eine Seite: oben die Levels zum Auswählen, darunter das gewählte Level, unten «Spiel starten» und «Zurück». Die eigene Karte pro Level fällt weg.
+
 Neuer Modus «Feldzug · Levels» auf dem Startbildschirm, getrennt vom normalen Spiel. Levelkarte mit 20 Stationen, die ersten 10 sind gebaut: jedes mit eigener Karte, Quest, Sternen und Tipps und erklärt eine Sache (Land nehmen, Bots, Städte und Fabriken, Stoss, Verteidigung, Boote, Kriegsschiffe, Atombombe, Flugabwehr, Marschflugkörper). Die Skill-Levels 11–20 folgen. Wunsch des Besitzers: ein Levelaufbau, in dem man die Waffen kennenlernt. Siehe `doku/feldzug.md`.
 
 ## MIRV mit etwas mehr Sprengköpfen (19.11.2026)

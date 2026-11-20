@@ -262,8 +262,7 @@
       return '<button type="button" class="sw" data-i="' + i + '" aria-label="Farbe ' + (i + 1) + '" aria-pressed="' + (i === cfg.color) + '" style="background:rgb(' + c.join(',') + ')"></button>';
     }).join('') + '</div></div>';
     if (joinCode) {
-      h += '<button class="btn" id="fJoin" type="button">' + svg('people', 20) + 'Beitreten</button>';
-      h += '<button class="btn ghost" id="fSolo" type="button">Lieber allein spielen</button>';
+      h += '<div class="goes">' + goRow('fJoin', 'people', 'Beitreten', 'Raum ' + esc(joinCode), true) + goRow('fSolo', 'play', 'Lieber allein spielen', 'Eigene Karte und Regeln wählen', false) + '</div>';
     } else {
       h += '<div class="field" id="fMap"><div class="lab">Karte · Erde</div><div class="maprow">' + MAPS.map(function (m) {
         return mapCard(m.id, m.name, m.v === 2 ? 'Die grosse Karte · ' + m.nations.length + ' Nationen' : m.nations.length + ' Nationen');
@@ -286,11 +285,14 @@
       h += '<div class="field"><label for="fBots">Bots <b id="fBotsVal">' + Math.max(0, cfg.bots) + '</b></label><input id="fBots" type="range" min="0" max="600" step="10" value="' + Math.max(0, cfg.bots) + '"></div>';
       h += '<div class="field"><div class="lab">Optionen</div><div class="checks">' + check('fNations', 'Nationen', cfg.nations) +
         check('fInstant', 'Sofort bauen', cfg.instant) + check('fGold', 'Unendlich Gold', cfg.gold) + check('fTroops', 'Unendlich Truppen', cfg.troops) + '</div></div>';
-      h += '<button class="btn" id="fStart" type="button">Spiel starten</button>';
-      if (!RES) h += '<button class="btn alt" id="fCamp" type="button">' + svg('flag', 20) + 'Feldzug · Levels</button>';
-      h += '<button class="btn alt" id="fHost" type="button">' + svg('people', 20) + 'Mit Freunden spielen</button>';
+      // three ways to play, as rows: the free game (with the settings above), the levels, a room for friends
+      const lv = !RES && G.Feldzug ? G.Feldzug.summary() : null;
+      const mapName = (function () { const m = MAPS.find(function (x) { return x.id === cfg.map; }) || special(cfg.map); return m ? m.name : 'Zufallskarte'; })();
+      h += '<div class="goes">' + goRow('fStart', 'play', 'Spiel starten', esc(mapName) + ' · ' + G.DIFF_NAMES[cfg.diff] + (cfg.mode === 'arsenal' ? ' · Arsenal' : ''), true);
+      if (lv) h += goRow('fCamp', 'flag', 'Levels', lv.n ? 'Level ' + lv.n + ' · ' + esc(lv.name) + ' · ' + lv.stars + ' von ' + lv.max + ' Sternen' : 'Alle Lern-Levels geschafft · ' + lv.stars + ' von ' + lv.max + ' Sternen', false);
+      h += goRow('fHost', 'people', 'Mit Freunden spielen', 'Raum öffnen und Link teilen', false) + '</div>';
     }
-    h += '<button class="btn ghost" id="fHelp" type="button">So wird gespielt</button>';
+    h += '<button class="linkb" id="fHelp" type="button">So wird gespielt</button>';
     openModal(h, 'start');
     $('fColor').addEventListener('click', function (e) {
       const b = e.target.closest('.sw');
@@ -306,7 +308,7 @@
       const b = e.target.closest('.mapc');
       if (!b) return;
       if (b.dataset.id === 'zufall') delete maps.zufall;
-      cfg.map = b.dataset.id;
+      cfg.map = b.dataset.id; goSub();
       for (const c of this.querySelectorAll('.mapc')) c.setAttribute('aria-pressed', c === b ? 'true' : 'false');
       previewMap(cfg.map);
     });
@@ -316,7 +318,7 @@
     $('fMode').addEventListener('click', function (e) {
       const b = e.target.closest('button');
       if (!b) return;
-      cfg.mode = b.dataset.id; press(this, b);
+      cfg.mode = b.dataset.id; press(this, b); goSub();
       $('fModeNote').textContent = MODES.find(function (m) { return m[0] === cfg.mode; })[2];
     });
     SWITCH.forEach(function (w) {
@@ -328,7 +330,7 @@
     });
     $('fDiff').addEventListener('click', function (e) {
       const b = e.target.closest('button');
-      if (b) { cfg.diff = +b.dataset.i; press(this, b); }
+      if (b) { cfg.diff = +b.dataset.i; press(this, b); } goSub();
     });
     $('fBots').addEventListener('input', function () { botsTouched = true; cfg.bots = +this.value; $('fBotsVal').textContent = this.value; });
     $('fStart').addEventListener('click', function () {
@@ -336,7 +338,16 @@
       startGame();
     });
     $('fHost').addEventListener('click', function () { readForm(); openRoom(true); });
+    function goSub() {
+      const m = MAPS.find(function (x) { return x.id === cfg.map; }) || special(cfg.map);
+      $('fStart').querySelector('small').textContent = (m ? m.name : 'Zufallskarte') + ' · ' + G.DIFF_NAMES[cfg.diff] + (cfg.mode === 'arsenal' ? ' · Arsenal' : '');
+    }
     if ($('fCamp')) $('fCamp').addEventListener('click', function () { readForm(); G.Feldzug.open(); });
+  }
+  // A way to start, as a row with an icon, a title and a line under it (the start screen and the level screen)
+  function goRow(id, icon, title, sub, main) {
+    return '<button type="button" class="go' + (main ? ' main' : '') + '" id="' + id + '"><span class="gi">' + svg(icon, 22) + '</span>' +
+      '<span class="gt"><b>' + title + '</b><small>' + sub + '</small></span><span class="gc">' + svg('chev', 18) + '</span></button>';
   }
   function readForm() {
     cfg.name = ($('fName').value || '').trim() || 'Spieler';
@@ -531,7 +542,7 @@
 
   function startGame() {
     readForm();
-    $('fStart').disabled = true; $('fStart').textContent = 'Karte wird vorbereitet';
+    $('fStart').disabled = true; $('fStart').querySelector('small').textContent = 'Karte wird vorbereitet';
     loadMap(cfg.map).then(function (map) {
       begin(map, {
         seed: (Math.random() * 2e9) | 0, difficulty: cfg.diff, bots: cfg.bots, nations: cfg.nations, arsenal: cfg.mode === 'arsenal', res: RES, pfeile: !!cfg.pfeile, netz: !!cfg.netz, punkt: !!cfg.punkt, aufstellung: cfg.aufstellung !== false,
@@ -539,7 +550,7 @@
       }, { name: cfg.name, color: COLORS[cfg.color] });
     }).catch(function (e) {
       toast(e.message);
-      $('fStart').disabled = false; $('fStart').textContent = 'Spiel starten';
+      $('fStart').disabled = false; $('fStart').querySelector('small').textContent = 'Nochmals versuchen';
     });
   }
   function begin(map, opts, people) {
@@ -880,12 +891,12 @@
 
   function showMenu() {
     if (!mp) setPaused(true);
-    openModal('<h2>' + (mp ? 'Menü' : 'Pause') + '</h2><p>' + (game.lv ? 'Feldzug · Level ' + game.lv.def.n + ' · ' + esc(game.lv.def.name) : esc(game.map.name) + ' · ' + G.DIFF_NAMES[game.opts.difficulty] + (game.opts.arsenal ? ' · Arsenal' : '')) + '</p>' +
+    openModal('<h2>' + (mp ? 'Menü' : 'Pause') + '</h2><p>' + (game.lv ? 'Level ' + game.lv.def.n + ' · ' + esc(game.lv.def.name) : esc(game.map.name) + ' · ' + G.DIFF_NAMES[game.opts.difficulty] + (game.opts.arsenal ? ' · Arsenal' : '')) + '</p>' +
       '<button class="btn" data-act="resume" type="button">Weiterspielen</button>' +
       '<button class="btn ghost" data-act="help" type="button">So wird gespielt</button>' +
       '<label class="check wide" for="mMusic"><input id="mMusic" type="checkbox"' + (cfg.music ? ' checked' : '') + '>Musik</label>' +
       '<label class="check" for="mSfx"><input id="mSfx" type="checkbox"' + (cfg.sfx ? ' checked' : '') + '>Töne bei Aktionen</label>' +
-      (game.lv ? '<button class="btn ghost" data-act="lvRetry" type="button">Level neu starten</button><button class="btn ghost" data-act="quit" type="button">Zur Levelkarte</button>'
+      (game.lv ? '<button class="btn ghost" data-act="lvRetry" type="button">Level neu starten</button><button class="btn ghost" data-act="quit" type="button">Zu den Levels</button>'
         : '<button class="btn ghost" data-act="quit" type="button">Spiel beenden</button>'), 'menu');
     $('mMusic').addEventListener('change', function () { setSound('music', this.checked); });
     $('mSfx').addEventListener('change', function () { setSound('sfx', this.checked); });
@@ -2108,7 +2119,7 @@
     requestAnimationFrame(frame);
     G.ui = {
       begin: begin, openModal: openModal, closeModal: closeModal, showStart: showStart, previewMap: previewMap, quitGame: quitGame,
-      toast: toast, addMsg: addMsg, setPaused: setPaused, svg: svg, esc: esc, snd: snd, cfg: cfg, COLORS: COLORS,
+      toast: toast, addMsg: addMsg, goRow: goRow, setPaused: setPaused, svg: svg, esc: esc, snd: snd, cfg: cfg, COLORS: COLORS,
       get game() { return game; }, get view() { return view; }, get modalKind() { return modalKind; }
     };
     G.debug = { get game() { return game; }, get view() { return view; }, get mp() { return mp; }, tap: tap, cfg: cfg, act: act };

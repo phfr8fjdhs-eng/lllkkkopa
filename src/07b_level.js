@@ -27,53 +27,48 @@
   }
   function mapOf(n) { return maps[n] || (maps[n] = G.levelMap(def(n))); }
 
-  // ---------- the level map ----------
-  function open() {
+  // ---------- the level screen ----------
+  // One page: the levels at the top, what the chosen one asks for below, and at the bottom
+  // «Spiel starten» and «Zurück». A tap on a level only picks it.
+  const NAMES = {};
+  NAMES[UT.CITY] = 'Stadt'; NAMES[UT.FACTORY] = 'Fabrik'; NAMES[UT.PORT] = 'Hafen'; NAMES[UT.DEFENSE] = 'Verteidigungsposten'; NAMES[UT.SILO] = 'Raketensilo';
+  NAMES[UT.SAM] = 'Flugabwehr'; NAMES[UT.WARSHIP] = 'Kriegsschiff'; NAMES[UT.ATOM] = 'Atombombe'; NAMES[UT.HYDRO] = 'Wasserstoffbombe'; NAMES[UT.CRUISE] = 'Marschflugkörper'; NAMES[UT.MIRV] = 'MIRV';
+  // the first level not yet won (the one to play next), or 0 when all are won
+  function nextLevel() { const L = G.LEVELS.find(function (x) { return !best[x.n]; }); return L ? L.n : 0; }
+  function open(sel) {
     load();
     const u = ui();
     hide();
+    if (!sel || !def(sel) || !open1(sel)) sel = nextLevel() || cur || 1;
     let total = 0;
     for (const L of G.LEVELS) total += best[L.n] || 0;
-    const first = G.LEVELS.find(function (L) { return !best[L.n]; });
-    let h = '<h2>Feldzug</h2><p>Jedes Level hat eine eigene Karte und ein Ziel. Die ersten zehn bringen dir das Spiel bei, danach zählt nur noch Können. Abgeschlossene Levels kannst du jederzeit nochmals spielen.</p>';
-    h += '<div class="lvSec">Lernen · ' + total + ' von ' + G.LEVELS.length * 3 + ' Sternen</div><div class="lvGrid">';
+    let h = '<h2>Levels</h2><p>' + total + ' von ' + G.LEVELS.length * 3 + ' Sternen</p>';
+    h += '<div class="lvSec">Lernen</div><div class="lvGrid" id="lvGrid">';
     for (const L of G.LEVELS) {
       const ok = open1(L.n);
-      h += '<button type="button" class="lvSt' + (first && first.n === L.n && ok ? ' next' : '') + '" data-act="lvPick:' + L.n + '"' + (ok ? '' : ' disabled') + '>' +
+      h += '<button type="button" class="lvSt" data-act="lvPick:' + L.n + '" aria-pressed="' + (L.n === sel) + '"' + (ok ? '' : ' disabled') + '>' +
         '<b>' + (ok ? L.n : u.svg('lock', 20)) + '</b><small>' + u.esc(L.name) + '</small>' + starRow(best[L.n] || 0, 11) + '</button>';
     }
     h += '</div><div class="lvSec">Können · kommt bald</div><div class="lvGrid">';
     LATER.forEach(function (name, i) {
-      h += '<button type="button" class="lvSt" disabled><b>' + (i + 11) + '</b><small>' + u.esc(name) + '</small>' + starRow(0, 11) + '</button>';
+      h += '<button type="button" class="lvSt soon" disabled><b>' + (i + 11) + '</b><small>' + u.esc(name) + '</small></button>';
     });
-    h += '</div><button class="btn ghost" data-act="lvBack" type="button">Zurück</button>';
+    const L = def(sel), b = best[sel] || 0;
+    h += '</div><div class="lvInfo"><h3>Level ' + sel + ' · ' + u.esc(L.name) + '</h3><p>Du lernst: ' + u.esc(L.learn) + '</p>';
+    h += '<div class="lvQuest">' + u.esc(L.quest.text) + (L.limit ? ' Zeit: ' + G.levelClock(L.limit) + '.' : '') + '</div>';
+    h += '<ul class="lvGoals">' + L.starText.map(function (t, i) { return '<li class="' + (b > i ? 'on' : '') + '">' + u.svg('star', 14) + u.esc(t) + '</li>'; }).join('') + '</ul>';
+    h += '<p>' + (L.allow.length ? 'Freigeschaltet: ' + L.allow.map(function (t) { return NAMES[t]; }).join(', ') + '.' : 'In diesem Level wird noch nichts gebaut.') + '</p></div>';
+    h += '<div class="lvFoot"><div class="goes">' + u.goRow('lvGoBtn', 'play', b ? 'Nochmals spielen' : 'Spiel starten', 'Level ' + sel + ' · ' + u.esc(L.name), true) +
+      '</div><button class="linkb" data-act="lvBack" type="button">Zurück</button></div>';
     u.openModal(h, 'lvMap');
-    const pick = first && open1(first.n) ? first.n : 1;
-    preview(pick);
+    $('lvGoBtn').dataset.act = 'lvGo:' + sel;
+    preview(sel);
   }
   function preview(n) {
     const u = ui();
     if (u.game) return;
     const v = u.view;
     v.setMap(mapOf(n)); v.fit(true);
-  }
-
-  // ---------- the card of a level ----------
-  const NAMES = {};
-  NAMES[UT.CITY] = 'Stadt'; NAMES[UT.FACTORY] = 'Fabrik'; NAMES[UT.PORT] = 'Hafen'; NAMES[UT.DEFENSE] = 'Verteidigungsposten'; NAMES[UT.SILO] = 'Raketensilo';
-  NAMES[UT.SAM] = 'Flugabwehr'; NAMES[UT.WARSHIP] = 'Kriegsschiff'; NAMES[UT.ATOM] = 'Atombombe'; NAMES[UT.HYDRO] = 'Wasserstoffbombe'; NAMES[UT.CRUISE] = 'Marschflugkörper'; NAMES[UT.MIRV] = 'MIRV';
-  function card(n) {
-    const L = def(n), u = ui();
-    if (!L || !open1(n)) { open(); return; }
-    const b = best[n] || 0;
-    let h = '<h2>Level ' + n + ' · ' + u.esc(L.name) + '</h2><p>Du lernst: ' + u.esc(L.learn) + '</p>';
-    h += '<div class="lvQuest">' + u.esc(L.quest.text) + (L.limit ? ' Zeit: ' + G.levelClock(L.limit) + '.' : '') + '</div>';
-    h += '<ul class="lvGoals">' + L.starText.map(function (t, i) { return '<li class="' + (b > i ? 'on' : '') + '">' + u.svg('star', 14) + u.esc(t) + '</li>'; }).join('') + '</ul>';
-    h += '<p>' + (L.allow.length ? 'Freigeschaltet: ' + L.allow.map(function (t) { return NAMES[t]; }).join(', ') + '.' : 'In diesem Level wird noch nichts gebaut.') + '</p>';
-    h += '<button class="btn" data-act="lvGo:' + n + '" type="button">' + (b ? 'Nochmals spielen' : 'Los') + '</button>';
-    h += '<button class="btn ghost" data-act="lvMap" type="button">Zur Levelkarte</button>';
-    u.openModal(h, 'lvCard');
-    preview(n);
   }
 
   // ---------- playing a level ----------
@@ -173,14 +168,14 @@
     if (e.win) {
       h = '<h2>Level geschafft!</h2>' + starRow(e.stars, 40, 'lvBig') + '<p>' + u.esc(L.name) + ' in ' + G.levelClock(e.secs) + (e.stars > before && before ? ' · neuer Bestwert' : '') + '</p>';
       h += '<ul class="lvGoals">' + L.starText.map(function (t, i) { return '<li class="' + (e.stars > i ? 'on' : '') + '">' + u.svg('star', 14) + u.esc(t) + '</li>'; }).join('') + '</ul>';
-      if (def(L.n + 1)) h += '<button class="btn" data-act="lvPick:' + (L.n + 1) + '" type="button">Weiter zu Level ' + (L.n + 1) + '</button>';
+      if (def(L.n + 1)) h += '<button class="btn" data-act="lvGo:' + (L.n + 1) + '" type="button">Weiter zu Level ' + (L.n + 1) + '</button>';
       else h += '<p>Das waren alle Lern-Levels. Die Levels, in denen nur noch Können zählt, kommen als Nächstes.</p>';
       h += '<button class="btn ghost" data-act="lvRetry" type="button">Nochmals spielen</button>';
     } else {
       h = '<h2>Nicht geschafft</h2><p>' + u.esc(e.why || 'Das Ziel ist nicht mehr zu erreichen.') + '</p>';
       h += '<button class="btn" data-act="lvRetry" type="button">Nochmals versuchen</button>';
     }
-    h += '<button class="btn ghost" data-act="quit" type="button">Zur Levelkarte</button>';
+    h += '<button class="btn ghost" data-act="quit" type="button">Zu den Levels</button>';
     u.openModal(h, 'lvEnd');
   }
 
@@ -195,17 +190,21 @@
     const u = ui(), i = what.indexOf(':'), n = i > 0 ? +what.slice(i + 1) : 0, k = i > 0 ? what.slice(0, i) : what;
     if (k === 'lvBack') { u.showStart(); u.previewMap(u.cfg.map); return; }
     if (k === 'lvMap') { open(); return; }
-    if (k === 'lvPick') { if (u.game) { u.closeModal(); G.Feldzug.leave = n; u.quitGame(); return; } card(n); return; }
+    if (k === 'lvPick') { const sc = $('modalCard').scrollTop; open(n); $('modalCard').scrollTop = sc; return; }
     if (k === 'lvGo') { start(n); return; }
     if (k === 'lvRetry') { start(cur); return; }
   }
 
   G.Feldzug = {
-    open: function () {
-      // after a level the button «Weiter zu Level n» lands here through quitGame: show that level's card
-      const n = G.Feldzug.leave; G.Feldzug.leave = 0;
-      if (n) card(n); else open();
+    open: function () { open(cur); },
+    // what the start screen shows under «Levels»: the next level, and the stars so far
+    summary: function () {
+      load();
+      let stars = 0;
+      for (const L of G.LEVELS) stars += best[L.n] || 0;
+      const n = nextLevel();
+      return { n: n, name: n ? def(n).name : '', stars: stars, max: G.LEVELS.length * 3 };
     },
-    hud: hud, end: end, act: act, hide: hide, start: start, leave: 0
+    hud: hud, end: end, act: act, hide: hide, start: start
   };
 })(globalThis.G = globalThis.G || {});

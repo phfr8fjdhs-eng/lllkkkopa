@@ -35,7 +35,7 @@ Echtzeit-Eroberungsspiel im Browser, Nachbau von OpenFront, als eine einzige HTM
 | `06_view.js` | 1570 | Zeichnen: `View.pose`, `drawReach`, `drawRaids`, `drawFronts`, `drawNet`, `railGeo`, `worldColors`, `placeName`, `G.ICON` |
 | `07_ui.js` | 1560 | Bedienung: Tasten, Menüs, Touch, `#hotbar`, `view.ghost`, `showPeek` |
 | `08_net.js` | 310 | Mehrspieler über MQTT: `G.RELAYS` |
-| `07b_level.js` | 210 | Feldzug auf dem Bildschirm: `G.Feldzug` (Levelkarte, Quest-Leiste `#lvBar`, Tipps `#lvTip`, Endfenster); nutzt `G.ui` aus `07_ui.js` |
+| `07b_level.js` | 210 | Feldzug auf dem Bildschirm: `G.Feldzug` (Levelseite, Quest-Leiste `#lvBar`, Tipps `#lvTip`, Endfenster); nutzt `G.ui` aus `07_ui.js` |
 | `template.html` | | Seitengerüst (HTML und CSS) |
 
 Weitere Ordner: `tools/` (Bauen und Kartenerzeugung, Python), `test/` (Tests, Node), `build/` und `docs/` (Ausgabe).
