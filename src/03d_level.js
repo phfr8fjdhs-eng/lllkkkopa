@@ -47,44 +47,62 @@
   // quest   text, and check(Q) -> { ok, fail, prog (0..1), line (what the bar shows) }
   // par     seconds for two and three stars (or stars(Q) for levels you have to hold out)
   // events  [seconds after the start, function (Q)]: the script of the opponents
-  // tips    shown one after the other: text, el (a CSS selector to point at), when(Q)
+  // tips    shown one after the other. They show rather than explain: a few words (text, may be
+  //         empty), el (a CSS selector to point at), pins(Q, last) (tiles that get a marker pin
+  //         on the map), mark ('pop': the spot on the troop bar where troops grow fastest),
+  //         when(Q). The tips are only drawn, they never change the game.
   // goal    [x, y]: a ring on the map that marks the target
-  const HAND = '<b>Am Handy:</b> ';
+  const hot = function (t) { return '#hotbar [data-t="' + t + '"]'; };
   const LEVELS = G.LEVELS = [
     {
-      n: 1, name: 'Lichtung', learn: 'Startpunkt und freies Land',
+      n: 1, name: 'Lichtung', learn: 'Startpunkt und Ausbreiten',
       map: { w: 280, h: 200, seed: 101, shapes: [circ(140, 100, 78), circ(92, 72, 40), circ(190, 128, 42), circ(172, 66, 18, 2), circ(100, 130, 12, 2)] },
       me: { troops: 25000, gold: 0 }, foes: [], allow: [],
       quest: {
         text: 'Halte die Hälfte der Insel.',
-        check: function (Q) { const s = Q.share(Q.me); return { ok: s >= 0.5, prog: s / 0.5, line: Q.pct(s) + ' von 50 % der Insel' }; }
+        check: function (Q) { const s = Q.share(Q.me); return { ok: s >= 0.5, prog: s / 0.5, line: Q.pct(s) + ' von 50 %' }; }
       },
       par: [90, 60],
       tips: [
-        { text: 'Tippe auf freies Land. Dort beginnt dein Reich, und das Spiel startet sofort.', when: function (Q) { return Q.g.phase === 'spawn'; } },
-        { text: 'Tippe auf das freie Land neben deinem Gebiet und dann auf <b>Angreifen</b>. Am Computer geht es auch mit einem Doppelklick.', when: function (Q) { return Q.g.phase === 'play'; } },
-        { text: 'Dieser Regler bestimmt, wie viele deiner Truppen losziehen. Mehr Truppen erobern schneller, aber daheim bleiben weniger.', el: '#ratio', when: function (Q) { return Q.secs > 6; } },
-        { text: 'Deine Truppen wachsen von selbst nach, am schnellsten bei gut 40 % des Limits. Der Balken zeigt, wie voll du bist.', el: '#popBar', when: function (Q) { return Q.secs > 22; } }
+        { text: '', pins: function (Q) { return [Q.g.levelTile(140, 100)]; }, when: function (Q) { return Q.g.phase === 'spawn'; } },
+        { text: 'Tippe auf freies Land.', pins: function (Q, last) { return Q.frontier(3, last); }, when: function (Q) { return Q.g.phase === 'play' && Q.share(Q.me) < 0.05; } },
+        { text: 'So viele Truppen ziehen los.', el: '#ratio', when: function (Q) { return Q.share(Q.me) >= 0.05; } },
+        { text: 'Hier wachsen sie am schnellsten.', el: '#popBar', mark: 'pop', when: function (Q) { return Q.share(Q.me) >= 0.12; } }
       ]
     },
     {
-      n: 2, name: 'Hügelland', learn: 'Bots erobern und Gold',
+      n: 2, name: 'Kornkammer', learn: 'Land, Städte und Wachstum',
+      map: { w: 300, h: 200, seed: 212, shapes: [circ(150, 100, 84), circ(85, 80, 40), circ(220, 125, 45), circ(110, 150, 14, 2), circ(200, 55, 16, 2)] },
+      me: { x: 150, y: 100, r: 6, troops: 20000, gold: 125000 }, foes: [],
+      allow: [UT.CITY],
+      quest: {
+        text: 'Erreiche 40K Truppen.',
+        check: function (Q) { const t = Q.me.troops; return { ok: t >= 400000, prog: t / 400000, line: G.fmtTroops(t) + ' von 40K' }; }
+      },
+      par: [100, 70],
+      tips: [
+        { text: 'Mehr Land, mehr Truppen.', el: '#popTxt', pins: function (Q, last) { return Q.frontier(3, last); }, when: function (Q) { return Q.me.tiles < 1500; } },
+        { text: 'Städte bringen mehr Truppen.', el: hot(UT.CITY), pins: function (Q) { return Q.built(Q.me, UT.CITY) ? [] : [Q.g.levelTile(150, 100, Q.me)]; }, when: function (Q) { return Q.me.tiles >= 1500 && !Q.built(Q.me, UT.CITY); } },
+        { text: 'Weniger losschicken, schneller wachsen.', el: '#popBar', mark: 'pop', when: function (Q) { return Q.secs > 30 || Q.built(Q.me, UT.CITY) > 0; } }
+      ]
+    },
+    {
+      n: 3, name: 'Hügelland', learn: 'Bots erobern und Gold',
       map: { w: 300, h: 200, seed: 202, shapes: [circ(150, 100, 86), circ(80, 90, 52), circ(225, 110, 55), circ(160, 40, 26, 2), circ(150, 160, 22, 2)] },
       me: { x: 70, y: 95, r: 9, troops: 30000, gold: 0 },
       foes: [{ bot: 1, x: 130, y: 60, r: 8 }, { bot: 1, x: 140, y: 140, r: 8 }, { bot: 1, x: 190, y: 85, r: 8 }, { bot: 1, x: 200, y: 140, r: 8 }, { bot: 1, x: 250, y: 75, r: 8 }, { bot: 1, x: 260, y: 130, r: 8 }],
       allow: [],
       quest: {
         text: 'Erobere 4 Bots ganz.',
-        check: function (Q) { const n = Q.beaten(PT.BOT); return { ok: n >= 4, prog: n / 4, line: n + ' von 4 Bots erobert' }; }
+        check: function (Q) { const n = Q.beaten(PT.BOT); return { ok: n >= 4, prog: n / 4, line: n + ' von 4 Bots' }; }
       },
       par: [130, 90],
       tips: [
-        { text: 'Die grauen Reiche sind <b>Bots</b>. Sie sind schwach und wehren sich kaum. Tippe auf ihr graues Land und dann auf <b>Angreifen</b>.' },
-        { text: 'Wer einen Bot ganz erobert, bekommt sein Gold und eine Prämie. Das Gold brauchst du ab dem nächsten Level zum Bauen.', when: function (Q) { return Q.beaten(PT.BOT) >= 1; } }
+        { text: 'Bots bringen Gold.', pins: function (Q) { return Q.realms(PT.BOT, 3); } }
       ]
     },
     {
-      n: 3, name: 'Flusstal', learn: 'Stadt, Fabrik und Ausbau',
+      n: 4, name: 'Flusstal', learn: 'Fabrik und Ausbau',
       map: { w: 300, h: 200, seed: 303, shapes: [rect(20, 20, 280, 180), line(150, 0, 140, 60, 6, 0), line(140, 60, 158, 120, 6, 0), line(158, 120, 150, 150, 5, 0), circ(240, 60, 18, 2)] },
       me: { x: 80, y: 100, r: 20, troops: 40000, gold: 700000 },
       foes: [{ bot: 1, x: 70, y: 40, r: 9 }, { bot: 1, x: 210, y: 140, r: 10 }, { bot: 1, x: 230, y: 60, r: 9 }],
@@ -99,44 +117,43 @@
       },
       par: [140, 100],
       tips: [
-        { text: 'Baue eine <b>Stadt</b>: Taste 1 oder dieser Knopf, dann auf dein Land klicken. ' + HAND + 'lange auf dein Land drücken, dann <b>Bauen</b>. Jede Stadt hebt dein Truppen-Limit.', el: '#hotbar [data-t="0"]' },
-        { text: 'Eine <b>Fabrik</b> verbindet Städte in der Nähe mit Gleisen. Jeder Zug bringt an jedem Bahnhof Gold.', el: '#hotbar [data-t="5"]', when: function (Q) { return Q.built(Q.me, UT.CITY) >= 1; } },
-        { text: 'Tippe auf eine deiner Städte, dann öffnet sich die Ausbaukarte. Jede Stufe hebt das Limit weiter. Am Computer: Taste U über der Stadt.', when: function (Q) { return Q.built(Q.me, UT.CITY) >= 2; } }
+        { text: 'Zwei Städte bauen.', el: hot(UT.CITY), when: function (Q) { return Q.built(Q.me, UT.CITY) < 2; } },
+        { text: 'Fabrik: Züge bringen Gold.', el: hot(UT.FACTORY), when: function (Q) { return Q.built(Q.me, UT.CITY) >= 1 && !Q.built(Q.me, UT.FACTORY); } },
+        { text: 'Stadt antippen, ausbauen.', pins: function (Q) { return Q.units(Q.me, UT.CITY, 1); }, when: function (Q) { return Q.built(Q.me, UT.CITY) >= 2; } }
       ]
     },
     {
-      n: 4, name: 'Engpass', learn: 'Gezielter Stoss mit Keil', diff: 0,
+      n: 5, name: 'Engpass', learn: 'Gezielter Stoss mit Keil', diff: 0,
       map: { w: 340, h: 180, seed: 404, rough: 4, shapes: [rect(10, 30, 330, 150), circ(250, 60, 16, 2), circ(200, 125, 14, 2)] },
       me: { x: 45, y: 90, box: [0, 0, 80, 180], troops: 90000, gold: 0 },
       foes: [{ name: 'Morvanien', x: 300, y: 90, box: [80, 0, 340, 180], troops: 70000, build: [[UT.CITY, 312, 90]] }],
       allow: [],
       goal: [312, 90],
       quest: {
-        text: 'Erobere die Hauptstadt von Morvanien (der Ring ganz rechts) in 3 Minuten.',
+        text: 'Erreiche die Hauptstadt von Morvanien in 3 Minuten.',
         check: function (Q) {
           const d = Q.reach(Q.me, 312, 90);
-          return { ok: d <= 3, prog: G.within(1 - (d - 3) / 230, 0, 1), line: 'Noch ' + Math.max(0, d - 3) + ' Felder bis zur Hauptstadt' };
+          return { ok: d <= 3, prog: G.within(1 - (d - 3) / 230, 0, 1), line: 'Noch ' + Math.max(0, d - 3) + ' Felder' };
         }
       },
       limit: 180, par: [140, 100],
       tips: [
-        { text: 'Mit der ganzen Front kommst du hier zu langsam voran. Schick einen <b>Stoss</b>: rechte Maustaste auf deinem Land drücken und bis zum Ziel ziehen. ' + HAND + 'oben <b>Keil</b> wählen und das Ziel antippen.', el: '#modes' },
-        { text: 'Der <b>Keil</b> ist schmal und schnell, der <b>Abschnitt</b> breiter und sicherer. Taste F wechselt. Die Zahl am Pfeil zeigt, wie viele Truppen der Stoss braucht.', when: function (Q) { return Q.secs > 15; } },
-        { text: 'Ein Stoss kommt ins Stocken? Klick auf seinen Pfeil und dann auf <b>Verstärken</b>.', when: function (Q) { return Q.secs > 45; } }
+        { text: 'Rechts ziehen: ein schneller Stoss.', el: '#modes' },
+        { text: 'Stockt er? Pfeil antippen, Verstärken.', when: function (Q) { return Q.secs > 40; } }
       ]
     },
     {
-      n: 5, name: 'Passhöhe', learn: 'Verteidigung und Gelände',
+      n: 6, name: 'Passhöhe', learn: 'Verteidigung und Gelände',
       map: { w: 320, h: 200, seed: 505, rough: 4, shapes: [rect(10, 10, 310, 190), line(160, 0, 160, 82, 18, 3), line(160, 118, 160, 200, 18, 3), line(150, 82, 150, 118, 10, 2)] },
       me: { x: 70, y: 100, box: [0, 0, 160, 200], troops: 60000, gold: 400000 },
       foes: [{ name: 'Pellgard', x: 260, y: 100, box: [160, 0, 320, 200], troops: 160000 }],
       allow: [UT.DEFENSE, UT.CITY],
       goal: [150, 100],
       quest: {
-        text: 'Halte den Pass 2½ Minuten lang. Du darfst nicht mehr als 15 % deines Landes verlieren.',
+        text: 'Halte den Pass 2½ Minuten. Verliere höchstens 15 % Land.',
         check: function (Q) {
           const keep = Q.me.tiles / Q.start.tiles;
-          return { ok: Q.secs >= 150, fail: keep < 0.85 ? 'Pellgard ist durchgebrochen' : '', prog: Q.secs / 150, line: 'Noch ' + Q.clock(150 - Q.secs) + ' · ' + Q.pct(Math.min(1, keep)) + ' deines Landes' };
+          return { ok: Q.secs >= 150, fail: keep < 0.85 ? 'Pellgard ist durchgebrochen' : '', prog: Q.secs / 150, line: 'Noch ' + Q.clock(150 - Q.secs) + ' · ' + Q.pct(Math.min(1, keep)) + ' Land' };
         }
       },
       stars: function (Q) { const k = Q.me.tiles / Q.start.tiles; return k >= 1 ? 3 : k >= 0.95 ? 2 : 1; },
@@ -147,32 +164,30 @@
         [110, function (Q) { Q.push(Q.foe[0], Q.me, 0.5, 60, 100, 1); }]
       ],
       tips: [
-        { text: 'Pellgard greift bald über den Pass an. Baue dort einen <b>Verteidigungsposten</b>: Taste 4 oder dieser Knopf. Er macht die Grenze in seiner Nähe viel zäher.', el: '#hotbar [data-t="1"]' },
-        { text: 'Die Berge links und rechts vom Pass sind schwer zu erobern. Darum kommt der Angriff durch die Lücke.', when: function (Q) { return Q.secs > 10; } },
-        { text: 'Ein Posten allein hält nicht ewig. Dringt Pellgard ein, greif das Land an, das er auf deiner Seite genommen hat: Dein Gegenangriff schneidet den Keil ab.', when: function (Q) { return Q.me.tiles < Q.start.tiles; } },
-        { text: 'Mit dem <b>Netz</b> (Taste N, oder dieser Knopf) ziehst du Truppen an eine Stelle der Grenze. Dicht stehende Truppen halten besser und graben sich ein.', el: '#bNet', when: function (Q) { return Q.secs > 30 && Q.g.netz && !!Q.me.post; } }
+        { text: 'Posten an den Pass.', el: hot(UT.DEFENSE), pins: function (Q) { return Q.built(Q.me, UT.DEFENSE) ? [] : [Q.g.levelTile(150, 100, Q.me)]; } },
+        { text: 'Hol dir das Land zurück.', when: function (Q) { return Q.me.tiles < Q.start.tiles; } },
+        { text: 'Truppen an die Grenze ziehen.', el: '#bNet', when: function (Q) { return Q.secs > 30 && Q.g.netz && !!Q.me.post; } }
       ]
     },
     {
-      n: 6, name: 'Archipel', learn: 'Boote und Hafen',
+      n: 7, name: 'Archipel', learn: 'Boote und Hafen',
       map: { w: 320, h: 200, seed: 606, shapes: [circ(80, 100, 56), circ(245, 100, 52), circ(165, 30, 14), circ(170, 175, 12)] },
       me: { x: 80, y: 100, r: 60, troops: 50000, gold: 300000 },
       foes: [{ bot: 1, x: 230, y: 70, r: 10 }, { bot: 1, x: 260, y: 130, r: 10 }],
       allow: [UT.PORT, UT.CITY],
       goal: [245, 100],
       quest: {
-        text: 'Erobere die Insel rechts: halte 75 % ihres Landes.',
-        check: function (Q) { const s = Q.islandShare(Q.me, 245, 100); return { ok: s >= 0.75, prog: s / 0.75, line: Q.pct(s) + ' von 75 % der Insel rechts' }; }
+        text: 'Halte 75 % der Insel rechts.',
+        check: function (Q) { const s = Q.islandShare(Q.me, 245, 100); return { ok: s >= 0.75, prog: s / 0.75, line: Q.pct(s) + ' von 75 %' }; }
       },
       par: [110, 75],
       tips: [
-        { text: 'Zur Insel rechts führt kein Land. Tippe auf ihr Ufer: dann siehst du <b>Boot</b> statt Angreifen. Das Boot bringt deine Truppen hinüber. Höchstens drei sind gleichzeitig unterwegs.' },
-        { text: 'Ein <b>Hafen</b> an deiner Küste schickt Handelsschiffe zu anderen Häfen. Beide Häfen verdienen daran.', el: '#hotbar [data-t="2"]', when: function (Q) { return Q.secs > 25; } },
-        { text: 'Auf der Insel angekommen, greifst du von dort aus ganz normal über Land weiter an.', when: function (Q) { return Q.islandShare(Q.me, 245, 100) > 0.02; } }
+        { text: 'Ufer antippen: Boot.', pins: function (Q) { return [Q.g.levelTile(196, 100)]; }, when: function (Q) { return Q.islandShare(Q.me, 245, 100) < 0.02; } },
+        { text: 'Hafen: Handel bringt Gold.', el: hot(UT.PORT), when: function (Q) { return Q.secs > 25; } }
       ]
     },
     {
-      n: 7, name: 'Meerenge', learn: 'Kriegsschiffe',
+      n: 8, name: 'Meerenge', learn: 'Kriegsschiffe',
       map: { w: 320, h: 200, seed: 707, rough: 4, shapes: [rect(0, 0, 320, 64), rect(0, 136, 320, 200), circ(160, 100, 9)] },
       me: { x: 70, y: 175, box: [0, 120, 160, 200], troops: 60000, gold: 800000, build: [[UT.PORT, 80, 140]] },
       foes: [{ name: 'Quellmark', x: 160, y: 25, box: [0, 0, 320, 80], troops: 120000 }],
@@ -182,7 +197,7 @@
         check: function (Q) {
           if (Q.secs < 2) return { ok: false, prog: 0, line: 'Die Flotte läuft aus' };
           const n = Q.ships(Q.foe[0]);
-          return { ok: n === 0, prog: (2 - n) / 2, line: (2 - n) + ' von 2 Schiffen versenkt' };
+          return { ok: n === 0, prog: (2 - n) / 2, line: (2 - n) + ' von 2 versenkt' };
         }
       },
       par: [100, 65],
@@ -192,13 +207,13 @@
         [90, function (Q) { Q.boat(Q.foe[0], 140, 140, 20000); }]
       ],
       tips: [
-        { text: 'Du hast schon einen Hafen. Baue ein <b>Kriegsschiff</b>: Taste 7 oder dieser Knopf, dann aufs Wasser tippen.', el: '#hotbar [data-t="7"]' },
-        { text: 'Tippe aufs Wasser, um dein Kriegsschiff dorthin zu schicken. Es schiesst selbst auf fremde Schiffe in der Nähe. Zwei Schiffe gegen eins gewinnen fast immer.', when: function (Q) { return Q.ships(Q.me) >= 1; } },
-        { text: 'Boote mit Truppen sind unterwegs. Ein Kriegsschiff in der Nähe versenkt sie, bevor sie landen.', when: function (Q) { return Q.secs > 38; } }
+        { text: 'Kriegsschiff bauen.', el: hot(UT.WARSHIP), when: function (Q) { return Q.ships(Q.me) < 1; } },
+        { text: 'Zwei gegen eins gewinnt.', pins: function (Q) { return Q.units(Q.foe[0], UT.WARSHIP, 2); }, when: function (Q) { return Q.ships(Q.me) >= 1; } },
+        { text: 'Boote abfangen!', pins: function (Q) { return Q.units(Q.foe[0], UT.TRANSPORT, 2); }, when: function (Q) { return Q.secs > 38; } }
       ]
     },
     {
-      n: 8, name: 'Festung', learn: 'Raketensilo und Atombombe',
+      n: 9, name: 'Festung', learn: 'Raketensilo und Atombombe',
       map: { w: 320, h: 200, seed: 808, rough: 4, shapes: [rect(10, 15, 310, 185), circ(255, 100, 30, 2)] },
       me: { x: 60, y: 100, box: [0, 0, 120, 200], troops: 50000, gold: 3900000 },
       foes: [{ name: 'Rabenstein', x: 255, y: 100, box: [120, 0, 320, 200], troops: 400000, build: [[UT.CITY, 255, 92], [UT.CITY, 249, 104], [UT.CITY, 262, 106]] }],
@@ -206,23 +221,22 @@
       goal: [255, 100],
       quest: {
         text: 'Zerstöre die drei Städte von Rabenstein.',
-        check: function (Q) { const n = Q.built(Q.foe[0], UT.CITY); return { ok: n === 0, prog: (3 - n) / 3, line: (3 - n) + ' von 3 Städten zerstört' }; }
+        check: function (Q) { const n = Q.built(Q.foe[0], UT.CITY); return { ok: n === 0, prog: (3 - n) / 3, line: (3 - n) + ' von 3 zerstört' }; }
       },
       par: [60, 35],
       tips: [
-        { text: 'Rabenstein ist viel zu stark für einen Angriff. Baue ein <b>Raketensilo</b> (Taste 5) tief in deinem Land.', el: '#hotbar [data-t="3"]' },
-        { text: 'Das Silo steht. Wähle die <b>Atombombe</b> (Taste 8) und ziele auf die Städte im Ring. Der Kreis zeigt, was die Bombe trifft. Dann <b>Abfeuern</b>.', el: '#hotbar [data-t="13"]', when: function (Q) { return Q.built(Q.me, UT.SILO) >= 1; } },
-        { text: 'Die Bombe zerstört alle Gebäude im Kreis und verstrahlt das Land. Verstrahltes Land kann eine Weile niemand nehmen.', when: function (Q) { return Q.built(Q.foe[0], UT.CITY) < 3; } }
+        { text: 'Raketensilo bauen.', el: hot(UT.SILO), pins: function (Q) { return [Q.g.levelTile(40, 100, Q.me)]; }, when: function (Q) { return !Q.built(Q.me, UT.SILO); } },
+        { text: 'Atombombe auf die Städte.', el: hot(UT.ATOM), when: function (Q) { return Q.built(Q.me, UT.SILO) >= 1; } }
       ]
     },
     {
-      n: 9, name: 'Schutzschirm', learn: 'Flugabwehr',
+      n: 10, name: 'Schutzschirm', learn: 'Flugabwehr',
       map: { w: 320, h: 200, seed: 909, rough: 4, shapes: [rect(10, 20, 140, 180), rect(190, 20, 310, 180)] },
       me: { x: 70, y: 100, box: [0, 0, 160, 200], troops: 60000, gold: 4600000, build: [[UT.CITY, 62, 92], [UT.CITY, 78, 92], [UT.CITY, 62, 108], [UT.CITY, 78, 108]] },
       foes: [{ name: 'Nordheim', x: 260, y: 100, box: [160, 0, 320, 200], troops: 200000, build: [[UT.SILO, 280, 100, 2]] }],
       allow: [UT.SAM, UT.CITY, UT.DEFENSE],
       quest: {
-        text: 'Nordheim schiesst Atombomben auf deine Städte. Behalte mindestens 3 deiner 4 Städte, 2½ Minuten lang.',
+        text: 'Behalte 3 deiner 4 Städte, 2½ Minuten lang.',
         check: function (Q) {
           const n = Q.built(Q.me, UT.CITY);
           return { ok: Q.secs >= 150, fail: n < 3 ? 'Zu viele Städte zerstört' : '', prog: Q.secs / 150, line: 'Noch ' + Q.clock(150 - Q.secs) + ' · ' + n + ' Städte' };
@@ -237,27 +251,25 @@
         [130, function (Q) { Q.nukeCity(Q.foe[0], Q.me); Q.nukeCity(Q.foe[0], Q.me); }]
       ],
       tips: [
-        { text: 'In 40 Sekunden fliegt die erste Bombe. Baue sofort eine <b>Flugabwehr</b> (Taste 6) mitten zwischen deine Städte. Sie braucht 30 Sekunden, bis sie steht.', el: '#hotbar [data-t="4"]' },
-        { text: 'Der Ring um die Flugabwehr zeigt ihre Reichweite. Jede Abwehrrakete braucht danach 9 Sekunden zum Nachladen.', when: function (Q) { return Q.built(Q.me, UT.SAM) >= 1; } },
-        { text: 'Bald kommen zwei Bomben auf einmal. Eine zweite Flugabwehr oder ein Ausbau (Stufe 2 = zwei Abwehrraketen) fängt beide ab.', when: function (Q) { return Q.secs > 75; } }
+        { text: 'Bomben kommen. Flugabwehr bauen.', el: hot(UT.SAM), pins: function (Q) { return Q.built(Q.me, UT.SAM) ? [] : [Q.g.levelTile(70, 100, Q.me)]; } },
+        { text: 'Zwei auf einmal? Zweite Flugabwehr.', el: hot(UT.SAM), when: function (Q) { return Q.secs > 75; } }
       ]
     },
     {
-      n: 10, name: 'Raketenkette', learn: 'Marschflugkörper und Salven',
+      n: 11, name: 'Raketenkette', learn: 'Marschflugkörper und Salven',
       map: { w: 320, h: 200, seed: 1010, rough: 4, shapes: [rect(10, 20, 140, 180), rect(180, 20, 310, 180)] },
       me: { x: 60, y: 100, box: [0, 0, 160, 200], troops: 60000, gold: 3500000, build: [[UT.SILO, 90, 100, 3]] },
       foes: [{ name: 'Tessmark', x: 270, y: 100, box: [160, 0, 320, 200], troops: 200000, build: [[UT.SAM, 210, 100], [UT.SAM, 245, 100], [UT.SILO, 270, 100], [UT.SAM, 278, 92]] }],
       allow: [UT.CRUISE, UT.ATOM, UT.HYDRO, UT.SILO],
       goal: [270, 100],
       quest: {
-        text: 'Zerstöre das Raketensilo von Tessmark hinter seiner Flugabwehr.',
+        text: 'Zerstöre das Raketensilo von Tessmark.',
         check: function (Q) { const n = Q.built(Q.foe[0], UT.SILO); return { ok: n === 0, prog: 1 - Q.built(Q.foe[0], UT.SAM) / 6 - n / 2, line: Q.built(Q.foe[0], UT.SAM) + ' Flugabwehren stehen noch' }; }
       },
       par: [150, 90],
       tips: [
-        { text: 'Eine Atombombe wird hier sicher abgefangen. Der <b>Marschflugkörper</b> (Taste V) fliegt tief: Eine Flugabwehr sieht ihn erst auf halber Reichweite.', el: '#hotbar [data-t="17"]' },
-        { text: 'Jede Flugabwehr hat nur eine Abwehrrakete. Schick zwei Marschflugkörper kurz hintereinander auf dasselbe Ziel: Der zweite kommt durch. Dein Silo hat Stufe 3, also drei Schüsse pro Ladung.', when: function (Q) { return Q.secs > 12; } },
-        { text: 'Arbeite dich von vorne nach hinten durch die Kette. Steht keine Flugabwehr mehr in der Nähe, reicht ein einzelner Schuss auf das Silo.', when: function (Q) { return Q.built(Q.foe[0], UT.SAM) < 3; } }
+        { text: 'Marschflugkörper fliegen tief.', el: hot(UT.CRUISE) },
+        { text: 'Zwei Schüsse aufs selbe Ziel.', pins: function (Q) { return Q.front(Q.foe[0], UT.SAM); }, when: function (Q) { return Q.secs > 10; } }
       ]
     }
   ];
@@ -356,6 +368,64 @@
         let best = 1e9;
         for (const b of p.border) { const d = Math.hypot(b % g.W - x, ((b / g.W) | 0) - y); if (d < best) best = d; }
         return Math.round(best);
+      },
+      // ---- only for the pins of the tips (src/07b_level.js): they read, never change ----
+      // up to n free tiles just beyond the own border, spread around it; pins in `last` that still
+      // stand on free land stay where they are
+      frontier: function (n, last) {
+        const W = g.W, own = g.owner, land = g.map.land, me = g.human;
+        const keep = (last || []).filter(function (t) { return land[t] && !own[t]; });
+        if (keep.length >= n || !me.border.size) return keep.slice(0, n);
+        let cx = 0, cy = 0, k = 0;
+        for (const b of me.border) { cx += b % W; cy += (b / W) | 0; k++; }
+        cx /= k; cy /= k;
+        const cand = [];
+        for (const b of me.border) for (const t of [b - 1, b + 1, b - W, b + W]) if (t >= 0 && t < g.N && land[t] && !own[t]) cand.push(t);
+        const out = keep.slice();
+        while (out.length < n && cand.length) {
+          let best = -1, bd = -1e18;
+          for (const t of cand) {
+            let d = 1e9;
+            for (const o of out) d = Math.min(d, Math.hypot(t % W - o % W, ((t / W) | 0) - ((o / W) | 0)));
+            if (!out.length) d = -Math.hypot(t % W - cx, ((t / W) | 0) - cy + 1e3);   // first pin: the top of the border
+            if (d > bd) { bd = d; best = t; }
+          }
+          if (out.length && bd < 8) break;
+          // a few tiles further out, so the pin stands clearly on the free land
+          let t = best;
+          const dx = t % W - cx, dy = ((t / W) | 0) - cy, l = Math.hypot(dx, dy) || 1;
+          for (let s = 6; s > 0; s--) {
+            const x = Math.round(t % W + dx / l * s), y = Math.round(((t / W) | 0) + dy / l * s), u = y * W + x;
+            if (x >= 0 && y >= 0 && x < W && y < g.H && land[u] && !own[u]) { t = u; break; }
+          }
+          out.push(t);
+        }
+        return out;
+      },
+      // a tile in the middle of each living realm of a kind (at most n)
+      realms: function (type, n) {
+        const W = g.W, out = [];
+        for (let i = 1; i < g.players.length && out.length < n; i++) {
+          const p = g.players[i];
+          if (!p || p.type !== type || !p.alive || !p.border.size) continue;
+          let x = 0, y = 0, k = 0;
+          for (const b of p.border) { x += b % W; y += (b / W) | 0; k++; }
+          const t = g.levelTile(x / k, y / k, p);
+          if (t >= 0) out.push(t);
+        }
+        return out;
+      },
+      // where p's units of a kind are (at most n)
+      units: function (p, type, n) {
+        const out = [];
+        for (const u of p.units) if (u.type === type && u.active && out.length < n) out.push(u.tile);
+        return out;
+      },
+      // the unit of a kind nearest to the player (the front of a chain)
+      front: function (p, type) {
+        let best = null;
+        for (const u of p.units) if (u.type === type && u.active && (!best || u.x < best.x)) best = u;
+        return best ? [best.tile] : [];
       },
       ships: function (p) { let n = 0; for (const u of p.units) if (u.type === UT.WARSHIP && u.active) n++; return n; },
       // share of one island (the land connected to x, y) that p holds

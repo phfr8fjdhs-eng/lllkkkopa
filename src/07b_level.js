@@ -9,13 +9,18 @@
   // the skill levels that come next (doku/feldzug.md), shown locked until they exist
   const LATER = ['Blitzkrieg', 'Zwei Fronten', 'Inselhüpfen', 'Tarnung', 'Kalter Krieg', 'Kessel', 'Wirtschaftswunder', 'Atomwinter', 'Verrat', 'Imperium'];
   let best = {}, cur = 0, maps = {};
-  let tipCur = -1, tipNext = 0, tipSince = 0, glow = null;
+  let tipCur = -1, tipNext = 0, tipSince = 0, glow = null, pinAt = 0;
 
   function load() {
-    try { const s = JSON.parse(localStorage.getItem(KEY) || '{}'); best = s.best || {}; } catch (e) { best = {}; }
+    try {
+      const s = JSON.parse(localStorage.getItem(KEY) || '{}');
+      best = s.best || {};
+      // version 1 had no level «Kornkammer» (now 2): the stars of the later levels move up by one
+      if (s.v !== 2) { const old = best; best = {}; for (const k in old) best[+k >= 2 ? +k + 1 : k] = old[k]; save(); }
+    } catch (e) { best = {}; }
   }
   function save() {
-    try { localStorage.setItem(KEY, JSON.stringify({ best: best })); } catch (e) { /* storage may be unavailable */ }
+    try { localStorage.setItem(KEY, JSON.stringify({ v: 2, best: best })); } catch (e) { /* storage may be unavailable */ }
   }
   const def = function (n) { return G.LEVELS.find(function (L) { return L.n === n; }); };
   const open1 = function (n) { return n === 1 || (best[n - 1] || 0) > 0; };
@@ -51,7 +56,7 @@
     }
     h += '</div><div class="lvSec">Können · kommt bald</div><div class="lvGrid">';
     LATER.forEach(function (name, i) {
-      h += '<button type="button" class="lvSt soon" disabled><b>' + (i + 11) + '</b><small>' + u.esc(name) + '</small></button>';
+      h += '<button type="button" class="lvSt soon" disabled><b>' + (G.LEVELS.length + i + 1) + '</b><small>' + u.esc(name) + '</small></button>';
     });
     const L = def(sel), b = best[sel] || 0;
     h += '</div><div class="lvInfo"><h3>Level ' + sel + ' · ' + u.esc(L.name) + '</h3><p>Du lernst: ' + u.esc(L.learn) + '</p>';
@@ -114,20 +119,38 @@
     if (stale) hideTip();
     if (tipNext < list.length && ready(list[tipNext], lv.Q) && (tipCur < 0 || now - tipSince > 7000)) showTip(tipNext, list[tipNext]);
     else if (tipCur >= 0) place(list[tipCur]);
+    if (tipCur >= 0) pins(list[tipCur], lv.Q, now);
+  }
+  // The pins on the map (drawn by View.drawMarks) and the mark on the troop bar.
+  function pins(t, Q, now) {
+    const v = ui().view;
+    if (!v) return;
+    if (!t.pins) { v.pins = null; return; }
+    if (v.pins && now - pinAt < 600) return;
+    pinAt = now;
+    try { v.pins = t.pins(Q, v.pins || []) || []; } catch (e) { v.pins = []; }
   }
   function showTip(i, t) {
+    hideTip();
     tipCur = i; tipNext = i + 1; tipSince = performance.now();
     const el = $('lvTip');
-    el.innerHTML = '<div>' + t.text + '</div><button class="lvOk" type="button">Verstanden</button>';
-    el.hidden = false;
-    el.querySelector('.lvOk').addEventListener('click', hideTip);
-    ui().snd('ui');
+    if (t.text) {
+      el.innerHTML = '<span>' + t.text + '</span><button class="lvOk" type="button" aria-label="Schliessen">' + ui().svg('close', 14) + '</button>';
+      el.hidden = false;
+      el.querySelector('.lvOk').addEventListener('click', function () { el.hidden = true; });
+      ui().snd('ui');
+    }
+    if (t.mark === 'pop') $('popMark').hidden = false;
     place(t);
   }
   function hideTip() {
     tipCur = -1;
     const el = $('lvTip');
     if (el) el.hidden = true;
+    const m = $('popMark');
+    if (m) m.hidden = true;
+    const v = ui() && ui().view;
+    if (v) v.pins = null;
     if (glow) { glow.classList.remove('lvGlow'); glow = null; }
   }
   // Next to the element the tip is about (above it in the lower half of the screen, below it in
@@ -144,7 +167,8 @@
     if (r) {
       const cx = r.left + r.width / 2 - app.left;
       left = G.within(cx - w / 2, 8, W - w - 8);
-      if (r.top + r.height / 2 - app.top > H / 2) { top = r.top - app.top - hgt - 12; el.classList.add('down'); }
+      const gap = t.mark ? 30 : 12;   // room for the mark above the troop bar
+      if (r.top + r.height / 2 - app.top > H / 2) { top = r.top - app.top - hgt - gap; el.classList.add('down'); }
       else { top = r.bottom - app.top + 12; el.classList.add('up'); }
       el.style.setProperty('--ax', G.within(cx - left, 14, w - 14) + 'px');
     } else {

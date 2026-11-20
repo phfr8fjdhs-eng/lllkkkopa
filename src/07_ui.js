@@ -658,10 +658,10 @@
           function () { act({ k: 'renew', p: q.id }); }, function () { /* let it run out */ });
       } else if (e.k === 'start') {
         $('spawnBar').hidden = true; $('ctrl').hidden = false; $('lb').hidden = false; $('bNet').hidden = !h.post || !game.netz; $('bRes').hidden = !game.res;
-        if (game.pfeile) addMsg('Pfeile mit der rechten Maustaste planen, dann «Angreifen».', 'info');
+        if (game.pfeile && !game.lv) addMsg('Pfeile mit der rechten Maustaste planen, dann «Angreifen».', 'info');
         const W = game.W;
         view.flyTo(h.spawnTile % W, (h.spawnTile / W) | 0, within(Math.min(view.cw, view.ch) / 70, 2.2, 6));
-        addMsg('Los geht es. Breite dich aus, bevor es andere tun.', 'good');
+        if (!game.lv) addMsg('Los geht es. Breite dich aus, bevor es andere tun.', 'good');   // a level shows its own tips
         snd('start');
       } else if (e.k === 'raid') {
         // under attack: the edge of the screen flashes red three times
@@ -787,7 +787,7 @@
           : 'Tippe auf freies Land · noch ' + Math.max(0, Math.ceil((game.spawnEnd - T) / 10)) + ' s';
       } else {
         $('spawnBarLine').hidden = true;
-        $('spawnHint').textContent = 'Tippe auf freies Land, dann geht es sofort los';
+        $('spawnHint').textContent = game.lv ? 'Tippe auf einen Ort' : 'Tippe auf freies Land, dann geht es sofort los';
       }
       if (game.lv) G.Feldzug.hud();
       return;

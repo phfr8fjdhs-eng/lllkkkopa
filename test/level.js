@@ -10,22 +10,23 @@ function nearestBorderTo(g, p, goal) { let best = -1, bd = 1e18; const W = g.W; 
 function freeNext(g, p) { const W = g.W; for (const b of p.border) for (const n of [b - 1, b + 1, b - W, b + W]) if (n >= 0 && n < g.N && g.map.land[n] && g.owner[n] === 0) return n; return -1; }
 function enemyNext(g, p, id) { const W = g.W; for (const b of p.border) for (const n of [b - 1, b + 1, b - W, b + W]) if (n >= 0 && n < g.N && g.owner[n] === id) return n; return -1; }
 const S = {
-  1: (g, Q, me, s) => { if (s % 30 === 0) { const t = freeNext(g, me); if (t >= 0) g.exec(1, { k: 'strike', t, r: 0.3 }); } },
-  2: (g, Q, me, s) => { if (s % 30 === 0) { const bots = g.players.filter(p => p && p.type === 2 && p.alive).sort((a,b)=>a.tiles-b.tiles); let done=false; for (const b of bots) { const t = enemyNext(g, me, b.id); if (t >= 0) { g.exec(1, { k: 'strike', t, r: 0.35 }); done=true; break; } } if (!done) { const t = freeNext(g, me); if (t >= 0) g.exec(1, { k: 'strike', t, r: 0.3 }); } } },
-  3: (g, Q, me, s) => {
+  'Lichtung': (g, Q, me, s) => { if (s % 30 === 0) { const t = freeNext(g, me); if (t >= 0) g.exec(1, { k: 'strike', t, r: 0.3 }); } },
+  'Kornkammer': (g, Q, me, s) => { if (s === 10) g.exec(1, { k: 'build', u: UT.CITY, t: g.levelTile(150, 100, me) }); if (s % 30 === 0 && me.tiles < 9000) { const t = freeNext(g, me); if (t >= 0) g.exec(1, { k: 'strike', t, r: 0.25 }); } },
+  'Hügelland': (g, Q, me, s) => { if (s % 30 === 0) { const bots = g.players.filter(p => p && p.type === 2 && p.alive).sort((a,b)=>a.tiles-b.tiles); let done=false; for (const b of bots) { const t = enemyNext(g, me, b.id); if (t >= 0) { g.exec(1, { k: 'strike', t, r: 0.35 }); done=true; break; } } if (!done) { const t = freeNext(g, me); if (t >= 0) g.exec(1, { k: 'strike', t, r: 0.3 }); } } },
+  'Flusstal': (g, Q, me, s) => {
     if (s % 20 === 0) { const c = Q.built(me, UT.CITY);
       const tile = g.levelTile(60 + 20 * (me.units.length % 3), 90 + 15 * me.units.length, me);
       if (me.units.filter(u=>u.type===UT.CITY).length < 2) g.exec(1, { k: 'build', u: UT.CITY, t: tile });
       else if (!me.units.some(u=>u.type===UT.FACTORY)) g.exec(1, { k: 'build', u: UT.FACTORY, t: g.levelTile(80, 120, me) });
       else { const u = me.units.find(u=>u.type===UT.CITY && u.built); if (u) g.exec(1, { k: 'up', t: u.tile, n: 1 }); } }
-    if (s % 30 === 0) S[2](g, Q, me, 0); },
-  4: (g, Q, me, s) => { if (s % 40 === 0) { if (false) g.exec(1, { k: 'strike', t: enemyNext(g, me, 2), r: 0.5 }); else g.exec(1, { k: 'strike', t: Q.tile(312, 90), r: 0.5, w: 2 }); } },
-  5: (g, Q, me, s) => { if (true && s % 30 === 0 && g.ticks > 150) { const t = enemyNext(g, me, 2); const W=g.W; let best=-1,bx=1e9; for (const b of me.border) for (const n of [b-1,b+1,b-W,b+W]) if (g.owner[n]===2 && n%W < bx) { bx=n%W; best=n; } if (best>=0 && bx < 150) g.exec(1, { k: 'strike', t: best, r: 0.25 }); } if (true && s === 20) { for (const y of [100, 84, 116]) g.exec(1, { k: 'build', u: UT.DEFENSE, t: g.levelTile(150, y, me) }); } if (true && s % 20 === 0 && me.gold > 50000) { for (const y of [100, 84, 116]) g.exec(1, { k: 'build', u: UT.DEFENSE, t: g.levelTile(150, y, me) }); } },
-  6: (g, Q, me, s) => { if (s % 40 === 0) { const t = g.levelTile(225 + (s % 7) * 4, 100 - (s % 5) * 6); if (g.owner[t] !== me.id) g.exec(1, { k: 'strike', t, r: 0.35 }); } },
-  7: (g, Q, me, s) => { if (s % 20 === 0) { if (Q.ships(me) < 2) g.exec(1, { k: 'build', u: UT.WARSHIP, t: Q.tile(80, 110) }); const f = Q.foe[0].units.find(u=>u.type===UT.WARSHIP&&u.active); if (f && Q.ships(me) >= 2) g.exec(1, { k: 'ship', t: f.tile }); } },
-  8: (g, Q, me, s) => { if (s % 20 === 0) { if (!me.units.some(u=>u.type===UT.SILO)) g.exec(1, { k: 'build', u: UT.SILO, t: g.levelTile(40, 100, me) }); else if (Q.built(me, UT.SILO)) g.exec(1, { k: 'build', u: UT.ATOM, t: Q.tile(255, 100) }); } },
-  9: (g, Q, me, s) => { if (true && s % 20 === 0) { if (!me.units.some(u=>u.type===UT.SAM)) g.exec(1, { k: 'build', u: UT.SAM, t: g.levelTile(70, 100, me) }); else if (me.gold > 3e6) g.exec(1, {k:'build',u:UT.SAM,t:g.levelTile(70,85,me)}); } },
-  10: (g, Q, me, s) => { if (true) { if (s % 10 === 0) { const silo = me.units.find(u=>u.type===UT.SILO); const free = silo.ready.filter(r=>r<=g.ticks).length; const fs = Q.foe[0].units.filter(u => u.active && (u.type === UT.SAM || u.type === UT.SILO)).sort((a, b) => a.x - b.x); if (fs.length && free >= 2) { g.exec(1, { k: 'build', u: UT.CRUISE, t: fs[0].tile }); g.exec(1, { k: 'build', u: UT.CRUISE, t: fs[0].tile }); } } return; } if (s % 10 === 0) { const fs = Q.foe[0].units.filter(u => u.active && (u.type === UT.SAM || u.type === UT.SILO)).sort((a, b) => a.x - b.x); if (fs.length) { const r = g.exec(1, { k: 'build', u: false?UT.ATOM:UT.CRUISE, t: fs[0].tile }); } } }
+    if (s % 30 === 0) S['Hügelland'](g, Q, me, 0); },
+  'Engpass': (g, Q, me, s) => { if (s % 40 === 0) { if (false) g.exec(1, { k: 'strike', t: enemyNext(g, me, 2), r: 0.5 }); else g.exec(1, { k: 'strike', t: Q.tile(312, 90), r: 0.5, w: 2 }); } },
+  'Passhöhe': (g, Q, me, s) => { if (true && s % 30 === 0 && g.ticks > 150) { const t = enemyNext(g, me, 2); const W=g.W; let best=-1,bx=1e9; for (const b of me.border) for (const n of [b-1,b+1,b-W,b+W]) if (g.owner[n]===2 && n%W < bx) { bx=n%W; best=n; } if (best>=0 && bx < 150) g.exec(1, { k: 'strike', t: best, r: 0.25 }); } if (true && s === 20) { for (const y of [100, 84, 116]) g.exec(1, { k: 'build', u: UT.DEFENSE, t: g.levelTile(150, y, me) }); } if (true && s % 20 === 0 && me.gold > 50000) { for (const y of [100, 84, 116]) g.exec(1, { k: 'build', u: UT.DEFENSE, t: g.levelTile(150, y, me) }); } },
+  'Archipel': (g, Q, me, s) => { if (s % 40 === 0) { const t = g.levelTile(225 + (s % 7) * 4, 100 - (s % 5) * 6); if (g.owner[t] !== me.id) g.exec(1, { k: 'strike', t, r: 0.35 }); } },
+  'Meerenge': (g, Q, me, s) => { if (s % 20 === 0) { if (Q.ships(me) < 2) g.exec(1, { k: 'build', u: UT.WARSHIP, t: Q.tile(80, 110) }); const f = Q.foe[0].units.find(u=>u.type===UT.WARSHIP&&u.active); if (f && Q.ships(me) >= 2) g.exec(1, { k: 'ship', t: f.tile }); } },
+  'Festung': (g, Q, me, s) => { if (s % 20 === 0) { if (!me.units.some(u=>u.type===UT.SILO)) g.exec(1, { k: 'build', u: UT.SILO, t: g.levelTile(40, 100, me) }); else if (Q.built(me, UT.SILO)) g.exec(1, { k: 'build', u: UT.ATOM, t: Q.tile(255, 100) }); } },
+  'Schutzschirm': (g, Q, me, s) => { if (true && s % 20 === 0) { if (!me.units.some(u=>u.type===UT.SAM)) g.exec(1, { k: 'build', u: UT.SAM, t: g.levelTile(70, 100, me) }); else if (me.gold > 3e6) g.exec(1, {k:'build',u:UT.SAM,t:g.levelTile(70,85,me)}); } },
+  'Raketenkette': (g, Q, me, s) => { if (true) { if (s % 10 === 0) { const silo = me.units.find(u=>u.type===UT.SILO); const free = silo.ready.filter(r=>r<=g.ticks).length; const fs = Q.foe[0].units.filter(u => u.active && (u.type === UT.SAM || u.type === UT.SILO)).sort((a, b) => a.x - b.x); if (fs.length && free >= 2) { g.exec(1, { k: 'build', u: UT.CRUISE, t: fs[0].tile }); g.exec(1, { k: 'build', u: UT.CRUISE, t: fs[0].tile }); } } return; } if (s % 10 === 0) { const fs = Q.foe[0].units.filter(u => u.active && (u.type === UT.SAM || u.type === UT.SILO)).sort((a, b) => a.x - b.x); if (fs.length) { const r = g.exec(1, { k: 'build', u: false?UT.ATOM:UT.CRUISE, t: fs[0].tile }); } } }
 };
 let bad = 0;
 const fail = (n, what) => { bad++; console.log('FAILED level', n, what); };
@@ -44,7 +45,7 @@ for (const L of G.LEVELS) {
   for (let i = 0; i < 3000 && !res; i++) {
     g.tick(); twin.tick();
     for (const x of [g, twin]) { x.dirtyN = 0; x.dirtyFlag.fill(0); }
-    if (g.phase === 'play') S[L.n](g, g.lv.Q, me, i);
+    if (g.phase === 'play') S[L.name](g, g.lv.Q, me, i);
     for (const e of g.events) if (e.k === 'quest') res = e;
     g.events.length = twin.events.length = 0;
     if (i % 50 === 0 && g.checksum() !== twin.checksum()) drift = true;

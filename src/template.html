@@ -473,12 +473,20 @@ body.placing #cv { cursor: crosshair; }
 #lvBar b { display: block; margin-top: 2px; font: 600 15px/1.25 var(--display); }
 #lvBar .bar { margin-top: 7px; }
 #lvBar span { display: block; margin-top: 5px; font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
-#lvTip { position: absolute; z-index: 40; width: min(88vw, 320px); padding: 11px 13px 10px; font-size: 14px; line-height: 1.4; background: var(--panel-solid); border: 1px solid var(--accent); border-radius: 12px; box-shadow: 0 10px 28px rgba(0, 0, 0, 0.5); animation: lvIn .25s ease-out; }
+#lvTip { position: absolute; z-index: 40; display: flex; align-items: center; gap: 10px; max-width: min(88vw, 300px); padding: 9px 8px 9px 14px; font: 600 14.5px/1.3 var(--display); background: var(--panel-solid); border: 1px solid var(--accent); border-radius: 12px; box-shadow: 0 10px 28px rgba(0, 0, 0, 0.5); animation: lvIn .25s ease-out; }
 #lvTip b { color: var(--accent); font-weight: 600; }
 #lvTip::after { content: ''; position: absolute; left: var(--ax, 50%); width: 12px; height: 12px; margin-left: -6px; background: var(--panel-solid); border: 1px solid var(--accent); transform: rotate(45deg); display: none; }
 #lvTip.up::after { display: block; top: -7px; border-right: 0; border-bottom: 0; }
 #lvTip.down::after { display: block; bottom: -7px; border-left: 0; border-top: 0; }
-#lvTip .lvOk { display: block; margin: 8px 0 0 auto; padding: 5px 12px; font: 600 13px var(--display); color: var(--accent-ink); background: var(--accent); border: 0; border-radius: 8px; cursor: pointer; }
+#lvTip[hidden] { display: none; }
+#lvTip .lvOk { flex: none; display: grid; place-items: center; width: 26px; height: 26px; padding: 0; color: var(--muted); background: rgba(255, 255, 255, 0.07); border: 0; border-radius: 50%; cursor: pointer; }
+#lvTip .lvOk:hover { color: var(--ink); }
+/* the spot on the troop bar where troops grow fastest (42 % of the limit, src/03_game.js troopGrowth) */
+#popMark { position: relative; height: 0; pointer-events: none; }
+#popMark[hidden] { display: none; }
+#popMark::before { content: ''; position: absolute; left: calc(42% - 7px); top: -24px; border: 7px solid transparent; border-top: 9px solid var(--accent); filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.6)); animation: popMark 1.1s ease-in-out infinite; }
+#popMark::after { content: ''; position: absolute; left: calc(42% - 1.5px); top: -9px; width: 3px; height: 12px; border-radius: 2px; background: var(--accent); box-shadow: 0 0 8px rgba(244, 183, 64, 0.9); }
+@keyframes popMark { 0%, 100% { transform: translateY(-3px); } 50% { transform: translateY(1px); } }
 .lvGlow { box-shadow: 0 0 0 2px var(--accent), 0 0 16px rgba(244, 183, 64, 0.6) !important; border-radius: 9px; }
 @keyframes lvIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 @media (min-width: 700px) { #lvBar { top: 8px; width: 320px; } }
@@ -566,7 +574,7 @@ body.placing #cv { cursor: crosshair; }
           <div class="stat gold" id="statGold"><span id="icGold"></span><div><b id="sGold">0</b><small id="sGoldSub">Gold</small></div><span id="goldPop" aria-hidden="true"></span></div>
         </div>
         <div class="popRow"><span>Armee</span><span id="popTxt"></span></div>
-        <div id="popBar" title="Truppen daheim (blau) und im Angriff (orange), gemessen am Höchststand"><i id="popHome"></i><i id="popOut"></i></div>
+        <div id="popBar" title="Truppen daheim (blau) und im Angriff (orange), gemessen am Höchststand"><i id="popHome"></i><i id="popOut"></i></div><div id="popMark" hidden></div>
         <div id="incLine" hidden></div>
         <label class="ratio" for="ratio"><span>Angriff<b id="ratioPct">20%</b></span><input id="ratio" type="range" min="1" max="100" value="20"><span id="ratioTroops">0</span></label>
         <div id="modes" class="modes" role="group" aria-label="Angriffsart" title="Taste F wechselt"><span class="mlab">Rechts ziehen</span><button type="button" data-w="0" class="touchOnly">Ganze Front</button><button type="button" data-w="2">Keil</button><button type="button" data-w="1">Abschnitt</button><button type="button" data-w="3" id="mPunkt" hidden>Richtung</button></div>

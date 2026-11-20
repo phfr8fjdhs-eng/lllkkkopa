@@ -2049,6 +2049,14 @@
       ctx.lineWidth = 5; ctx.strokeStyle = 'rgba(16,22,29,0.5)'; ctx.stroke();
       ctx.lineWidth = 2.5; ctx.strokeStyle = '#f4b740'; ctx.stroke();
     }
+    // the pins of a level tip (src/07b_level.js): «tap here»
+    // (off screen: a gold arrow at the edge shows the way)
+    if (this.pins && this.pins.length) for (const t of this.pins) {
+      if (t < 0) continue;
+      const x = (t % W + 0.5) * z + ox, y = (((t / W) | 0) + 0.5) * z + oy, m = 28;
+      if (x > 12 && y > 36 && x < this.cw - 12 && y < this.ch - 4) drawPin(ctx, x, y, now, t);
+      else drawEdge(ctx, G.within(x, m, this.cw - m), G.within(y, m, this.ch - m), Math.atan2(y - this.ch / 2, x - this.cw / 2), now);
+    }
     if (this.mark >= 0) {
       const x = (this.mark % W + 0.5) * z + ox, y = (((this.mark / W) | 0) + 0.5) * z + oy;
       ctx.beginPath(); ctx.arc(x, y, 7, 0, 6.2832);
@@ -2056,6 +2064,41 @@
       ctx.lineWidth = 1.5; ctx.strokeStyle = '#fff'; ctx.stroke();
     }
   };
+
+  function drawEdge(ctx, x, y, ang, now) {
+    const k = 3 * Math.sin(now / 220);
+    ctx.save(); ctx.translate(x + Math.cos(ang) * k, y + Math.sin(ang) * k); ctx.rotate(ang);
+    ctx.beginPath(); ctx.moveTo(12, 0); ctx.lineTo(-8, -11); ctx.lineTo(-3, 0); ctx.lineTo(-8, 11); ctx.closePath();
+    ctx.lineJoin = 'round'; ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(16,22,29,0.75)'; ctx.fillStyle = '#f4b740';
+    ctx.shadowColor = 'rgba(0,0,0,0.35)'; ctx.shadowBlur = 6; ctx.fill(); ctx.shadowColor = 'transparent'; ctx.stroke();
+    ctx.restore();
+  }
+  // A map pin in the gold of the level marks: a drop with a dark rim and a light core that bobs
+  // gently above its point, and a ring that keeps spreading on the ground below it.
+  function drawPin(ctx, x, y, now, seed) {
+    const ph = (now + (seed % 997) * 3) / 1000;
+    const ring = (ph % 1.6) / 1.6;
+    ctx.save();
+    ctx.beginPath(); ctx.ellipse(x, y, 4 + ring * 18, (4 + ring * 18) * 0.45, 0, 0, 6.2832);
+    ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(244,183,64,' + (0.85 * (1 - ring)).toFixed(3) + ')'; ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(x, y, 5, 2.2, 0, 0, 6.2832);
+    ctx.fillStyle = 'rgba(8,12,18,0.45)'; ctx.fill();
+    const lift = Math.abs(Math.sin(ph * 2.6)) * 5, r = 9, h = 25, cy = y - h - lift, ty = y - lift;
+    const a = Math.acos(r / h);
+    ctx.beginPath(); ctx.moveTo(x, ty);
+    ctx.arc(x, cy, r, Math.PI / 2 + a, Math.PI / 2 - a + 6.2832);
+    ctx.closePath();
+    const gr = ctx.createLinearGradient(x - r, cy - r, x + r, ty);
+    gr.addColorStop(0, '#ffd77a'); gr.addColorStop(0.55, '#f4b740'); gr.addColorStop(1, '#c98a1c');
+    ctx.fillStyle = gr; ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(16,22,29,0.75)';
+    ctx.shadowColor = 'rgba(0,0,0,0.35)'; ctx.shadowBlur = 6; ctx.shadowOffsetY = 2;
+    ctx.fill(); ctx.shadowColor = 'transparent'; ctx.stroke();
+    ctx.beginPath(); ctx.arc(x, cy, r * 0.4, 0, 6.2832);
+    ctx.fillStyle = '#10161d'; ctx.fill();
+    ctx.beginPath(); ctx.arc(x, cy, r * 0.4 - 1.6, 0, 6.2832);
+    ctx.fillStyle = '#fff7e6'; ctx.fill();
+    ctx.restore();
+  }
 
   // Float a line of text up from a place on the map (gold won, for example).
   View.prototype.floatText = function (x, y, text) {
