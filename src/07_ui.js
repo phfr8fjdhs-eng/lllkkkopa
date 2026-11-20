@@ -743,14 +743,16 @@
     const cells = BUILD.filter(function (b) { return !armory(b.t) || game.opts.arsenal; }).map(function (b) {
       const cost = game.cost(h, b.t), wait = b.t === UT.LASER ? Math.ceil(((h.laserAt || 0) - game.ticks) / 10) : 0;
       const have = b.t === UT.WARSHIP ? h.units.filter(function (u) { return u.type === UT.WARSHIP; }).length : b.t <= UT.CLOAK ? h.units.filter(function (u) { return u.type === b.t; }).length : 0;
-      return { b: b, cost: wait > 0 ? wait + ' s' : fmt(cost), poor: wait > 0 || (!rich && h.gold < cost), have: have, on: !!ghost && ghost.t === b.t };
+      // a building of this kind that can still be levelled up: the bar shows a small arrow (green when the gold is there)
+      const up = b.t <= UT.CLOAK ? h.units.some(function (u) { return u.type === b.t && game.canUpgrade(h, u); }) : false;
+      return { b: b, cost: wait > 0 ? wait + ' s' : fmt(cost), poor: wait > 0 || (!rich && h.gold < cost), have: have, on: !!ghost && ghost.t === b.t, up: up };
     });
-    const sig = cells.map(function (c) { return c.cost + (c.poor ? '!' : '') + c.have + (c.on ? '*' : ''); }).join('|');
+    const sig = cells.map(function (c) { return c.cost + (c.poor ? '!' : '') + c.have + (c.on ? '*' : '') + (c.up ? '^' : ''); }).join('|');
     if (sig === hotSig) return;
     hotSig = sig;
     el.innerHTML = cells.map(function (c) {
       return '<button type="button" class="hk' + (c.poor ? ' poor' : '') + '" data-t="' + c.b.t + '" aria-pressed="' + c.on + '" title="' + plain(c.b.t) + ': ' + esc(c.b.note) + '">' +
-        '<kbd>' + c.b.key.toUpperCase() + '</kbd>' + (c.have ? '<i class="own">' + c.have + '</i>' : '') + svg(c.b.icon, 22) + '<span>' + c.cost + '</span></button>';
+        '<kbd>' + c.b.key.toUpperCase() + '</kbd>' + (c.have ? '<i class="own">' + c.have + '</i>' : '') + (c.up ? '<i class="lvup' + (c.poor ? ' poor' : '') + '" title="Ausbauen: Tippe auf ein eigenes Gebäude dieser Art">▲</i>' : '') + svg(c.b.icon, 22) + '<span>' + c.cost + '</span></button>';
     }).join('');
   }
 

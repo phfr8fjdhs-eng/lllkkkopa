@@ -195,3 +195,6 @@ Ziel: die Karte so ruhig wie in OpenFront. Alles in `06_view.js`, die Palette in
 - **Neu in der Version «Rohstoffe»:** eine Tabelle mit allem, was man an Rohstoffen und Fabrikwaren hat, und Knöpfen zum Leveln direkt dort (Anlagen auf Vorkommen und die Fabriken pro Land). Einzelheiten in `doku/rohstoffe.md`. Nur Bedienung, keine neuen Regeln; `03c_res.js` ist unverändert.
 - **Behoben:** `showIncome` gab es zweimal in `07_ui.js`, die zweite (Zeile unter dem Balken) überschrieb die erste, darum öffnete ein Klick aufs Gold nichts. Und «Weiterspielen» in der Hilfe schloss das Fenster nicht (`act === 'resume'` statt `what === 'resume'`).
 - Test: `node test/rohstofftabelle.js [desktop]`.
+
+## Bauleiste zeigt Ausbau (20.11.2026)
+In der Bauleiste unten erscheint am Knopf eines Gebäudes ein kleines ▲, sobald du ein Gebäude dieser Art hast, das sich noch ausbauen (leveln) lässt. Grün, wenn das Gold reicht, sonst grau. Ausbauen: auf das eigene Gebäude tippen oder Taste U.
