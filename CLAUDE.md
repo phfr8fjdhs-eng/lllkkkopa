@@ -32,6 +32,7 @@ Echtzeit-Eroberungsspiel im Browser, Nachbau von OpenFront, als eine einzige HTM
 | `05_ai.js` | 370 | Bots und Nationen: `AI.nukeTarget` |
 | `06a_audio.js` | 190 | Ton und Musik aus dem Browser: `G.Audio` |
 | `06_view.js` | 1570 | Zeichnen: `View.pose`, `drawReach`, `drawRaids`, `drawFronts`, `drawNet`, `railGeo`, `worldColors`, `placeName`, `G.ICON` |
+| `06b_close.js` | 1300 | 3D-Nahansicht ab Zoom `G.Z3D` = 2.5 (nur Bild): Gebäudemodelle (`drawTown`, `drawCity`, `drawFactory` …, Bildspeicher `closeCity`), Panzer (`closeTanks`, `drawTank`, `tankSprite`), Schiffe und Züge (`G.closeWarship`, `G.closeMerchant`, `G.closeBoat`, `G.closeWagon`), Relief (`relief`, `drawRelief`), Meer (`drawSea`), Krater (`closeSeen`, `closeFlush`), Sandsäcke, Bäume und Gipfel (`closeDecor`, `sprite`), Antippen (`structHit`) |
 | `07_ui.js` | 1560 | Bedienung: Tasten, Menüs, Touch, `#hotbar`, `view.ghost`, `showPeek` |
 | `08_net.js` | 310 | Mehrspieler über MQTT: `G.RELAYS` |
 | `template.html` | | Seitengerüst (HTML und CSS) |
@@ -51,6 +52,7 @@ Weitere Ordner: `tools/` (Bauen und Kartenerzeugung, Python), `test/` (Tests, No
 | Welcher Test wofür | `tests.md` |
 | Was wann und warum geändert wurde | `aenderungen.md` |
 | Wohin das Spiel geht, Reihenfolge der nächsten Schritte | `vision.md` |
+| 3D-Nahansicht (Modelle, Panzer, Krater) und Wachstumstempo unter der Rangliste | `nahansicht.md` |
 
 ## Welcher Test
 - Regeln und Zahlen: `node test/sim.js`, `node test/all.js`
@@ -60,3 +62,4 @@ Weitere Ordner: `tools/` (Bauen und Kartenerzeugung, Python), `test/` (Tests, No
 - Schalter (Truppenkonzentration, Netz, Richtung, Pfeile): `node test/pfeile.js`
 - Version «Rohstoffe»: `node --max-old-space-size=4096 test/res.js`
 - Bedienung im Browser: `node test/ui.js` (braucht Playwright und Chrome)
+- 3D-Nahansicht: `node test/nah.js` (Browser)
