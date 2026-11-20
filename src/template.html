@@ -71,16 +71,6 @@ button { font: inherit; color: inherit; cursor: pointer; }
 #lbTempo .tbar { height: 4px; border-radius: 2px; background: rgba(255, 255, 255, 0.1); margin: 3px 0 5px; overflow: hidden; }
 #lbTempo .tbar i { display: block; height: 100%; background: #f4b740; border-radius: 2px; }
 #lbTempo .tbar.o { margin-bottom: 0; }
-/* on a phone the map is small: the tempo without bars, the feed shorter and smaller, so less of the map is covered */
-@media (max-width: 640px) {
-  #lbTempo { padding: 3px 10px 5px; font-size: 11px; }
-  #lbTempo .tbar { display: none; }
-  #lbTempo .tp b { font-size: 12px; }
-  .msg { font-size: 12px; padding: 3px 8px; }
-  .msg.chip { min-height: 26px; padding: 1px 3px 1px 8px; }
-  .msg.chip button { height: 22px; width: 26px; }
-  #feedMsgs .msg:not(.ask):not(:nth-last-child(-n+2)) { display: none; }
-}
 .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; border: 1px solid rgba(255, 255, 255, 0.5); }
 .dot.big { width: 34px; height: 34px; margin: 0; flex: none; border-width: 2px; }
 

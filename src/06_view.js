@@ -451,15 +451,14 @@
     ctx.setTransform(z * dpr, 0, 0, z * dpr, ox * dpr, oy * dpr);
     ctx.imageSmoothingEnabled = z < 1.5;
     ctx.drawImage(this.mc, 0, 0);
-    const g = this.game, close = !!g && !!this.closeOn && this.closeOn(z);
-    if (close) this.drawRelief(ctx, z, ox, oy, now);     // the land in light and shade (src/06b_close.js)
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const g = this.game;
     if (!g) return;
     this.drawNet(ctx, g, z, ox, oy, now);
     this.drawRails(ctx, g, z, ox, oy);
     this.drawReach(ctx, g, z, ox, oy);
     // close in, the buildings stand as models and the troops as tanks (src/06b_close.js)
-    if (close) this.drawClose(ctx, g, z, ox, oy, now);
+    if (this.closeOn && this.closeOn(z)) this.drawClose(ctx, g, z, ox, oy, now);
     else { if (this.nah) this.nah.live = false; this.drawStructures(ctx, g, z, ox, oy); }
     this.drawUnits(ctx, g, z, ox, oy, alpha, now);
     this.drawFx(ctx, g, z, ox, oy, now);
@@ -1237,22 +1236,18 @@
         ctx.beginPath(); ctx.arc(x, y, 1.5, 0, 6.2832); ctx.fillStyle = '#fff'; ctx.fill();
         continue;
       }
-      const model = !!(this.nah && this.nah.live);   // the close-up: ships and trains as models (src/06b_close.js)
       if (ty === UT.WARSHIP) {
-        const s = model ? within(16 + z * 2.4, 32, 96) * 0.5 : ws, tg = u.target && u.target.active && u.target.type !== UT.TRADE ? u.target : null;
-        if (model) G.closeWarship(ctx, x, y, ang, s * 2, p, tg ? Math.atan2(tg.y - u.y, tg.x - u.x) - ang : null, now, (u.id * 0.618) % 1);
-        else warship(ctx, x, y, ang, s, p, tg ? Math.atan2(tg.y - u.y, tg.x - u.x) - ang : null);
+        const s = ws, tg = u.target && u.target.active && u.target.type !== UT.TRADE ? u.target : null;
+        warship(ctx, x, y, ang, s, p, tg ? Math.atan2(tg.y - u.y, tg.x - u.x) - ang : null);
         if (u.hp < 1000) {
-          ctx.fillStyle = '#10161d'; ctx.fillRect(x - s / 2 - 1, y + s * 1.15 - 1, s + 2, 5);
-          ctx.fillStyle = u.hp < 400 ? '#ff6b5e' : u.hp < 750 ? '#f4b740' : '#63d391'; ctx.fillRect(x - s / 2, y + s * 1.15, s * u.hp / 1000, 3);
+          ctx.fillStyle = '#10161d'; ctx.fillRect(x - ws / 2 - 1, y + ws * 1.15 - 1, ws + 2, 5);
+          ctx.fillStyle = u.hp < 400 ? '#ff6b5e' : u.hp < 750 ? '#f4b740' : '#63d391'; ctx.fillRect(x - ws / 2, y + ws * 1.15, ws * u.hp / 1000, 3);
         }
         if (u.repair) {
           // heading for the quay or lying there: a small spanner-coloured ring
           ctx.beginPath(); ctx.arc(x, y, s * 1.25, 0, 6.2832);
           ctx.setLineDash([3, 3]); ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(244,183,64,.9)'; ctx.stroke(); ctx.setLineDash([]);
         }
-      } else if (ty === UT.TRANSPORT && model) {
-        G.closeBoat(ctx, x, y, ang, within(8 + z * 1.3, 18, 46), p, now, (u.id * 0.618) % 1);
       } else if (ty === UT.TRANSPORT) {
         hull(ctx, x, y, ang, bs * 0.72, 'boat');
         ctx.fillStyle = p.css; ctx.fill();
@@ -1262,9 +1257,8 @@
         if (z >= RAIL_FULL || (z >= RAIL_MIN && p === g.human)) this.drawTrain(ctx, g, u, z, ox, oy, alpha);
       } else if (ty === UT.TRADE) {
         // Hull in the owner's colour, cargo in a deep shade of it, dark edge: readable on any water.
-        const s = model ? within(12 + z * 1.8, 24, 72) * 0.5 : tradeSize(z, p === g.human);
-        if (model) G.closeMerchant(ctx, x, y, ang, s * 2, p, now, (u.id * 0.618) % 1, u.captured);
-        else merchant(ctx, x, y, ang, s, p, u.captured);
+        const s = tradeSize(z, p === g.human);
+        merchant(ctx, x, y, ang, s, p, u.captured);
         if (z >= 4.5 && p === g.human) {
           ctx.font = '700 ' + within(z * 1.6, 9, 13).toFixed(0) + 'px ' + FONT;
           ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
@@ -1319,15 +1313,13 @@
     const head = within(u.pi + dir * ((u.mv || 0) + (u.st === g.ticks ? alpha * g.pace : 0)), 0, n - 1);
     // Big enough to make out even on a map zoomed right out, where a train used to be three
     // specks melting into the track.
-    const model = !!(this.nah && this.nah.live);   // the close-up: carriages as models
-    const L = model ? within(z * 1.7, 14, 42) : Math.max(7, z * 1.3), B = Math.max(3.4, z * 0.72);
+    const L = Math.max(7, z * 1.3), B = Math.max(3.4, z * 0.72);
     // Keep the carriages a carriage-length apart on the screen, not a fixed number of tiles,
     // so they stay separate instead of piling up when zoomed out.
     const gap = Math.max(1.55, L * 1.3 / z);
     for (let k = 2; k >= 0; k--) {
       railAt(geo, within(head - dir * k * gap, 0, n - 1), RP);
       const x = (RP.x + 0.5) * z + ox, y = (RP.y + 0.5) * z + oy;
-      if (model) { G.closeWagon(ctx, x, y, RP.a, L, k, p); continue; }
       ctx.save();
       ctx.translate(x, y); ctx.rotate(RP.a);
       // dark skirt, so the carriage lifts off the track and the land underneath
