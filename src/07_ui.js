@@ -45,6 +45,8 @@
   const plain = function (t) { return G.UNAME[t].replace('\u00AD', ''); };
   // what only the Arsenal mode has
   const armory = function (t) { return t === UT.LASER || t === UT.CLOAK; };
+  // what can be built in this game: the Arsenal's two only in that mode, in a level only what it unlocks
+  const offered = function (t) { return (!armory(t) || game.opts.arsenal) && (!game.lv || game.levelAllows(t)); };
   // how many of a kind of building you can see at player q (a cloaking tower hides some)
   const seen = function (q, t) { return game.seenCount(game.human, q, t); };
   const coin = function (n) { return '<span class="price">' + svg('gold', 13) + (n ? fmt(n) : 'gratis') + '</span>'; };
@@ -285,6 +287,7 @@
       h += '<div class="field"><div class="lab">Optionen</div><div class="checks">' + check('fNations', 'Nationen', cfg.nations) +
         check('fInstant', 'Sofort bauen', cfg.instant) + check('fGold', 'Unendlich Gold', cfg.gold) + check('fTroops', 'Unendlich Truppen', cfg.troops) + '</div></div>';
       h += '<button class="btn" id="fStart" type="button">Spiel starten</button>';
+      if (!RES) h += '<button class="btn alt" id="fCamp" type="button">' + svg('flag', 20) + 'Feldzug · Levels</button>';
       h += '<button class="btn alt" id="fHost" type="button">' + svg('people', 20) + 'Mit Freunden spielen</button>';
     }
     h += '<button class="btn ghost" id="fHelp" type="button">So wird gespielt</button>';
@@ -333,6 +336,7 @@
       startGame();
     });
     $('fHost').addEventListener('click', function () { readForm(); openRoom(true); });
+    if ($('fCamp')) $('fCamp').addEventListener('click', function () { readForm(); G.Feldzug.open(); });
   }
   function readForm() {
     cfg.name = ($('fName').value || '').trim() || 'Spieler';
@@ -590,10 +594,13 @@
     }
   }
   function quitGame() {
+    const wasLevel = !!(game && game.lv);
     game = null; closeRadial(); $('sheet').hidden = true; if (view) view.showCloak = false; stopAim();
     $('hud').hidden = true;
     leaveRoom();
     if (cfg.map === 'zufall') delete maps.zufall;
+    G.Feldzug.hide();
+    if (wasLevel) { G.Feldzug.open(); return; }
     showStart();
     previewMap(cfg.map);
   }
@@ -659,7 +666,9 @@
         else addMsg('Vorkommen verloren: ' + say, 'warn');
       } else if (e.k === 'loot') {
         if (e.by === h.id && e.gold > 0) { view.floatText(e.x, e.y, '+ ' + fmt(e.gold)); goldPop(e.gold); }
-      } else if (e.k === 'defeat') { setNet(false); plans.length = 0; syncPlans(); $('bNet').hidden = true; showEnd('defeat', null); }
+      } else if (e.k === 'quest') { setNet(false); stopAim(); G.Feldzug.end(e); }
+      else if (e.k === 'defeat' && game.lv) { setNet(false); }   // a level reports its end itself ('quest')
+      else if (e.k === 'defeat') { setNet(false); plans.length = 0; syncPlans(); $('bNet').hidden = true; showEnd('defeat', null); }
       else if (e.k === 'win') showEnd(game.players[e.id] === h ? 'win' : 'other', game.players[e.id]);
     }
     ev.length = 0;
@@ -737,10 +746,10 @@
   let hotSig = '';
   function renderHotbar() {
     const el = $('hotbar'), h = game.human;
-    if (!h.alive || game.phase !== 'play') { el.hidden = true; return; }
+    if (!h.alive || game.phase !== 'play' || (game.lv && !game.lv.def.allow.length)) { el.hidden = true; return; }
     el.hidden = false;
     const rich = game.opts.infiniteGold;
-    const cells = BUILD.filter(function (b) { return !armory(b.t) || game.opts.arsenal; }).map(function (b) {
+    const cells = BUILD.filter(function (b) { return offered(b.t); }).map(function (b) {
       const cost = game.cost(h, b.t), wait = b.t === UT.LASER ? Math.ceil(((h.laserAt || 0) - game.ticks) / 10) : 0;
       const have = b.t === UT.WARSHIP ? h.units.filter(function (u) { return u.type === UT.WARSHIP; }).length : b.t <= UT.CLOAK ? h.units.filter(function (u) { return u.type === b.t; }).length : 0;
       return { b: b, cost: wait > 0 ? wait + ' s' : fmt(cost), poor: wait > 0 || (!rich && h.gold < cost), have: have, on: !!ghost && ghost.t === b.t };
@@ -769,6 +778,7 @@
         $('spawnBarLine').hidden = true;
         $('spawnHint').textContent = 'Tippe auf freies Land, dann geht es sofort los';
       }
+      if (game.lv) G.Feldzug.hud();
       return;
     }
     $('clock').textContent = clock((T - game.playStart) / 10);
@@ -804,6 +814,7 @@
     if (modalKind === 'info' && T % 5 === 0) renderInfo();
     if (modalKind === 'res' && T % 3 === 0) renderRes();
     if (aim && T % 3 === 0) refreshAim();
+    if (game.lv) G.Feldzug.hud();
   }
 
   // ---------- end of game ----------
@@ -869,12 +880,13 @@
 
   function showMenu() {
     if (!mp) setPaused(true);
-    openModal('<h2>' + (mp ? 'Menü' : 'Pause') + '</h2><p>' + esc(game.map.name) + ' · ' + G.DIFF_NAMES[game.opts.difficulty] + (game.opts.arsenal ? ' · Arsenal' : '') + '</p>' +
+    openModal('<h2>' + (mp ? 'Menü' : 'Pause') + '</h2><p>' + (game.lv ? 'Feldzug · Level ' + game.lv.def.n + ' · ' + esc(game.lv.def.name) : esc(game.map.name) + ' · ' + G.DIFF_NAMES[game.opts.difficulty] + (game.opts.arsenal ? ' · Arsenal' : '')) + '</p>' +
       '<button class="btn" data-act="resume" type="button">Weiterspielen</button>' +
       '<button class="btn ghost" data-act="help" type="button">So wird gespielt</button>' +
       '<label class="check wide" for="mMusic"><input id="mMusic" type="checkbox"' + (cfg.music ? ' checked' : '') + '>Musik</label>' +
       '<label class="check" for="mSfx"><input id="mSfx" type="checkbox"' + (cfg.sfx ? ' checked' : '') + '>Töne bei Aktionen</label>' +
-      '<button class="btn ghost" data-act="quit" type="button">Spiel beenden</button>', 'menu');
+      (game.lv ? '<button class="btn ghost" data-act="lvRetry" type="button">Level neu starten</button><button class="btn ghost" data-act="quit" type="button">Zur Levelkarte</button>'
+        : '<button class="btn ghost" data-act="quit" type="button">Spiel beenden</button>'), 'menu');
     $('mMusic').addEventListener('change', function () { setSound('music', this.checked); });
     $('mSfx').addEventListener('change', function () { setSound('sfx', this.checked); });
   }
@@ -893,6 +905,7 @@
     if (what === 'close' || what === 'resume') { closeModal(); return; }
     if (what === 'help') { showHelp(false); return; }
     if (what === 'quit') { quitGame(); return; }
+    if (what.indexOf('lv') === 0) { G.Feldzug.act(what); return; }
     if (what === 'confirmBreak') { act({ k: 'break', p: p.id }); closeModal(); return; }
     if (what === 'ally') { act({ k: 'ally', p: p.id, say: 'Anfrage an ' + p.name + ' gesendet' }); return; }
     if (what === 'break') {
@@ -1032,8 +1045,8 @@
       return '<button class="item' + (nuke ? ' nuke' : '') + (!game.opts.infiniteGold && h.gold < cost ? ' poor' : '') + '" type="button" data-t="' + b.t + '"' + (ok ? '' : ' disabled') + '><kbd>' + b.key.toUpperCase() + '</kbd>' + (have ? '<i class="own">' + have + '</i>' : '') +
         '<span class="ic">' + svg(b.icon, 24) + '</span><b>' + G.UNAME[b.t] + '</b><small>' + esc(note) + '</small>' + coin(cost) + '</button>';
     };
-    html += '<h3>Gebäude</h3><div class="grid">' + BUILD.filter(function (b) { return b.t <= UT.CLOAK && (!armory(b.t) || game.opts.arsenal); }).map(cell).join('') + '</div>';
-    html += '<h3>Flotte und Raketen</h3><div class="grid">' + BUILD.filter(function (b) { return b.t > UT.CLOAK && (!armory(b.t) || game.opts.arsenal); }).map(cell).join('') + '</div>';
+    html += '<h3>Gebäude</h3><div class="grid">' + BUILD.filter(function (b) { return b.t <= UT.CLOAK && offered(b.t); }).map(cell).join('') + '</div>';
+    html += '<h3>Flotte und Raketen</h3><div class="grid">' + BUILD.filter(function (b) { return b.t > UT.CLOAK && offered(b.t); }).map(cell).join('') + '</div>';
     $('sheetBody').innerHTML = html;
     $('purse').innerHTML = svg('gold', 15) + (game.opts.infiniteGold ? '∞' : fmt(h.gold));
     $('sheet').hidden = false; sheetAt = performance.now();
@@ -1043,6 +1056,7 @@
   // Build at a tile, or start aiming a bomb at it. Used by the menu and by the keys.
   function doBuild(t, tile) {
     if (armory(t) && !game.opts.arsenal) { toast('Den ' + plain(t) + ' gibt es nur im Arsenal-Modus'); snd('deny'); return; }
+    if (!offered(t)) { toast(plain(t) + ': in diesem Level noch gesperrt'); snd('deny'); return; }
     if (t === UT.LASER) { startAim(t, tile); return; }
     if (t >= UT.ATOM) {
       const h = game.human, s = game.readySilo(h, tile);
@@ -1839,7 +1853,7 @@
         else if (aim) stopAim();
         else if (!$('radial').hidden) closeRadial();
         else if (!$('sheet').hidden) closeBuild();
-        else if (!$('modal').hidden && modalKind !== 'start' && modalKind !== 'starthelp' && modalKind !== 'lobby') closeModal();
+        else if (!$('modal').hidden && modalKind !== 'start' && modalKind !== 'starthelp' && modalKind !== 'lobby' && modalKind.indexOf('lv') !== 0) closeModal();
         return;
       }
       if (k === 'm') { const v = !(cfg.music || cfg.sfx); setSound('music', v); setSound('sfx', v); toast(v ? 'Ton an' : 'Ton aus'); return; }
@@ -2092,6 +2106,11 @@
     previewMap(cfg.map);
     last = performance.now();
     requestAnimationFrame(frame);
+    G.ui = {
+      begin: begin, openModal: openModal, closeModal: closeModal, showStart: showStart, previewMap: previewMap, quitGame: quitGame,
+      toast: toast, addMsg: addMsg, setPaused: setPaused, svg: svg, esc: esc, snd: snd, cfg: cfg, COLORS: COLORS,
+      get game() { return game; }, get view() { return view; }, get modalKind() { return modalKind; }
+    };
     G.debug = { get game() { return game; }, get view() { return view; }, get mp() { return mp; }, tap: tap, cfg: cfg, act: act };
   };
 })(globalThis.G = globalThis.G || {});

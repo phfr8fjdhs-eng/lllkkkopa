@@ -451,6 +451,38 @@ body.placing #cv { cursor: crosshair; }
 .help { margin: 10px 0 0; padding: 0 0 0 18px; font-size: 14px; }
 .help li { margin-top: 7px; }
 .help b { color: var(--accent); font-weight: 600; }
+/* campaign «Feldzug» (src/07b_level.js): quest bar, tips, level map, cards */
+#lvBar { position: absolute; left: 8px; top: 56px; width: min(64vw, 300px); padding: 8px 12px 10px; pointer-events: none; }
+#lvBar small { display: block; font: 600 11px var(--display); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+#lvBar b { display: block; margin-top: 2px; font: 600 15px/1.25 var(--display); }
+#lvBar .bar { margin-top: 7px; }
+#lvBar span { display: block; margin-top: 5px; font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+#lvTip { position: absolute; z-index: 40; width: min(88vw, 320px); padding: 11px 13px 10px; font-size: 14px; line-height: 1.4; background: var(--panel-solid); border: 1px solid var(--accent); border-radius: 12px; box-shadow: 0 10px 28px rgba(0, 0, 0, 0.5); animation: lvIn .25s ease-out; }
+#lvTip b { color: var(--accent); font-weight: 600; }
+#lvTip::after { content: ''; position: absolute; left: var(--ax, 50%); width: 12px; height: 12px; margin-left: -6px; background: var(--panel-solid); border: 1px solid var(--accent); transform: rotate(45deg); display: none; }
+#lvTip.up::after { display: block; top: -7px; border-right: 0; border-bottom: 0; }
+#lvTip.down::after { display: block; bottom: -7px; border-left: 0; border-top: 0; }
+#lvTip .lvOk { display: block; margin: 8px 0 0 auto; padding: 5px 12px; font: 600 13px var(--display); color: var(--accent-ink); background: var(--accent); border: 0; border-radius: 8px; cursor: pointer; }
+.lvGlow { box-shadow: 0 0 0 2px var(--accent), 0 0 16px rgba(244, 183, 64, 0.6) !important; border-radius: 9px; }
+@keyframes lvIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@media (min-width: 700px) { #lvBar { top: 8px; width: 320px; } }
+.lvSec { margin: 14px 0 6px; font: 600 12px var(--display); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.lvGrid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 7px; }
+.lvSt { position: relative; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 2px 6px; color: var(--ink); background: rgba(255, 255, 255, 0.06); border: 1px solid var(--line); border-radius: 11px; cursor: pointer; font: inherit; }
+.lvSt b { font: 700 22px/1 var(--display); }
+.lvSt small { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10.5px; color: var(--muted); }
+.lvSt.next { border-color: var(--accent); background: rgba(244, 183, 64, 0.14); }
+.lvSt.next b { color: var(--accent); }
+.lvSt:disabled { opacity: .4; cursor: default; }
+.lvStars { display: flex; gap: 1px; color: rgba(255, 255, 255, 0.18); }
+.lvStars .on { color: var(--accent); }
+.lvBig { justify-content: center; margin: 12px 0 2px; }
+.lvQuest { margin-top: 10px; padding: 10px 12px; background: rgba(244, 183, 64, 0.1); border-left: 3px solid var(--accent); border-radius: 8px; font-size: 14.5px; }
+.lvGoals { margin: 8px 0 0; padding: 0; list-style: none; font-size: 13px; color: var(--muted); }
+.lvGoals li { display: flex; align-items: center; gap: 6px; margin-top: 3px; }
+.lvGoals li.on { color: var(--ink); }
+.lvGoals svg { color: rgba(255, 255, 255, 0.2); flex: none; }
+.lvGoals li.on svg { color: var(--accent); }
 #toast {
   position: absolute; left: 50%; bottom: 132px; transform: translateX(-50%); z-index: 60; pointer-events: none; white-space: nowrap;
   max-width: 92vw; overflow: hidden; text-overflow: ellipsis; padding: 7px 14px; font-size: 14px;
@@ -498,6 +530,8 @@ body.placing #cv { cursor: crosshair; }
       <div class="bar" id="spawnBarLine" hidden><i id="spawnFill"></i></div>
     </div>
     <div id="hotbar" class="panel" hidden></div>
+    <div id="lvBar" class="panel" hidden></div>
+    <div id="lvTip" hidden></div>
     <div id="bottom">
       <div id="feed"><div id="feedMsgs"></div><div id="feedLive"></div></div>
       <div id="ctrl" class="panel">
@@ -739,6 +773,8 @@ globalThis.G = { VARIANT: 'rohstoffe' };
       else if (!isLand && qt < 30) for (let i = 0; i < qt; i++) cls[q[i]] = 1;
     }
   }
+
+  G.makeNoise = makeNoise; G.cleanupMap = cleanup;   // also used by the campaign maps (src/03d_level.js)
 
   // Invented maps. `kind` picks the overall shape; the default is a scatter of continents.
   // `ref` is the width the features are sized for, so a small preview shows the same world.
@@ -1537,6 +1573,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   };
 
   Game.prototype.setup = function (human) {
+    if (this.opts.level && this.levelSetup) { this.levelSetup(human); return; }   // a level of the campaign brings its own players (src/03d_level.js)
     const map = this.map, o = this.opts, rng = this.rng, W = this.W;
     // one person, or a list of people for a game over the network (opts.me picks the one at this device)
     const people = !human ? [] : Array.isArray(human) ? human : [human];
@@ -1721,6 +1758,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
 
   Game.prototype.canRequestAlliance = function (a, b) {
     if (a === b || !a.alive || !b.alive || this.phase !== 'play') return false;
+    if (this.lv) return false;   // no alliances in the campaign: every level is a duel of its own
     if (a.allies.has(b.id)) return false;
     for (const r of this.requests) if ((r.from === a && r.to === b) || (r.from === b && r.to === a)) return false;
     return (a.reqCd.get(b.id) || 0) <= this.ticks;
@@ -2699,7 +2737,8 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     }
     if (T % 10 === 0) this.tickDiplomacy();
     this.reap();
-    if (T % 10 === 0 && !this.winner) this.checkWin();
+    if (this.lv) { if (T % 5 === 0) this.levelTick(); }   // a level ends with its quest, not at 80 % of the land
+    else if (T % 10 === 0 && !this.winner) this.checkWin();
   };
 
   // ---------- sea routes, worked on a little every step ----------
@@ -2851,6 +2890,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
       case 'ship': return tileOk && this.moveWarship(p, c.t) ? '' : 'Kein Schiff kann dorthin';
       case 'build': {
         if (!tileOk || !(c.u <= UT.WARSHIP || c.u === UT.ATOM || c.u === UT.HYDRO || c.u === UT.MIRV || c.u === UT.CRUISE || c.u === UT.LASER) || !(c.u >= 0)) return 'Nicht möglich';
+        if (this.lv && !this.levelAllows(c.u)) return 'In diesem Level noch gesperrt';
         const chk = this.buildCheck(p, c.u, c.t);
         if (!chk.ok) return chk.why || 'Nicht möglich';
         return this.build(p, c.u, c.t) ? '' : 'Nicht möglich';
@@ -3633,6 +3673,442 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   // density d (1 = average). Where troops stand dense they do not all die with the tile: part of
   // them fall back into the rest of the cell, so the cell grows denser as it shrinks.
   Game.prototype.postKeep = function (d) { return d > 0 ? Math.pow(d, 0.35) : 0; };
+})(globalThis.G = globalThis.G || {});
+
+(function (G) {
+  'use strict';
+  const Math = G.M;   // same results on every device, see 00_util.js
+  const Game = G.Game, UT = G.UT, PT = G.PT;
+
+  // ---------- campaign «Feldzug» (doku/feldzug.md) ----------
+  // A row of levels, each with a map of its own, fixed players, the weapons it allows and one
+  // quest. Levels 1-10 teach one thing each; the later ones (still to come) ask for skill.
+  // Everything here reads and changes the game only inside the simulation, so a level plays the
+  // same on every device, like the rest of the game.
+
+  // ---------- maps from a few shapes ----------
+  // A shape: c (circle) x y r, r (rectangle) x0 y0 x1 y1, l (line) x0 y0 x1 y1 w; v is what it
+  // paints: 0 water, 1 lowland, 2 highland, 3 mountains. Later shapes paint over earlier ones.
+  // `rough` frays the edges by up to that many tiles, so the land does not look drawn with a ruler.
+  const circ = function (x, y, r, v) { return { c: 'c', x: x, y: y, r: r, v: v === undefined ? 1 : v }; };
+  const rect = function (x0, y0, x1, y1, v) { return { c: 'r', x0: x0, y0: y0, x1: x1, y1: y1, v: v === undefined ? 1 : v }; };
+  const line = function (x0, y0, x1, y1, w, v) { return { c: 'l', x0: x0, y0: y0, x1: x1, y1: y1, w: w, v: v === undefined ? 1 : v }; };
+  function dist(s, x, y) {
+    if (s.c === 'c') return Math.hypot(x - s.x, y - s.y) - s.r;
+    if (s.c === 'r') {
+      const dx = Math.max(s.x0 - x, x - s.x1), dy = Math.max(s.y0 - y, y - s.y1);
+      return dx > 0 && dy > 0 ? Math.hypot(dx, dy) : Math.max(dx, dy);
+    }
+    const vx = s.x1 - s.x0, vy = s.y1 - s.y0, len = vx * vx + vy * vy;
+    const k = len ? G.within(((x - s.x0) * vx + (y - s.y0) * vy) / len, 0, 1) : 0;
+    return Math.hypot(x - s.x0 - vx * k, y - s.y0 - vy * k) - s.w / 2;
+  }
+  G.levelMap = function (def) {
+    const m = def.map, W = m.w, H = m.h, cls = new Uint8Array(W * H), fbm = G.makeNoise(m.seed);
+    const rough = m.rough === undefined ? 5 : m.rough;
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const n = (fbm(x / 18, y / 18, 3) - 0.5) * 2 * rough;
+      let v = 0;
+      for (const s of m.shapes) if (dist(s, x, y) + (s.sharp ? 0 : n) < 0) v = s.v;
+      cls[y * W + x] = v;
+    }
+    G.cleanupMap(cls, W, H);
+    return G.buildMap(W, H, cls, m.seed, { id: 'level' + def.n, name: def.name, nations: [] });
+  };
+
+  // ---------- the levels ----------
+  // me      where the player starts: x, y and how far around the land is theirs (r, or a box);
+  //         without x the player picks a start point as in a normal game
+  // foes    nations ({ name, x, y, r or box, troops, ai, build }) and bots ({ bot: 1, x, y, r })
+  // allow   what the build bar offers; everything else is locked in this level
+  // quest   text, and check(Q) -> { ok, fail, prog (0..1), line (what the bar shows) }
+  // par     seconds for two and three stars (or stars(Q) for levels you have to hold out)
+  // events  [seconds after the start, function (Q)]: the script of the opponents
+  // tips    shown one after the other: text, el (a CSS selector to point at), when(Q)
+  // goal    [x, y]: a ring on the map that marks the target
+  const HAND = '<b>Am Handy:</b> ';
+  const LEVELS = G.LEVELS = [
+    {
+      n: 1, name: 'Lichtung', learn: 'Startpunkt und freies Land',
+      map: { w: 280, h: 200, seed: 101, shapes: [circ(140, 100, 78), circ(92, 72, 40), circ(190, 128, 42), circ(172, 66, 18, 2), circ(100, 130, 12, 2)] },
+      me: { troops: 25000, gold: 0 }, foes: [], allow: [],
+      quest: {
+        text: 'Halte die Hälfte der Insel.',
+        check: function (Q) { const s = Q.share(Q.me); return { ok: s >= 0.5, prog: s / 0.5, line: Q.pct(s) + ' von 50 % der Insel' }; }
+      },
+      par: [90, 60],
+      tips: [
+        { text: 'Tippe auf freies Land. Dort beginnt dein Reich, und das Spiel startet sofort.', when: function (Q) { return Q.g.phase === 'spawn'; } },
+        { text: 'Tippe auf das freie Land neben deinem Gebiet und dann auf <b>Angreifen</b>. Am Computer geht es auch mit einem Doppelklick.', when: function (Q) { return Q.g.phase === 'play'; } },
+        { text: 'Dieser Regler bestimmt, wie viele deiner Truppen losziehen. Mehr Truppen erobern schneller, aber daheim bleiben weniger.', el: '#ratio', when: function (Q) { return Q.secs > 6; } },
+        { text: 'Deine Truppen wachsen von selbst nach, am schnellsten bei gut 40 % des Limits. Der Balken zeigt, wie voll du bist.', el: '#popBar', when: function (Q) { return Q.secs > 22; } }
+      ]
+    },
+    {
+      n: 2, name: 'Hügelland', learn: 'Bots erobern und Gold',
+      map: { w: 300, h: 200, seed: 202, shapes: [circ(150, 100, 86), circ(80, 90, 52), circ(225, 110, 55), circ(160, 40, 26, 2), circ(150, 160, 22, 2)] },
+      me: { x: 70, y: 95, r: 9, troops: 30000, gold: 0 },
+      foes: [{ bot: 1, x: 130, y: 60, r: 8 }, { bot: 1, x: 140, y: 140, r: 8 }, { bot: 1, x: 190, y: 85, r: 8 }, { bot: 1, x: 200, y: 140, r: 8 }, { bot: 1, x: 250, y: 75, r: 8 }, { bot: 1, x: 260, y: 130, r: 8 }],
+      allow: [],
+      quest: {
+        text: 'Erobere 4 Bots ganz.',
+        check: function (Q) { const n = Q.beaten(PT.BOT); return { ok: n >= 4, prog: n / 4, line: n + ' von 4 Bots erobert' }; }
+      },
+      par: [130, 90],
+      tips: [
+        { text: 'Die grauen Reiche sind <b>Bots</b>. Sie sind schwach und wehren sich kaum. Tippe auf ihr graues Land und dann auf <b>Angreifen</b>.' },
+        { text: 'Wer einen Bot ganz erobert, bekommt sein Gold und eine Prämie. Das Gold brauchst du ab dem nächsten Level zum Bauen.', when: function (Q) { return Q.beaten(PT.BOT) >= 1; } }
+      ]
+    },
+    {
+      n: 3, name: 'Flusstal', learn: 'Stadt, Fabrik und Ausbau',
+      map: { w: 300, h: 200, seed: 303, shapes: [rect(20, 20, 280, 180), line(150, 0, 140, 60, 6, 0), line(140, 60, 158, 120, 6, 0), line(158, 120, 150, 150, 5, 0), circ(240, 60, 18, 2)] },
+      me: { x: 80, y: 100, r: 20, troops: 40000, gold: 700000 },
+      foes: [{ bot: 1, x: 70, y: 40, r: 9 }, { bot: 1, x: 210, y: 140, r: 10 }, { bot: 1, x: 230, y: 60, r: 9 }],
+      allow: [UT.CITY, UT.FACTORY],
+      quest: {
+        text: 'Baue 2 Städte und 1 Fabrik und baue eine Stadt auf Stufe 2 aus.',
+        check: function (Q) {
+          const c = Q.built(Q.me, UT.CITY), f = Q.built(Q.me, UT.FACTORY), up = Q.me.units.some(function (u) { return u.type === UT.CITY && u.level >= 2; });
+          const n = Math.min(2, c) + Math.min(1, f) + (up ? 1 : 0);
+          return { ok: n >= 4, prog: n / 4, line: 'Städte ' + Math.min(2, c) + '/2 · Fabrik ' + Math.min(1, f) + '/1 · Ausbau ' + (up ? '1' : '0') + '/1' };
+        }
+      },
+      par: [140, 100],
+      tips: [
+        { text: 'Baue eine <b>Stadt</b>: Taste 1 oder dieser Knopf, dann auf dein Land klicken. ' + HAND + 'lange auf dein Land drücken, dann <b>Bauen</b>. Jede Stadt hebt dein Truppen-Limit.', el: '#hotbar [data-t="0"]' },
+        { text: 'Eine <b>Fabrik</b> verbindet Städte in der Nähe mit Gleisen. Jeder Zug bringt an jedem Bahnhof Gold.', el: '#hotbar [data-t="5"]', when: function (Q) { return Q.built(Q.me, UT.CITY) >= 1; } },
+        { text: 'Tippe auf eine deiner Städte, dann öffnet sich die Ausbaukarte. Jede Stufe hebt das Limit weiter. Am Computer: Taste U über der Stadt.', when: function (Q) { return Q.built(Q.me, UT.CITY) >= 2; } }
+      ]
+    },
+    {
+      n: 4, name: 'Engpass', learn: 'Gezielter Stoss mit Keil', diff: 0,
+      map: { w: 340, h: 180, seed: 404, rough: 4, shapes: [rect(10, 30, 330, 150), circ(250, 60, 16, 2), circ(200, 125, 14, 2)] },
+      me: { x: 45, y: 90, box: [0, 0, 80, 180], troops: 90000, gold: 0 },
+      foes: [{ name: 'Morvanien', x: 300, y: 90, box: [80, 0, 340, 180], troops: 70000, build: [[UT.CITY, 312, 90]] }],
+      allow: [],
+      goal: [312, 90],
+      quest: {
+        text: 'Erobere die Hauptstadt von Morvanien (der Ring ganz rechts) in 3 Minuten.',
+        check: function (Q) {
+          const d = Q.reach(Q.me, 312, 90);
+          return { ok: d <= 3, prog: G.within(1 - (d - 3) / 230, 0, 1), line: 'Noch ' + Math.max(0, d - 3) + ' Felder bis zur Hauptstadt' };
+        }
+      },
+      limit: 180, par: [140, 100],
+      tips: [
+        { text: 'Mit der ganzen Front kommst du hier zu langsam voran. Schick einen <b>Stoss</b>: rechte Maustaste auf deinem Land drücken und bis zum Ziel ziehen. ' + HAND + 'oben <b>Keil</b> wählen und das Ziel antippen.', el: '#modes' },
+        { text: 'Der <b>Keil</b> ist schmal und schnell, der <b>Abschnitt</b> breiter und sicherer. Taste F wechselt. Die Zahl am Pfeil zeigt, wie viele Truppen der Stoss braucht.', when: function (Q) { return Q.secs > 15; } },
+        { text: 'Ein Stoss kommt ins Stocken? Klick auf seinen Pfeil und dann auf <b>Verstärken</b>.', when: function (Q) { return Q.secs > 45; } }
+      ]
+    },
+    {
+      n: 5, name: 'Passhöhe', learn: 'Verteidigung und Gelände',
+      map: { w: 320, h: 200, seed: 505, rough: 4, shapes: [rect(10, 10, 310, 190), line(160, 0, 160, 82, 18, 3), line(160, 118, 160, 200, 18, 3), line(150, 82, 150, 118, 10, 2)] },
+      me: { x: 70, y: 100, box: [0, 0, 160, 200], troops: 60000, gold: 400000 },
+      foes: [{ name: 'Pellgard', x: 260, y: 100, box: [160, 0, 320, 200], troops: 160000 }],
+      allow: [UT.DEFENSE, UT.CITY],
+      goal: [150, 100],
+      quest: {
+        text: 'Halte den Pass 2½ Minuten lang. Du darfst nicht mehr als 15 % deines Landes verlieren.',
+        check: function (Q) {
+          const keep = Q.me.tiles / Q.start.tiles;
+          return { ok: Q.secs >= 150, fail: keep < 0.85 ? 'Pellgard ist durchgebrochen' : '', prog: Q.secs / 150, line: 'Noch ' + Q.clock(150 - Q.secs) + ' · ' + Q.pct(Math.min(1, keep)) + ' deines Landes' };
+        }
+      },
+      stars: function (Q) { const k = Q.me.tiles / Q.start.tiles; return k >= 1 ? 3 : k >= 0.95 ? 2 : 1; },
+      starText: ['Pass gehalten', 'Höchstens 5 % Land verloren', 'Kein Feld verloren'],
+      events: [
+        [18, function (Q) { Q.push(Q.foe[0], Q.me, 0.4, 60, 100, 2); }],
+        [65, function (Q) { Q.push(Q.foe[0], Q.me, 0.45, 60, 100, 2); }],
+        [110, function (Q) { Q.push(Q.foe[0], Q.me, 0.5, 60, 100, 1); }]
+      ],
+      tips: [
+        { text: 'Pellgard greift bald über den Pass an. Baue dort einen <b>Verteidigungsposten</b>: Taste 4 oder dieser Knopf. Er macht die Grenze in seiner Nähe viel zäher.', el: '#hotbar [data-t="1"]' },
+        { text: 'Die Berge links und rechts vom Pass sind schwer zu erobern. Darum kommt der Angriff durch die Lücke.', when: function (Q) { return Q.secs > 10; } },
+        { text: 'Ein Posten allein hält nicht ewig. Dringt Pellgard ein, greif das Land an, das er auf deiner Seite genommen hat: Dein Gegenangriff schneidet den Keil ab.', when: function (Q) { return Q.me.tiles < Q.start.tiles; } },
+        { text: 'Mit dem <b>Netz</b> (Taste N, oder dieser Knopf) ziehst du Truppen an eine Stelle der Grenze. Dicht stehende Truppen halten besser und graben sich ein.', el: '#bNet', when: function (Q) { return Q.secs > 30 && Q.g.netz && !!Q.me.post; } }
+      ]
+    },
+    {
+      n: 6, name: 'Archipel', learn: 'Boote und Hafen',
+      map: { w: 320, h: 200, seed: 606, shapes: [circ(80, 100, 56), circ(245, 100, 52), circ(165, 30, 14), circ(170, 175, 12)] },
+      me: { x: 80, y: 100, r: 60, troops: 50000, gold: 300000 },
+      foes: [{ bot: 1, x: 230, y: 70, r: 10 }, { bot: 1, x: 260, y: 130, r: 10 }],
+      allow: [UT.PORT, UT.CITY],
+      goal: [245, 100],
+      quest: {
+        text: 'Erobere die Insel rechts: halte 75 % ihres Landes.',
+        check: function (Q) { const s = Q.islandShare(Q.me, 245, 100); return { ok: s >= 0.75, prog: s / 0.75, line: Q.pct(s) + ' von 75 % der Insel rechts' }; }
+      },
+      par: [110, 75],
+      tips: [
+        { text: 'Zur Insel rechts führt kein Land. Tippe auf ihr Ufer: dann siehst du <b>Boot</b> statt Angreifen. Das Boot bringt deine Truppen hinüber. Höchstens drei sind gleichzeitig unterwegs.' },
+        { text: 'Ein <b>Hafen</b> an deiner Küste schickt Handelsschiffe zu anderen Häfen. Beide Häfen verdienen daran.', el: '#hotbar [data-t="2"]', when: function (Q) { return Q.secs > 25; } },
+        { text: 'Auf der Insel angekommen, greifst du von dort aus ganz normal über Land weiter an.', when: function (Q) { return Q.islandShare(Q.me, 245, 100) > 0.02; } }
+      ]
+    },
+    {
+      n: 7, name: 'Meerenge', learn: 'Kriegsschiffe',
+      map: { w: 320, h: 200, seed: 707, rough: 4, shapes: [rect(0, 0, 320, 64), rect(0, 136, 320, 200), circ(160, 100, 9)] },
+      me: { x: 70, y: 175, box: [0, 120, 160, 200], troops: 60000, gold: 800000, build: [[UT.PORT, 80, 140]] },
+      foes: [{ name: 'Quellmark', x: 160, y: 25, box: [0, 0, 320, 80], troops: 120000 }],
+      allow: [UT.WARSHIP, UT.PORT],
+      quest: {
+        text: 'Versenke die Kriegsschiffe von Quellmark.',
+        check: function (Q) {
+          if (Q.secs < 2) return { ok: false, prog: 0, line: 'Die Flotte läuft aus' };
+          const n = Q.ships(Q.foe[0]);
+          return { ok: n === 0, prog: (2 - n) / 2, line: (2 - n) + ' von 2 Schiffen versenkt' };
+        }
+      },
+      par: [100, 65],
+      events: [
+        [0, function (Q) { Q.ship(Q.foe[0], 120, 80); Q.ship(Q.foe[0], 220, 80); }],
+        [40, function (Q) { Q.boat(Q.foe[0], 110, 140, 15000); }],
+        [90, function (Q) { Q.boat(Q.foe[0], 140, 140, 20000); }]
+      ],
+      tips: [
+        { text: 'Du hast schon einen Hafen. Baue ein <b>Kriegsschiff</b>: Taste 7 oder dieser Knopf, dann aufs Wasser tippen.', el: '#hotbar [data-t="7"]' },
+        { text: 'Tippe aufs Wasser, um dein Kriegsschiff dorthin zu schicken. Es schiesst selbst auf fremde Schiffe in der Nähe. Zwei Schiffe gegen eins gewinnen fast immer.', when: function (Q) { return Q.ships(Q.me) >= 1; } },
+        { text: 'Boote mit Truppen sind unterwegs. Ein Kriegsschiff in der Nähe versenkt sie, bevor sie landen.', when: function (Q) { return Q.secs > 38; } }
+      ]
+    },
+    {
+      n: 8, name: 'Festung', learn: 'Raketensilo und Atombombe',
+      map: { w: 320, h: 200, seed: 808, rough: 4, shapes: [rect(10, 15, 310, 185), circ(255, 100, 30, 2)] },
+      me: { x: 60, y: 100, box: [0, 0, 120, 200], troops: 50000, gold: 3900000 },
+      foes: [{ name: 'Rabenstein', x: 255, y: 100, box: [120, 0, 320, 200], troops: 400000, build: [[UT.CITY, 255, 92], [UT.CITY, 249, 104], [UT.CITY, 262, 106]] }],
+      allow: [UT.SILO, UT.ATOM, UT.CITY],
+      goal: [255, 100],
+      quest: {
+        text: 'Zerstöre die drei Städte von Rabenstein.',
+        check: function (Q) { const n = Q.built(Q.foe[0], UT.CITY); return { ok: n === 0, prog: (3 - n) / 3, line: (3 - n) + ' von 3 Städten zerstört' }; }
+      },
+      par: [60, 35],
+      tips: [
+        { text: 'Rabenstein ist viel zu stark für einen Angriff. Baue ein <b>Raketensilo</b> (Taste 5) tief in deinem Land.', el: '#hotbar [data-t="3"]' },
+        { text: 'Das Silo steht. Wähle die <b>Atombombe</b> (Taste 8) und ziele auf die Städte im Ring. Der Kreis zeigt, was die Bombe trifft. Dann <b>Abfeuern</b>.', el: '#hotbar [data-t="13"]', when: function (Q) { return Q.built(Q.me, UT.SILO) >= 1; } },
+        { text: 'Die Bombe zerstört alle Gebäude im Kreis und verstrahlt das Land. Verstrahltes Land kann eine Weile niemand nehmen.', when: function (Q) { return Q.built(Q.foe[0], UT.CITY) < 3; } }
+      ]
+    },
+    {
+      n: 9, name: 'Schutzschirm', learn: 'Flugabwehr',
+      map: { w: 320, h: 200, seed: 909, rough: 4, shapes: [rect(10, 20, 140, 180), rect(190, 20, 310, 180)] },
+      me: { x: 70, y: 100, box: [0, 0, 160, 200], troops: 60000, gold: 4600000, build: [[UT.CITY, 62, 92], [UT.CITY, 78, 92], [UT.CITY, 62, 108], [UT.CITY, 78, 108]] },
+      foes: [{ name: 'Nordheim', x: 260, y: 100, box: [160, 0, 320, 200], troops: 200000, build: [[UT.SILO, 280, 100, 2]] }],
+      allow: [UT.SAM, UT.CITY, UT.DEFENSE],
+      quest: {
+        text: 'Nordheim schiesst Atombomben auf deine Städte. Behalte mindestens 3 deiner 4 Städte, 2½ Minuten lang.',
+        check: function (Q) {
+          const n = Q.built(Q.me, UT.CITY);
+          return { ok: Q.secs >= 150, fail: n < 3 ? 'Zu viele Städte zerstört' : '', prog: Q.secs / 150, line: 'Noch ' + Q.clock(150 - Q.secs) + ' · ' + n + ' Städte' };
+        }
+      },
+      stars: function (Q) { return Q.built(Q.me, UT.CITY) < 4 ? 1 : Q.hit ? 2 : 3; },
+      starText: ['3 Städte gehalten', 'Alle 4 Städte gehalten', 'Keine Bombe hat dein Land getroffen'],
+      events: [
+        [40, function (Q) { Q.nukeCity(Q.foe[0], Q.me); }],
+        [70, function (Q) { Q.nukeCity(Q.foe[0], Q.me); }],
+        [100, function (Q) { Q.nukeCity(Q.foe[0], Q.me); Q.nukeCity(Q.foe[0], Q.me); }],
+        [130, function (Q) { Q.nukeCity(Q.foe[0], Q.me); Q.nukeCity(Q.foe[0], Q.me); }]
+      ],
+      tips: [
+        { text: 'In 40 Sekunden fliegt die erste Bombe. Baue sofort eine <b>Flugabwehr</b> (Taste 6) mitten zwischen deine Städte. Sie braucht 30 Sekunden, bis sie steht.', el: '#hotbar [data-t="4"]' },
+        { text: 'Der Ring um die Flugabwehr zeigt ihre Reichweite. Jede Abwehrrakete braucht danach 9 Sekunden zum Nachladen.', when: function (Q) { return Q.built(Q.me, UT.SAM) >= 1; } },
+        { text: 'Bald kommen zwei Bomben auf einmal. Eine zweite Flugabwehr oder ein Ausbau (Stufe 2 = zwei Abwehrraketen) fängt beide ab.', when: function (Q) { return Q.secs > 75; } }
+      ]
+    },
+    {
+      n: 10, name: 'Raketenkette', learn: 'Marschflugkörper und Salven',
+      map: { w: 320, h: 200, seed: 1010, rough: 4, shapes: [rect(10, 20, 140, 180), rect(180, 20, 310, 180)] },
+      me: { x: 60, y: 100, box: [0, 0, 160, 200], troops: 60000, gold: 3500000, build: [[UT.SILO, 90, 100, 3]] },
+      foes: [{ name: 'Tessmark', x: 270, y: 100, box: [160, 0, 320, 200], troops: 200000, build: [[UT.SAM, 210, 100], [UT.SAM, 245, 100], [UT.SILO, 270, 100], [UT.SAM, 278, 92]] }],
+      allow: [UT.CRUISE, UT.ATOM, UT.HYDRO, UT.SILO],
+      goal: [270, 100],
+      quest: {
+        text: 'Zerstöre das Raketensilo von Tessmark hinter seiner Flugabwehr.',
+        check: function (Q) { const n = Q.built(Q.foe[0], UT.SILO); return { ok: n === 0, prog: 1 - Q.built(Q.foe[0], UT.SAM) / 6 - n / 2, line: Q.built(Q.foe[0], UT.SAM) + ' Flugabwehren stehen noch' }; }
+      },
+      par: [150, 90],
+      tips: [
+        { text: 'Eine Atombombe wird hier sicher abgefangen. Der <b>Marschflugkörper</b> (Taste V) fliegt tief: Eine Flugabwehr sieht ihn erst auf halber Reichweite.', el: '#hotbar [data-t="17"]' },
+        { text: 'Jede Flugabwehr hat nur eine Abwehrrakete. Schick zwei Marschflugkörper kurz hintereinander auf dasselbe Ziel: Der zweite kommt durch. Dein Silo hat Stufe 3, also drei Schüsse pro Ladung.', when: function (Q) { return Q.secs > 12; } },
+        { text: 'Arbeite dich von vorne nach hinten durch die Kette. Steht keine Flugabwehr mehr in der Nähe, reicht ein einzelner Schuss auf das Silo.', when: function (Q) { return Q.built(Q.foe[0], UT.SAM) < 3; } }
+      ]
+    }
+  ];
+  for (const L of LEVELS) {
+    if (!L.starText && L.par) L.starText = ['Geschafft', 'Unter ' + clock(L.par[0]), 'Unter ' + clock(L.par[1])];
+  }
+  function clock(s) { s = Math.max(0, Math.ceil(s)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }
+  G.levelClock = clock;
+
+  // ---------- setting a level up ----------
+  // The tile of land nearest to x, y (owned by p, if given), searched in growing squares.
+  Game.prototype.levelTile = function (x, y, p) {
+    const W = this.W, H = this.H, land = this.map.land;
+    x = Math.round(x); y = Math.round(y);
+    for (let r = 0; r < 40; r++) {
+      for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
+        if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+        const xx = x + dx, yy = y + dy;
+        if (xx < 0 || yy < 0 || xx >= W || yy >= H) continue;
+        const t = yy * W + xx;
+        if (land[t] && (!p || this.owner[t] === p.id)) return t;
+      }
+    }
+    return -1;
+  };
+  // Start a realm at x, y and give it the free land around: a circle (r) or a box [x0, y0, x1, y1].
+  Game.prototype.levelClaim = function (p, d) {
+    const t = this.levelTile(d.x, d.y);
+    if (t < 0 || !this.spawn(p, t)) return;
+    const W = this.W, H = this.H, land = this.map.land;
+    if (d.box) {
+      for (let y = Math.max(0, d.box[1]); y < Math.min(H, d.box[3]); y++) for (let x = Math.max(0, d.box[0]); x < Math.min(W, d.box[2]); x++) {
+        const i = y * W + x;
+        if (land[i] && !this.owner[i]) this.conquer(p, i);
+      }
+    } else if (d.r) {
+      const cx = t % W, cy = (t / W) | 0;
+      for (let y = Math.max(0, cy - d.r); y <= Math.min(H - 1, cy + d.r); y++) for (let x = Math.max(0, cx - d.r); x <= Math.min(W - 1, cx + d.r); x++) {
+        const i = y * W + x;
+        if ((x - cx) * (x - cx) + (y - cy) * (y - cy) <= d.r * d.r && land[i] && !this.owner[i]) this.conquer(p, i);
+      }
+    }
+  };
+  // A building that is already there when the level starts.
+  Game.prototype.levelPlace = function (p, type, x, y, level) {
+    let t = this.levelTile(x, y, p);
+    if (t < 0) return null;
+    if (type === UT.PORT) { t = this.portSite(p, t); if (t < 0) return null; }
+    const u = this.newUnit(type, p, t);
+    u.level = level || 1;
+    if (type === UT.PORT) u.water = this.portWater(t);
+    this.addUnit(u);
+    this.finishBuild(u);
+    if (u.ready) { u.ready.length = 0; for (let i = 0; i < u.level; i++) u.ready.push(0); }
+    return u;
+  };
+
+  Game.prototype.levelSetup = function (human) {
+    const def = LEVELS.find(function (L) { return L.n === this.opts.level; }, this);
+    const people = Array.isArray(human) ? human : [human];
+    const me = this.addPlayer({ name: people[0].name, type: PT.HUMAN, color: people[0].color });
+    this.humans.push(me); this.human = me; this.names.add(me.name);
+    me.troops = def.me.troops; me.gold = def.me.gold;
+    const foes = [];
+    for (const f of def.foes) {
+      const p = f.bot ? this.addPlayer({ name: this.botName(), type: PT.BOT }) : this.addPlayer({ name: f.name, type: PT.NATION, strength: f.strength || 1 });
+      if (!f.bot) this.names.add(f.name);
+      this.levelClaim(p, f);
+      if (f.troops) p.troops = f.troops;
+      if (f.gold) p.gold = f.gold;
+      if (f.bot || f.ai) p.ai = new G.AI(this, p);
+      foes.push(p);
+    }
+    if (def.me.x !== undefined) this.levelClaim(me, def.me);
+    // buildings come last, once every realm has its land
+    for (let i = 0; i < def.foes.length; i++) for (const b of def.foes[i].build || []) this.levelPlace(foes[i], b[0], b[1], b[2], b[3]);
+    for (const b of def.me.build || []) this.levelPlace(me, b[0], b[1], b[2], b[3]);
+    this.lv = { def: def, foes: foes, fired: 0, tip: 0, over: false, result: null, check: null, start: null, hit: false, goal: def.goal ? this.levelTile(def.goal[0], def.goal[1]) : -1, isle: new Map() };
+    this.lv.Q = this.levelQ();
+  };
+
+  // ---------- what the quests and the script can ask and do ----------
+  Game.prototype.levelQ = function () {
+    const g = this, lv = this.lv;
+    const Q = {
+      g: g, me: g.human, foe: lv.foes, secs: 0, start: null, hit: false,
+      tile: function (x, y) { return Math.round(y) * g.W + Math.round(x); },
+      share: function (p) { return p.tiles / Math.max(1, g.map.landTiles - g.falloutCount); },
+      pct: function (s) { return Math.round(Math.min(1, s) * 100) + ' %'; },
+      clock: clock,
+      // realms of a kind that no longer exist
+      beaten: function (type) { let n = 0; for (let i = 1; i < g.players.length; i++) { const p = g.players[i]; if (p.type === type && p.spawned && !p.alive) n++; } return n; },
+      built: function (p, type) { let n = 0; for (const u of p.units) if (u.type === type && u.active && u.built) n++; return n; },
+      // how far (in tiles) the land of p is from x, y at its nearest point
+      reach: function (p, x, y) {
+        let best = 1e9;
+        for (const b of p.border) { const d = Math.hypot(b % g.W - x, ((b / g.W) | 0) - y); if (d < best) best = d; }
+        return Math.round(best);
+      },
+      ships: function (p) { let n = 0; for (const u of p.units) if (u.type === UT.WARSHIP && u.active) n++; return n; },
+      // share of one island (the land connected to x, y) that p holds
+      islandShare: function (p, x, y) {
+        const key = Q.tile(x, y);
+        let isle = lv.isle.get(key);
+        if (!isle) {
+          const W = g.W, H = g.H, land = g.map.land, seen = new Uint8Array(g.N), list = [], s = g.levelTile(x, y);
+          if (s >= 0) { seen[s] = 1; list.push(s); }
+          for (let i = 0; i < list.length; i++) {
+            const t = list[i], tx = t % W, ty = (t / W) | 0;
+            if (tx > 0 && land[t - 1] && !seen[t - 1]) { seen[t - 1] = 1; list.push(t - 1); }
+            if (tx < W - 1 && land[t + 1] && !seen[t + 1]) { seen[t + 1] = 1; list.push(t + 1); }
+            if (ty > 0 && land[t - W] && !seen[t - W]) { seen[t - W] = 1; list.push(t - W); }
+            if (ty < H - 1 && land[t + W] && !seen[t + W]) { seen[t + W] = 1; list.push(t + W); }
+          }
+          isle = list; lv.isle.set(key, isle);
+        }
+        let n = 0;
+        for (const t of isle) if (g.owner[t] === p.id) n++;
+        return n / Math.max(1, isle.length);
+      },
+      // the script: build or fire something for an opponent (the gold is topped up), attack, send a boat
+      fire: function (p, type, x, y) { p.gold += g.cost(p, type); const t = type === UT.WARSHIP ? Q.tile(x, y) : g.levelTile(x, y); return t >= 0 ? g.build(p, type, t) : null; },
+      push: function (p, q, share, x, y, mode) { if (p.alive && q.alive) g.attack(p, q.id, p.troops * share, -1, g.levelTile(x, y, q), mode || 0); },
+      // a warship that is simply there, at sea (without a port of its own it cannot be repaired)
+      ship: function (p, x, y) {
+        const t = Q.tile(x, y);
+        if (g.map.land[t]) return null;
+        const u = g.newUnit(UT.WARSHIP, p, t);
+        u.hp = 1000; u.patrol = t; u.shotAt = 0; u.target = null; u.path = null; u.pi = 0; u.wait = false;
+        g.addUnit(u);
+        return u;
+      },
+      boat: function (p, x, y, troops) {
+        if (!p.alive) return;
+        const plan = g.boatPlan(p, g.levelTile(x, y));
+        if (plan) { p.troops += troops; g.sendBoat(p, plan, troops); }
+      },
+      // an atom bomb on one of q's cities, picked in turn
+      nukeCity: function (p, q) {
+        const cs = q.units.filter(function (u) { return u.type === UT.CITY && u.active; });
+        if (!cs.length || !p.alive) return;
+        const u = cs[(lv.fired++) % cs.length];
+        Q.fire(p, UT.ATOM, u.x, u.y);
+      }
+    };
+    return Q;
+  };
+
+  // Is this kind of thing unlocked in the level being played?
+  Game.prototype.levelAllows = function (type) { return !this.lv || this.lv.def.allow.indexOf(type) >= 0; };
+
+  // Every half second while a level runs: the script, the quest, the end.
+  Game.prototype.levelTick = function () {
+    const lv = this.lv, def = lv.def, Q = lv.Q, me = this.human;
+    if (lv.over || this.phase !== 'play') return;
+    Q.secs = (this.ticks - this.playStart) / 10;
+    if (!Q.start) Q.start = { tiles: Math.max(1, me.tiles) };
+    if (me.tiles < (lv.lastTiles || 0) && this.falloutCount > (lv.lastFall || 0)) Q.hit = true;   // a bomb took some of the land
+    lv.lastTiles = me.tiles; lv.lastFall = this.falloutCount;
+    const ev = def.events || [];
+    while ((lv.ev || 0) < ev.length && Q.secs >= ev[lv.ev || 0][0]) { const e = ev[lv.ev || 0]; lv.ev = (lv.ev || 0) + 1; e[1](Q); }
+    const r = def.quest.check(Q);
+    lv.check = r;
+    let end = null;
+    if (!me.alive) end = { win: false, why: 'Dein Gebiet wurde erobert' };
+    else if (r.ok) end = { win: true };
+    else if (r.fail) end = { win: false, why: r.fail };
+    else if (def.limit && Q.secs >= def.limit) end = { win: false, why: 'Die Zeit ist abgelaufen' };
+    if (!end) return;
+    end.secs = Q.secs;
+    end.stars = !end.win ? 0 : def.stars ? def.stars(Q) : 1 + (Q.secs <= def.par[0] ? 1 : 0) + (Q.secs <= def.par[1] ? 1 : 0);
+    lv.over = true; lv.result = end;
+    this.emit({ k: 'quest', win: end.win, stars: end.stars, secs: end.secs, why: end.why || '' });
+  };
 })(globalThis.G = globalThis.G || {});
 
 (function (G) {
@@ -5628,6 +6104,9 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     cruise: 'M22 2l-1.2 5.2L9.5 18.5l-4-4L16.8 3.2zM4.3 15.7l4 4L3 21zM10.5 6.5H6L3.5 9.5l4 .5zM17.5 13.5V18l-3 2.5l-.5-4z',
     people: 'M8 4a3.5 3.5 0 1 0 0 7a3.5 3.5 0 0 0 0-7zM16.5 5a3 3 0 1 0 0 6a3 3 0 0 0 0-6zM1.5 20c0-3.6 2.9-6.5 6.5-6.5s6.5 2.9 6.5 6.5zM16 20c0-2-.7-3.9-1.9-5.4c.8-.4 1.6-.6 2.4-.6c3 0 5.5 2.5 5.5 6z',
     copy: 'M8 3h11a2 2 0 0 1 2 2v11h-2V5H8zM5 7h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2z',
+    flag: 'M5 2h2v20H5zM8 3h12l-3 4.5L20 12H8z',
+    star: 'M12 2l2.9 6.6l7.1.7l-5.4 4.8l1.6 7L12 17.4L5.8 21.1l1.6-7L2 9.3l7.1-.7z',
+    lock: 'M7 10V7a5 5 0 0 1 10 0v3h2v12H5V10zm2.4 0h5.2V7a2.6 2.6 0 0 0-5.2 0z',
     target: 'M11 1h2v3.1a8 8 0 0 1 6.9 6.9H23v2h-3.1a8 8 0 0 1-6.9 6.9V23h-2v-3.1A8 8 0 0 1 4.1 13H1v-2h3.1A8 8 0 0 1 11 4.1zM12 6a6 6 0 1 0 0 12a6 6 0 0 0 0-12zM12 9.5a2.5 2.5 0 1 1 0 5a2.5 2.5 0 0 1 0-5z'
   };
   const STRUCT_ICON = ['city', 'defense', 'port', 'silo', 'sam', 'factory', 'cloak'];
@@ -7625,6 +8104,14 @@ globalThis.G = { VARIANT: 'rohstoffe' };
       ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(16,22,29,0.55)'; ctx.stroke();
       ctx.lineWidth = 2; ctx.strokeStyle = '#fff'; ctx.stroke();
     }
+    // the target of a campaign level (src/03d_level.js): a slowly breathing golden ring
+    if (g.lv && g.lv.goal >= 0 && !g.lv.over) {
+      const x = (g.lv.goal % W + 0.5) * z + ox, y = (((g.lv.goal / W) | 0) + 0.5) * z + oy;
+      const r = Math.max(14, 6 * z) + (0.5 + 0.5 * Math.sin(now / 320)) * 6;
+      ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832);
+      ctx.lineWidth = 5; ctx.strokeStyle = 'rgba(16,22,29,0.5)'; ctx.stroke();
+      ctx.lineWidth = 2.5; ctx.strokeStyle = '#f4b740'; ctx.stroke();
+    }
     if (this.mark >= 0) {
       const x = (this.mark % W + 0.5) * z + ox, y = (((this.mark / W) | 0) + 0.5) * z + oy;
       ctx.beginPath(); ctx.arc(x, y, 7, 0, 6.2832);
@@ -8107,6 +8594,8 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   const plain = function (t) { return G.UNAME[t].replace('\u00AD', ''); };
   // what only the Arsenal mode has
   const armory = function (t) { return t === UT.LASER || t === UT.CLOAK; };
+  // what can be built in this game: the Arsenal's two only in that mode, in a level only what it unlocks
+  const offered = function (t) { return (!armory(t) || game.opts.arsenal) && (!game.lv || game.levelAllows(t)); };
   // how many of a kind of building you can see at player q (a cloaking tower hides some)
   const seen = function (q, t) { return game.seenCount(game.human, q, t); };
   const coin = function (n) { return '<span class="price">' + svg('gold', 13) + (n ? fmt(n) : 'gratis') + '</span>'; };
@@ -8347,6 +8836,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
       h += '<div class="field"><div class="lab">Optionen</div><div class="checks">' + check('fNations', 'Nationen', cfg.nations) +
         check('fInstant', 'Sofort bauen', cfg.instant) + check('fGold', 'Unendlich Gold', cfg.gold) + check('fTroops', 'Unendlich Truppen', cfg.troops) + '</div></div>';
       h += '<button class="btn" id="fStart" type="button">Spiel starten</button>';
+      if (!RES) h += '<button class="btn alt" id="fCamp" type="button">' + svg('flag', 20) + 'Feldzug · Levels</button>';
       h += '<button class="btn alt" id="fHost" type="button">' + svg('people', 20) + 'Mit Freunden spielen</button>';
     }
     h += '<button class="btn ghost" id="fHelp" type="button">So wird gespielt</button>';
@@ -8395,6 +8885,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
       startGame();
     });
     $('fHost').addEventListener('click', function () { readForm(); openRoom(true); });
+    if ($('fCamp')) $('fCamp').addEventListener('click', function () { readForm(); G.Feldzug.open(); });
   }
   function readForm() {
     cfg.name = ($('fName').value || '').trim() || 'Spieler';
@@ -8652,10 +9143,13 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     }
   }
   function quitGame() {
+    const wasLevel = !!(game && game.lv);
     game = null; closeRadial(); $('sheet').hidden = true; if (view) view.showCloak = false; stopAim();
     $('hud').hidden = true;
     leaveRoom();
     if (cfg.map === 'zufall') delete maps.zufall;
+    G.Feldzug.hide();
+    if (wasLevel) { G.Feldzug.open(); return; }
     showStart();
     previewMap(cfg.map);
   }
@@ -8721,7 +9215,9 @@ globalThis.G = { VARIANT: 'rohstoffe' };
         else addMsg('Vorkommen verloren: ' + say, 'warn');
       } else if (e.k === 'loot') {
         if (e.by === h.id && e.gold > 0) { view.floatText(e.x, e.y, '+ ' + fmt(e.gold)); goldPop(e.gold); }
-      } else if (e.k === 'defeat') { setNet(false); plans.length = 0; syncPlans(); $('bNet').hidden = true; showEnd('defeat', null); }
+      } else if (e.k === 'quest') { setNet(false); stopAim(); G.Feldzug.end(e); }
+      else if (e.k === 'defeat' && game.lv) { setNet(false); }   // a level reports its end itself ('quest')
+      else if (e.k === 'defeat') { setNet(false); plans.length = 0; syncPlans(); $('bNet').hidden = true; showEnd('defeat', null); }
       else if (e.k === 'win') showEnd(game.players[e.id] === h ? 'win' : 'other', game.players[e.id]);
     }
     ev.length = 0;
@@ -8799,10 +9295,10 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   let hotSig = '';
   function renderHotbar() {
     const el = $('hotbar'), h = game.human;
-    if (!h.alive || game.phase !== 'play') { el.hidden = true; return; }
+    if (!h.alive || game.phase !== 'play' || (game.lv && !game.lv.def.allow.length)) { el.hidden = true; return; }
     el.hidden = false;
     const rich = game.opts.infiniteGold;
-    const cells = BUILD.filter(function (b) { return !armory(b.t) || game.opts.arsenal; }).map(function (b) {
+    const cells = BUILD.filter(function (b) { return offered(b.t); }).map(function (b) {
       const cost = game.cost(h, b.t), wait = b.t === UT.LASER ? Math.ceil(((h.laserAt || 0) - game.ticks) / 10) : 0;
       const have = b.t === UT.WARSHIP ? h.units.filter(function (u) { return u.type === UT.WARSHIP; }).length : b.t <= UT.CLOAK ? h.units.filter(function (u) { return u.type === b.t; }).length : 0;
       return { b: b, cost: wait > 0 ? wait + ' s' : fmt(cost), poor: wait > 0 || (!rich && h.gold < cost), have: have, on: !!ghost && ghost.t === b.t };
@@ -8831,6 +9327,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
         $('spawnBarLine').hidden = true;
         $('spawnHint').textContent = 'Tippe auf freies Land, dann geht es sofort los';
       }
+      if (game.lv) G.Feldzug.hud();
       return;
     }
     $('clock').textContent = clock((T - game.playStart) / 10);
@@ -8866,6 +9363,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     if (modalKind === 'info' && T % 5 === 0) renderInfo();
     if (modalKind === 'res' && T % 3 === 0) renderRes();
     if (aim && T % 3 === 0) refreshAim();
+    if (game.lv) G.Feldzug.hud();
   }
 
   // ---------- end of game ----------
@@ -8931,12 +9429,13 @@ globalThis.G = { VARIANT: 'rohstoffe' };
 
   function showMenu() {
     if (!mp) setPaused(true);
-    openModal('<h2>' + (mp ? 'Menü' : 'Pause') + '</h2><p>' + esc(game.map.name) + ' · ' + G.DIFF_NAMES[game.opts.difficulty] + (game.opts.arsenal ? ' · Arsenal' : '') + '</p>' +
+    openModal('<h2>' + (mp ? 'Menü' : 'Pause') + '</h2><p>' + (game.lv ? 'Feldzug · Level ' + game.lv.def.n + ' · ' + esc(game.lv.def.name) : esc(game.map.name) + ' · ' + G.DIFF_NAMES[game.opts.difficulty] + (game.opts.arsenal ? ' · Arsenal' : '')) + '</p>' +
       '<button class="btn" data-act="resume" type="button">Weiterspielen</button>' +
       '<button class="btn ghost" data-act="help" type="button">So wird gespielt</button>' +
       '<label class="check wide" for="mMusic"><input id="mMusic" type="checkbox"' + (cfg.music ? ' checked' : '') + '>Musik</label>' +
       '<label class="check" for="mSfx"><input id="mSfx" type="checkbox"' + (cfg.sfx ? ' checked' : '') + '>Töne bei Aktionen</label>' +
-      '<button class="btn ghost" data-act="quit" type="button">Spiel beenden</button>', 'menu');
+      (game.lv ? '<button class="btn ghost" data-act="lvRetry" type="button">Level neu starten</button><button class="btn ghost" data-act="quit" type="button">Zur Levelkarte</button>'
+        : '<button class="btn ghost" data-act="quit" type="button">Spiel beenden</button>'), 'menu');
     $('mMusic').addEventListener('change', function () { setSound('music', this.checked); });
     $('mSfx').addEventListener('change', function () { setSound('sfx', this.checked); });
   }
@@ -8955,6 +9454,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     if (what === 'close' || what === 'resume') { closeModal(); return; }
     if (what === 'help') { showHelp(false); return; }
     if (what === 'quit') { quitGame(); return; }
+    if (what.indexOf('lv') === 0) { G.Feldzug.act(what); return; }
     if (what === 'confirmBreak') { act({ k: 'break', p: p.id }); closeModal(); return; }
     if (what === 'ally') { act({ k: 'ally', p: p.id, say: 'Anfrage an ' + p.name + ' gesendet' }); return; }
     if (what === 'break') {
@@ -9094,8 +9594,8 @@ globalThis.G = { VARIANT: 'rohstoffe' };
       return '<button class="item' + (nuke ? ' nuke' : '') + (!game.opts.infiniteGold && h.gold < cost ? ' poor' : '') + '" type="button" data-t="' + b.t + '"' + (ok ? '' : ' disabled') + '><kbd>' + b.key.toUpperCase() + '</kbd>' + (have ? '<i class="own">' + have + '</i>' : '') +
         '<span class="ic">' + svg(b.icon, 24) + '</span><b>' + G.UNAME[b.t] + '</b><small>' + esc(note) + '</small>' + coin(cost) + '</button>';
     };
-    html += '<h3>Gebäude</h3><div class="grid">' + BUILD.filter(function (b) { return b.t <= UT.CLOAK && (!armory(b.t) || game.opts.arsenal); }).map(cell).join('') + '</div>';
-    html += '<h3>Flotte und Raketen</h3><div class="grid">' + BUILD.filter(function (b) { return b.t > UT.CLOAK && (!armory(b.t) || game.opts.arsenal); }).map(cell).join('') + '</div>';
+    html += '<h3>Gebäude</h3><div class="grid">' + BUILD.filter(function (b) { return b.t <= UT.CLOAK && offered(b.t); }).map(cell).join('') + '</div>';
+    html += '<h3>Flotte und Raketen</h3><div class="grid">' + BUILD.filter(function (b) { return b.t > UT.CLOAK && offered(b.t); }).map(cell).join('') + '</div>';
     $('sheetBody').innerHTML = html;
     $('purse').innerHTML = svg('gold', 15) + (game.opts.infiniteGold ? '∞' : fmt(h.gold));
     $('sheet').hidden = false; sheetAt = performance.now();
@@ -9105,6 +9605,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   // Build at a tile, or start aiming a bomb at it. Used by the menu and by the keys.
   function doBuild(t, tile) {
     if (armory(t) && !game.opts.arsenal) { toast('Den ' + plain(t) + ' gibt es nur im Arsenal-Modus'); snd('deny'); return; }
+    if (!offered(t)) { toast(plain(t) + ': in diesem Level noch gesperrt'); snd('deny'); return; }
     if (t === UT.LASER) { startAim(t, tile); return; }
     if (t >= UT.ATOM) {
       const h = game.human, s = game.readySilo(h, tile);
@@ -9901,7 +10402,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
         else if (aim) stopAim();
         else if (!$('radial').hidden) closeRadial();
         else if (!$('sheet').hidden) closeBuild();
-        else if (!$('modal').hidden && modalKind !== 'start' && modalKind !== 'starthelp' && modalKind !== 'lobby') closeModal();
+        else if (!$('modal').hidden && modalKind !== 'start' && modalKind !== 'starthelp' && modalKind !== 'lobby' && modalKind.indexOf('lv') !== 0) closeModal();
         return;
       }
       if (k === 'm') { const v = !(cfg.music || cfg.sfx); setSound('music', v); setSound('sfx', v); toast(v ? 'Ton an' : 'Ton aus'); return; }
@@ -10154,7 +10655,224 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     previewMap(cfg.map);
     last = performance.now();
     requestAnimationFrame(frame);
+    G.ui = {
+      begin: begin, openModal: openModal, closeModal: closeModal, showStart: showStart, previewMap: previewMap, quitGame: quitGame,
+      toast: toast, addMsg: addMsg, setPaused: setPaused, svg: svg, esc: esc, snd: snd, cfg: cfg, COLORS: COLORS,
+      get game() { return game; }, get view() { return view; }, get modalKind() { return modalKind; }
+    };
     G.debug = { get game() { return game; }, get view() { return view; }, get mp() { return mp; }, tap: tap, cfg: cfg, act: act };
+  };
+})(globalThis.G = globalThis.G || {});
+
+(function (G) {
+  'use strict';
+  // The campaign «Feldzug» on screen: the level map, the card of a level, the quest bar while
+  // playing, the tips that point at the right button, and the card at the end. The levels
+  // themselves and their quests are in src/03d_level.js; doku/feldzug.md describes them.
+  const UT = G.UT;
+  const $ = function (id) { return document.getElementById(id); };
+  const KEY = 'grenzland.feldzug';
+  // the skill levels that come next (doku/feldzug.md), shown locked until they exist
+  const LATER = ['Blitzkrieg', 'Zwei Fronten', 'Inselhüpfen', 'Tarnung', 'Kalter Krieg', 'Kessel', 'Wirtschaftswunder', 'Atomwinter', 'Verrat', 'Imperium'];
+  let best = {}, cur = 0, maps = {};
+  let tipCur = -1, tipNext = 0, tipSince = 0, glow = null;
+
+  function load() {
+    try { const s = JSON.parse(localStorage.getItem(KEY) || '{}'); best = s.best || {}; } catch (e) { best = {}; }
+  }
+  function save() {
+    try { localStorage.setItem(KEY, JSON.stringify({ best: best })); } catch (e) { /* storage may be unavailable */ }
+  }
+  const def = function (n) { return G.LEVELS.find(function (L) { return L.n === n; }); };
+  const open1 = function (n) { return n === 1 || (best[n - 1] || 0) > 0; };
+  const ui = function () { return G.ui; };
+  function starRow(n, size, cls) {
+    let s = '<span class="lvStars ' + (cls || '') + '">';
+    for (let i = 1; i <= 3; i++) s += '<span class="' + (i <= n ? 'on' : '') + '">' + ui().svg('star', size) + '</span>';
+    return s + '</span>';
+  }
+  function mapOf(n) { return maps[n] || (maps[n] = G.levelMap(def(n))); }
+
+  // ---------- the level map ----------
+  function open() {
+    load();
+    const u = ui();
+    hide();
+    let total = 0;
+    for (const L of G.LEVELS) total += best[L.n] || 0;
+    const first = G.LEVELS.find(function (L) { return !best[L.n]; });
+    let h = '<h2>Feldzug</h2><p>Jedes Level hat eine eigene Karte und ein Ziel. Die ersten zehn bringen dir das Spiel bei, danach zählt nur noch Können. Abgeschlossene Levels kannst du jederzeit nochmals spielen.</p>';
+    h += '<div class="lvSec">Lernen · ' + total + ' von ' + G.LEVELS.length * 3 + ' Sternen</div><div class="lvGrid">';
+    for (const L of G.LEVELS) {
+      const ok = open1(L.n);
+      h += '<button type="button" class="lvSt' + (first && first.n === L.n && ok ? ' next' : '') + '" data-act="lvPick:' + L.n + '"' + (ok ? '' : ' disabled') + '>' +
+        '<b>' + (ok ? L.n : u.svg('lock', 20)) + '</b><small>' + u.esc(L.name) + '</small>' + starRow(best[L.n] || 0, 11) + '</button>';
+    }
+    h += '</div><div class="lvSec">Können · kommt bald</div><div class="lvGrid">';
+    LATER.forEach(function (name, i) {
+      h += '<button type="button" class="lvSt" disabled><b>' + (i + 11) + '</b><small>' + u.esc(name) + '</small>' + starRow(0, 11) + '</button>';
+    });
+    h += '</div><button class="btn ghost" data-act="lvBack" type="button">Zurück</button>';
+    u.openModal(h, 'lvMap');
+    const pick = first && open1(first.n) ? first.n : 1;
+    preview(pick);
+  }
+  function preview(n) {
+    const u = ui();
+    if (u.game) return;
+    const v = u.view;
+    v.setMap(mapOf(n)); v.fit(true);
+  }
+
+  // ---------- the card of a level ----------
+  const NAMES = {};
+  NAMES[UT.CITY] = 'Stadt'; NAMES[UT.FACTORY] = 'Fabrik'; NAMES[UT.PORT] = 'Hafen'; NAMES[UT.DEFENSE] = 'Verteidigungsposten'; NAMES[UT.SILO] = 'Raketensilo';
+  NAMES[UT.SAM] = 'Flugabwehr'; NAMES[UT.WARSHIP] = 'Kriegsschiff'; NAMES[UT.ATOM] = 'Atombombe'; NAMES[UT.HYDRO] = 'Wasserstoffbombe'; NAMES[UT.CRUISE] = 'Marschflugkörper'; NAMES[UT.MIRV] = 'MIRV';
+  function card(n) {
+    const L = def(n), u = ui();
+    if (!L || !open1(n)) { open(); return; }
+    const b = best[n] || 0;
+    let h = '<h2>Level ' + n + ' · ' + u.esc(L.name) + '</h2><p>Du lernst: ' + u.esc(L.learn) + '</p>';
+    h += '<div class="lvQuest">' + u.esc(L.quest.text) + (L.limit ? ' Zeit: ' + G.levelClock(L.limit) + '.' : '') + '</div>';
+    h += '<ul class="lvGoals">' + L.starText.map(function (t, i) { return '<li class="' + (b > i ? 'on' : '') + '">' + u.svg('star', 14) + u.esc(t) + '</li>'; }).join('') + '</ul>';
+    h += '<p>' + (L.allow.length ? 'Freigeschaltet: ' + L.allow.map(function (t) { return NAMES[t]; }).join(', ') + '.' : 'In diesem Level wird noch nichts gebaut.') + '</p>';
+    h += '<button class="btn" data-act="lvGo:' + n + '" type="button">' + (b ? 'Nochmals spielen' : 'Los') + '</button>';
+    h += '<button class="btn ghost" data-act="lvMap" type="button">Zur Levelkarte</button>';
+    u.openModal(h, 'lvCard');
+    preview(n);
+  }
+
+  // ---------- playing a level ----------
+  function start(n) {
+    const L = def(n), u = ui(), c = u.cfg;
+    cur = n;
+    tipCur = -1; tipNext = 0; tipSince = 0; hideTip();
+    u.begin(mapOf(n), {
+      seed: 1000 + n, level: n, difficulty: L.diff === undefined ? 1 : L.diff, bots: 0, nations: false, arsenal: false,
+      pfeile: !!c.pfeile, netz: !!c.netz, punkt: !!c.punkt, aufstellung: c.aufstellung !== false
+    }, { name: c.name, color: u.COLORS[c.color] });
+    $('lvBar').hidden = false;
+    hud();
+  }
+  // Called from the interface's own update, a few times a second.
+  function hud() {
+    const g = ui().game;
+    if (!g || !g.lv) return;
+    const lv = g.lv, L = lv.def, Q = lv.Q;
+    $('lb').hidden = true;
+    const bar = $('lvBar'), spawn = g.phase === 'spawn';
+    bar.hidden = spawn;
+    if (!spawn) {
+      const r = lv.check || { prog: 0, line: '' };
+      const left = L.limit ? ' · noch ' + G.levelClock(L.limit - Q.secs) : '';
+      const html = '<small>Level ' + L.n + ' · ' + ui().esc(L.name) + left + '</small><b>' + ui().esc(L.quest.text) + '</b>' +
+        '<div class="bar"><i style="width:' + (G.within(r.prog || 0, 0, 1) * 100).toFixed(1) + '%"></i></div><span>' + ui().esc(r.line || '') + '</span>';
+      if (bar.dataset.html !== html) { bar.innerHTML = html; bar.dataset.html = html; }
+    }
+    tips(g);
+  }
+
+  // ---------- tips ----------
+  function ready(t, Q) {
+    try { return !t.when || !!t.when(Q); } catch (e) { return false; }
+  }
+  function tips(g) {
+    const lv = g.lv, list = lv.def.tips || [], now = performance.now();
+    if (lv.over) { hideTip(); return; }
+    // a tip whose moment has passed (the start point is chosen, say) goes at once; a waiting one
+    // takes over after a few seconds even if the last was not acknowledged
+    const stale = tipCur >= 0 && !ready(list[tipCur], lv.Q);
+    if (stale) hideTip();
+    if (tipNext < list.length && ready(list[tipNext], lv.Q) && (tipCur < 0 || now - tipSince > 7000)) showTip(tipNext, list[tipNext]);
+    else if (tipCur >= 0) place(list[tipCur]);
+  }
+  function showTip(i, t) {
+    tipCur = i; tipNext = i + 1; tipSince = performance.now();
+    const el = $('lvTip');
+    el.innerHTML = '<div>' + t.text + '</div><button class="lvOk" type="button">Verstanden</button>';
+    el.hidden = false;
+    el.querySelector('.lvOk').addEventListener('click', hideTip);
+    ui().snd('ui');
+    place(t);
+  }
+  function hideTip() {
+    tipCur = -1;
+    const el = $('lvTip');
+    if (el) el.hidden = true;
+    if (glow) { glow.classList.remove('lvGlow'); glow = null; }
+  }
+  // Next to the element the tip is about (above it in the lower half of the screen, below it in
+  // the upper half), or under the quest bar when there is nothing to point at.
+  function place(t) {
+    const el = $('lvTip'), app = $('app').getBoundingClientRect();
+    let a = t.el ? document.querySelector(t.el) : null;
+    let r = a ? a.getBoundingClientRect() : null;
+    if (!r || !r.width || a.closest('[hidden]')) { a = null; r = null; }
+    if (glow !== a) { if (glow) glow.classList.remove('lvGlow'); glow = a; if (a) a.classList.add('lvGlow'); }
+    const w = el.offsetWidth, hgt = el.offsetHeight, W = app.width, H = app.height;
+    el.classList.remove('up', 'down');
+    let left, top;
+    if (r) {
+      const cx = r.left + r.width / 2 - app.left;
+      left = G.within(cx - w / 2, 8, W - w - 8);
+      if (r.top + r.height / 2 - app.top > H / 2) { top = r.top - app.top - hgt - 12; el.classList.add('down'); }
+      else { top = r.bottom - app.top + 12; el.classList.add('up'); }
+      el.style.setProperty('--ax', G.within(cx - left, 14, w - 14) + 'px');
+    } else {
+      const b = $('lvBar').hidden ? $('spawnBar') : $('lvBar'), br = b.getBoundingClientRect();
+      left = G.within(br.left - app.left, 8, W - w - 8);
+      top = br.bottom - app.top + 8;
+    }
+    el.style.left = Math.round(left) + 'px'; el.style.top = Math.round(Math.max(8, top)) + 'px';
+  }
+
+  // ---------- the end of a level ----------
+  function end(e) {
+    const u = ui(), g = u.game, L = g.lv.def;
+    hideTip();
+    u.setPaused(true);
+    load();
+    const before = best[L.n] || 0;
+    if (e.win && e.stars > before) { best[L.n] = e.stars; save(); }
+    u.snd(e.win ? 'win' : 'lose');
+    let h;
+    if (e.win) {
+      h = '<h2>Level geschafft!</h2>' + starRow(e.stars, 40, 'lvBig') + '<p>' + u.esc(L.name) + ' in ' + G.levelClock(e.secs) + (e.stars > before && before ? ' · neuer Bestwert' : '') + '</p>';
+      h += '<ul class="lvGoals">' + L.starText.map(function (t, i) { return '<li class="' + (e.stars > i ? 'on' : '') + '">' + u.svg('star', 14) + u.esc(t) + '</li>'; }).join('') + '</ul>';
+      if (def(L.n + 1)) h += '<button class="btn" data-act="lvPick:' + (L.n + 1) + '" type="button">Weiter zu Level ' + (L.n + 1) + '</button>';
+      else h += '<p>Das waren alle Lern-Levels. Die Levels, in denen nur noch Können zählt, kommen als Nächstes.</p>';
+      h += '<button class="btn ghost" data-act="lvRetry" type="button">Nochmals spielen</button>';
+    } else {
+      h = '<h2>Nicht geschafft</h2><p>' + u.esc(e.why || 'Das Ziel ist nicht mehr zu erreichen.') + '</p>';
+      h += '<button class="btn" data-act="lvRetry" type="button">Nochmals versuchen</button>';
+    }
+    h += '<button class="btn ghost" data-act="quit" type="button">Zur Levelkarte</button>';
+    u.openModal(h, 'lvEnd');
+  }
+
+  function hide() {
+    hideTip();
+    const b = $('lvBar');
+    if (b) { b.hidden = true; b.dataset.html = ''; }
+  }
+
+  // Buttons with data-act="lv…" in the window land here (see onModalAct in src/07_ui.js).
+  function act(what) {
+    const u = ui(), i = what.indexOf(':'), n = i > 0 ? +what.slice(i + 1) : 0, k = i > 0 ? what.slice(0, i) : what;
+    if (k === 'lvBack') { u.showStart(); u.previewMap(u.cfg.map); return; }
+    if (k === 'lvMap') { open(); return; }
+    if (k === 'lvPick') { if (u.game) { u.closeModal(); G.Feldzug.leave = n; u.quitGame(); return; } card(n); return; }
+    if (k === 'lvGo') { start(n); return; }
+    if (k === 'lvRetry') { start(cur); return; }
+  }
+
+  G.Feldzug = {
+    open: function () {
+      // after a level the button «Weiter zu Level n» lands here through quitGame: show that level's card
+      const n = G.Feldzug.leave; G.Feldzug.leave = 0;
+      if (n) card(n); else open();
+    },
+    hud: hud, end: end, act: act, hide: hide, start: start, leave: 0
   };
 })(globalThis.G = globalThis.G || {});
 

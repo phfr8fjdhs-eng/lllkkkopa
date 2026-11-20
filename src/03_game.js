@@ -232,6 +232,7 @@
   };
 
   Game.prototype.setup = function (human) {
+    if (this.opts.level && this.levelSetup) { this.levelSetup(human); return; }   // a level of the campaign brings its own players (src/03d_level.js)
     const map = this.map, o = this.opts, rng = this.rng, W = this.W;
     // one person, or a list of people for a game over the network (opts.me picks the one at this device)
     const people = !human ? [] : Array.isArray(human) ? human : [human];
@@ -416,6 +417,7 @@
 
   Game.prototype.canRequestAlliance = function (a, b) {
     if (a === b || !a.alive || !b.alive || this.phase !== 'play') return false;
+    if (this.lv) return false;   // no alliances in the campaign: every level is a duel of its own
     if (a.allies.has(b.id)) return false;
     for (const r of this.requests) if ((r.from === a && r.to === b) || (r.from === b && r.to === a)) return false;
     return (a.reqCd.get(b.id) || 0) <= this.ticks;
@@ -1394,7 +1396,8 @@
     }
     if (T % 10 === 0) this.tickDiplomacy();
     this.reap();
-    if (T % 10 === 0 && !this.winner) this.checkWin();
+    if (this.lv) { if (T % 5 === 0) this.levelTick(); }   // a level ends with its quest, not at 80 % of the land
+    else if (T % 10 === 0 && !this.winner) this.checkWin();
   };
 
   // ---------- sea routes, worked on a little every step ----------
@@ -1546,6 +1549,7 @@
       case 'ship': return tileOk && this.moveWarship(p, c.t) ? '' : 'Kein Schiff kann dorthin';
       case 'build': {
         if (!tileOk || !(c.u <= UT.WARSHIP || c.u === UT.ATOM || c.u === UT.HYDRO || c.u === UT.MIRV || c.u === UT.CRUISE || c.u === UT.LASER) || !(c.u >= 0)) return 'Nicht möglich';
+        if (this.lv && !this.levelAllows(c.u)) return 'In diesem Level noch gesperrt';
         const chk = this.buildCheck(p, c.u, c.t);
         if (!chk.ok) return chk.why || 'Nicht möglich';
         return this.build(p, c.u, c.t) ? '' : 'Nicht möglich';

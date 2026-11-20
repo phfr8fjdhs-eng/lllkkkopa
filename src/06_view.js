@@ -40,6 +40,9 @@
     cruise: 'M22 2l-1.2 5.2L9.5 18.5l-4-4L16.8 3.2zM4.3 15.7l4 4L3 21zM10.5 6.5H6L3.5 9.5l4 .5zM17.5 13.5V18l-3 2.5l-.5-4z',
     people: 'M8 4a3.5 3.5 0 1 0 0 7a3.5 3.5 0 0 0 0-7zM16.5 5a3 3 0 1 0 0 6a3 3 0 0 0 0-6zM1.5 20c0-3.6 2.9-6.5 6.5-6.5s6.5 2.9 6.5 6.5zM16 20c0-2-.7-3.9-1.9-5.4c.8-.4 1.6-.6 2.4-.6c3 0 5.5 2.5 5.5 6z',
     copy: 'M8 3h11a2 2 0 0 1 2 2v11h-2V5H8zM5 7h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2z',
+    flag: 'M5 2h2v20H5zM8 3h12l-3 4.5L20 12H8z',
+    star: 'M12 2l2.9 6.6l7.1.7l-5.4 4.8l1.6 7L12 17.4L5.8 21.1l1.6-7L2 9.3l7.1-.7z',
+    lock: 'M7 10V7a5 5 0 0 1 10 0v3h2v12H5V10zm2.4 0h5.2V7a2.6 2.6 0 0 0-5.2 0z',
     target: 'M11 1h2v3.1a8 8 0 0 1 6.9 6.9H23v2h-3.1a8 8 0 0 1-6.9 6.9V23h-2v-3.1A8 8 0 0 1 4.1 13H1v-2h3.1A8 8 0 0 1 11 4.1zM12 6a6 6 0 1 0 0 12a6 6 0 0 0 0-12zM12 9.5a2.5 2.5 0 1 1 0 5a2.5 2.5 0 0 1 0-5z'
   };
   const STRUCT_ICON = ['city', 'defense', 'port', 'silo', 'sam', 'factory', 'cloak'];
@@ -2036,6 +2039,14 @@
       ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832);
       ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(16,22,29,0.55)'; ctx.stroke();
       ctx.lineWidth = 2; ctx.strokeStyle = '#fff'; ctx.stroke();
+    }
+    // the target of a campaign level (src/03d_level.js): a slowly breathing golden ring
+    if (g.lv && g.lv.goal >= 0 && !g.lv.over) {
+      const x = (g.lv.goal % W + 0.5) * z + ox, y = (((g.lv.goal / W) | 0) + 0.5) * z + oy;
+      const r = Math.max(14, 6 * z) + (0.5 + 0.5 * Math.sin(now / 320)) * 6;
+      ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832);
+      ctx.lineWidth = 5; ctx.strokeStyle = 'rgba(16,22,29,0.5)'; ctx.stroke();
+      ctx.lineWidth = 2.5; ctx.strokeStyle = '#f4b740'; ctx.stroke();
     }
     if (this.mark >= 0) {
       const x = (this.mark % W + 0.5) * z + ox, y = (((this.mark / W) | 0) + 0.5) * z + oy;

@@ -1,6 +1,9 @@
 # Änderungsprotokoll
 Was seit dem 13.11.2026 geändert wurde und warum. Den heutigen Stand der Regeln beschreiben die anderen Dateien in `doku/`.
 
+## Feldzug: Levels 1–10 (20.11.2026)
+Neuer Modus «Feldzug · Levels» auf dem Startbildschirm, getrennt vom normalen Spiel. Levelkarte mit 20 Stationen, die ersten 10 sind gebaut: jedes mit eigener Karte, Quest, Sternen und Tipps und erklärt eine Sache (Land nehmen, Bots, Städte und Fabriken, Stoss, Verteidigung, Boote, Kriegsschiffe, Atombombe, Flugabwehr, Marschflugkörper). Die Skill-Levels 11–20 folgen. Wunsch des Besitzers: ein Levelaufbau, in dem man die Waffen kennenlernt. Siehe `doku/feldzug.md`.
+
 ## MIRV mit etwas mehr Sprengköpfen (19.11.2026)
 Die Sprengköpfe decken rund ein Drittel statt ein Viertel des Ziellandes ab, und es sind mindestens 6 statt 4. Erde: Land mit 13 000 Feldern 6 statt 5, mit 50 000 Feldern 23 statt 18, mit 140 000 Feldern 63 statt 48 Sprengköpfe. Wunsch des Besitzers: die MIRV warf zu wenige.
 - Die Nationen werfen jetzt ganz selten eine MIRV, nur spät im Spiel (ab 30 Minuten, höchstens eine alle 10 Minuten für alle zusammen), auf eine der drei grössten Nationen. Vorher warfen sie gar keine. Siehe `doku/openfront-abgleich.md`.

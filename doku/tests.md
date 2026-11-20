@@ -10,6 +10,7 @@ Alle Tests liegen in `test/` und laufen mit `node test/<name>.js`. Mehrere brauc
 | `sim.js` | Simulation ohne Browser: Regeln, Buchhaltung, Tempo |
 | `all.js` | jede Karte kurz mit Prüfungen, dazu die erfundene Karte |
 | `det.js [arsenal]` | zwei Kopien desselben Spiels bleiben mit denselben Befehlen gleich, auch mit Stössen; mit `arsenal` auch mit Tarntürmen |
+| `level.js` | Feldzug: jedes Level baut sich, alle starten mit Land und ihren Gebäuden, zwei Kopien bleiben gleich, ein einfaches Skript gewinnt jedes Level |
 | `tarn.js` | Tarnturm: nur im Arsenal-Modus, was er versteckt (höchstens 3 Gebäude), vor wem, wann es sichtbar wird, Nationen bauen ihn |
 | `posture.js` | Aufstellung: Buchhaltung, Marsch, Befehl, Stoss, Rückzug, Schienen im Umkreis, Gleichlauf |
 | `kampf.js [teil des namens \| stoss \| tal]` | Messbank Bodenkampf: feste Szenarien (40K gegen 10K bis 400K gegen 100K, ein oder mehrere Klicks), erwartet erobert oder steckt, Aufstellung gegen einen Topf; Stösse: ganze Front, Abschnitt und Keil mit gleichen Truppen (Keil kommt tiefer), Tal durch einen Gebirgszug; `abwehr`: Eingraben, Reserven, Kessel |

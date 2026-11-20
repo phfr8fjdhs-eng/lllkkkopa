@@ -63,6 +63,8 @@
     }
   }
 
+  G.makeNoise = makeNoise; G.cleanupMap = cleanup;   // also used by the campaign maps (src/03d_level.js)
+
   // Invented maps. `kind` picks the overall shape; the default is a scatter of continents.
   // `ref` is the width the features are sized for, so a small preview shows the same world.
   const SHAPES = {

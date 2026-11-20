@@ -27,6 +27,7 @@ Echtzeit-Eroberungsspiel im Browser, Nachbau von OpenFront, als eine einzige HTM
 | `03_game.js` | 1100 | Spielkern `G.Game`, Spielertypen `PT`, Einheiten `UT` (Gebäude zuerst, `G.isStruct`), Eroberung und Angriff (`conquer`, `attack`, `tickAttack`), Konstanten `G.COMBAT` (Bodenkampf), `G.TERRAIN`, `G.groundSpeed`, `G.groundLoss`, `G.PACE`, `G.START_GOLD`, `G.BOT_BOUNTY`, `G.LAND_GOLD`, `G.NUKE_PEACE`, `pathLane` |
 | `03c_res.js` | 270 | nur Version «Rohstoffe» (eingefroren): `G.RAW`, `G.WARE`, `G.RES_ICON`, Ländertabelle, Vorkommen (`attachCountries`, `map.deposits`), Anlagen auf Vorkommen (`G.DIG`, `G.DIG_OF`, `digCheck`, `dig`, `digGold`, `digAuto`, Zustand `game.dg`), `resTick`, `wareOf`; im klassischen Build nicht enthalten |
 | `03b_posture.js` | 330 | Aufstellung (Truppen-Netz): `postEffect`, `HAND` |
+| `03d_level.js` | 440 | Feldzug: Levels als Daten `G.LEVELS`, `G.levelMap`, `levelSetup`, `levelTick`, `levelAllows`, Zustand `game.lv` |
 | `04_units.js` | 1050 | Gebäude und Ausbau (`G.MAX_LEVEL`, `G.BUILD_TICKS`), Tarnturm (`cloakScan`, `hiddenFrom`, `seenCount`, `G.CLOAK_COVER`), Bomben, Flugabwehr (`G.CRUISE_RANGE`), Kriegsschiffe (`tickWarship`, `patrolPoint`, `shipboom`, `G.WARSHIP_CAPTURE`) |
 | `04b_rail.js` | 250 | Fabrik, Schienen, Züge: `railPath` (nur waagrecht und senkrecht), `rebuildRails` |
 | `05_ai.js` | 370 | Bots und Nationen: `AI.nukeTarget` |
@@ -34,6 +35,7 @@ Echtzeit-Eroberungsspiel im Browser, Nachbau von OpenFront, als eine einzige HTM
 | `06_view.js` | 1570 | Zeichnen: `View.pose`, `drawReach`, `drawRaids`, `drawFronts`, `drawNet`, `railGeo`, `worldColors`, `placeName`, `G.ICON` |
 | `07_ui.js` | 1560 | Bedienung: Tasten, Menüs, Touch, `#hotbar`, `view.ghost`, `showPeek` |
 | `08_net.js` | 310 | Mehrspieler über MQTT: `G.RELAYS` |
+| `07b_level.js` | 210 | Feldzug auf dem Bildschirm: `G.Feldzug` (Levelkarte, Quest-Leiste `#lvBar`, Tipps `#lvTip`, Endfenster); nutzt `G.ui` aus `07_ui.js` |
 | `template.html` | | Seitengerüst (HTML und CSS) |
 
 Weitere Ordner: `tools/` (Bauen und Kartenerzeugung, Python), `test/` (Tests, Node), `build/` und `docs/` (Ausgabe).
@@ -49,6 +51,7 @@ Weitere Ordner: `tools/` (Bauen und Kartenerzeugung, Python), `test/` (Tests, No
 | Version «Rohstoffe»: Länder, Preise, Länderkarte | `rohstoffe.md` |
 | Herkunft der Zahlen, Abweichungen von OpenFront | `openfront-abgleich.md` |
 | Welcher Test wofür | `tests.md` |
+| Feldzug: Levels, Quests, Sterne, wie man ein Level anlegt | `feldzug.md` |
 | Was wann und warum geändert wurde | `aenderungen.md` |
 | Wohin das Spiel geht, Reihenfolge der nächsten Schritte | `vision.md` |
 
@@ -59,4 +62,5 @@ Weitere Ordner: `tools/` (Bauen und Kartenerzeugung, Python), `test/` (Tests, No
 - Tarnturm: `node test/tarn.js`
 - Schalter (Truppenkonzentration, Netz, Richtung, Pfeile): `node test/pfeile.js`
 - Version «Rohstoffe»: `node --max-old-space-size=4096 test/res.js`
+- Feldzug (jedes Level baut sich, bleibt gleich, ist zu gewinnen): `node test/level.js`
 - Bedienung im Browser: `node test/ui.js` (braucht Playwright und Chrome)
