@@ -61,26 +61,6 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .lbrow > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .lbrow b { font: 600 14px var(--display); text-align: right; font-variant-numeric: tabular-nums; }
 .lbrow.me { background: rgba(244, 183, 64, 0.16); }
-/* the race: own growth in the last minute against the fastest of the others */
-#lbTempo { border-top: 1px solid var(--line); padding: 5px 10px 7px; font-size: 12px; }
-#lbTempo .tp { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; white-space: nowrap; }
-#lbTempo .tp > span { overflow: hidden; text-overflow: ellipsis; color: var(--muted); }
-#lbTempo .tp b { font: 600 13px var(--display); font-variant-numeric: tabular-nums; }
-#lbTempo .lead { color: #7ee08a; }
-#lbTempo .neg { color: #ff8a7a; }
-#lbTempo .tbar { height: 4px; border-radius: 2px; background: rgba(255, 255, 255, 0.1); margin: 3px 0 5px; overflow: hidden; }
-#lbTempo .tbar i { display: block; height: 100%; background: #f4b740; border-radius: 2px; }
-#lbTempo .tbar.o { margin-bottom: 0; }
-/* on a phone the map is small: the tempo without bars, the feed shorter and smaller, so less of the map is covered */
-@media (max-width: 640px) {
-  #lbTempo { padding: 3px 10px 5px; font-size: 11px; }
-  #lbTempo .tbar { display: none; }
-  #lbTempo .tp b { font-size: 12px; }
-  .msg { font-size: 12px; padding: 3px 8px; }
-  .msg.chip { min-height: 26px; padding: 1px 3px 1px 8px; }
-  .msg.chip button { height: 22px; width: 26px; }
-  #feedMsgs .msg:not(.ask):not(:nth-last-child(-n+2)) { display: none; }
-}
 .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; border: 1px solid rgba(255, 255, 255, 0.5); }
 .dot.big { width: 34px; height: 34px; margin: 0; flex: none; border-width: 2px; }
 
@@ -498,7 +478,6 @@ body.placing #cv { cursor: crosshair; }
     <div id="lb" class="panel">
       <button id="lbHead" type="button" aria-expanded="false"><span>Rangliste</span><span id="lbCount"></span></button>
       <div id="lbRows"></div>
-      <div id="lbTempo" hidden></div>
     </div>
     <div id="tools" class="panel">
       <span id="clock">0:00</span>

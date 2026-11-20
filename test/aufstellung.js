@@ -50,9 +50,7 @@ const out = (n) => path.join(__dirname, '..', 'build', n);
   const pts = await page.evaluate(() => {
     const g = G.debug.game, v = G.debug.view, h = g.human;
     const a = v.screenOf(h.nameY * g.W + h.nameX | 0);
-    // a well filled cell; on a random map the realm can be thin, then the fullest there is
-    let cells = [...h.post.cells.values()].filter((c) => c.n > 200);
-    if (!cells.length) cells = [...h.post.cells.values()].sort((x, y) => y.n - x.n).slice(0, 1);
+    const cells = [...h.post.cells.values()].filter((c) => c.n > 200);
     const pick = cells.sort((x, y) => (y.id % g.CW) - (x.id % g.CW))[0];
     const cx = pick.id % g.CW, cy = (pick.id - cx) / g.CW;
     return { a: v.screenOf((cy * 16 + 8) * g.W + cx * 16 + 8), b: a, id: pick.id, cam: { ...v.cam } };

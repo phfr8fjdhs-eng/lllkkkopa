@@ -292,20 +292,18 @@
   View.prototype.flush = function () {
     const g = this.game, n = g.dirtyN;
     if (!n) return;
-    const d = g.dirty, f = g.dirtyFlag, W = g.W, close = this.nah && this.nah.live;
+    const d = g.dirty, f = g.dirtyFlag, W = g.W;
     let x0 = W, x1 = -1, y0 = g.H, y1 = -1;
     for (let i = 0; i < n; i++) {
       const t = d[i], x = t % W, y = (t - x) / W;
       f[t] = 0;
       this.paint(t);
-      if (close) this.closeSeen(t);
       if (x < x0) x0 = x;
       if (x > x1) x1 = x;
       if (y < y0) y0 = y;
       if (y > y1) y1 = y;
     }
     g.dirtyN = 0;
-    if (close) this.closeFlush();
     this.mctx.putImageData(this.img, 0, 0, x0, y0, x1 - x0 + 1, y1 - y0 + 1);
   };
 
@@ -451,16 +449,13 @@
     ctx.setTransform(z * dpr, 0, 0, z * dpr, ox * dpr, oy * dpr);
     ctx.imageSmoothingEnabled = z < 1.5;
     ctx.drawImage(this.mc, 0, 0);
-    const g = this.game, close = !!g && !!this.closeOn && this.closeOn(z);
-    if (close) this.drawRelief(ctx, z, ox, oy, now);     // the land in light and shade (src/06b_close.js)
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const g = this.game;
     if (!g) return;
     this.drawNet(ctx, g, z, ox, oy, now);
     this.drawRails(ctx, g, z, ox, oy);
     this.drawReach(ctx, g, z, ox, oy);
-    // close in, the buildings stand as models and the troops as tanks (src/06b_close.js)
-    if (close) this.drawClose(ctx, g, z, ox, oy, now);
-    else { if (this.nah) this.nah.live = false; this.drawStructures(ctx, g, z, ox, oy); }
+    this.drawStructures(ctx, g, z, ox, oy);
     this.drawUnits(ctx, g, z, ox, oy, alpha, now);
     this.drawFx(ctx, g, z, ox, oy, now);
     if (g.res && this.resSigns) this.drawRes(ctx, g, z, ox, oy);
@@ -693,24 +688,17 @@
       ctx.beginPath(); ctx.arc(x, y, R.structDist * z, 0, 6.2832);
       ctx.setLineDash([4, 5]); ctx.lineWidth = 1.2; ctx.strokeStyle = bad ? 'rgba(255,120,110,.7)' : 'rgba(255,255,255,.55)'; ctx.stroke(); ctx.setLineDash([]);
     }
-    let ty = y + s / 2 + 18;
-    if (t <= UT.CLOAK && this.nah && this.nah.live && this.closeGhost) {
-      // in the 3D close-up: the building itself, see-through, where it would stand (src/06b_close.js)
-      const m = this.closeGhost(ctx, g, t, x, y, bad, now);
-      ty = y + m.s * 0.5 + 16;
-    } else {
-      // a dark rim first, so the marker stands out on any colour of land
-      ctx.beginPath(); ctx.arc(x, y, s / 2 + 3, 0, 6.2832);
-      ctx.fillStyle = 'rgba(13,20,27,.85)'; ctx.fill();
-      shape(ctx, t <= UT.CLOAK ? t : UT.CITY, x, y, s / 2);
-      ctx.fillStyle = bad ? '#e02a20' : h.cssD; ctx.fill();
-      ctx.lineWidth = 2; ctx.strokeStyle = bad ? '#ffd0cb' : '#fff'; ctx.stroke();
-      ctx.fillStyle = '#fff';
-      glyph(ctx, gh.icon, x, y, s * 0.62);
-    }
+    // a dark rim first, so the marker stands out on any colour of land
+    ctx.beginPath(); ctx.arc(x, y, s / 2 + 3, 0, 6.2832);
+    ctx.fillStyle = 'rgba(13,20,27,.85)'; ctx.fill();
+    shape(ctx, t <= UT.CLOAK ? t : UT.CITY, x, y, s / 2);
+    ctx.fillStyle = bad ? '#e02a20' : h.cssD; ctx.fill();
+    ctx.lineWidth = 2; ctx.strokeStyle = bad ? '#ffd0cb' : '#fff'; ctx.stroke();
+    ctx.fillStyle = '#fff';
+    glyph(ctx, gh.icon, x, y, s * 0.62);
     // the label on a pill: name and price, or the reason it cannot be built
     ctx.font = '700 13px ' + FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    const tw = ctx.measureText(gh.text).width + 16;
+    const tw = ctx.measureText(gh.text).width + 16, ty = y + s / 2 + 18;
     ctx.beginPath();
     if (ctx.roundRect) ctx.roundRect(x - tw / 2, ty - 11, tw, 22, 11); else ctx.rect(x - tw / 2, ty - 11, tw, 22);
     ctx.fillStyle = bad ? 'rgba(150,24,18,.95)' : 'rgba(13,20,27,.9)'; ctx.fill();
@@ -852,7 +840,7 @@
     ctx.lineWidth = Math.max(3, fs * 0.32); ctx.strokeStyle = '#0b1016'; ctx.strokeText(String(n), x, ty);
     ctx.fillStyle = '#fff'; ctx.fillText(String(n), x, ty);
   }
-  G.structIcon = structIcon; G.levelTag = levelTag;
+  G.structIcon = structIcon;
   // Buildings, in three steps of nearness, so the map of the world is not buried under signs:
   //   close:  large signs with the level on top, growing with the map once one is far in
   //   middle: smaller signs, still with the white symbol inside
@@ -1244,22 +1232,18 @@
         ctx.beginPath(); ctx.arc(x, y, 1.5, 0, 6.2832); ctx.fillStyle = '#fff'; ctx.fill();
         continue;
       }
-      const model = !!(this.nah && this.nah.live);   // the close-up: ships and trains as models (src/06b_close.js)
       if (ty === UT.WARSHIP) {
-        const s = model ? within(16 + z * 2.4, 32, 96) * 0.5 : ws, tg = u.target && u.target.active && u.target.type !== UT.TRADE ? u.target : null;
-        if (model) G.closeWarship(ctx, x, y, ang, s * 2, p, tg ? Math.atan2(tg.y - u.y, tg.x - u.x) - ang : null, now, (u.id * 0.618) % 1);
-        else warship(ctx, x, y, ang, s, p, tg ? Math.atan2(tg.y - u.y, tg.x - u.x) - ang : null);
+        const s = ws, tg = u.target && u.target.active && u.target.type !== UT.TRADE ? u.target : null;
+        warship(ctx, x, y, ang, s, p, tg ? Math.atan2(tg.y - u.y, tg.x - u.x) - ang : null);
         if (u.hp < 1000) {
-          ctx.fillStyle = '#10161d'; ctx.fillRect(x - s / 2 - 1, y + s * 1.15 - 1, s + 2, 5);
-          ctx.fillStyle = u.hp < 400 ? '#ff6b5e' : u.hp < 750 ? '#f4b740' : '#63d391'; ctx.fillRect(x - s / 2, y + s * 1.15, s * u.hp / 1000, 3);
+          ctx.fillStyle = '#10161d'; ctx.fillRect(x - ws / 2 - 1, y + ws * 1.15 - 1, ws + 2, 5);
+          ctx.fillStyle = u.hp < 400 ? '#ff6b5e' : u.hp < 750 ? '#f4b740' : '#63d391'; ctx.fillRect(x - ws / 2, y + ws * 1.15, ws * u.hp / 1000, 3);
         }
         if (u.repair) {
           // heading for the quay or lying there: a small spanner-coloured ring
           ctx.beginPath(); ctx.arc(x, y, s * 1.25, 0, 6.2832);
           ctx.setLineDash([3, 3]); ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(244,183,64,.9)'; ctx.stroke(); ctx.setLineDash([]);
         }
-      } else if (ty === UT.TRANSPORT && model) {
-        G.closeBoat(ctx, x, y, ang, within(8 + z * 1.3, 18, 46), p, now, (u.id * 0.618) % 1);
       } else if (ty === UT.TRANSPORT) {
         hull(ctx, x, y, ang, bs * 0.72, 'boat');
         ctx.fillStyle = p.css; ctx.fill();
@@ -1269,9 +1253,8 @@
         if (z >= RAIL_FULL || (z >= RAIL_MIN && p === g.human)) this.drawTrain(ctx, g, u, z, ox, oy, alpha);
       } else if (ty === UT.TRADE) {
         // Hull in the owner's colour, cargo in a deep shade of it, dark edge: readable on any water.
-        const s = model ? within(12 + z * 1.8, 24, 72) * 0.5 : tradeSize(z, p === g.human);
-        if (model) G.closeMerchant(ctx, x, y, ang, s * 2, p, now, (u.id * 0.618) % 1, u.captured);
-        else merchant(ctx, x, y, ang, s, p, u.captured);
+        const s = tradeSize(z, p === g.human);
+        merchant(ctx, x, y, ang, s, p, u.captured);
         if (z >= 4.5 && p === g.human) {
           ctx.font = '700 ' + within(z * 1.6, 9, 13).toFixed(0) + 'px ' + FONT;
           ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
@@ -1326,15 +1309,13 @@
     const head = within(u.pi + dir * ((u.mv || 0) + (u.st === g.ticks ? alpha * g.pace : 0)), 0, n - 1);
     // Big enough to make out even on a map zoomed right out, where a train used to be three
     // specks melting into the track.
-    const model = !!(this.nah && this.nah.live);   // the close-up: carriages as models
-    const L = model ? within(z * 1.7, 14, 42) : Math.max(7, z * 1.3), B = Math.max(3.4, z * 0.72);
+    const L = Math.max(7, z * 1.3), B = Math.max(3.4, z * 0.72);
     // Keep the carriages a carriage-length apart on the screen, not a fixed number of tiles,
     // so they stay separate instead of piling up when zoomed out.
     const gap = Math.max(1.55, L * 1.3 / z);
     for (let k = 2; k >= 0; k--) {
       railAt(geo, within(head - dir * k * gap, 0, n - 1), RP);
       const x = (RP.x + 0.5) * z + ox, y = (RP.y + 0.5) * z + oy;
-      if (model) { G.closeWagon(ctx, x, y, RP.a, L, k, p); continue; }
       ctx.save();
       ctx.translate(x, y); ctx.rotate(RP.a);
       // dark skirt, so the carriage lifts off the track and the land underneath
@@ -1463,7 +1444,7 @@
     const ang = Math.atan2((ey - sy) - Math.cos(Math.PI * prog) * Math.PI * liftMax * z, ex - sx);
     const flick = 0.5 + 0.5 * Math.sin(now / 38 + u.id);
     // higher up it is nearer to the eye: it grows towards the top of the arc
-    const up = (1 + 0.35 * Math.sin(Math.PI * prog) * (ty === UT.CRUISE ? 0.3 : 1)) * (this.nah && this.nah.live ? 1.5 : 1);   // bigger among the 3D models
+    const up = 1 + 0.35 * Math.sin(Math.PI * prog) * (ty === UT.CRUISE ? 0.3 : 1);
     const blink = (now + u.id * 137) % 620 < 150;
     if (ty === UT.CRUISE) rocket(ctx, x, y, ang, within(z * 4.2, 13, 24) * up, col, 0, flick, blink);
     else if (ty === UT.ATOM) rocket(ctx, x, y, ang, within(z * 3.6, 12, 20) * up, col, 1, flick, blink);
@@ -1524,7 +1505,6 @@
     while (g.fx.length) {
       const f = g.fx.shift();
       f.t0 = now; this.fxList.push(f);
-      if (f.k === 'boom' && this.closeBoom) this.closeBoom(f, now);   // the 3D close-up keeps its cloud and crater
       if (G.onFx) {
         const x = (f.x + 0.5) * z + ox, y = (f.y + 0.5) * z + oy;
         G.onFx(f, x > -40 && y > -40 && x < cw + 40 && y < ch + 40);

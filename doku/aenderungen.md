@@ -5,15 +5,6 @@ Was seit dem 13.11.2026 geändert wurde und warum. Den heutigen Stand der Regeln
 Die Sprengköpfe decken rund ein Drittel statt ein Viertel des Ziellandes ab, und es sind mindestens 6 statt 4. Erde: Land mit 13 000 Feldern 6 statt 5, mit 50 000 Feldern 23 statt 18, mit 140 000 Feldern 63 statt 48 Sprengköpfe. Wunsch des Besitzers: die MIRV warf zu wenige.
 - Die Nationen werfen jetzt ganz selten eine MIRV, nur spät im Spiel (ab 30 Minuten, höchstens eine alle 10 Minuten für alle zusammen), auf eine der drei grössten Nationen. Vorher warfen sie gar keine. Siehe `doku/openfront-abgleich.md`.
 
-## Bomben und Bau-Vorschau in 3D (20.11.2026)
-In der Nahansicht steigen nach Atom-, Wasserstoffbomben und Sprengköpfen Pilzwolken auf, der Boden bleibt versengt, zerstörte Gebäude hinterlassen Trümmer, Marschflugkörper Feuer und Rauch. Raketen im Flug sind grösser. Die Bau-Vorschau zeigt das Gebäude als durchscheinendes Modell. Nur Bild. Siehe `doku/nahansicht.md`.
-
-## 3D-Nahansicht beim normalen Spielen, viel grösser (20.11.2026)
-Rückmeldung des Besitzers: viel zu klein, die Hälfte sieht man gar nicht. Grund: die Nahansicht begann erst bei Zoom 7, die Kamera stellt sich nach dem Start aber auf 5,6 bis 6. Jetzt ab 2,5. Gebäude doppelt so gross, Panzer grösser und weiter draussen in Gruppen, Städte unter Stufe 5 als Ortschaften mit Häusern und Kirche, Relief aus den Höhendaten, Schiffe, Boote und Züge als Modelle, Lichtreflexe auf dem Meer, Antippen der Modelle öffnet die Ausbaukarte. Weiter draussen nur die Panzer, die einen betreffen. Auf dem Handy verdecken Tempo und Meldungen weniger. Siehe `doku/nahansicht.md`.
-
-## 3D-Nahansicht und Wachstumstempo (19.11.2026)
-Wunsch des Besitzers: das Spiel soll sich realistischer anfühlen, nach Aufbau und nach Krieg, und man soll spüren, ob man schneller wächst als die anderen. Ab 7 Pixel pro Feld zeigt die Karte 3D-Modelle statt Zeichen: Städte wachsen mit der Stufe vom Dorf zur Hochhausstadt, Fabriken rauchen, Truppen stehen als Panzer (die eigenen nach dem Netz, die anderen gleichmässig), Angriffe sind feuernde Panzerreihen, umkämpftes Land hat Krater, eingegrabene Grenzen Sandsäcke, dazu Wald, Felsen und Gipfel. Nur Bild, die Simulation bleibt unberührt. Unter der Rangliste neu: dein Landgewinn der letzten Minute gegen den Schnellsten der anderen. Taste `J` oder Menü schaltet die Nahansicht aus. Siehe `doku/nahansicht.md`.
-
 ## Bomben kosten etwas weniger Truppen (18.11.2026)
 Ein getroffenes Feld kostet 3 statt 5 Felder an Durchschnittstruppen. Atombombe auf Angola: 33 % statt 49 % der Truppen. Siehe `doku/openfront-abgleich.md`.
 
