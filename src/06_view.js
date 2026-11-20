@@ -2065,38 +2065,88 @@
     }
   };
 
+  // ---------- level marks as pixel sprites, to match the pixel map ----------
+  const PIN = [            '...kkkkk...',
+    '..kghhggk..',
+    '.kghhggggk.',
+    'kghgkkkggdk',
+    'kghkwwwkgdk',
+    'kggkwwwkgdk',
+    'kggkwwwkgdk',
+    'kgggkkkggdk',
+    '.kggggggdk.',
+    '.kdggggddk.',
+    '..kdgggdk..',
+    '..kddgddk..',
+    '...kdgdk...',
+    '....kdk....',
+    '.....k.....'
+  ];
+  const ARROW = [          // pointing right
+    'kk......',
+    'khk.....',
+    'kghk....',
+    'kgghk...',
+    'kggghk..',
+    'kgggggk.',
+    'kggggdk.',
+    'kgggdk..',
+    'kggdk...',
+    'kgdk....',
+    'kdk.....',
+    'kk......'
+  ];
+  const ARROW_D = [          // pointing down right
+    '........k',
+    '.......kk',
+    '......khk',
+    '.....khdk',
+    '....khgdk',
+    '...khggdk',
+    '..khgggdk',
+    '.khdddddk',
+    'kkkkkkkkk'
+  ];
+  const PAL = { k: '#10161d', h: '#ffe39a', g: '#f4b740', d: '#c4831a', w: '#fff7e6' };
+  // draw a sprite, `rot` quarter turns clockwise, centred on x, y (or with its bottom at y)
+  function sprite(ctx, rows, x, y, px, rot, bottom) {
+    const h = rows.length, w = rows.reduce(function (m, r) { return Math.max(m, r.length); }, 0);
+    const sw = rot % 2 ? h : w, sh = rot % 2 ? w : h;
+    const x0 = Math.round(x - sw * px / 2), y0 = Math.round(bottom ? y - sh * px : y - sh * px / 2);
+    for (let r = 0; r < h; r++) for (let c = 0; c < rows[r].length; c++) {
+      const ch = rows[r][c];
+      if (ch === '.') continue;
+      let cx = c, cy = r;
+      if (rot === 1) { cx = h - 1 - r; cy = c; } else if (rot === 2) { cx = w - 1 - c; cy = h - 1 - r; } else if (rot === 3) { cx = r; cy = w - 1 - c; }
+      ctx.fillStyle = PAL[ch]; ctx.fillRect(x0 + cx * px, y0 + cy * px, px, px);
+    }
+  }
   function drawEdge(ctx, x, y, ang, now) {
-    const k = 3 * Math.sin(now / 220);
-    ctx.save(); ctx.translate(x + Math.cos(ang) * k, y + Math.sin(ang) * k); ctx.rotate(ang);
-    ctx.beginPath(); ctx.moveTo(12, 0); ctx.lineTo(-8, -11); ctx.lineTo(-3, 0); ctx.lineTo(-8, 11); ctx.closePath();
-    ctx.lineJoin = 'round'; ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(16,22,29,0.75)'; ctx.fillStyle = '#f4b740';
-    ctx.shadowColor = 'rgba(0,0,0,0.35)'; ctx.shadowBlur = 6; ctx.fill(); ctx.shadowColor = 'transparent'; ctx.stroke();
+    // eight directions: a straight or a diagonal sprite, turned by quarter turns (stays pixel-sharp)
+    const o = ((Math.round(ang / (Math.PI / 4)) % 8) + 8) % 8, step = Math.round(Math.sin(now / 220) * 1.5) * 2;
+    const ux = Math.round(Math.cos(o * Math.PI / 4)), uy = Math.round(Math.sin(o * Math.PI / 4));
+    ctx.save(); ctx.globalAlpha = 0.95;
+    if (o % 2 === 0) sprite(ctx, ARROW, x + ux * step, y + uy * step, 2, o / 2);
+    else sprite(ctx, ARROW_D, x + ux * step, y + uy * step, 2, (o - 1) / 2);
     ctx.restore();
   }
-  // A map pin in the gold of the level marks: a drop with a dark rim and a light core that bobs
-  // gently above its point, and a ring that keeps spreading on the ground below it.
+  // A map pin: a gold drop that hops above its spot, and a pixel ring that spreads on the ground.
   function drawPin(ctx, x, y, now, seed) {
-    const ph = (now + (seed % 997) * 3) / 1000;
-    const ring = (ph % 1.6) / 1.6;
+    const px = 2, ph = (now + (seed % 997) * 3) / 1000, ring = (ph % 1.6) / 1.6;
+    x = Math.round(x / px) * px; y = Math.round(y / px) * px;
     ctx.save();
-    ctx.beginPath(); ctx.ellipse(x, y, 4 + ring * 18, (4 + ring * 18) * 0.45, 0, 0, 6.2832);
-    ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(244,183,64,' + (0.85 * (1 - ring)).toFixed(3) + ')'; ctx.stroke();
-    ctx.beginPath(); ctx.ellipse(x, y, 5, 2.2, 0, 0, 6.2832);
-    ctx.fillStyle = 'rgba(8,12,18,0.45)'; ctx.fill();
-    const lift = Math.abs(Math.sin(ph * 2.6)) * 5, r = 9, h = 25, cy = y - h - lift, ty = y - lift;
-    const a = Math.acos(r / h);
-    ctx.beginPath(); ctx.moveTo(x, ty);
-    ctx.arc(x, cy, r, Math.PI / 2 + a, Math.PI / 2 - a + 6.2832);
-    ctx.closePath();
-    const gr = ctx.createLinearGradient(x - r, cy - r, x + r, ty);
-    gr.addColorStop(0, '#ffd77a'); gr.addColorStop(0.55, '#f4b740'); gr.addColorStop(1, '#c98a1c');
-    ctx.fillStyle = gr; ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(16,22,29,0.75)';
-    ctx.shadowColor = 'rgba(0,0,0,0.35)'; ctx.shadowBlur = 6; ctx.shadowOffsetY = 2;
-    ctx.fill(); ctx.shadowColor = 'transparent'; ctx.stroke();
-    ctx.beginPath(); ctx.arc(x, cy, r * 0.4, 0, 6.2832);
-    ctx.fillStyle = '#10161d'; ctx.fill();
-    ctx.beginPath(); ctx.arc(x, cy, r * 0.4 - 1.6, 0, 6.2832);
-    ctx.fillStyle = '#fff7e6'; ctx.fill();
+    // the ring: square dots on an ellipse, fading as it grows
+    const rx = 4 + ring * 18, ry = rx * 0.45, n = Math.max(10, Math.round(rx * 1.4));
+    ctx.fillStyle = 'rgba(244,183,64,' + (0.9 * (1 - ring)).toFixed(3) + ')';
+    for (let i = 0; i < n; i++) {
+      const a = i / n * 6.2832;
+      ctx.fillRect(Math.round((x + Math.cos(a) * rx) / px) * px - 1, Math.round((y + Math.sin(a) * ry) / px) * px - 1, px, px);
+    }
+    ctx.fillStyle = 'rgba(8,12,18,0.45)';
+    ctx.fillRect(x - 3 * px, y - px, 6 * px, 2 * px); ctx.fillRect(x - 2 * px, y - 2 * px, 4 * px, 4 * px);
+    // hops in whole pixels
+    const lift = Math.round(Math.abs(Math.sin(ph * 2.6)) * 3) * px;
+    sprite(ctx, PIN, x, y - lift + px, px, 0, true);
     ctx.restore();
   }
 

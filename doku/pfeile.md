@@ -37,3 +37,9 @@ Test: `node test/pfeile.js`.
 
 ## Richtungsangriff proportional zur Landesgrösse (20.11.2026)
 Die Breite des Bandes war fest (halber Abschnitt) und passte nicht zur Grösse des eigenen Landes. Jetzt ist die Bandbreite `G.THRUST.dirShare` (0.6) mal die Seite eines Quadrats mit der Fläche des Landes (`sqrt(tiles)`), mindestens halbe Breite 4. Ein kleines Land greift schmal an, ein grosses breit. Die Reichweite zum Klicken bleibt mindestens ein Abschnitt (`dirFrom`).
+
+## Keil und Richtung natürlicher (20.11.2026, Abend)
+- **Keil am Ziel:** Nach dem Fall des Ziels lief der Keil vorher ohne Gasse weiter und griff die ganze Grenze an (er «breitete sich komplett aus»). Jetzt bleibt er in seiner Gasse und nimmt nur noch einen Ring um das Ziel (Radius `G.THRUST.hold` (1.5) mal seine Breite); danach kommen die übrigen Truppen heim.
+- **Keil kommt voran:** Die Flanken zählten mit jedem Feld Tiefe weiter (`flank` 3 × 2 × Tiefe), nach 30 Feldern kämpfte der Keil gegen über 200 Felder Verteidiger und kroch, während die Truppen wegschmolzen. Jetzt zählt die Tiefe höchstens `G.THRUST.deep` (4) Breiten. Messbank `Stoss`: der Keil kommt etwas tiefer (150K/40K/20 %: 62 % des Wegs, 298 Felder; Front 273), nimmt aber weiterhin kaum mehr Land als die Front.
+- **Richtung als Fächer:** Statt eines geraden Bandes (sah aus wie ein Rechteck) öffnet sich der Angriff nach vorne (`G.THRUST.fan` 0.45 Felder seitlich pro Feld vorwärts, Start bei 0.6 × halbe Breite), die Mitte führt (`G.THRUST.nose`, runde Spitze), und der Rand ist unregelmässig (fester Hash pro Feld, auf jedem Gerät gleich).
+- Bekannt: Die Prüfung «Reserven bremsen den Keil» in `kampf.js abwehr` war schon vorher knapp (231 gegen 230 Felder) und kippt jetzt (259 gegen 265); die Reserven wirken in diesem Szenario kaum.

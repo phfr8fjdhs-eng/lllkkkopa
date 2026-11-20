@@ -33,7 +33,7 @@
   //   crowd   troops a narrow attack can use at once, per defender it faces (more wait as supply)
   //   dirShare  width of a direction attack as a share of the side of a square as large as the realm
   //   search  most tiles the way-finding looks at before it gives up
-  G.THRUST = { widths: [0, 30, 12], max: 4, pull: 1.2, ring: 0.6, speed: 0.5, flank: 3, crowd: 2, dirShare: 0.6, search: 250000 };
+  G.THRUST = { widths: [0, 30, 12], max: 4, pull: 1.2, ring: 0.6, speed: 0.5, flank: 3, deep: 4, hold: 1.5, fan: 0.45, nose: 1, crowd: 2, dirShare: 0.6, search: 250000 };
   G.UNAME = ['Stadt', 'Verteidigungs\u00ADposten', 'Hafen', 'Raketensilo', 'Flugabwehr', 'Fabrik', 'Tarnturm', 'Kriegsschiff', 'Boot',
     'Handelsschiff', 'Zug', 'Granate', 'Abwehrrakete', 'Atombombe', 'Wasserstoff\u00ADbombe', 'MIRV', 'Sprengkopf', 'Marschflug\u00ADkörper', 'Satelliten\u00ADstrahl'];
   // Tempo. The numbers of the simulation are OpenFront's, but its maps have two million tiles and
@@ -618,12 +618,19 @@
       else if (k === 2) { if (y === 0) continue; n = tile - W; }
       else { if (y === H - 1) continue; n = tile + W; }
       if (!land[n] || own[n] !== tid) continue;
-      if (at.lane && !at.reached && !at.lane.has(n)) continue;     // a thrust stays in its lane until the goal has fallen
+      if (at.lane && !at.lane.has(n)) {                              // a thrust stays in its lane;
+        if (!at.reached) continue;                                    // once the goal has fallen it widens
+        const gx = at.goal % W, gy = (at.goal / W) | 0, nx0 = n % W, ny0 = (n / W) | 0, r = at.width * G.THRUST.hold;
+        if ((nx0 - gx) * (nx0 - gx) + (ny0 - gy) * (ny0 - gy) > r * r) continue;   // only into a ring round the goal
+      }
       let ds = 0;
       if (at.spot >= 0) {                                           // a direction attack stays in its band
         const vx = n % W - at.spot % W, vy = ((n / W) | 0) - ((at.spot / W) | 0);
         ds = vx * at.dx + vy * at.dy;
-        if (ds < -2 || Math.abs(vx * at.dy - vy * at.dx) > at.rad) continue;
+        const cr = Math.abs(vx * at.dy - vy * at.dx);
+        let h = Math.imul(n, 0x9E3779B1); h ^= h >>> 15; h = Math.imul(h, 0x85EBCA77); const rag = (h >>> 28) * 0.25 - 1.9;                // a ragged edge, the same on every device
+        if (ds < -2 || cr > at.rad * 0.6 + Math.max(0, ds) * G.THRUST.fan + rag) continue;   // a fan that opens forward
+        ds += G.THRUST.nose * cr * cr / Math.max(1, at.rad);                         // the middle leads: a rounded nose
       }
       at.front.add(n);
       const nx = n % W, ny = (n - nx) / W;
@@ -1023,7 +1030,7 @@
     if (t) for (const o of a.out) if (o.active && o.tid === tid) sent += o.troops;
     // A thrust also meets the defenders along its flanks: two sides as long as it has got deep
     // (tiles taken over the width of its lane). The deeper a wedge gets, the dearer it becomes.
-    const flank = at.goal >= 0 || at.spot >= 0 ? G.THRUST.flank * 2 * (at.taken || 0) / Math.max(1, at.width) : 0;
+    const flank = at.goal >= 0 || at.spot >= 0 ? G.THRUST.flank * 2 * Math.min(G.THRUST.deep, (at.taken || 0) / Math.max(1, at.width)) : 0;
     const face = t ? Math.max(1, Math.min(t.troops, dAvg * Math.max(4, at.front.size + flank) * CB.depth)) : 1;
     // A narrow attack (wedge, section, direction) can only bring so many troops to bear at once:
     // at most `G.THRUST.crowd` for every defender it faces. More waits behind as supply and moves
@@ -1064,7 +1071,7 @@
       if (at.troops < 1) { if (at.want > 0) { at.carry = 0; return; } this.endAttack(at, false); return; }
       if (at.goal >= 0 && !at.reached && own[at.goal] !== tid) {
         // the goal has fallen (to us or to someone else): from now on the thrust widens around it
-        at.reached = true; at.lane = null; this.refreshFront(at);
+        at.reached = true; this.refreshFront(at);
       }
       if (at.heap.n === 0) {
         if (defer.length) break;

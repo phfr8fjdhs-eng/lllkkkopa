@@ -27,8 +27,8 @@ Ein eigener Modus neben dem normalen Spiel. Auf dem Startbildschirm öffnet **«
 
 ## Tipps: zeigen statt erklären
 - Ein Tipp hat höchstens ein paar Worte. Was selbstverständlich ist, wird nur gezeigt, nicht begründet (kein «Doppelklick», keine Prozentzahlen).
-- **Nadeln** (goldene Kartennadel mit Ring am Boden) zeigen, wo man tippen soll: Startpunkt, freies Land am Rand, Bots, eigene Stadt, feindliche Schiffe. Liegt das Ziel ausserhalb des Bildes, zeigt ein goldener Pfeil am Rand die Richtung.
-- **Markierung am Truppenbalken** (goldenes Dreieck bei 42 %): dort wachsen die Truppen am schnellsten (Höchstwert von `troopGrowth`).
+- **Nadeln** (goldene Kartennadel als Pixelgrafik, passend zur Karte, mit Pixelring am Boden) zeigen, wo man tippen soll: Startpunkt, freies Land am Rand, Bots, eigene Stadt, feindliche Schiffe. Liegt das Ziel ausserhalb des Bildes, zeigt ein goldener Pixelpfeil am Rand die Richtung (acht Richtungen, nur Vierteldrehungen, damit er scharf bleibt).
+- **Markierung am Truppenbalken** (goldenes Pixeldreieck bei 42 %): dort wachsen die Truppen am schnellsten (Höchstwert von `troopGrowth`).
 - Tipps hängen am Fortschritt (z. B. bleiben die Nadeln zum Ausbreiten, bis man 5 % der Insel hat), nicht an der Uhr.
 - Ein Tipp ohne Text zeigt nur Nadeln. Die Tipps werden nur gezeichnet und ändern nie den Spielstand.
 

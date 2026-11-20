@@ -167,7 +167,7 @@
     if (r) {
       const cx = r.left + r.width / 2 - app.left;
       left = G.within(cx - w / 2, 8, W - w - 8);
-      const gap = t.mark ? 30 : 12;   // room for the mark above the troop bar
+      const gap = t.mark ? 40 : 14;   // room for the mark above the troop bar
       if (r.top + r.height / 2 - app.top > H / 2) { top = r.top - app.top - hgt - gap; el.classList.add('down'); }
       else { top = r.bottom - app.top + 12; el.classList.add('up'); }
       el.style.setProperty('--ax', G.within(cx - left, 14, w - 14) + 'px');
