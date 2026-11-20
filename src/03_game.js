@@ -31,8 +31,9 @@
 //           tiles of front (so a wedge 40 tiles deep fights as if its front were 80 tiles longer)
 //   speed   how far the head of a thrust gets per tick at most, in way cost (open lowland: tiles), times attackPace
   //   crowd   troops a narrow attack can use at once, per defender it faces (more wait as supply)
+  //   dirShare  width of a direction attack as a share of the side of a square as large as the realm
   //   search  most tiles the way-finding looks at before it gives up
-  G.THRUST = { widths: [0, 30, 12], max: 4, pull: 1.2, ring: 0.6, speed: 0.5, flank: 3, crowd: 2, search: 250000 };
+  G.THRUST = { widths: [0, 30, 12], max: 4, pull: 1.2, ring: 0.6, speed: 0.5, flank: 3, crowd: 2, dirShare: 0.6, search: 250000 };
   G.UNAME = ['Stadt', 'Verteidigungs\u00ADposten', 'Hafen', 'Raketensilo', 'Flugabwehr', 'Fabrik', 'Tarnturm', 'Kriegsschiff', 'Boot',
     'Handelsschiff', 'Zug', 'Granate', 'Abwehrrakete', 'Atombombe', 'Wasserstoff\u00ADbombe', 'MIRV', 'Sprengkopf', 'Marschflug\u00ADkörper', 'Satelliten\u00ADstrahl'];
   // Tempo. The numbers of the simulation are OpenFront's, but its maps have two million tiles and
@@ -861,10 +862,13 @@
   // tile nearest to it, the direction from there to the tile, and the half width of the band (half
   // a section). null when the tile lies more than a section's width from the border. Reads only.
   Game.prototype.dirFrom = function (p, tile) {
-    const W = this.W, nx = tile % W, ny = (tile / W) | 0, half = this.thrustWidth(1) / 2;
+    // the band is as wide as the realm is large: a share of the side of a square of the same area
+    // (not a fixed section), so a small realm attacks narrow and a big one broad
+    const W = this.W, nx = tile % W, ny = (tile / W) | 0, reach = this.thrustWidth(1) / 2;
+    const half = Math.max(4, Math.round(G.THRUST.dirShare * Math.sqrt(Math.max(1, p.tiles)) / 2));
     let d2 = Infinity, o = -1;
     for (const b of p.border) { const dx = b % W - nx, dy = ((b / W) | 0) - ny, d = dx * dx + dy * dy; if (d < d2 || (d === d2 && b < o)) { d2 = d; o = b; } }
-    if (o < 0 || d2 > 4 * half * half) return null;
+    if (o < 0 || d2 > 4 * Math.max(half, reach) * Math.max(half, reach)) return null;
     let dx = nx - o % W, dy = ny - ((o / W) | 0), l = Math.sqrt(dx * dx + dy * dy);
     if (l < 1) { dx = 1; dy = 0; l = 1; }
     return { o: o, dx: dx / l, dy: dy / l, half: half };

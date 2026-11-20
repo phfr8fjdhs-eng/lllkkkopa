@@ -34,3 +34,6 @@ Ein Keil nahm mit denselben Truppen so viel oder mehr Land als die ganze Front u
 - Doppelklick auf Feindesland und das Kreismenü greifen wie bisher sofort mit der ganzen Front an.
 
 Test: `node test/pfeile.js`.
+
+## Richtungsangriff proportional zur Landesgrösse (20.11.2026)
+Die Breite des Bandes war fest (halber Abschnitt) und passte nicht zur Grösse des eigenen Landes. Jetzt ist die Bandbreite `G.THRUST.dirShare` (0.6) mal die Seite eines Quadrats mit der Fläche des Landes (`sqrt(tiles)`), mindestens halbe Breite 4. Ein kleines Land greift schmal an, ein grosses breit. Die Reichweite zum Klicken bleibt mindestens ein Abschnitt (`dirFrom`).
