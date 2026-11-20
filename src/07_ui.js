@@ -262,7 +262,7 @@
       return '<button type="button" class="sw" data-i="' + i + '" aria-label="Farbe ' + (i + 1) + '" aria-pressed="' + (i === cfg.color) + '" style="background:rgb(' + c.join(',') + ')"></button>';
     }).join('') + '</div></div>';
     if (joinCode) {
-      h += '<div class="goes">' + goRow('fJoin', 'people', 'Beitreten', 'Raum ' + esc(joinCode), true) + goRow('fSolo', 'play', 'Lieber allein spielen', 'Eigene Karte und Regeln wählen', false) + '</div>';
+      h += '<div class="goes">' + goRow('fJoin', 'people', 'Beitreten', 'Raum ' + esc(joinCode), true) + goRow('fSolo', 'sword', 'Lieber allein spielen', 'Eigene Karte und Regeln wählen', false) + '</div>';
     } else {
       h += '<div class="field" id="fMap"><div class="lab">Karte · Erde</div><div class="maprow">' + MAPS.map(function (m) {
         return mapCard(m.id, m.name, m.v === 2 ? 'Die grosse Karte · ' + m.nations.length + ' Nationen' : m.nations.length + ' Nationen');
@@ -288,7 +288,7 @@
       // three ways to play, as rows: the free game (with the settings above), the levels, a room for friends
       const lv = !RES && G.Feldzug ? G.Feldzug.summary() : null;
       const mapName = (function () { const m = MAPS.find(function (x) { return x.id === cfg.map; }) || special(cfg.map); return m ? m.name : 'Zufallskarte'; })();
-      h += '<div class="goes">' + goRow('fStart', 'play', 'Spiel starten', esc(mapName) + ' · ' + G.DIFF_NAMES[cfg.diff] + (cfg.mode === 'arsenal' ? ' · Arsenal' : ''), true);
+      h += '<div class="goes">' + goRow('fStart', 'sword', 'Spiel starten', esc(mapName) + ' · ' + G.DIFF_NAMES[cfg.diff] + (cfg.mode === 'arsenal' ? ' · Arsenal' : ''), true);
       if (lv) h += goRow('fCamp', 'flag', 'Levels', lv.n ? 'Level ' + lv.n + ' · ' + esc(lv.name) + ' · ' + lv.stars + ' von ' + lv.max + ' Sternen' : 'Alle Lern-Levels geschafft · ' + lv.stars + ' von ' + lv.max + ' Sternen', false);
       h += goRow('fHost', 'people', 'Mit Freunden spielen', 'Raum öffnen und Link teilen', false) + '</div>';
     }

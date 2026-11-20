@@ -8549,7 +8549,7 @@ body.placing #cv { cursor: crosshair; }
       return '<button type="button" class="sw" data-i="' + i + '" aria-label="Farbe ' + (i + 1) + '" aria-pressed="' + (i === cfg.color) + '" style="background:rgb(' + c.join(',') + ')"></button>';
     }).join('') + '</div></div>';
     if (joinCode) {
-      h += '<div class="goes">' + goRow('fJoin', 'people', 'Beitreten', 'Raum ' + esc(joinCode), true) + goRow('fSolo', 'play', 'Lieber allein spielen', 'Eigene Karte und Regeln wählen', false) + '</div>';
+      h += '<div class="goes">' + goRow('fJoin', 'people', 'Beitreten', 'Raum ' + esc(joinCode), true) + goRow('fSolo', 'sword', 'Lieber allein spielen', 'Eigene Karte und Regeln wählen', false) + '</div>';
     } else {
       h += '<div class="field" id="fMap"><div class="lab">Karte · Erde</div><div class="maprow">' + MAPS.map(function (m) {
         return mapCard(m.id, m.name, m.v === 2 ? 'Die grosse Karte · ' + m.nations.length + ' Nationen' : m.nations.length + ' Nationen');
@@ -8575,7 +8575,7 @@ body.placing #cv { cursor: crosshair; }
       // three ways to play, as rows: the free game (with the settings above), the levels, a room for friends
       const lv = !RES && G.Feldzug ? G.Feldzug.summary() : null;
       const mapName = (function () { const m = MAPS.find(function (x) { return x.id === cfg.map; }) || special(cfg.map); return m ? m.name : 'Zufallskarte'; })();
-      h += '<div class="goes">' + goRow('fStart', 'play', 'Spiel starten', esc(mapName) + ' · ' + G.DIFF_NAMES[cfg.diff] + (cfg.mode === 'arsenal' ? ' · Arsenal' : ''), true);
+      h += '<div class="goes">' + goRow('fStart', 'sword', 'Spiel starten', esc(mapName) + ' · ' + G.DIFF_NAMES[cfg.diff] + (cfg.mode === 'arsenal' ? ' · Arsenal' : ''), true);
       if (lv) h += goRow('fCamp', 'flag', 'Levels', lv.n ? 'Level ' + lv.n + ' · ' + esc(lv.name) + ' · ' + lv.stars + ' von ' + lv.max + ' Sternen' : 'Alle Lern-Levels geschafft · ' + lv.stars + ' von ' + lv.max + ' Sternen', false);
       h += goRow('fHost', 'people', 'Mit Freunden spielen', 'Raum öffnen und Link teilen', false) + '</div>';
     }
@@ -10473,7 +10473,7 @@ body.placing #cv { cursor: crosshair; }
     h += '<div class="lvQuest">' + u.esc(L.quest.text) + (L.limit ? ' Zeit: ' + G.levelClock(L.limit) + '.' : '') + '</div>';
     h += '<ul class="lvGoals">' + L.starText.map(function (t, i) { return '<li class="' + (b > i ? 'on' : '') + '">' + u.svg('star', 14) + u.esc(t) + '</li>'; }).join('') + '</ul>';
     h += '<p>' + (L.allow.length ? 'Freigeschaltet: ' + L.allow.map(function (t) { return NAMES[t]; }).join(', ') + '.' : 'In diesem Level wird noch nichts gebaut.') + '</p></div>';
-    h += '<div class="lvFoot"><div class="goes">' + u.goRow('lvGoBtn', 'play', b ? 'Nochmals spielen' : 'Spiel starten', 'Level ' + sel + ' · ' + u.esc(L.name), true) +
+    h += '<div class="lvFoot"><div class="goes">' + u.goRow('lvGoBtn', 'sword', b ? 'Nochmals spielen' : 'Spiel starten', 'Level ' + sel + ' · ' + u.esc(L.name), true) +
       '</div><button class="linkb" data-act="lvBack" type="button">Zurück</button></div>';
     u.openModal(h, 'lvMap');
     $('lvGoBtn').dataset.act = 'lvGo:' + sel;

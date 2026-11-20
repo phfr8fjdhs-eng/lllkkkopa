@@ -58,7 +58,7 @@
     h += '<div class="lvQuest">' + u.esc(L.quest.text) + (L.limit ? ' Zeit: ' + G.levelClock(L.limit) + '.' : '') + '</div>';
     h += '<ul class="lvGoals">' + L.starText.map(function (t, i) { return '<li class="' + (b > i ? 'on' : '') + '">' + u.svg('star', 14) + u.esc(t) + '</li>'; }).join('') + '</ul>';
     h += '<p>' + (L.allow.length ? 'Freigeschaltet: ' + L.allow.map(function (t) { return NAMES[t]; }).join(', ') + '.' : 'In diesem Level wird noch nichts gebaut.') + '</p></div>';
-    h += '<div class="lvFoot"><div class="goes">' + u.goRow('lvGoBtn', 'play', b ? 'Nochmals spielen' : 'Spiel starten', 'Level ' + sel + ' · ' + u.esc(L.name), true) +
+    h += '<div class="lvFoot"><div class="goes">' + u.goRow('lvGoBtn', 'sword', b ? 'Nochmals spielen' : 'Spiel starten', 'Level ' + sel + ' · ' + u.esc(L.name), true) +
       '</div><button class="linkb" data-act="lvBack" type="button">Zurück</button></div>';
     u.openModal(h, 'lvMap');
     $('lvGoBtn').dataset.act = 'lvGo:' + sel;
