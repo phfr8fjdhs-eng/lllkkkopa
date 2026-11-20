@@ -27,11 +27,6 @@ Ab 2,5 Pixel pro Feld (`G.Z3D`) steht die Welt in 3D da, also bei dem Zoom, mit 
 | Handelsschiff | dunkler Rumpf, gestapelte Container, Brücke am Heck (gekapert: brauner Rumpf) |
 | Boot mit Truppen | Landungsboot in der Besitzerfarbe mit Soldaten an Deck |
 | Zug | Lok in einem dunklen Ton der Besitzerfarbe mit Führerhaus, Wagen in der Besitzerfarbe |
-| Rakete, Bombe im Flug | die bisherigen Raketen, aber 1,5-mal so gross, mit Rauchspur und Schatten am Boden |
-| Atombombe, Sprengkopf, Wasserstoffbombe | Pilzwolke: eine Staubwelle rollt über den Boden, Stamm und Hut steigen in 3 s auf, glühen erst rot und gelb, werden dann zu Rauch, treiben ab und verblassen (Atombombe 10 s, Sprengkopf 7 s, Wasserstoffbombe 14 s). Der Boden darunter bleibt eine Minute versengt, in der Mitte glüht er einige Sekunden. Eine Wolke wird nie höher als 40 % des Bildschirms (höchstens 260 Pixel) |
-| Marschflugkörper | Feuer und eine Säule schwarzen Rauchs |
-| Zerstörtes Gebäude | Trümmer mit Mauerstümpfen, 30 s Rauch, verschwinden nach 90 s |
-| Bau-Vorschau | das Gebäude selbst, durchscheinend und heller als die echten, auf einem gestrichelten weissen Ring; rot und blasser, wo es nicht stehen darf. Name und Preis oder der Grund darunter wie bisher |
 
 Eigene Gebäude stehen auf einem weissen Ring, eigene Panzer haben einen weissen Rand, wie die Zeichen in der flachen Karte. Die Stufe steht als Zahl über dem Gebäude.
 
@@ -69,7 +64,8 @@ Unter der Rangliste steht, wie viel Land man in der letzten Minute gewonnen hat 
 - Tempo: Bäume, Felsen, Gipfel und Panzer (48 Richtungen) sind kleine, einmal gezeichnete Bilder; Städte werden als Bild gespeichert, solange sie nicht wachsen. Panzerplätze werden 2,5-mal pro Sekunde neu bestimmt, die Pflanzen nur, wenn sich die Ansicht weiter verschiebt. Gemessen in Headless-Chrome: 60 Bilder pro Sekunde (Median) bei Zoom 3 bis 16, auf Pangäa und der Erde, Desktop und Handy.
 
 ## Tests und Bilder
-`node test/nah.js`: aus bei Zoom 1,6, an bei 5,6 (Zoom nach dem Start), Panzer und Front, Modell steht über seinem Feld und ein Tipp darauf öffnet die Ausbaukarte, Spielstand unverändert, Atombombe hinterlässt Wolke, Krater und Trümmer, Bau-Vorschau als Modell, Taste J und Menü, Tempo unter der Rangliste, Zeit für ein Bild auf der Erde. Bilder: `build/nah_front.png`, `nah_city.png`, `nah_bombe.png`, `nah_off.png`, `nah_erde.png`.
+`node test/nah.js`: aus bei Zoom 1,6, an bei 5,6 (Zoom nach dem Start), Panzer und Front, Modell steht über seinem Feld und ein Tipp darauf öffnet die Ausbaukarte, Spielstand unverändert, Taste J und Menü, Tempo unter der Rangliste, Zeit für ein Bild auf der Erde. Bilder: `build/nah_front.png`, `nah_city.png`, `nah_off.png`, `nah_erde.png`.
 
 ## Offen
-- Satellitenstrahl, Abschüsse in der Luft und Granaten sind die bisherigen Effekte.
+- Raketen und Bomben sind die bisherigen Zeichen und Explosionen.
+- Die Bau-Vorschau am Mauszeiger ist noch das flache Zeichen.

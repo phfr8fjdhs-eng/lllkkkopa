@@ -100,41 +100,6 @@ const ok = (c, m) => { console.log((c ? 'ok   ' : 'FAIL ') + m); if (!c) fails++
   });
   ok(same, 'drawing the close-up changes nothing in the game');
 
-  // a bomb: a cloud and a scorched crater in the close-up, rubble where a building stood; the preview of a building as a model
-  const bomb = await page.evaluate(() => {
-    const g = G.debug.game, h = g.human, v = G.debug.view, UT = G.UT;
-    let silo = h.units.find((u) => u.type === UT.SILO && u.built);
-    if (!silo) return { err: 'no silo' };
-    let tg = null;
-    for (const u of g.structAt.values()) if (u.owner !== h && u.owner.type !== G.PT.BOT && Math.hypot(u.x - silo.x, u.y - silo.y) < 160) { tg = u; break; }
-    if (!tg) return { err: 'no target' };
-    silo.ready = silo.ready.map(() => 0);
-    g.launch(h, UT.ATOM, silo, tg.tile);
-    const n = g.units[g.units.length - 1];
-    v.fly = null; v.cam.x = tg.x; v.cam.y = tg.y; v.cam.z = 6;
-    v.draw(1, performance.now());                         // the target is seen before the blast
-    for (let i = 0; i < 4000 && n.active; i++) g.tick();
-    for (let i = 0; i < 5; i++) v.draw(1, performance.now() + i * 600);
-    return { booms: v.nah.booms.length, gone: !tg.active, ruins: v.nah.ruins.length };
-  });
-  ok(bomb.booms > 0, 'an atom bomb leaves a cloud and a crater in the close-up (' + JSON.stringify(bomb) + ')');
-  ok(!bomb.gone || bomb.ruins > 0, 'a destroyed building leaves rubble');
-  await page.waitForTimeout(1500);
-  await page.screenshot({ path: out('nah_bombe.png') });
-  const ghost = await page.evaluate(() => {
-    const g = G.debug.game, h = g.human, v = G.debug.view, W = g.W;
-    let t = -1;
-    for (let k = 0; k < 4000 && t < 0; k++) { const q = (h.y0 + Math.random() * (h.y1 - h.y0 + 1) | 0) * W + (h.x0 + Math.random() * (h.x1 - h.x0 + 1) | 0); if (g.owner[q] === h.id && g.buildCheck(h, G.UT.FACTORY, q).ok) t = q; }
-    if (t < 0) return 'no place';
-    v.cam.x = t % W; v.cam.y = (t / W) | 0; v.cam.z = 6;
-    let called = 0; const f = v.closeGhost; v.closeGhost = function () { called++; return f.apply(this, arguments); };
-    v.ghost = { type: G.UT.FACTORY, icon: 'factory', tile: t, ok: true, text: 'Fabrik' };
-    v.draw(1, performance.now());
-    v.ghost = null; v.closeGhost = f;
-    return called;
-  });
-  ok(ghost === 1, 'the preview of a building is its model (' + ghost + ')');
-
   // J switches it off and on, and the menu has the switch
   await page.keyboard.press('j');
   await page.waitForTimeout(300);

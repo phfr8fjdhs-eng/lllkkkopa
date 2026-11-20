@@ -795,7 +795,7 @@
 
   // ---------- state of the close-up ----------
   function state(v) {
-    return v.nah || (v.nah = { own: null, scorch: [], pend: [], flips: 0, hits: [], booms: [], ruins: [], tanks: new Map(), cellAt: 0, U: 0, Uat: -1e9, units: new Map(), rect: [0, 0, 0, 0], live: false, front: new Set(), sand: null, sandAt: 0, aim: new Map() });
+    return v.nah || (v.nah = { own: null, scorch: [], pend: [], flips: 0, hits: [], tanks: new Map(), cellAt: 0, U: 0, Uat: -1e9, units: new Map(), rect: [0, 0, 0, 0], live: false, front: new Set(), sand: null, sandAt: 0, aim: new Map() });
   }
   View.prototype.closeOn = function (z) { return this.close3d !== false && !!this.game && z >= Z3D; };
   // Called by flush for every tile that was repainted: notes land that changed hands in a fight.
@@ -1038,132 +1038,10 @@
     ctx.lineCap = 'butt';
   };
 
-  // ---------- bombs: mushroom clouds, craters, ruins ----------
-  // Every blast is noted when it happens (`closeBoom`, called from drawFx for every 'boom'), also
-  // while the map is zoomed out, so a cloud still stands when one zooms in a moment later.
-  View.prototype.closeBoom = function (f, now) {
-    if (f.beam) return;
-    const S = state(this);
-    if (S.booms.length > 40) S.booms.splice(0, 10);
-    S.booms.push({ x: f.x + 0.5, y: f.y + 0.5, r: f.r || 3, big: !!f.big, head: !!f.head, t0: now, seed: hash(f.x, f.y) });
-  };
-  function boomDur(b) { return b.big ? 14000 : b.head ? 7000 : b.r >= 8 ? 10000 : 5000; }
-  // One puff of a cloud: lit from the north west, its lower right in shade, glowing from below
-  // while the fire is still in it.
-  function puff(ctx, x, y, r, col, heat, a) {
-    if (r < 0.6 || a < 0.02) return;
-    ctx.globalAlpha = a * BASE;
-    ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832); ctx.fillStyle = css(col, 0.72); ctx.fill();
-    ctx.beginPath(); ctx.arc(x - r * 0.18, y - r * 0.2, r * 0.78, 0, 6.2832); ctx.fillStyle = css(col, 0.95); ctx.fill();
-    ctx.beginPath(); ctx.arc(x - r * 0.34, y - r * 0.38, r * 0.4, 0, 6.2832); ctx.fillStyle = css(col, 1.12); ctx.fill();
-    if (heat > 0.05) { ctx.beginPath(); ctx.arc(x + r * 0.05, y + r * 0.3, r * 0.55, 0, 6.2832); ctx.fillStyle = 'rgba(255,' + Math.round(120 + 90 * heat) + ',60,' + (0.75 * heat).toFixed(2) + ')'; ctx.fill(); }
-    ctx.globalAlpha = BASE;
-  }
-  // A mushroom cloud over the ground point (x, y) for a blast of R pixels, T ms after it: the stem
-  // and the cap rise for some seconds, burn out from fire to smoke, then drift off and thin out.
-  function mushroom(ctx, x, y, R, T, D, seed, small) {
-    const t = T / 1000, rise = 1 - Math.pow(1 - Math.min(1, t / 3.2), 3), heat = Math.max(0, 1 - t / 2.6);
-    const fade = T < D * 0.5 ? 1 : Math.max(0, 1 - (T - D * 0.5) / (D * 0.5));
-    if (fade <= 0) return 0;
-    const H = R * (small ? 1.1 : 1.6) * rise, drift = R * 0.12 * Math.max(0, t - 3) / 6;
-    const smokeC = mix([150, 140, 128], [92, 88, 84], Math.min(1, t / 8)), fireC = [255, 168, 86], col = mix(smokeC, fireC, heat * 0.8);
-    // the base surge: a ring of dust rolling out over the ground
-    const sr = R * (0.25 + 0.95 * rise), nb = small ? 8 : 14;
-    for (let i = 0; i < nb; i++) {
-      const a = i * 6.2832 / nb + seed * 3, px = x + Math.cos(a) * sr, py = y + Math.sin(a) * sr * 0.72;
-      puff(ctx, px, py - R * 0.04, R * (0.09 + 0.04 * hash(i, seed * 999 | 0)) * (0.6 + 0.6 * rise), mix([196, 180, 150], col, 0.4), heat * 0.6, 0.75 * fade * (1 - 0.6 * rise));
-    }
-    // the stem
-    const ns = small ? 5 : 9;
-    for (let i = 0; i <= ns; i++) {
-      const q = i / ns, h = H * q * 0.92, w = R * (small ? 0.09 : 0.11) * (1.5 - 0.6 * q + (q > 0.85 ? 0.4 : 0));
-      puff(ctx, x + LEAN * h + drift * q + Math.sin(q * 7 + seed * 9) * w * 0.15, y - h, w, col, heat * (1 - q * 0.3), 0.92 * fade);
-    }
-    // the cap: a ring of puffs, a heap on top, a glowing underside while hot
-    const cx = x + LEAN * H + drift, cy = y - H, cr = R * (small ? 0.32 : 0.42) * (0.55 + 0.45 * rise), nc = small ? 7 : 12;
-    for (let i = 0; i < nc; i++) {
-      const a = i * 6.2832 / nc + seed * 5, px = cx + Math.cos(a) * cr, py = cy + Math.sin(a) * cr * 0.45;
-      if (Math.sin(a) > 0) continue;                                // the back half first
-      puff(ctx, px, py, cr * (0.42 + 0.12 * hash(i, 7)), col, heat, 0.95 * fade);
-    }
-    puff(ctx, cx, cy - cr * 0.25, cr * 0.75, col, heat, 0.97 * fade);
-    puff(ctx, cx - cr * 0.3, cy - cr * 0.55, cr * 0.5, col, heat * 0.5, 0.95 * fade);
-    puff(ctx, cx + cr * 0.32, cy - cr * 0.5, cr * 0.46, col, heat * 0.5, 0.95 * fade);
-    for (let i = 0; i < nc; i++) {
-      const a = i * 6.2832 / nc + seed * 5, px = cx + Math.cos(a) * cr, py = cy + Math.sin(a) * cr * 0.45;
-      if (Math.sin(a) <= 0) continue;                               // then the front half
-      puff(ctx, px, py, cr * (0.42 + 0.12 * hash(i, 7)), col, heat, 0.95 * fade);
-    }
-    return H + cr;
-  }
-  // The ground of a blast: scorched in the middle, a ring of ash, slowly fading (a minute).
-  function blastGround(ctx, x, y, R, T, big) {
-    const a = Math.max(0, 1 - T / 60000);
-    if (a <= 0) return;
-    const r = R * (big ? 0.75 : 0.7);
-    const gr = ctx.createRadialGradient(x, y, 0, x, y, r);
-    gr.addColorStop(0, 'rgba(24,18,14,' + (0.75 * a).toFixed(3) + ')'); gr.addColorStop(0.45, 'rgba(46,36,28,' + (0.55 * a).toFixed(3) + ')');
-    gr.addColorStop(0.8, 'rgba(90,78,62,' + (0.25 * a).toFixed(3) + ')'); gr.addColorStop(1, 'rgba(90,78,62,0)');
-    ctx.fillStyle = gr; ctx.beginPath(); ctx.ellipse(x, y, r, r * 0.86, 0, 0, 6.2832); ctx.fill();
-    if (T < 6000) {   // embers still glowing in the middle
-      const e = 1 - T / 6000;
-      ctx.fillStyle = 'rgba(255,110,40,' + (0.35 * e).toFixed(3) + ')'; ctx.beginPath(); ctx.ellipse(x, y, r * 0.3, r * 0.26, 0, 0, 6.2832); ctx.fill();
-    }
-  }
-  // A small hit (a cruise missile): fire and a column of black smoke.
-  function smallHit(ctx, x, y, R, T, D, seed) {
-    const k = T / D, a = 1 - k;
-    if (a <= 0) return 0;
-    if (T < 2500) fire(ctx, x, y, R * 1.6, T, seed);
-    for (let i = 0; i < 7; i++) {
-      const f = (T / 2200 + i / 7) % 1, r = R * (0.25 + 0.5 * f);
-      puff(ctx, x + LEAN * f * R * 2.4 + R * 0.25 * f, y - f * R * 2.4, r, [70, 66, 62], 0, 0.7 * (1 - f) * a);
-    }
-    return R * 2.4;
-  }
-  // Rubble where a building was destroyed: broken stumps of wall, a heap, smoke for a while.
-  function ruin(ctx, x, y, s, T, seed) {
-    const a = Math.max(0, 1 - T / 90000);
-    if (a <= 0) return;
-    ctx.globalAlpha = a * BASE;
-    ctx.fillStyle = 'rgba(40,34,30,.55)'; ctx.beginPath(); ctx.ellipse(x, y, s * 0.42, s * 0.34, 0, 0, 6.2832); ctx.fill();
-    const parts = [];
-    for (let i = 0; i < 6; i++) {
-      const px = x + (hash(seed * 997 | 0, i) - 0.5) * s * 0.6, py = y + (hash(i, seed * 991 | 0) - 0.5) * s * 0.5, w = s * (0.06 + 0.06 * hash(i, 3));
-      parts.push(body(rect(px, py, -0.5, -0.5, 0.5, 0.5, w), 0, s * (0.03 + 0.12 * hash(i, 5)), [118, 112, 104], [92, 88, 82]));
-    }
-    parts.sort(function (p, q) { return p.g[2][1] - q.g[2][1]; });
-    for (const b of parts) drawBody(ctx, b);
-    ctx.globalAlpha = BASE;
-    if (T < 30000) smoke(ctx, x + LEAN * s * 0.1, y - s * 0.12, s * 1.2, T, seed, true, 4);
-  }
-  // Drawn after the bodies: ruins and clouds stand in the scene, in front of what is behind them.
-  View.prototype.drawBooms = function (ctx, g, z, ox, oy, now, layer) {
-    const S = this.nah, cw = this.cw, ch = this.ch;
-    for (let i = S.booms.length - 1; i >= 0; i--) {
-      const b = S.booms[i], T = now - b.t0, D = boomDur(b);
-      if (T > 60000) { S.booms.splice(i, 1); continue; }
-      const x = b.x * z + ox, y = b.y * z + oy, R = within(b.r * z, 16, Math.min(ch * 0.4, 260));   // close in, a cloud may not bury the whole screen
-      if (x < -R * 2 || x > cw + R * 2 || y < -R * 0.5 || y > ch + R * 3) continue;
-      if (layer === 0) { if (b.r >= 5 || b.big || b.head) blastGround(ctx, x, y, b.r * z, T, b.big); continue; }
-      if (T > D) continue;
-      if (b.big || b.head || b.r >= 8) mushroom(ctx, x, y, R, T, D, b.seed, b.head);
-      else smallHit(ctx, x, y, within(b.r * z * 0.6, 8, 40), T, D, b.seed);
-    }
-    if (layer === 0) return;
-    for (let i = S.ruins.length - 1; i >= 0; i--) {
-      const r = S.ruins[i], T = now - r.t0;
-      if (T > 90000) { S.ruins.splice(i, 1); continue; }
-      const x = r.x * z + ox, y = r.y * z + oy, s = modelSize(g, z);
-      if (x < -s || x > cw + s || y < -s || y > ch + s) continue;
-      ruin(ctx, x, y, s, T, r.seed);
-    }
-  };
-
   // ---------- the frame ----------
   View.prototype.drawClose = function (ctx, g, z, ox, oy, now) {
     const S = state(this), cw = this.cw, ch = this.ch, h = g.human, W = g.W;
-    if (S.g !== g) { S.g = g; S.own = null; S.tanks.clear(); S.units.clear(); S.aim.clear(); S.decorKey = ''; S.railN = -1; S.U = 0; S.ruins.length = 0; }   // a new game
+    if (S.g !== g) { S.g = g; S.own = null; S.tanks.clear(); S.units.clear(); S.aim.clear(); S.decorKey = ''; S.railN = -1; S.U = 0; }   // a new game
     if (!S.own || !S.live) { S.own = Uint16Array.from(g.owner); S.scorch.length = 0; S.liveAt = now; }   // start from the map as it is
     S.live = true;
     const fadeIn = Math.min(1, (now - S.liveAt) / 220);   // the models come up softly when one zooms in
@@ -1191,7 +1069,6 @@
         ctx.fillStyle = k < 0.25 ? 'rgba(255,200,90,' + (0.9 - k * 2).toFixed(2) + ')' : 'rgba(84,80,74,' + (0.4 * (1 - k)).toFixed(3) + ')'; ctx.fill();
       }
     }
-    this.drawBooms(ctx, g, z, ox, oy, now, 0);        // the scorched ground of blasts
     // 2. sandbags along your own border where the troops have dug in (from the posture)
     if (h && h.alive && h.post && z >= 7) this.drawSandbags(ctx, g, z, ox, oy, now, x0, y0, x1, y1);
     // 3. the bodies, back to front: buildings, tanks, trees
@@ -1243,9 +1120,7 @@
       } else if (e.k === 2) ctx.drawImage(e.sp, e.x - e.sp.ax, e.gy - e.sp.ay, e.sp.w, e.sp.h);
       else this.closeTank(ctx, g, e.t, e.x, e.gy, L, now, z, ox, oy);
     }
-    // 4. above everything on the ground: ruins and clouds of bombs, fires in taken buildings, level tags
-    this.drawBooms(ctx, g, z, ox, oy, now, 1);
-    this.closeRuins(g, now);
+    // 4. above everything on the ground: fires in taken buildings, level tags, the own mark
     for (const b of burn) { fire(ctx, b[0] + LEAN * b[2] * 0.6, b[1] - b[2] * 0.6, s, now, b[0] % 1); smoke(ctx, b[0] + LEAN * b[2] * 0.7, b[1] - b[2] * 0.7, s * 1.3, now, (b[1] * 0.01) % 1, true, 5); }
     for (const t of tags) {
       const u = t[0];
@@ -1261,7 +1136,7 @@
     const S = this.nah, h = g.human, p = u.owner, own = [p.r, p.g, p.b];
     // what the close-up remembers of a building: the level it shows (it grows up to a new one) and who owned it
     let m = S.units.get(u.id);
-    if (!m) { m = { lv: u.level, o: p.id, burn: 0, up: 0, u: u }; S.units.set(u.id, m); if (S.units.size > 4000) S.units.clear(); }
+    if (!m) { m = { lv: u.level, o: p.id, burn: 0, up: 0 }; S.units.set(u.id, m); if (S.units.size > 4000) S.units.clear(); }
     if (m.o !== p.id) { m.o = p.id; m.burn = now + 20000; }
     if (u.level > m.lv + 0.001) { m.lv += Math.max(0.02, (u.level - m.lv) * 0.04); if (u.level - m.lv < 0.02) m.lv = u.level; m.up = now; }
     else if (u.level < m.lv) m.lv = u.level;
@@ -1298,43 +1173,6 @@
     const w = u.type === UT.CITY && u.built ? s * (1 + 0.2 * Math.log10(Math.max(1, m.lv))) : s;
     S.hits.push([u, x - w * 0.62, y - top - w * 0.3, x + w * 0.62 + LEAN * top, y + w * 0.6]);
     return top;
-  };
-  // The building one is about to place, as its model: see-through, on a white ring where it may
-  // stand, red and paler where it may not. Returns how high it stands, for the label under it.
-  View.prototype.closeGhost = function (ctx, g, t, x, y, bad, now) {
-    const h = g.human, s = modelSize(g, this.cam.z), own = bad ? [200, 60, 50] : mix([h.r, h.g, h.b], [255, 255, 255], 0.35);   // lighter than the real ones
-    const u = { id: 7, type: t, level: 1, built: true, owner: h, x: 0, y: 0 };
-    ctx.save();
-    ctx.beginPath(); ctx.ellipse(x, y + s * 0.04, s * 0.54, s * 0.48, 0, 0, 6.2832);
-    ctx.fillStyle = bad ? 'rgba(200,40,30,.25)' : 'rgba(255,255,255,.18)'; ctx.fill();
-    ctx.setLineDash([6, 5]); ctx.lineWidth = 2; ctx.strokeStyle = bad ? '#ff8a7a' : '#fff'; ctx.stroke(); ctx.setLineDash([]);
-    const b0 = BASE; BASE = (bad ? 0.5 : 0.82) * (0.9 + 0.1 * Math.sin(now / 300));
-    ctx.globalAlpha = BASE;
-    let top;
-    if (t === UT.CITY) top = drawCity(ctx, u, x, y, s, own, 1, now);
-    else if (t === UT.FACTORY) top = drawFactory(ctx, u, x, y, s, own, now, 1);
-    else if (t === UT.PORT) top = drawPort(ctx, u, x, y, s, own, now);
-    else if (t === UT.DEFENSE) top = drawDefense(ctx, u, x, y, s, own, -0.6);
-    else if (t === UT.SAM) top = drawSam(ctx, u, x, y, s, own, now);
-    else if (t === UT.SILO) top = drawSilo(ctx, u, x, y, s, own);
-    else top = drawCloak(ctx, u, x, y, s, own, now);
-    BASE = b0;
-    ctx.restore();
-    return { top: top, s: s };
-  };
-  // A building that was seen and is now gone (a bomb, or its owner pulled it down) leaves rubble.
-  // Looked at twice a second.
-  View.prototype.closeRuins = function (g, now) {
-    const S = this.nah;
-    if (now - (S.ruinAt || 0) < 500) return;
-    S.ruinAt = now;
-    for (const [id, m] of S.units) {
-      if (!m.u || m.u.active) continue;
-      S.units.delete(id);
-      if (G.hidFromMe(g, m.u)) continue;
-      if (S.ruins.length > 60) S.ruins.shift();
-      S.ruins.push({ x: m.u.x + 0.5, y: m.u.y + 0.5, t0: now, seed: hash(m.u.x, m.u.y) });
-    }
   };
   // The building whose model lies under a point of the screen, the front-most one, or null. Only in
   // the close-up: there a model stands well above and beside its tile, so a tap on the model must

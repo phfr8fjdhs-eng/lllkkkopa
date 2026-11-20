@@ -693,24 +693,17 @@
       ctx.beginPath(); ctx.arc(x, y, R.structDist * z, 0, 6.2832);
       ctx.setLineDash([4, 5]); ctx.lineWidth = 1.2; ctx.strokeStyle = bad ? 'rgba(255,120,110,.7)' : 'rgba(255,255,255,.55)'; ctx.stroke(); ctx.setLineDash([]);
     }
-    let ty = y + s / 2 + 18;
-    if (t <= UT.CLOAK && this.nah && this.nah.live && this.closeGhost) {
-      // in the 3D close-up: the building itself, see-through, where it would stand (src/06b_close.js)
-      const m = this.closeGhost(ctx, g, t, x, y, bad, now);
-      ty = y + m.s * 0.5 + 16;
-    } else {
-      // a dark rim first, so the marker stands out on any colour of land
-      ctx.beginPath(); ctx.arc(x, y, s / 2 + 3, 0, 6.2832);
-      ctx.fillStyle = 'rgba(13,20,27,.85)'; ctx.fill();
-      shape(ctx, t <= UT.CLOAK ? t : UT.CITY, x, y, s / 2);
-      ctx.fillStyle = bad ? '#e02a20' : h.cssD; ctx.fill();
-      ctx.lineWidth = 2; ctx.strokeStyle = bad ? '#ffd0cb' : '#fff'; ctx.stroke();
-      ctx.fillStyle = '#fff';
-      glyph(ctx, gh.icon, x, y, s * 0.62);
-    }
+    // a dark rim first, so the marker stands out on any colour of land
+    ctx.beginPath(); ctx.arc(x, y, s / 2 + 3, 0, 6.2832);
+    ctx.fillStyle = 'rgba(13,20,27,.85)'; ctx.fill();
+    shape(ctx, t <= UT.CLOAK ? t : UT.CITY, x, y, s / 2);
+    ctx.fillStyle = bad ? '#e02a20' : h.cssD; ctx.fill();
+    ctx.lineWidth = 2; ctx.strokeStyle = bad ? '#ffd0cb' : '#fff'; ctx.stroke();
+    ctx.fillStyle = '#fff';
+    glyph(ctx, gh.icon, x, y, s * 0.62);
     // the label on a pill: name and price, or the reason it cannot be built
     ctx.font = '700 13px ' + FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    const tw = ctx.measureText(gh.text).width + 16;
+    const tw = ctx.measureText(gh.text).width + 16, ty = y + s / 2 + 18;
     ctx.beginPath();
     if (ctx.roundRect) ctx.roundRect(x - tw / 2, ty - 11, tw, 22, 11); else ctx.rect(x - tw / 2, ty - 11, tw, 22);
     ctx.fillStyle = bad ? 'rgba(150,24,18,.95)' : 'rgba(13,20,27,.9)'; ctx.fill();
@@ -1463,7 +1456,7 @@
     const ang = Math.atan2((ey - sy) - Math.cos(Math.PI * prog) * Math.PI * liftMax * z, ex - sx);
     const flick = 0.5 + 0.5 * Math.sin(now / 38 + u.id);
     // higher up it is nearer to the eye: it grows towards the top of the arc
-    const up = (1 + 0.35 * Math.sin(Math.PI * prog) * (ty === UT.CRUISE ? 0.3 : 1)) * (this.nah && this.nah.live ? 1.5 : 1);   // bigger among the 3D models
+    const up = 1 + 0.35 * Math.sin(Math.PI * prog) * (ty === UT.CRUISE ? 0.3 : 1);
     const blink = (now + u.id * 137) % 620 < 150;
     if (ty === UT.CRUISE) rocket(ctx, x, y, ang, within(z * 4.2, 13, 24) * up, col, 0, flick, blink);
     else if (ty === UT.ATOM) rocket(ctx, x, y, ang, within(z * 3.6, 12, 20) * up, col, 1, flick, blink);
@@ -1524,7 +1517,6 @@
     while (g.fx.length) {
       const f = g.fx.shift();
       f.t0 = now; this.fxList.push(f);
-      if (f.k === 'boom' && this.closeBoom) this.closeBoom(f, now);   // the 3D close-up keeps its cloud and crater
       if (G.onFx) {
         const x = (f.x + 0.5) * z + ox, y = (f.y + 0.5) * z + oy;
         G.onFx(f, x > -40 && y > -40 && x < cw + 40 && y < ch + 40);
