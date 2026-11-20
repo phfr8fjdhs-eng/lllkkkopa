@@ -932,11 +932,11 @@
     if (!tp || !tp.alive) return;
     const R = this.R, W = this.W, rng = this.rng, own = this.owner;
     const sp2 = Math.pow(R.headOut * 1.8, 2), range2 = R.mirvRange * R.mirvRange;
-    // Deliberately weaker than OpenFront: the warheads only cover about a quarter of the target's
-    // land (each warhead lays waste to roughly its inner circle plus half its outer ring), so a
+    // Deliberately weaker than OpenFront: the warheads only cover about a third of the target's
+    // land (a third since 19.11.2026; each warhead lays waste to roughly its inner circle plus half its outer ring), so a
     // MIRV hurts badly but does not wipe a whole empire off the map.
     const per = Math.PI * (R.headIn * R.headIn + 0.5 * (R.headOut * R.headOut - R.headIn * R.headIn));
-    const want = Math.min(R.mirvCount, Math.max(4, Math.ceil(G.MIRV_COVER * tp.tiles / per)));
+    const want = Math.min(R.mirvCount, Math.max(6, Math.ceil(G.MIRV_COVER * tp.tiles / per)));
     const picks = [];
     let tries = want * 30;
     while (picks.length < want && tries-- > 0) {

@@ -1164,10 +1164,13 @@
   G.NUKE_PAUSE = 300;     // ticks a nation waits between two volleys of bombs (30 s)
   G.NUKE_VOLLEY = 2;      // bombs in a volley (one more from «Schwer» up)
   G.NUKE_PEACE = 6000;    // ticks after the start in which no nation fires a bomb (ten minutes)
+  G.MIRV_LATE = 18000;    // nations fire a MIRV only after this much play (thirty minutes) ...
+  G.MIRV_PAUSE = 6000;    // ... at most one of all nations together every ten minutes ...
+  G.MIRV_RARE = 40;       // ... and then on one turn of a nation in this many
   // MIRV, deliberately weaker than OpenFront (doku/openfront-abgleich.md): its warheads cover about this
   // share of the target's land, and each hit tile costs the owner this many tiles' worth of troops
   // (OpenFront: 5 for every bomb). Together a MIRV takes roughly a third of the army, not all of it.
-  G.MIRV_COVER = 0.25;
+  G.MIRV_COVER = 0.33;
   G.WARHEAD_KILL = 1.5;
   G.NUKE_KILL = 3;        // the same for atom and hydrogen bombs, cruise missiles and the beam (OpenFront: 5)
   G.LAND_GOLD = 60;

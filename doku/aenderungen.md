@@ -1,6 +1,10 @@
 # Änderungsprotokoll
 Was seit dem 13.11.2026 geändert wurde und warum. Den heutigen Stand der Regeln beschreiben die anderen Dateien in `doku/`.
 
+## MIRV mit etwas mehr Sprengköpfen (19.11.2026)
+Die Sprengköpfe decken rund ein Drittel statt ein Viertel des Ziellandes ab, und es sind mindestens 6 statt 4. Erde: Land mit 13 000 Feldern 6 statt 5, mit 50 000 Feldern 23 statt 18, mit 140 000 Feldern 63 statt 48 Sprengköpfe. Wunsch des Besitzers: die MIRV warf zu wenige.
+- Die Nationen werfen jetzt ganz selten eine MIRV, nur spät im Spiel (ab 30 Minuten, höchstens eine alle 10 Minuten für alle zusammen), auf eine der drei grössten Nationen. Vorher warfen sie gar keine. Siehe `doku/openfront-abgleich.md`.
+
 ## 3D-Nahansicht beim normalen Spielen, viel grösser (20.11.2026)
 Rückmeldung des Besitzers: viel zu klein, die Hälfte sieht man gar nicht. Grund: die Nahansicht begann erst bei Zoom 7, die Kamera stellt sich nach dem Start aber auf 5,6 bis 6. Jetzt ab 2,5. Gebäude doppelt so gross, Panzer grösser und weiter draussen in Gruppen, Städte unter Stufe 5 als Ortschaften mit Häusern und Kirche, Relief aus den Höhendaten, Schiffe, Boote und Züge als Modelle, Lichtreflexe auf dem Meer, Antippen der Modelle öffnet die Ausbaukarte. Weiter draussen nur die Panzer, die einen betreffen. Auf dem Handy verdecken Tempo und Meldungen weniger. Siehe `doku/nahansicht.md`.
 
