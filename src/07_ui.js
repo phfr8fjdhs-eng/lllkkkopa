@@ -861,7 +861,7 @@
     } else kind = p.type === PT.HUMAN ? 'Mitspieler' : 'Bot · baut nichts, greift nur viel Schwächere langsam an';
     let s = '<div class="who"><span class="dot big" style="background:' + p.css + '"></span><div><h2>' + (p.flag ? G.flagOf(p.flag) + ' ' : '') + esc(p.name) + '</h2><p>' + kind + '</p></div></div>';
     s += '<div class="facts">' + fact('Truppen', fmtT(p.troops)) + fact('Gold', me && game.opts.infiniteGold ? '∞' : fmt(p.gold)) + fact('Gebiet', (p.tiles / den * 100).toFixed(1) + ' %') + '</div>';
-    if (!me && p.alive) s += '<p class="notes">Eroberung bringt ' + fmt(Math.floor(p.type === PT.HUMAN ? p.gold / 2 : p.gold) + game.bounty(p)) + ' Gold (sein Gold und die Prämie für ' + G.fmt(Math.max(p.peak, p.tiles)) + ' Felder).</p>';
+    if (!me && p.alive) s += '<p class="notes">Eroberung bringt ' + fmt(game.lootValue(p)) + ' Gold (sein Gold und die Prämie für ' + G.fmt(Math.max(p.peak, p.tiles)) + ' Felder).</p>';
     s += '<div class="facts six">' + fact('Städte', seen(p, UT.CITY)) + fact('Häfen', seen(p, UT.PORT)) + fact('Fabriken', seen(p, UT.FACTORY)) +
       fact('Posten', seen(p, UT.DEFENSE)) + fact('Silos', seen(p, UT.SILO)) + fact('Abwehr', seen(p, UT.SAM)) + '</div>';
     const notes = [];

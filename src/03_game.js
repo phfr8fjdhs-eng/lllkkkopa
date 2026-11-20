@@ -807,7 +807,7 @@
       const flank = G.THRUST.flank * 2 * count / Math.max(1, width), dAvg = tT / Math.max(1, tN);
       const n = front.size + 2;
       const face = t ? Math.max(1, Math.min(tT, dAvg * Math.max(4, front.size + flank) * CB.depth)) : 1;
-      let budget = (t ? within(10 * left / face, 0.01, 0.5) * n * 3 : n * (p.type === PT.BOT ? 1.4 : 2)) * this.attackPace + carry;
+      let budget = (t ? within(10 * left / face, 0.01, 0.5) * n * 3 : n * (p.type === PT.BOT ? 1.9 : 2)) * this.attackPace + carry;
       if (budget <= 0) { carry = budget; continue; }
       while (budget > 0) {
         if (heap.n === 0) { if (!defer.length) done = true; break; }
@@ -1037,7 +1037,7 @@
     // Without a posture (`aufstellung` off) a fight against a realm runs on OpenFront's formula
     // (EngineConfig.attackLogic): a whole tick's budget, each tile a share of it (see below).
     const of = !!t && !this.aufstellung;
-    let budget = (of ? 1 : t ? within(10 * use / face, 0.01, 0.5) * n * 3 : n * (a.type === PT.BOT ? 1.4 : 2)) * this.attackPace + (at.carry || 0);
+    let budget = (of ? 1 : t ? within(10 * use / face, 0.01, 0.5) * n * 3 : n * (a.type === PT.BOT ? 1.9 : 2)) * this.attackPace + (at.carry || 0);
     if (budget <= 0) { at.carry = budget; return; }
     const landTiles = map.landTiles;
     const lossMod = a.tiles > landTiles * 0.17 ? Math.sqrt(landTiles * 0.17 / a.tiles) : 1;
@@ -1180,12 +1180,19 @@
   G.WARHEAD_KILL = 1.5;
   G.NUKE_KILL = 3;        // the same for atom and hydrogen bombs, cruise missiles and the beam (OpenFront: 5)
   G.LAND_GOLD = 60;
+  G.BOT_LOOT = 0.8;       // a conquered bot pays 20 % less (its gold and the bounty)
   Game.prototype.bounty = function (t) {
-    return Math.round(Math.max(t.peak || 0, t.tiles) * G.LAND_GOLD) + (t.type === PT.BOT ? G.BOT_BOUNTY : 0);
+    const b = Math.max(t.peak || 0, t.tiles) * G.LAND_GOLD;
+    return t.type === PT.BOT ? Math.round((b + G.BOT_BOUNTY) * G.BOT_LOOT) : Math.round(b);
+  };
+  // everything a conquest pays: the loser's gold (half of it for a person, bots pay less) and the bounty
+  Game.prototype.lootValue = function (t) {
+    const own = t.type === PT.HUMAN ? t.gold / 2 : t.type === PT.BOT ? t.gold * G.BOT_LOOT : t.gold;
+    return Math.floor(own) + this.bounty(t);
   };
   Game.prototype.loot = function (a, t) {
     // a conquered person keeps half of the gold out of the victor's hands, bots and nations lose all of it
-    const gold = Math.floor(t.type === PT.HUMAN ? t.gold / 2 : t.gold) + this.bounty(t);
+    const gold = this.lootValue(t);
     t.gold = 0; a.gold += gold; a.conquests++;
     this.emit({ k: 'loot', by: a.id, gold: gold, x: (t.x0 + t.x1) / 2, y: (t.y0 + t.y1) / 2 });
     return gold;

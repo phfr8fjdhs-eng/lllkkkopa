@@ -2173,7 +2173,7 @@ body.placing #cv { cursor: crosshair; }
       const flank = G.THRUST.flank * 2 * count / Math.max(1, width), dAvg = tT / Math.max(1, tN);
       const n = front.size + 2;
       const face = t ? Math.max(1, Math.min(tT, dAvg * Math.max(4, front.size + flank) * CB.depth)) : 1;
-      let budget = (t ? within(10 * left / face, 0.01, 0.5) * n * 3 : n * (p.type === PT.BOT ? 1.4 : 2)) * this.attackPace + carry;
+      let budget = (t ? within(10 * left / face, 0.01, 0.5) * n * 3 : n * (p.type === PT.BOT ? 1.9 : 2)) * this.attackPace + carry;
       if (budget <= 0) { carry = budget; continue; }
       while (budget > 0) {
         if (heap.n === 0) { if (!defer.length) done = true; break; }
@@ -2403,7 +2403,7 @@ body.placing #cv { cursor: crosshair; }
     // Without a posture (`aufstellung` off) a fight against a realm runs on OpenFront's formula
     // (EngineConfig.attackLogic): a whole tick's budget, each tile a share of it (see below).
     const of = !!t && !this.aufstellung;
-    let budget = (of ? 1 : t ? within(10 * use / face, 0.01, 0.5) * n * 3 : n * (a.type === PT.BOT ? 1.4 : 2)) * this.attackPace + (at.carry || 0);
+    let budget = (of ? 1 : t ? within(10 * use / face, 0.01, 0.5) * n * 3 : n * (a.type === PT.BOT ? 1.9 : 2)) * this.attackPace + (at.carry || 0);
     if (budget <= 0) { at.carry = budget; return; }
     const landTiles = map.landTiles;
     const lossMod = a.tiles > landTiles * 0.17 ? Math.sqrt(landTiles * 0.17 / a.tiles) : 1;
@@ -2546,12 +2546,19 @@ body.placing #cv { cursor: crosshair; }
   G.WARHEAD_KILL = 1.5;
   G.NUKE_KILL = 3;        // the same for atom and hydrogen bombs, cruise missiles and the beam (OpenFront: 5)
   G.LAND_GOLD = 60;
+  G.BOT_LOOT = 0.8;       // a conquered bot pays 20 % less (its gold and the bounty)
   Game.prototype.bounty = function (t) {
-    return Math.round(Math.max(t.peak || 0, t.tiles) * G.LAND_GOLD) + (t.type === PT.BOT ? G.BOT_BOUNTY : 0);
+    const b = Math.max(t.peak || 0, t.tiles) * G.LAND_GOLD;
+    return t.type === PT.BOT ? Math.round((b + G.BOT_BOUNTY) * G.BOT_LOOT) : Math.round(b);
+  };
+  // everything a conquest pays: the loser's gold (half of it for a person, bots pay less) and the bounty
+  Game.prototype.lootValue = function (t) {
+    const own = t.type === PT.HUMAN ? t.gold / 2 : t.type === PT.BOT ? t.gold * G.BOT_LOOT : t.gold;
+    return Math.floor(own) + this.bounty(t);
   };
   Game.prototype.loot = function (a, t) {
     // a conquered person keeps half of the gold out of the victor's hands, bots and nations lose all of it
-    const gold = Math.floor(t.type === PT.HUMAN ? t.gold / 2 : t.gold) + this.bounty(t);
+    const gold = this.lootValue(t);
     t.gold = 0; a.gold += gold; a.conquests++;
     this.emit({ k: 'loot', by: a.id, gold: gold, x: (t.x0 + t.x1) / 2, y: (t.y0 + t.y1) / 2 });
     return gold;
@@ -5170,7 +5177,7 @@ body.placing #cv { cursor: crosshair; }
   function AI(g, p) {
     const r = g.rng;
     this.g = g; this.p = p;
-    this.rate = p.type === PT.BOT ? r.int(42, 78) : r.int(40, 80); this.off = r.int(0, this.rate);
+    this.rate = p.type === PT.BOT ? r.int(28, 52) : r.int(40, 80); this.off = r.int(0, this.rate);
     if (p.type === PT.BOT) { this.trigger = r.int(60, 90) / 100; this.reserve = r.int(30, 60) / 100; }
     else { this.trigger = r.int(50, 60) / 100; this.reserve = r.int(30, 40) / 100; }
     this.expand = r.int(10, 20) / 100;
@@ -9148,7 +9155,7 @@ body.placing #cv { cursor: crosshair; }
     } else kind = p.type === PT.HUMAN ? 'Mitspieler' : 'Bot · baut nichts, greift nur viel Schwächere langsam an';
     let s = '<div class="who"><span class="dot big" style="background:' + p.css + '"></span><div><h2>' + (p.flag ? G.flagOf(p.flag) + ' ' : '') + esc(p.name) + '</h2><p>' + kind + '</p></div></div>';
     s += '<div class="facts">' + fact('Truppen', fmtT(p.troops)) + fact('Gold', me && game.opts.infiniteGold ? '∞' : fmt(p.gold)) + fact('Gebiet', (p.tiles / den * 100).toFixed(1) + ' %') + '</div>';
-    if (!me && p.alive) s += '<p class="notes">Eroberung bringt ' + fmt(Math.floor(p.type === PT.HUMAN ? p.gold / 2 : p.gold) + game.bounty(p)) + ' Gold (sein Gold und die Prämie für ' + G.fmt(Math.max(p.peak, p.tiles)) + ' Felder).</p>';
+    if (!me && p.alive) s += '<p class="notes">Eroberung bringt ' + fmt(game.lootValue(p)) + ' Gold (sein Gold und die Prämie für ' + G.fmt(Math.max(p.peak, p.tiles)) + ' Felder).</p>';
     s += '<div class="facts six">' + fact('Städte', seen(p, UT.CITY)) + fact('Häfen', seen(p, UT.PORT)) + fact('Fabriken', seen(p, UT.FACTORY)) +
       fact('Posten', seen(p, UT.DEFENSE)) + fact('Silos', seen(p, UT.SILO)) + fact('Abwehr', seen(p, UT.SAM)) + '</div>';
     const notes = [];

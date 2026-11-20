@@ -204,3 +204,8 @@ Ziel: die Karte so ruhig wie in OpenFront. Alles in `06_view.js`, die Palette in
 
 ## Bots breiten sich früh aus und nicht mehr rund (20.11.2026)
 Gemessen (Erde, 150 Bots): Die Bots hielten am Anfang so viel Reserve zurück, dass sie in den ersten Sekunden fast nichts nahmen, und wuchsen dann als Kreis (Füllung des umschliessenden Rechtecks 0.68). Jetzt behält ein kleiner Bot nur halb so viel zurück (bis 30 % seiner Zielgrösse) und greift mit einem Richtungsangriff (`AI.stretch`) in eine eigene Richtung an, die sich bei jedem Zug etwas dreht. Ergebnis: nach 10 s 77 statt 49 Felder (Mittelwert), Füllung 0.52, also Arme und Ausbuchtungen. Nach 60 s etwa gleich gross wie vorher.
+
+## Bots schneller, weniger Gold (20.11.2026, Abend)
+Wunsch des Besitzers: Bots sollen sich etwas schneller ausbreiten, und Bots bringen zu viel Gold.
+- **Schneller:** Ein Bot zieht alle 28–52 Ticks statt 42–78 (`AI`, `05_ai.js`), und sein Angriff auf freies Land kommt pro Tick mit 1.9 statt 1.4 Feldern je Frontfeld voran (Menschen und Nationen 2). Gemessen (Welt, 150 Bots, Mittelwert Felder pro Bot): 10 s 75 statt 62, 30 s 323 statt 228, 60 s 748 statt 616, 120 s 1003 statt 875. Die Zielgrösse ist gleich geblieben.
+- **20 % weniger Gold:** Wer einen Bot erobert, bekommt sein Gold, die Prämie und das Landgold nur noch zu 80 % (`G.BOT_LOOT`, `Game.lootValue`). Die Anzeige in der Spieler-Info rechnet mit derselben Funktion.
