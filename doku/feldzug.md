@@ -50,3 +50,6 @@ Keine Hilfen mehr, alles freigeschaltet: 12 Blitzkrieg, 13 Zwei Fronten, 14 Inse
 - `src/06_view.js`: der goldene Ring um das Ziel eines Levels (`goal`).
 - Test: `node test/level.js` baut jedes Level, prüft Startland und Gebäude, lässt zwei Kopien gleich laufen und gewinnt jedes Level mit einem einfachen Skript.
 - Ein neues Level: einen Eintrag in `G.LEVELS` anhängen (Felder siehe Kommentar dort), in `test/level.js` eine Spielweise dazuschreiben, Tabelle oben nachführen.
+
+## Tempo
+Level-Karten sind klein, darum wäre das Tempo der Fronten an der Untergrenze (`S` = 0.4). Ein Level läuft mindestens mit dem Tempo der Weltkarte: `G.LEVEL_PACE` (0.67) in `src/03d_level.js`.
