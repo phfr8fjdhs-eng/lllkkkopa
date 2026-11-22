@@ -82,7 +82,8 @@ function spot(g, p, x, y, d) {
   // nations in Arsenal mode build cloaking towers next to their silos and air defences
   const g = new G.Game(map, { seed: 7, bots: 10, difficulty: 2, arsenal: true });
   g.setup(null);
-  for (let i = 0; i < 6000; i++) { g.tick(); g.dirtyN = 0; g.dirtyFlag.fill(0); g.events.length = 0; }
+  // 20 minutes: with momentum (switch `schwung`, 22.11.2026) nations grow slower and arm later
+  for (let i = 0; i < 12000; i++) { g.tick(); g.dirtyN = 0; g.dirtyFlag.fill(0); g.events.length = 0; }
   const towers = g.units.filter((u) => u.active && u.type === UT.CLOAK).length;
   g.cloakScan();
   const hid = g.units.filter((u) => u.active && u.cloak && u.type !== UT.CLOAK).length;

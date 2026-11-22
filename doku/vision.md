@@ -43,6 +43,16 @@ Vorbereitung ist ein Bonus, nie eine Pflicht. Ein Stoss geht immer sofort mit de
 
 Nach jedem Schritt ein paar Runden spielen, dann korrigieren.
 
+## Stand 22.11.2026: als Testschalter gebaut
+Kessel, Schwung (Angriffe verlieren mit der Tiefe Schwung, Vorbereitung gibt mehr), Bahn mit Lieferungen (grössere Städte bringen mehr), Häfen nach Stufe (Grossfrachter, Containerschiffe, Reichweite), Gebäude sehen nach Stufe anders aus. Siehe `doku/testschalter.md`.
+
+## Als Nächstes geplant (besprochen 22.11.2026, noch nicht gebaut)
+- Versorgung: Städte, Häfen und Schienen als Quellen, immer als Vorteil, nie als Sperre; Inseln mit Hafen als Stützpunkt.
+- Nationen schneiden Keile ab und bereiten Angriffe vor.
+- Kriegsschiffe: Zerstörer, Schlachtschiff, Flugabwehrschiff, Flugzeugträger (sehr spät, nur im Verband); Geleitschutz mit echten Zerstörern; steigende Preise und Unterhalt.
+- Flugabwehr in zwei Arten: Kurzstrecke (Marschflugkörper, Flugzeuge, Sprengköpfe) und Raketenabwehr (Atom- und Wasserstoffbombe); abnehmender Schutz beim Stapeln.
+- Simulation in einen Worker, danach eine grössere Erde.
+
 ## Was wir weglassen
 - Einzeleinheiten, die man von Hand über die Karte schiebt.
 - Runden über etwa 45 Minuten.

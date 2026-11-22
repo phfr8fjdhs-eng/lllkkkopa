@@ -1409,6 +1409,20 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   //   crowd   troops a narrow attack can use at once, per defender it faces (more wait as supply)
   //   dirShare  width of a direction attack as a share of the side of a square as large as the realm
   //   search  most tiles the way-finding looks at before it gives up
+  // A pocket of a person or nation holds out G.KESSEL ticks (30 s) before it falls; seen again
+  // within G.KESSEL_GAP ticks it is the same pocket.
+  G.KESSEL = 300; G.KESSEL_GAP = 60;
+  // Momentum (switch `schwung`): an attack on a realm starts with 1 (up to `max` when prepared)
+  // and loses it with every tile, the more the dearer the tile and the narrower the front:
+  //   decay    loss of momentum per tile = decay x resistance / width of the front, where the
+  //            resistance is what the tile cost in troops over 2 x G.COMBAT.base (0.25 to 4)
+  //   stop     below this the attack halts; what is left of it stands in the land it took
+  //   rest     ticks a stretch of border needs after an attack from it to give full momentum again
+  //   mass     extra momentum per unit of density above the average where it starts (the net)
+  //   rail     extra momentum at most for a railway at the start; along a railway it also fades
+  //            slower (to `railFade` of the decay on the line itself)
+  //   min/max  range of the momentum an attack can start with
+  G.MOMENTUM = { decay: 0.006, stop: 0.25, rest: 300, mass: 0.25, rail: 0.15, railFade: 0.6, min: 0.4, max: 1.5 };
   G.THRUST = { widths: [0, 30, 12], max: 4, pull: 1.2, ring: 0.6, speed: 0.5, flank: 3, deep: 4, hold: 1.5, fan: 0.45, nose: 1, crowd: 2, dirShare: 0.6, search: 250000 };
   G.UNAME = ['Stadt', 'Verteidigungs\u00ADposten', 'Hafen', 'Raketensilo', 'Flugabwehr', 'Fabrik', 'Tarnturm', 'Kriegsschiff', 'Boot',
     'Handelsschiff', 'Zug', 'Granate', 'Abwehrrakete', 'Atombombe', 'Wasserstoff\u00ADbombe', 'MIRV', 'Sprengkopf', 'Marschflug\u00ADkörper', 'Satelliten\u00ADstrahl'];
@@ -1475,7 +1489,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     this.map = map; this.W = map.W; this.H = map.H; this.N = map.N; this.S = map.S;
     this.opts = Object.assign({
       seed: 1, difficulty: 1, bots: 100, nations: true, instantBuild: false,
-      infiniteGold: false, infiniteTroops: false, spawnTicks: 150, autoSpawn: false, me: 0, pfeile: false, netz: true, punkt: false, aufstellung: true
+      infiniteGold: false, infiniteTroops: false, spawnTicks: 150, autoSpawn: false, me: 0, pfeile: false, netz: true, punkt: false, aufstellung: true, kessel: true, schwung: true, bahn: true, hafen: true
     }, opts || {});
     // two switches (doku/pfeile.md): `pfeile` plans arrows and launches them together;
     // `netz` lets a person paint the net (without it the troops stand evenly, nothing to set)
@@ -1486,6 +1500,13 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     // `aufstellung` off: no posture at all, every realm is one pool of troops as in OpenFront (no
     // density, digging in, reserves or pockets; the net is gone with it)
     this.aufstellung = this.opts.aufstellung !== false;
+    // switches for testing (doku/vision.md, 22.11.2026): `kessel` land cut off holds out for a
+    // while instead of falling at once; `schwung` attacks lose momentum as they get deep;
+    // `bahn` factories, railways and trains by deliveries; `hafen` ports by level
+    this.kessel = this.opts.kessel !== false;
+    this.schwung = this.opts.schwung !== false;
+    this.bahn = this.opts.bahn !== false;
+    this.hafen = this.opts.hafen !== false;
     this.rng = new G.RNG(this.opts.seed);
     const N = this.N, S = this.S;
     this.owner = new Uint16Array(N);
@@ -2183,8 +2204,11 @@ globalThis.G = { VARIANT: 'rohstoffe' };
       }
     };
     for (const b of p.border) add(b);
-    const step = G.THRUST.speed * this.attackPace, defer = [];
+    const step = G.THRUST.speed * this.attackPace, defer = [], MO = G.MOMENTUM;
     let left = troops, count = 0, head = start, limit = start, carry = 0, reach = 0, done = false, won = false;
+    // momentum as the fight has it (switch `schwung`): starts where the thrust breaks in
+    const mom0 = this.schwung && t ? this.momentumStart(p, [route.entry]) : -1;
+    let mom = mom0;
     for (; T < 3000 && !done; T++) {
       limit = Math.max(limit - step, head - 3 * step);
       const flank = G.THRUST.flank * 2 * count / Math.max(1, width), dAvg = tT / Math.max(1, tN);
@@ -2220,6 +2244,12 @@ globalThis.G = { VARIANT: 'rohstoffe' };
           if (dp && dp.length) for (let i = 0; i < dp.length; i++) { const dx = dp[i].x - x, dy = dp[i].y - y; if (dx * dx + dy * dy <= dr2) { mag *= 3 + 2 * dp[i].level; speed *= 1 + 2 * dp[i].level; break; } }
           loss = (CB.base + CB.exchange * dAvg * pd * within(1 / Math.sqrt(Math.max(r, 0.01)), CB.fMin, CB.fMax)) * mag * botMod * lossMod * traitor;
           used = within(1 / (5 * Math.max(r, 0.01)), 0.2, 1.5) * speed * speedMod * (easy ? 0.45 : 1);
+          if (mom0 > 0) {
+            const fade = this.cellRail && this.CW ? 1 - (1 - MO.railFade) * (1 - this.cellRail[this.cellOf(tile)]) / 0.8 : 1;
+            mom -= MO.decay * within(loss / (2 * CB.base), 0.25, 4) / Math.max(4, width) * fade;
+            const k = Math.max(mom, MO.stop);
+            loss /= Math.sqrt(k); used /= Math.min(1.25, k);
+          }
           const gone = Math.min(tT, dAvg * (pc ? this.postKeep(dens) : 1));
           tT -= gone; tN--;
           if (cs) { cs.c = Math.max(0, cs.c - gone); cs.n--; }
@@ -2233,6 +2263,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
         if (start > 0 && dt !== undefined) reach = Math.max(reach, 1 - dt / start);
         if (left < 1) { left = 0; done = true; break; }
         if (tile === route.goal) { won = true; done = true; break; }
+        if (mom0 > 0 && mom < MO.stop) { done = true; break; }          // out of momentum: it halts here
         add(tile);
       }
       carry = Math.min(0, budget);
@@ -2240,7 +2271,36 @@ globalThis.G = { VARIANT: 'rohstoffe' };
       defer.length = 0;
     }
     if (won) reach = 1; else left = 0;
-    return { reach: reach, left: left, secs: T / 10, counted: count, tiles: lane.size, len: route.path.length };
+    return { reach: reach, left: left, secs: T / 10, counted: count, tiles: lane.size, len: route.path.length, mom: mom0, stalled: mom0 > 0 && mom < MO.stop };
+  };
+  // ---------- momentum ----------
+  // A coarse key for a stretch of land (16 x 16 tiles), independent of the posture.
+  Game.prototype.zoneOf = function (t) { const W = this.W, x = t % W; return (((t - x) / W) >> 4) * ((W + 15) >> 4) + (x >> 4); };
+  // Where an attack starts, as a handful of tiles: the entry of a thrust, the spot of a direction
+  // attack, otherwise up to 48 tiles of its front.
+  Game.prototype.momentumSpots = function (at) {
+    if (at.path && at.path.length) return [at.path[0]];
+    if (at.spot >= 0) return [at.spot];
+    const out = [], step = Math.max(1, Math.floor(at.front.size / 48));
+    let i = 0;
+    for (const t of at.front) { if (i++ % step === 0) out.push(t); if (out.length >= 48) break; }
+    return out;
+  };
+  // The momentum an attack from these tiles would start with. Reads the game only (the preview
+  // asks too). Rest: how long since the last attack from there; mass: how dense the attacker's
+  // own troops stand there (only with a posture); rail: a railway there.
+  Game.prototype.momentumStart = function (a, spots) {
+    const MO = G.MOMENTUM, T = this.ticks, tired = a.tired;
+    if (!spots.length) return 1;
+    let rest = 0, mass = 0, rail = 0;
+    for (const t of spots) {
+      const last = tired ? tired.get(this.zoneOf(t)) : undefined;
+      rest += last === undefined ? 1 : within((T - last) / MO.rest, 0, 1);
+      if (a.post && this.CW) { const c = a.post.cells.get(this.cellOf(t)); if (c) mass += within((this.postDens(a, c) - 1) * MO.mass, 0, MO.max - 1); }
+      if (this.cellRail && this.CW) rail += MO.rail * (1 - this.cellRail[this.cellOf(t)]) / 0.8;
+    }
+    const n = spots.length;
+    return within((rest / n) * (1 + mass / n + rail / n), MO.min, MO.max);
   };
   // How many thrusts a player has under way.
   // Where a direction attack of p's toward `tile` starts and which way it goes: the own border
@@ -2333,6 +2393,8 @@ globalThis.G = { VARIANT: 'rohstoffe' };
       }
       this.attacks.push(at);
       if (src < 0) this.refreshFront(at);
+      // momentum: how much push the attack starts with (rest, troops massed there, railway)
+      if (this.schwung && t) at.mom = this.momentumStart(a, this.momentumSpots(at));
     }
     if (src >= 0) this.addFront(at, src);
     at.troops += troops; at.sum = (at.sum || 0) + troops;   // sum: all ever sent, for the display
@@ -2514,6 +2576,15 @@ globalThis.G = { VARIANT: 'rohstoffe' };
         const army = within(t.troops / Math.max(1, sent) / CB.armyFrom, 1, CB.army);   // outnumbered by the whole army
         loss = (CB.base + CB.exchange * dd * within(1 / Math.sqrt(Math.max(r, 0.01)), CB.fMin, CB.fMax)) * army * (mag / 80) * botMod * lossMod * traitor;
         used = within(1 / (5 * Math.max(r, 0.01)), 0.2, 1.5) * speed * speedMod * (easy ? 0.45 : 1);
+        if (at.mom !== undefined) {
+          // momentum: fades with every tile, the more the dearer the tile and the narrower the
+          // front, slower along a railway; with little of it every tile is dearer and slower
+          const MO = G.MOMENTUM, wide = narrow ? Math.max(4, at.width || 0) : Math.max(8, at.front.size);
+          const fade = this.cellRail && this.CW ? 1 - (1 - MO.railFade) * (1 - this.cellRail[this.cellOf(tile)]) / 0.8 : 1;
+          at.mom -= MO.decay * within(loss / (2 * CB.base), 0.25, 4) / wide * fade;
+          const k = Math.max(at.mom, MO.stop);
+          loss /= Math.sqrt(k); used /= Math.min(1.25, k);
+        }
         // the defender loses those who stood there; where they stand dense, part of them fall back
         // into the rest of the cell instead (`postKeep`)
         if (pc) this.postTake(t, pc, dAvg * this.postKeep(this.postDens(t, pc)));
@@ -2525,8 +2596,16 @@ globalThis.G = { VARIANT: 'rohstoffe' };
       budget -= used; at.troops -= loss;
       if (aimed && dt !== undefined && dt < at.head) at.head = dt;
       at.taken = (at.taken || 0) + 1;
+      if (at.mom !== undefined) (a.tired || (a.tired = new Map())).set(this.zoneOf(tile), this.ticks);
       this.conquer(a, tile);
       if (t && t.tiles < 100) { this.finishOff(a, t); this.endAttack(at, true); return; }
+      if (at.mom !== undefined && at.mom < G.MOMENTUM.stop) {
+        // out of momentum: the attack halts, and those still in it stay as defenders of what they took
+        if (a === this.human) this.say('Der Angriff auf ' + t.name + ' hat keinen Schwung mehr', 'warn');
+        this.redefer(at, defer);
+        this.endAttack(at, true);
+        return;
+      }
     }
     at.carry = Math.min(0, budget);
     this.redefer(at, defer);
@@ -2615,8 +2694,28 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     for (let i = 1; i < clusters.length; i++) if (clusters[i].length > clusters[mi].length) mi = i;
     for (let i = 0; i < clusters.length; i++) {
       if (p.tiles <= 0) return;
-      if (i === mi ? this.enclosed(p, clusters[i]) : this.surrounded(p, clusters[i])) this.capturePocket(p, clusters[i]);
+      if (!(i === mi ? this.enclosed(p, clusters[i]) : this.surrounded(p, clusters[i]))) continue;
+      // a pocket of a person or a nation holds out for a while (`G.KESSEL`) before it gives up;
+      // meanwhile it can break out or be relieved, and its troops starve (03b_posture.js)
+      if (this.kessel && p.post && !this.pocketReady(p, clusters[i])) continue;
+      this.capturePocket(p, clusters[i]);
     }
+  };
+  // How long a pocket has been one: every tile remembers when it was first seen in a pocket and
+  // when last; a pocket seen again within `G.KESSEL_GAP` ticks keeps its start. True once it has
+  // held out for `G.KESSEL` ticks.
+  Game.prototype.pocketReady = function (p, cl) {
+    const T = this.ticks, from = p.pocketFrom || (p.pocketFrom = new Map()), seen = p.pocketSeen || (p.pocketSeen = new Map());
+    let f = T;
+    for (let i = 0; i < cl.length; i++) {
+      const t = cl[i], s = seen.get(t);
+      if (s !== undefined && T - s <= G.KESSEL_GAP) { const v = from.get(t); if (v < f) f = v; }
+    }
+    if (f === T && p === this.human) this.say('Ein Teil deines Landes ist eingekesselt', 'bad');
+    for (let i = 0; i < cl.length; i++) { from.set(cl[i], f); seen.set(cl[i], T); }
+    if (seen.size > 4 * cl.length + 2000) for (const [t, s] of seen) if (T - s > G.KESSEL_GAP) { seen.delete(t); from.delete(t); }
+    p.pocketWait = T;
+    return T - f >= G.KESSEL;
   };
   // Every neighbour of the main body belongs to one single other player.
   Game.prototype.enclosed = function (p, cl) {
@@ -2782,7 +2881,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
       if (!p.alive) continue;
       if ((T + i * 7) % 20 === 0 && p.lastChange >= (p.boxAt || 0)) { p.boxAt = T; this.shrinkBox(p); }
       if (p.ai) p.ai.tick();
-      if ((T + i * 3) % 20 === 0 && p.lastChange >= p.lastCluster) { p.lastCluster = T; this.removeClusters(p); }
+      if ((T + i * 3) % 20 === 0 && (p.lastChange >= p.lastCluster || T - (p.pocketWait || -1e9) <= 40)) { p.lastCluster = T; this.removeClusters(p); }
     }
     if (T % 10 === 0) this.tickDiplomacy();
     this.reap();
@@ -3633,7 +3732,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
       c.want = base * c.n * c.w + c.r * k;
       c.diff = c.u - c.want;
       c.tol = 1e-7 * H;
-      if (c.diff < -(0.01 * c.want + c.tol)) { from.push(c); lack -= c.diff; }     // a cell asks only when it is clearly short ...
+      if (!c.cut && c.diff < -(0.01 * c.want + c.tol)) { from.push(c); lack -= c.diff; }      // a pocket gets nothing from outside     // a cell asks only when it is clearly short ...
     }
     if (!from.length) return;
     this.postDijkstra(p, from);
@@ -4407,6 +4506,16 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     }
     return null;
   };
+  // Switch `bahn`: factories are hubs and stand well apart (G.BAHN.factoryGap times the usual room).
+  Game.prototype.factoryNear = function (t) {
+    const W = this.W, x = t % W, y = (t / W) | 0, d = this.R.structDist * G.BAHN.factoryGap, d2 = d * d;
+    for (const u of this.structAt.values()) {
+      if (u.type !== UT.FACTORY) continue;
+      const dx = u.x - x, dy = u.y - y;
+      if (dx * dx + dy * dy < d2) return u;
+    }
+    return null;
+  };
   Game.prototype.getPorts = function () {
     if (!this.portList) {
       this.portList = [];
@@ -4495,6 +4604,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
         if (t < 0) { res.why = 'Keine freie Küste in der Nähe'; return res; }
         res.tile = t;
       } else if (this.structNear(tile, this.R.structDist)) { res.why = 'Zu nah an einem anderen Gebäude'; return res; }
+      else if (type === UT.FACTORY && this.bahn && this.factoryNear(tile)) { res.why = 'Zu nah an einer anderen Fabrik'; return res; }
     } else if (type === UT.WARSHIP) {
       const w = map.land[tile] ? this.waterNear(tile, 8) : (map.wsize[map.wcomp[tile]] >= 150 ? tile : -1);
       let best = null, bd = Infinity, any = false;
@@ -4701,7 +4811,35 @@ globalThis.G = { VARIANT: 'rohstoffe' };
 
   // ---------- trade ----------
   G.TRADE_MAX = 300;   // merchant ships at sea at the same time
-  Game.prototype.spawnTrade = function (u, dst, path) {
+  // Switch `hafen` (22.11.2026): ports by level.
+  //   range     how far a port trades (straight line, in OpenFront's tiles as the payout counts them),
+  //             times (1 + rangeLv x sqrt(level)); a container ship goes `contRange` times as far
+  //   ships     [cargo, hits, smallest level, chance per level above it, highest chance] for the
+  //             bulk carrier and the container ship; hits: how many times a warship must hit it
+  //             before it can be taken (one hit a second while alongside)
+  //   loot      share of the cargo a captured ship still carries
+  //   trainShip every that many trains that reach a port it sends an extra ship with their goods
+  // A port of level L sends ships sqrt(L) times as often as one of level 1.
+  G.HAFEN = { range: 480, rangeLv: 0.15, contRange: 2, ships: [[3, 4, 5, 0.04, 0.6], [10, 15, 25, 0.03, 0.5]], loot: 0.5, trainShip: 2 };
+  Game.prototype.portRange = function (lv, kind) {
+    const H = G.HAFEN;
+    return H.range * (1 + H.rangeLv * Math.sqrt(Math.max(1, lv))) * (kind === 2 ? H.contRange : 1);
+  };
+  // Which ship a port of level lv sends: 0 freighter, 1 bulk carrier, 2 container ship.
+  Game.prototype.shipKind = function (lv) {
+    const S = G.HAFEN.ships, r = this.rng.next();
+    for (let k = S.length - 1; k >= 0; k--) {
+      const s = S[k], p = lv >= s[2] ? Math.min(s[4], s[3] * (lv - s[2] + 1)) : 0;
+      if (r < p) return k + 1;
+    }
+    return 0;
+  };
+  // Goods brought to a port by train (from 04b_rail.js): every G.HAFEN.trainShip trains it sends an
+  // extra ship that carries their worth on top.
+  Game.prototype.portCargo = function (st, pay) {
+    st.load = (st.load || 0) + 1; st.cargo = (st.cargo || 0) + pay;
+  };
+  Game.prototype.spawnTrade = function (u, dst, path, kind, extra) {
     if (!u.active || !dst.active || !u.owner.alive || !dst.owner.alive || u.owner === dst.owner) return;
     if (!this.canTrade(u.owner, dst.owner) || this.tradeCount >= G.TRADE_MAX) return;
     const ship = this.newUnit(UT.TRADE, u.owner, u.water);
@@ -4709,6 +4847,9 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     // OpenFront's payout: short hops pay little, from about 300 tiles on a ship is worth its while
     const dist = (Math.abs(u.x - dst.x) + Math.abs(u.y - dst.y)) / this.S;
     ship.gold = Math.floor(75000 / (1 + Math.exp(-0.03 * (dist - 300))) + 50 * dist);
+    ship.kind = kind || 0; ship.hits = 1;
+    if (ship.kind) { const k = G.HAFEN.ships[ship.kind - 1]; ship.gold *= k[0]; ship.hits = k[1]; }
+    if (extra) ship.gold += Math.floor(extra);
     this.addUnit(ship);
   };
   Game.prototype.tickPort = function (u) {
@@ -4717,12 +4858,20 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     const ports = this.getPorts(), rng = this.rng;
     // a port sends a ship about every `rate` seconds per level: twice as often as before, so the seas are busy
     const rate = Math.min(25, Math.round(5 * Math.pow(ports.length, 0.6)));
-    let go = false;
-    for (let i = 0; i < u.level && !go; i++) go = rng.chance(rate);
+    let go = false, kind = 0, extra = 0;
+    if (this.hafen) {
+      // by level: sqrt(level) times as often, now and then a larger ship; goods that came by train
+      // send one more
+      if ((u.load || 0) >= G.HAFEN.trainShip) { go = true; extra = (u.cargo || 0) * 0.5; u.load -= G.HAFEN.trainShip; u.cargo = 0; }
+      else go = rng.next() * rate < Math.sqrt(Math.max(1, u.level));
+      if (go) kind = this.shipKind(u.level);
+    } else for (let i = 0; i < u.level && !go; i++) go = rng.chance(rate);
     if (!go) return;
     const p = u.owner, wc = this.map.wcomp, comp = wc[u.water], cand = [];
+    const reach = this.hafen ? this.portRange(u.level, kind) * this.S : 0, r2 = reach * reach;
     for (const v of ports) {
       if (v.owner === p || !v.owner.alive || !this.canTrade(p, v.owner) || wc[v.water] !== comp) continue;
+      if (reach && (v.x - u.x) * (v.x - u.x) + (v.y - u.y) * (v.y - u.y) > r2) continue;   // out of this port's reach
       cand.push(v);
     }
     if (!cand.length) return;
@@ -4736,14 +4885,14 @@ globalThis.G = { VARIANT: 'rohstoffe' };
       if (p.allies.has(cand[i].owner.id)) pool.push(cand[i]);
     }
     const dst = rng.pick(pool), key = u.water * this.N + dst.water, cached = this.pathCache.get(key);
-    if (cached) { this.spawnTrade(u, dst, cached); return; }
+    if (cached) { this.spawnTrade(u, dst, cached, kind, extra); return; }
     if (cached === null || this.pathQ.length > 6) return;     // route still being worked out, or queue busy
     if (this.pathCache.size > 500) this.pathCache.clear();
     this.pathCache.set(key, null);
     this.requestPath(u.water, dst.water, (path) => {
       if (!path) { this.pathCache.delete(key); return; }
       this.pathCache.set(key, path);
-      this.spawnTrade(u, dst, path);
+      this.spawnTrade(u, dst, path, kind, extra);
     }, false);
   };
   Game.prototype.tickTrade = function (u) {
@@ -4759,6 +4908,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     if (u.wait || (u.captured && (!d.active || d.owner !== p))) return;   // its new course is still being worked out
     const q = d.owner, h = this.human;
     p.gold += u.gold;
+    this.tradePaid = (this.tradePaid || 0) + u.gold;
     this.fx.push({ k: 'coin', x: d.x, y: d.y, t: this.ticks, mine: p === h || (q === h && !u.captured), amt: u.gold });
     if (this.fx.length > 300) this.fx.splice(0, 150);
     if (u.captured) {
@@ -4812,6 +4962,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     if (i >= 0) o.units.splice(i, 1);
     o.cnt[UT.TRADE]--; np.cnt[UT.TRADE]++;
     ts.owner = np; np.units.push(ts); ts.captured = true;
+    if (this.hafen) ts.gold = Math.floor(ts.gold * G.HAFEN.loot);      // part of the cargo is lost in the fight
     this.fx.push({ k: 'flag', x: ts.x, y: ts.y });
     if (np === h) this.say('Handelsschiff von ' + o.name + ' gekapert (' + fmt(ts.gold) + ' Gold an Bord)', 'good');
     else if (o === h) this.say(np.name + ' hat ein Handelsschiff von dir gekapert', 'warn');
@@ -4923,7 +5074,11 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     }
     if (hunt) {
       const dx = tg.x - u.x, dy = tg.y - u.y;
-      if (dx * dx + dy * dy <= 49) { this.captureTrade(u, tg); tg = u.target = null; u.hunt = null; }
+      if (dx * dx + dy * dy <= 49) {
+        // a large ship has to be hit a few times first (one hit a second alongside)
+        if ((tg.hits || 1) > 1) { if ((T + u.id) % 10 === 0) { tg.hits--; this.fx.push({ k: 'pop', x: tg.x, y: tg.y, hit: true }); } }
+        else { this.captureTrade(u, tg); tg = u.target = null; u.hunt = null; }
+      }
       else if (!u.wait && this.nearQ.length < 12 && (u.hunt !== tg || (T + u.id) % 10 === 0)) {
         // Cut it off instead of trailing behind: aim for the first tile of the merchant's own
         // route that this ship (twice as fast on the chase) reaches no later than the merchant.
@@ -5324,6 +5479,19 @@ globalThis.G = { VARIANT: 'rohstoffe' };
 
   G.isStation = function (t) { return t === UT.CITY || t === UT.PORT || t === UT.FACTORY; };
 
+  // Switch `bahn` (22.11.2026): trains carry goods from a factory to a city or port of the network
+  // and are paid on arrival.
+  //   base       gold for a delivery to a city of level 1 over a short way
+  //   every      ticks between two trains of a factory of level 1; level L sends every every/sqrt(L)
+  //   way        a long way pays up to (1 + way) times as much (it also takes longer, so the gold per
+  //              minute of a line stays about the same whatever its length)
+  //   ally       a delivery into an ally's city pays the sender that many times, the ally half of it
+  //   cut        ticks a track stays closed after a train found it running through hostile land
+  //   factoryGap factories stand that many times the usual room between buildings apart
+  // A city or port of level L pays sqrt(L) times the base: every level brings more, each a
+  // little less than the one before (from level 3 on every level costs the same 1M).
+  G.BAHN = { base: 30000, every: 200, way: 1, ally: 1.5, cut: 300, factoryGap: 3 };
+
   // A track between two stations, the way OpenFront lays it: only along the two axes of the map,
   // never at a slant, and every bend costs as much as three tiles of straight track. So a line
   // runs in long straight stretches with a few right-angled corners, like a drawn plan. Tiles on
@@ -5430,7 +5598,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
       let hop = hopsFrom(f.id);
       for (let i = 0; i < near.length; i++) {
         const s = near[i].s, far = hop.get(s.id);
-        if (far !== undefined && far <= HOPS) continue;
+        if (far !== undefined && (this.bahn || far <= HOPS)) continue;     // with `bahn` a tree: one way to every station
         // join it to the closest station that is already part of this factory's network
         let from = f, bd = near[i].d;
         if (far === undefined) for (const id of hop.keys()) {
@@ -5496,10 +5664,69 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     }
     return ok.length ? ok[this.rng.int(0, ok.length)] : null;
   };
+  // Switch `bahn`: whether a track can carry p's trains now: both ends are p's or an ally's, and it
+  // is not closed after running through hostile land.
+  Game.prototype.railOpen = function (p, e) {
+    if ((e.cutUntil || 0) > this.ticks) return false;
+    const a = e.a.owner, b = e.b.owner;
+    return (a === p || p.allies.has(a.id)) && (b === p || p.allies.has(b.id));
+  };
+  // Every city and port a factory's trains can reach, with the tracks of the way there (breadth
+  // first over the stations, so the way with the fewest tracks) and its length in tiles.
+  Game.prototype.railTargets = function (f) {
+    const p = f.owner, seen = new Map([[f.id, null]]), out = [];
+    let frontier = [f];
+    while (frontier.length) {
+      const next = [];
+      for (const st of frontier) {
+        for (const e of this.railAdj.get(st.id) || []) {
+          const o = e.a === st ? e.b : e.a;
+          if (seen.has(o.id) || !o.active || !o.built || !this.railOpen(p, e)) continue;
+          seen.set(o.id, { e: e, from: st });
+          next.push(o);
+          if (o.type === UT.CITY || o.type === UT.PORT) {
+            const way = [];
+            let len = 0;
+            for (let c = o; seen.get(c.id); c = seen.get(c.id).from) { const s = seen.get(c.id); way.unshift(s.e); len += s.e.path.length; }
+            out.push({ st: o, way: way, len: len });
+          }
+        }
+      }
+      frontier = next;
+    }
+    return out;
+  };
+  // For the build preview (switch `bahn`): what a new building of `type` at `tile` would bring by
+  // rail, roughly, in gold per minute, and which factories it would hang on. Reads the game only.
+  Game.prototype.railGuess = function (p, type, tile) {
+    const W = this.W, x = tile % W, y = (tile / W) | 0, rr = this.R.rail * this.R.rail, B = G.BAHN, res = { perMin: 0, factories: [], stations: 0 };
+    const near = function (u) { return (u.x - x) * (u.x - x) + (u.y - y) * (u.y - y) <= rr; };
+    if (type === UT.FACTORY) {
+      // a new factory: one train every B.every ticks, shared out over the cities and ports in reach
+      let pay = 0;
+      for (const u of p.units) if (u.built && (u.type === UT.CITY || u.type === UT.PORT) && near(u)) { res.stations++; pay += this.deliveryPay(p, u, Math.sqrt((u.x - x) * (u.x - x) + (u.y - y) * (u.y - y)) * 1.3); }
+      if (res.stations) res.perMin = 600 / B.every * pay / res.stations;
+      return res;
+    }
+    // a new city or port: a share of the trains of every own factory in reach
+    for (const f of p.units) {
+      if (f.type !== UT.FACTORY || !f.built || !near(f)) continue;
+      res.factories.push(f);
+      const n = this.railTargets(f).length + 1, d = Math.sqrt((f.x - x) * (f.x - x) + (f.y - y) * (f.y - y)) * 1.3;
+      res.perMin += 600 / (B.every / Math.sqrt(Math.max(1, f.level))) / n * this.deliveryPay(p, { level: 1, owner: p }, d);
+    }
+    return res;
+  };
+  // What a delivery to station `st` pays its sender p, over a way of `len` tiles.
+  Game.prototype.deliveryPay = function (p, st, len) {
+    const B = G.BAHN, way = 1 + B.way * Math.min(1, len / Math.max(1, 2 * this.R.rail));
+    return Math.round(B.base * Math.sqrt(Math.max(1, st.level)) * way * (st.owner === p ? 1 : B.ally));
+  };
 
   Game.prototype.tickRail = function () {
     if (this.railDirty && this.ticks >= this.railAt) this.rebuildRails();
     if (this.ticks % 10) return;
+    if (this.bahn) { this.tickDeliveries(); return; }
     for (const u of this.structAt.values()) {
       if (u.type !== UT.FACTORY || !u.built || this.ticks < u.nextTrain) continue;
       const p = u.owner;
@@ -5514,7 +5741,62 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     }
   };
 
+  // Switch `bahn`: every factory sends a train every G.BAHN.every / sqrt(level) ticks to the next
+  // city or port of its network in turn (so every station gets its share), on the way there.
+  Game.prototype.tickDeliveries = function () {
+    for (const u of this.structAt.values()) {
+      if (u.type !== UT.FACTORY || !u.built || this.ticks < u.nextTrain) continue;
+      const p = u.owner;
+      if (!p.alive) continue;
+      u.nextTrain = this.ticks + Math.round(G.BAHN.every / Math.sqrt(Math.max(1, u.level))) + this.rng.int(0, 20);
+      const ts = this.railTargets(u);
+      if (!ts.length) continue;
+      u.turn = ((u.turn || 0) + 1) % ts.length;
+      const tg = ts[u.turn];
+      const t = this.newUnit(UT.TRAIN, p, u.tile);
+      t.way = tg.way; t.wi = 0; t.goal = tg.st; t.len = tg.len; t.at = u;
+      const e = tg.way[0];
+      t.edge = e; t.fwd = e.a === u; t.pi = t.fwd ? 0 : e.path.length - 1;
+      this.addUnit(t);
+    }
+  };
+  // A delivery train: along its way, track by track; paid when it reaches its goal.
+  Game.prototype.tickDelivery = function (u) {
+    const p = u.owner;
+    let e = u.edge;
+    if (!e.a.active || !e.b.active || !p.alive || !u.goal.active) { this.removeUnit(u); return; }
+    const end = u.fwd ? e.path.length - 1 : 0;
+    if (u.pi !== end) {
+      for (let n = this.stride(u); n > 0 && u.pi !== end; n--) {
+        u.pi += u.fwd ? 1 : -1;
+        this.setPos(u, e.path[u.pi]);
+        const o = this.owner[u.tile];
+        if (o && o !== p.id && !p.allies.has(o)) { e.cutUntil = this.ticks + G.BAHN.cut; this.removeUnit(u); return; }   // the line is cut
+      }
+      return;
+    }
+    const st = u.fwd ? e.b : e.a;
+    if (st !== u.goal) {
+      const nx = u.way[++u.wi];
+      if (!nx || !this.railOpen(p, nx)) { this.removeUnit(u); return; }
+      u.edge = nx; u.fwd = nx.a === st; u.pi = u.fwd ? 0 : nx.path.length - 1;
+      return;
+    }
+    const q = st.owner, h = this.human;
+    if (q !== p && !p.allies.has(q.id)) { this.removeUnit(u); return; }
+    const pay = this.deliveryPay(p, st, u.len);
+    p.gold += pay;
+    if (q !== p) q.gold += Math.round(pay / G.BAHN.ally / 2);
+    this.railPaid = (this.railPaid || 0) + pay;
+    if (h && (p === h || q === h)) { h.trainGold = (h.trainGold || 0) + pay; h.trainTotal = (h.trainTotal || 0) + pay; }
+    this.fx.push({ k: 'coin', x: st.x, y: st.y, t: this.ticks, mine: p === h || q === h, amt: pay });
+    if (this.fx.length > 300) this.fx.splice(0, 150);
+    if (st.type === UT.PORT && this.hafen) this.portCargo(st, pay);      // goods for the sea trade
+    this.removeUnit(u);
+  };
+
   Game.prototype.tickTrain = function (u) {
+    if (u.way) { this.tickDelivery(u); return; }
     const e = u.edge, p = u.owner;
     if (!e.a.active || !e.b.active || !p.alive) { this.removeUnit(u); return; }
     const end = u.fwd ? e.path.length - 1 : 0;
@@ -5531,6 +5813,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     u.stops = (u.stops || 0) + 1;
     const worn = Math.max(0, u.stops - 9) * 5000;
     let pay = Math.max(5000, TRAIN_OWN - worn);
+    this.railPaid = (this.railPaid || 0) + pay;
     if (q === p) p.gold += pay;
     else if (q.alive && this.canTrade(p, q)) {
       pay = Math.max(5000, (p.allies.has(q.id) ? TRAIN_ALLY : TRAIN_FOREIGN) - worn);
@@ -6234,6 +6517,20 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     target: 'M11 1h2v3.1a8 8 0 0 1 6.9 6.9H23v2h-3.1a8 8 0 0 1-6.9 6.9V23h-2v-3.1A8 8 0 0 1 4.1 13H1v-2h3.1A8 8 0 0 1 11 4.1zM12 6a6 6 0 1 0 0 12a6 6 0 0 0 0-12zM12 9.5a2.5 2.5 0 1 1 0 5a2.5 2.5 0 0 1 0-5z'
   };
   const STRUCT_ICON = ['city', 'defense', 'port', 'silo', 'sam', 'factory', 'cloak'];
+  // Signs that change with the level, close up: a village grows into a town and a city of towers,
+  // a port gets a crane and containers, a factory a second hall and chimney.
+  ICON.village = 'M2.5 21v-7.5l4.75-4.5 4.75 4.5V21zM12.5 21V10.5l4.5-4.5 4.5 4.5V21zM6.1 17.5v3.5h2.3v-3.5zM15.8 12.5v2.3h2.4v-2.3zM15.8 16.5v4.5h2.4v-4.5z';
+  ICON.metro = 'M3 21V9h4V21zM8.5 21V3.5L10.75 1.5 13 3.5V21zM14.5 21V7h6.5V21zM9.9 6v1.6h1.7V6zM9.9 10v1.6h1.7V10zM9.9 14v1.6h1.7V14zM4.4 11v1.6h1.2V11zM4.4 15v1.6h1.2V15zM16 9v1.6h1.5V9zM18.5 9v1.6h1.2V9zM16 13v1.6h1.5V13zM18.5 13v1.6h1.2V13z';
+  ICON.port2 = 'M1.5 21v-2.2h21V21zM2.5 18.5V15h5v3.5zM8 18.5V15h5v3.5zM5 14.5V11h5v3.5zM15 18.5V3h2v15.5zM10 4V2.5h12V4zM11 4h1v6h-1zM10 10h3v2h-3z';
+  ICON.factory2 = 'M2 21V11l4.5 3V11l4.5 3V5h2.6v9h2V3h2.6v11H22v7zM4.5 16.5V19h2.4v-2.5zM9.3 16.5V19h2.4v-2.5zM14.1 16.5V19h2.4v-2.5zM18 16.5V19h2.4v-2.5z';
+  // the sign for a building of this type and level, and how much larger it is drawn (up to a quarter)
+  function signOf(type, lv) {
+    if (type === UT.CITY) return lv >= 15 ? 'metro' : lv >= 4 ? 'city' : 'village';
+    if (type === UT.PORT) return lv >= 10 ? 'port2' : 'port';
+    if (type === UT.FACTORY) return lv >= 10 ? 'factory2' : 'factory';
+    return STRUCT_ICON[type];
+  }
+  function growOf(type, lv) { return type === UT.CITY || type === UT.PORT || type === UT.FACTORY ? 1 + Math.min(0.25, 0.012 * (lv - 1)) : 1; }
   const STRUCT_RANK = [1, 5, 3, 0, 4, 2, 6];     // which kind stands for a cluster seen from afar: silo, city, factory, port, air defence, post, cloaking tower
   // Is building u hidden from the player at this screen? Asked every frame, so kept for the tick.
   function hid(g, u) {
@@ -6810,6 +7107,22 @@ globalThis.G = { VARIANT: 'rohstoffe' };
       }
       ctx.restore();
     }
+    // ports by level (switch `hafen`): how far a port trades, while a port is being placed or its
+    // card is open; the dashed outer ring is the reach of its container ships
+    if (g.hafen && h && (this.portSel || (this.ghost && this.ghost.type === UT.PORT && this.ghost.tile >= 0))) {
+      const list = this.portSel ? [this.portSel] : h.units.filter(function (u) { return u.built && u.type === UT.PORT; });
+      if (!this.portSel && this.ghost) list.push({ x: this.ghost.tile % g.W, y: (this.ghost.tile / g.W) | 0, level: 1 });
+      for (const u of list) {
+        const x = (u.x + 0.5) * z + ox, y = (u.y + 0.5) * z + oy, r = g.portRange(u.level, 0) * g.S * z;
+        ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832);
+        ctx.fillStyle = 'rgba(120,190,255,0.06)'; ctx.fill();
+        ctx.setLineDash([9, 6]); ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(140,200,255,0.8)'; ctx.stroke(); ctx.setLineDash([]);
+        if (u.level >= G.HAFEN.ships[1][2]) {
+          ctx.beginPath(); ctx.arc(x, y, r * G.HAFEN.contRange, 0, 6.2832);
+          ctx.setLineDash([3, 7]); ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(140,200,255,0.55)'; ctx.stroke(); ctx.setLineDash([]);
+        }
+      }
+    }
     for (const u of g.structAt.values()) {
       if (!u.built || (u.type !== UT.DEFENSE && u.type !== UT.SAM) || hid(g, u)) continue;
       const own = h && (u.owner === h || h.allies.has(u.owner.id));
@@ -6865,7 +7178,8 @@ globalThis.G = { VARIANT: 'rohstoffe' };
           ctx.fillStyle = 'rgba(255,214,120,.06)'; ctx.fill();
           ctx.setLineDash([8, 6]); ctx.lineWidth = 1.6; ctx.strokeStyle = 'rgba(255,214,120,.85)'; ctx.stroke(); ctx.setLineDash([]);
         }
-        ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(255,214,120,.9)';
+        // with deliveries (`bahn`) a city or port that joins the network is linked in green
+        ctx.lineWidth = 2; ctx.strokeStyle = g.bahn && t !== UT.FACTORY ? 'rgba(99,211,145,.95)' : 'rgba(255,214,120,.9)';
         if (!bad) for (const u of h.units) {
           if (!u.built || !(t === UT.FACTORY ? G.isStation(u.type) : u.type === UT.FACTORY)) continue;
           const dx = u.x - gx, dy = u.y - gy;
@@ -7010,8 +7324,15 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   // One building as a sign, the way OpenFront draws it: the outline filled with a deep shade of
   // the owner's colour, a dark rim that holds the shape on any ground, and a large white sign
   // inside. Own buildings get a white ring outside the rim. `s` is the width on the screen.
-  function structIcon(ctx, type, x, y, s, p, mine, built, sign) {
+  function structIcon(ctx, type, x, y, s, p, mine, built, sign, lv) {
+    lv = lv || 1;
+    if (sign && built) s *= growOf(type, lv);
     const r = s / 2, rim = Math.max(1.4, s * 0.085);
+    // a high level wears a ring around the outline: light from level 10, gold from level 25
+    if (sign && built && lv >= 10 && (type === UT.CITY || type === UT.PORT || type === UT.FACTORY)) {
+      shape(ctx, type, x, y, r + Math.max(3, s * 0.12));
+      ctx.lineWidth = Math.max(1.6, s * 0.06); ctx.strokeStyle = lv >= 25 ? '#f2c14e' : 'rgba(255,255,255,.7)'; ctx.stroke();
+    }
     shape(ctx, type, x, y, r);
     if (mine) { ctx.lineWidth = rim + Math.max(2.2, s * 0.09); ctx.strokeStyle = '#fff'; ctx.stroke(); }
     ctx.fillStyle = built ? p.cssB : '#9da3a8'; ctx.fill();
@@ -7019,9 +7340,10 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     if (!sign) return;
     const gs = s * (type === UT.SILO ? 0.56 : type === UT.SAM ? 0.7 : type === UT.CITY ? 0.66 : 0.64);
     const gy = y + (type === UT.SILO ? s * 0.1 : type === UT.PORT ? s * 0.03 : 0);
-    if (s >= 22) { ctx.fillStyle = 'rgba(0,0,0,.35)'; glyph(ctx, STRUCT_ICON[type], x + s * 0.03, gy + s * 0.04, gs); }
+    const name = signOf(type, built ? lv : 1);
+    if (s >= 22) { ctx.fillStyle = 'rgba(0,0,0,.35)'; glyph(ctx, name, x + s * 0.03, gy + s * 0.04, gs); }
     ctx.fillStyle = built ? '#fff' : 'rgba(255,255,255,.85)';
-    glyph(ctx, STRUCT_ICON[type], x, gy, gs);
+    glyph(ctx, name, x, gy, gs);
   }
   // The level in large white digits with a dark edge, sitting on top of the sign.
   function levelTag(ctx, n, x, y, s) {
@@ -7073,13 +7395,20 @@ globalThis.G = { VARIANT: 'rohstoffe' };
       // your own buildings under a cloaking tower are drawn faded, so you see that others do not see them
       const veil = u.cloak && u.owner === h;
       if (veil) ctx.globalAlpha = 0.55;
-      structIcon(ctx, u.type, x, y, s, u.owner, u.owner === h, u.built, true);
+      structIcon(ctx, u.type, x, y, s, u.owner, u.owner === h, u.built, true, u.level);
       if (veil) ctx.globalAlpha = 1;
+      const sz = u.built ? s * growOf(u.type, u.level) : s;
+      // with deliveries (`bahn`): an own station on the railway network wears a small green dot
+      if (g.bahn && full && u.built && u.owner === h && G.isStation(u.type) && g.railAdj.has(u.id)) {
+        const dx = x + sz * 0.42, dy = y + sz * 0.38, dr = Math.max(3, sz * 0.12);
+        ctx.beginPath(); ctx.arc(dx, dy, dr, 0, 6.2832);
+        ctx.fillStyle = '#63d391'; ctx.fill(); ctx.lineWidth = 1.5; ctx.strokeStyle = '#0b1016'; ctx.stroke();
+      }
       if (!u.built) {
         const k = within((T - u.buildStart) / Math.max(1, u.buildEnd - u.buildStart), 0, 1);
         ctx.beginPath(); ctx.arc(x, y, s / 2 + 4, -1.5708, -1.5708 + 6.2832 * k);
         ctx.strokeStyle = '#f4b740'; ctx.lineWidth = 2.5; ctx.stroke();
-      } else if (u.level > 1) levelTag(ctx, u.level, x, y, s);
+      } else if (u.level > 1) levelTag(ctx, u.level, x, y, sz);
     }
   };
 
@@ -7291,7 +7620,10 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   // cargo amidships in the owner's colour, as a row of containers once it is large enough.
   // The cargo always takes the colour of whoever owns the ship now; a captured one carries a small
   // gold mark on the bridge.
-  function merchant(ctx, x, y, ang, s, p, captured) {
+  // kind: 0 freighter, 1 bulk carrier (larger, longer hold), 2 container ship (largest, stacked boxes)
+  function merchant(ctx, x, y, ang, s, p, captured, kind) {
+    kind = kind || 0;
+    s *= kind === 2 ? 1.7 : kind === 1 ? 1.3 : 1;
     hull(ctx, x, y, ang, s, 'trade');
     ctx.lineJoin = 'miter'; ctx.miterLimit = 6;
     ctx.lineWidth = Math.max(1.6, s * 0.2); ctx.strokeStyle = '#0b1016'; ctx.stroke();
@@ -7299,8 +7631,15 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     ctx.save();
     ctx.translate(x, y); ctx.rotate(ang); ctx.scale(s, s);
     ctx.fillStyle = p.cssB;                             // cargo in a deep shade of it
-    if (s >= 8) {
-      for (let k = 0; k < 3; k++) ctx.fillRect(-0.56 + k * 0.33, -0.25, 0.28, 0.5);
+    if (kind === 2 && s >= 8) {
+      // container ship: two rows of five boxes, every other one a little lighter
+      for (let k = 0; k < 5; k++) for (let j = 0; j < 2; j++) {
+        ctx.fillStyle = (k + j) % 2 ? p.cssB : p.cssD || p.cssB;
+        ctx.fillRect(-0.6 + k * 0.2, j ? 0.02 : -0.27, 0.17, 0.25);
+      }
+    } else if (s >= 8) {
+      const n = kind === 1 ? 4 : 3, w = 0.94 / n;
+      for (let k = 0; k < n; k++) ctx.fillRect(-0.56 + k * w, -0.25, w - 0.05, 0.5);
     } else ctx.fillRect(-0.56, -0.25, 0.94, 0.5);
     ctx.fillStyle = '#2b323a'; ctx.fillRect(-0.92, -0.26, 0.22, 0.52);
     if (captured) { ctx.beginPath(); ctx.arc(-0.81, 0, 0.17, 0, 6.2832); ctx.fillStyle = '#f4b740'; ctx.fill(); }
@@ -7389,7 +7728,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
         // seen from afar, other people's traffic is drawn small but whole: a warship as a slim
         // hull, a merchant in the owner's colour, a troop boat as a dot in its owner's colour; trains are left out
         if (ty === UT.WARSHIP) warship(ctx, x, y, ang, 6, p, null);
-        else if (ty === UT.TRADE) merchant(ctx, x, y, ang, 4.6, p, u.captured);
+        else if (ty === UT.TRADE) merchant(ctx, x, y, ang, 4.6, p, u.captured, u.kind);
         else if (ty === UT.TRANSPORT) {
           ctx.beginPath(); ctx.arc(x, y, 2.2, 0, 6.2832);
           ctx.fillStyle = p.cssB; ctx.fill();
@@ -7445,7 +7784,13 @@ globalThis.G = { VARIANT: 'rohstoffe' };
       } else if (ty === UT.TRADE) {
         // Hull in the owner's colour, cargo in a deep shade of it, dark edge: readable on any water.
         const s = tradeSize(z, p === g.human);
-        merchant(ctx, x, y, ang, s, p, u.captured);
+        merchant(ctx, x, y, ang, s, p, u.captured, u.kind);
+        // a large ship under fire: what is left of it before it can be taken
+        if (u.kind && !u.captured && u.hits < G.HAFEN.ships[u.kind - 1][1]) {
+          const full = G.HAFEN.ships[u.kind - 1][1], bw = s * 2.2;
+          ctx.fillStyle = '#10161d'; ctx.fillRect(x - bw / 2 - 1, y + s * 1.4 - 1, bw + 2, 5);
+          ctx.fillStyle = '#f4b740'; ctx.fillRect(x - bw / 2, y + s * 1.4, bw * u.hits / full, 3);
+        }
         if (z >= 4.5 && p === g.human) {
           ctx.font = '700 ' + within(z * 1.6, 9, 13).toFixed(0) + 'px ' + FONT;
           ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
@@ -8838,12 +9183,16 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   let toastTimer = 0, endShown = false, botsTouched = false;
   let mp = null, turnLeft = 0, aim = null, joinCode = '', lobbyNote = '', goldTimer = 0;
   const chips = new Map(), asks = new Map();
-  const cfg = { name: 'Spieler', color: 0, map: 'erde', diff: 1, bots: -1, nations: true, instant: false, gold: false, troops: false, tap: false, music: true, sfx: true, mode: 'klassisch', thrust: 0, botsV2: true, pfeile: true, netz: true, punkt: true, aufstellung: true };
+  const cfg = { name: 'Spieler', color: 0, map: 'erde', diff: 1, bots: -1, nations: true, instant: false, gold: false, troops: false, tap: false, music: true, sfx: true, mode: 'klassisch', thrust: 0, botsV3: true, pfeile: true, netz: true, punkt: true, aufstellung: true, kessel: true, schwung: true, bahn: true, hafen: true };
   // two switches of their own (doku/pfeile.md)
   const SWITCH = [['aufstellung', 'Truppenkonzentration', 'An: deine Truppen stehen in Zellen, dichte Stellen halten besser, eingegraben, Reserven, Kessel. Aus: wie in OpenFront, alle Truppen sind ein Topf, keine Verteilung.'],
     ['netz', 'Netz', 'An: mit dem Netz (Taste N) verteilst du deine Truppen zum Verteidigen. Aus: die Truppen stehen gleichmässig, nichts einzustellen. Nur mit Truppenkonzentration.'],
     ['punkt', 'Richtungsangriff', 'An: als dritte Angriffsart neben Keil und Abschnitt (Taste F): statt der ganzen Front greift nur der Teil an, der in die gezogene Richtung schaut. Sieht aus wie die ganze Front, kein Pfeil.'],
-    ['pfeile', 'Angriffspfeile planen', 'An: Pfeile mit der rechten Maustaste planen, dann «Angreifen» (Enter). Aus: der Pfeil greift sofort an.']];
+    ['pfeile', 'Angriffspfeile planen', 'An: Pfeile mit der rechten Maustaste planen, dann «Angreifen» (Enter). Aus: der Pfeil greift sofort an.'],
+    ['kessel', 'Kessel', 'An: eingeschlossenes Land von Spielern und Nationen hält etwa 30 s, bevor es fällt. Aus: es fällt sofort wie in OpenFront.'],
+    ['schwung', 'Schwung', 'An: Angriffe auf Spieler und Nationen verlieren Schwung, je tiefer sie kommen, und bleiben dann stehen; Vorbereitung gibt mehr Schwung. Aus: wie bisher.'],
+    ['bahn', 'Bahn: Lieferungen', 'An: Fabriken liefern per Zug in Städte, grössere Städte bringen mehr Gold, eroberte Gleise sind kurz beschädigt. Aus: Gold pro Halt wie in OpenFront.'],
+    ['hafen', 'Häfen nach Stufe', 'An: höhere Häfen schicken öfter Schiffe, grössere Schiffe und reichen weiter. Aus: wie bisher.']];
   let plans = [];          // version «Pfeile»: arrows planned, not launched yet
   const MODES = [['klassisch', 'Klassisch', 'Das Spiel wie gewohnt.'], ['arsenal', 'Arsenal', 'Zusätzlich: der Satellitenstrahl. Er kommt aus dem All, braucht kein Silo und lässt sich nicht abfangen. Und der Tarnturm: Er versteckt deine Gebäude ganz in seiner Nähe, bis die anderen nahe herankommen. Auch die Nationen setzen beides ein.']];
   let hoverX = -1, hoverY = -1;
@@ -8864,7 +9213,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     G.Audio.on.music = cfg.music; G.Audio.on.sfx = cfg.sfx;
     if (cfg.mode !== 'arsenal') cfg.mode = 'klassisch';
     botsTouched = cfg.bots >= 0;
-    if (!s0.botsV2) { cfg.bots = -1; botsTouched = false; }   // the default rose: forget a count stored under the old one
+    if (!s0.botsV3) { cfg.bots = -1; botsTouched = false; }   // the default rose: forget a count stored under the old one
   }
   function saveCfg() {
     try { localStorage.setItem('grenzland.v1', JSON.stringify(cfg)); } catch (e) { /* ignore */ }
@@ -8935,7 +9284,8 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     });
   }
   // About half as many bots again as before (15.11.2026): more small prey early on.
-  function defaultBots(map) { return Math.min(600, Math.round(map.landTiles / 630 / 10) * 10); }
+  // One bot for every 850 tiles of land (22.11.2026: 630 made the big Earth lag), at most 600.
+  function defaultBots(map) { return Math.min(600, Math.round(map.landTiles / 850 / 10) * 10); }
   function previewMap(id) {
     loadMap(id).then(function (map) {
       if (game || cfg.map !== id) return;
@@ -9200,7 +9550,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
       this.disabled = true;
       mp.begin({
         seed: (Math.random() * 2e9) | 0, map: cfg.map, mapSeed: (Math.random() * 2e9) | 0,
-        diff: cfg.diff, bots: Math.max(0, cfg.bots), nations: cfg.nations, arsenal: cfg.mode === 'arsenal', res: RES, pfeile: !!cfg.pfeile, netz: !!cfg.netz, punkt: !!cfg.punkt, aufstellung: cfg.aufstellung !== false
+        diff: cfg.diff, bots: Math.max(0, cfg.bots), nations: cfg.nations, arsenal: cfg.mode === 'arsenal', res: RES, pfeile: !!cfg.pfeile, netz: !!cfg.netz, punkt: !!cfg.punkt, aufstellung: cfg.aufstellung !== false, kessel: cfg.kessel !== false, schwung: cfg.schwung !== false, bahn: cfg.bahn !== false, hafen: cfg.hafen !== false
       });
     });
   }
@@ -9209,7 +9559,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     turnLeft = 0;
     loadMap(m.map, m.mapSeed).then(function (map) {
       begin(map, {
-        seed: m.seed, difficulty: m.diff, bots: m.bots, nations: m.nations, arsenal: !!m.arsenal, res: !!m.res, pfeile: !!m.pfeile, netz: m.netz !== false, punkt: !!m.punkt, aufstellung: m.aufstellung !== false, spawnTicks: 300, autoSpawn: true, me: me
+        seed: m.seed, difficulty: m.diff, bots: m.bots, nations: m.nations, arsenal: !!m.arsenal, res: !!m.res, pfeile: !!m.pfeile, netz: m.netz !== false, punkt: !!m.punkt, aufstellung: m.aufstellung !== false, kessel: m.kessel !== false, schwung: m.schwung !== false, bahn: m.bahn !== false, hafen: m.hafen !== false, spawnTicks: 300, autoSpawn: true, me: me
       }, m.players.map(function (p) { return { name: p.name, color: COLORS[p.color % 6] }; }));
       $('bSpeed').hidden = true; $('bPause').hidden = !mp.host;
       addMsg(m.players.length > 1 ? m.players.length + ' Spieler sind dabei. Wählt eure Startpunkte.' : 'Du bist allein im Raum.', 'info');
@@ -9311,7 +9661,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     $('fStart').disabled = true; $('fStart').querySelector('small').textContent = 'Karte wird vorbereitet';
     loadMap(cfg.map).then(function (map) {
       begin(map, {
-        seed: (Math.random() * 2e9) | 0, difficulty: cfg.diff, bots: cfg.bots, nations: cfg.nations, arsenal: cfg.mode === 'arsenal', res: RES, pfeile: !!cfg.pfeile, netz: !!cfg.netz, punkt: !!cfg.punkt, aufstellung: cfg.aufstellung !== false,
+        seed: (Math.random() * 2e9) | 0, difficulty: cfg.diff, bots: cfg.bots, nations: cfg.nations, arsenal: cfg.mode === 'arsenal', res: RES, pfeile: !!cfg.pfeile, netz: !!cfg.netz, punkt: !!cfg.punkt, aufstellung: cfg.aufstellung !== false, kessel: cfg.kessel !== false, schwung: cfg.schwung !== false, bahn: cfg.bahn !== false, hafen: cfg.hafen !== false,
         instantBuild: cfg.instant, infiniteGold: cfg.gold, infiniteTroops: cfg.troops
       }, { name: cfg.name, color: COLORS[cfg.color] });
     }).catch(function (e) {
@@ -9828,6 +10178,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     $('purse').innerHTML = svg('gold', 15) + (game.opts.infiniteGold ? '∞' : fmt(h.gold));
     $('sheet').hidden = false; sheetAt = performance.now();
     view.mark = tile; view.showCloak = true;
+    view.portSel = near && near.owner === h && near.type === UT.PORT ? near : null;     // its trade reach as a circle
     snd('open');
   }
   // Build at a tile, or start aiming a bomb at it. Used by the menu and by the keys.
@@ -9865,7 +10216,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   // The tap that opens the card must not also press a button of it: on a phone the browser sends a click
   // to whatever lies under the finger after the touch, and that is the card by then.
   let sheetAt = 0;
-  function closeBuild() { $('sheet').hidden = true; if (view) { view.mark = -1; view.showCloak = false; } }
+  function closeBuild() { $('sheet').hidden = true; if (view) { view.mark = -1; view.showCloak = false; view.portSel = null; } }
   function onBuild(e) {
     if (performance.now() - sheetAt < 350) return;
     const b = e.target.closest('[data-t],[data-up]');
@@ -9929,7 +10280,13 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   // A build key shows what it would place under the mouse pointer; the next click places it.
   // What a factory at this spot would be worth: the stations it would tie in, and roughly what
   // its trains earn a minute (a train every 23 seconds, 10K at each of up to four stops).
-  function railHint(tile) {
+  function railHint(tile, type) {
+    if (game.bahn) {
+      // deliveries: a city or port shows whether it joins the network, a factory what it brings
+      const r = game.railGuess(game.human, type === undefined ? UT.FACTORY : type, tile);
+      if (type === UT.CITY || type === UT.PORT) return r.factories.length ? ' · verbunden, ca. +' + fmt(Math.round(r.perMin)) + '/min' : ' · nicht verbunden (keine Fabrik in Reichweite)';
+      return r.stations ? ' · ' + r.stations + (r.stations === 1 ? ' Stadt oder Hafen' : ' Städte und Häfen') + ', ca. +' + fmt(Math.round(r.perMin)) + '/min' : ' · keine Stadt in Reichweite';
+    }
     const h = game.human, W = game.W, x = tile % W, y = (tile / W) | 0, rr = game.R.rail * game.R.rail;
     let n = 0;
     for (const u of h.units) if (u.built && G.isStation(u.type) && (u.x - x) * (u.x - x) + (u.y - y) * (u.y - y) <= rr) n++;
@@ -9964,7 +10321,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     // for a bomb: the silo it would start from (or, while all are reloading, any silo), so the flight path can be shown
     const silo = ghost.t >= UT.ATOM && ghost.t !== UT.LASER ? c.silo || game.readySilo(h, tile).silo || h.units.find(function (u) { return u.type === UT.SILO && u.built; }) || null : null;
     view.ghost = { type: ghost.t, icon: icon, tile: tile, ok: c.ok, silo: silo,
-      text: c.ok || c.why === 'Zu wenig Gold' ? plain(ghost.t) + ' · ' + G.fmt(game.cost(h, ghost.t)) + (ghost.t === UT.FACTORY ? railHint(tile) : '') : c.why || 'Hier nicht möglich' };   // too little gold: the price stays, in red
+      text: c.ok || c.why === 'Zu wenig Gold' ? plain(ghost.t) + ' · ' + G.fmt(game.cost(h, ghost.t)) + (ghost.t === UT.FACTORY || (game.bahn && (ghost.t === UT.CITY || ghost.t === UT.PORT)) ? railHint(tile, ghost.t) : '') : c.why || 'Hier nicht möglich' };   // too little gold: the price stays, in red
   }
   // The player's own finished building of the kind being placed, if the pointer is on it.
   function ghostUpgrade(tile) {
@@ -10044,8 +10401,8 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     const troops = h.troops * ratio / (game.pfeile ? plans.length + 1 : 1), est = game.thrustEstimate(h, r, troops);
     // green: arrives with a quarter or more to spare; yellow: arrives, or very nearly; red: stops short
     const verdict = est.reach >= 1 && est.left >= troops * 0.25 ? 0 : est.reach >= 0.9 ? 1 : 2;
-    const verdictText = ['reicht bis zum Ziel', 'knapp', 'reicht etwa ' + Math.max(5, Math.round(est.reach * 20) * 5) + ' % des Wegs'][verdict];
-    view.plan = { path: r.path, width: width, troops: troops, col: ['rgb(99,211,145)', 'rgb(244,183,64)', 'rgb(255,107,94)'][verdict], label: THRUST_NAME[mode] + ' · ' + fmtT(troops) + ' · ' + verdictText };
+    const verdictText = ['reicht bis zum Ziel', 'knapp', (est.stalled ? 'Schwung reicht etwa ' : 'reicht etwa ') + Math.max(5, Math.round(est.reach * 20) * 5) + ' % des Wegs'][verdict];
+    view.plan = { path: r.path, width: width, troops: troops, col: ['rgb(99,211,145)', 'rgb(244,183,64)', 'rgb(255,107,94)'][verdict], label: THRUST_NAME[mode] + ' · ' + fmtT(troops) + (est.mom > 0 ? ' · Schwung ' + Math.round(est.mom * 100) + ' %' : '') + ' · ' + verdictText };
     planInfo = { mode: mode, verdict: verdict, text: verdictText, ci: null, path: r.path, tid: a.tid, width: width };
     showCommit();
   }
@@ -10056,7 +10413,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     if (!at) return;
     cardId = id;
     const el = $('thrustCard');
-    el.innerHTML = '<b>' + THRUST_NAME[at.spot >= 0 ? 3 : at.width === game.thrustWidth(1) ? 1 : 2] + ' · ' + fmtT(at.troops + (at.want || 0)) + '</b>' +
+    el.innerHTML = '<b>' + THRUST_NAME[at.spot >= 0 ? 3 : at.width === game.thrustWidth(1) ? 1 : 2] + ' · ' + fmtT(at.troops + (at.want || 0)) + (at.mom !== undefined ? ' · Schwung ' + Math.max(0, Math.round(at.mom * 100)) + ' %' : '') + '</b>' +
       '<button type="button" data-act="feed">' + svg('up', 14) + 'Verstärken +' + fmtT(game.human.troops * ratio) + '</button>' +
       '<button type="button" data-act="ret" class="ghost">' + svg('close', 13) + 'Zurückziehen</button>';
     el.hidden = false;

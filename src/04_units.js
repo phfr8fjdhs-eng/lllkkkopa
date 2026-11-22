@@ -171,6 +171,16 @@
     }
     return null;
   };
+  // Switch `bahn`: factories are hubs and stand well apart (G.BAHN.factoryGap times the usual room).
+  Game.prototype.factoryNear = function (t) {
+    const W = this.W, x = t % W, y = (t / W) | 0, d = this.R.structDist * G.BAHN.factoryGap, d2 = d * d;
+    for (const u of this.structAt.values()) {
+      if (u.type !== UT.FACTORY) continue;
+      const dx = u.x - x, dy = u.y - y;
+      if (dx * dx + dy * dy < d2) return u;
+    }
+    return null;
+  };
   Game.prototype.getPorts = function () {
     if (!this.portList) {
       this.portList = [];
@@ -259,6 +269,7 @@
         if (t < 0) { res.why = 'Keine freie Küste in der Nähe'; return res; }
         res.tile = t;
       } else if (this.structNear(tile, this.R.structDist)) { res.why = 'Zu nah an einem anderen Gebäude'; return res; }
+      else if (type === UT.FACTORY && this.bahn && this.factoryNear(tile)) { res.why = 'Zu nah an einer anderen Fabrik'; return res; }
     } else if (type === UT.WARSHIP) {
       const w = map.land[tile] ? this.waterNear(tile, 8) : (map.wsize[map.wcomp[tile]] >= 150 ? tile : -1);
       let best = null, bd = Infinity, any = false;
@@ -465,7 +476,35 @@
 
   // ---------- trade ----------
   G.TRADE_MAX = 300;   // merchant ships at sea at the same time
-  Game.prototype.spawnTrade = function (u, dst, path) {
+  // Switch `hafen` (22.11.2026): ports by level.
+  //   range     how far a port trades (straight line, in OpenFront's tiles as the payout counts them),
+  //             times (1 + rangeLv x sqrt(level)); a container ship goes `contRange` times as far
+  //   ships     [cargo, hits, smallest level, chance per level above it, highest chance] for the
+  //             bulk carrier and the container ship; hits: how many times a warship must hit it
+  //             before it can be taken (one hit a second while alongside)
+  //   loot      share of the cargo a captured ship still carries
+  //   trainShip every that many trains that reach a port it sends an extra ship with their goods
+  // A port of level L sends ships sqrt(L) times as often as one of level 1.
+  G.HAFEN = { range: 480, rangeLv: 0.15, contRange: 2, ships: [[3, 4, 5, 0.04, 0.6], [10, 15, 25, 0.03, 0.5]], loot: 0.5, trainShip: 2 };
+  Game.prototype.portRange = function (lv, kind) {
+    const H = G.HAFEN;
+    return H.range * (1 + H.rangeLv * Math.sqrt(Math.max(1, lv))) * (kind === 2 ? H.contRange : 1);
+  };
+  // Which ship a port of level lv sends: 0 freighter, 1 bulk carrier, 2 container ship.
+  Game.prototype.shipKind = function (lv) {
+    const S = G.HAFEN.ships, r = this.rng.next();
+    for (let k = S.length - 1; k >= 0; k--) {
+      const s = S[k], p = lv >= s[2] ? Math.min(s[4], s[3] * (lv - s[2] + 1)) : 0;
+      if (r < p) return k + 1;
+    }
+    return 0;
+  };
+  // Goods brought to a port by train (from 04b_rail.js): every G.HAFEN.trainShip trains it sends an
+  // extra ship that carries their worth on top.
+  Game.prototype.portCargo = function (st, pay) {
+    st.load = (st.load || 0) + 1; st.cargo = (st.cargo || 0) + pay;
+  };
+  Game.prototype.spawnTrade = function (u, dst, path, kind, extra) {
     if (!u.active || !dst.active || !u.owner.alive || !dst.owner.alive || u.owner === dst.owner) return;
     if (!this.canTrade(u.owner, dst.owner) || this.tradeCount >= G.TRADE_MAX) return;
     const ship = this.newUnit(UT.TRADE, u.owner, u.water);
@@ -473,6 +512,9 @@
     // OpenFront's payout: short hops pay little, from about 300 tiles on a ship is worth its while
     const dist = (Math.abs(u.x - dst.x) + Math.abs(u.y - dst.y)) / this.S;
     ship.gold = Math.floor(75000 / (1 + Math.exp(-0.03 * (dist - 300))) + 50 * dist);
+    ship.kind = kind || 0; ship.hits = 1;
+    if (ship.kind) { const k = G.HAFEN.ships[ship.kind - 1]; ship.gold *= k[0]; ship.hits = k[1]; }
+    if (extra) ship.gold += Math.floor(extra);
     this.addUnit(ship);
   };
   Game.prototype.tickPort = function (u) {
@@ -481,12 +523,20 @@
     const ports = this.getPorts(), rng = this.rng;
     // a port sends a ship about every `rate` seconds per level: twice as often as before, so the seas are busy
     const rate = Math.min(25, Math.round(5 * Math.pow(ports.length, 0.6)));
-    let go = false;
-    for (let i = 0; i < u.level && !go; i++) go = rng.chance(rate);
+    let go = false, kind = 0, extra = 0;
+    if (this.hafen) {
+      // by level: sqrt(level) times as often, now and then a larger ship; goods that came by train
+      // send one more
+      if ((u.load || 0) >= G.HAFEN.trainShip) { go = true; extra = (u.cargo || 0) * 0.5; u.load -= G.HAFEN.trainShip; u.cargo = 0; }
+      else go = rng.next() * rate < Math.sqrt(Math.max(1, u.level));
+      if (go) kind = this.shipKind(u.level);
+    } else for (let i = 0; i < u.level && !go; i++) go = rng.chance(rate);
     if (!go) return;
     const p = u.owner, wc = this.map.wcomp, comp = wc[u.water], cand = [];
+    const reach = this.hafen ? this.portRange(u.level, kind) * this.S : 0, r2 = reach * reach;
     for (const v of ports) {
       if (v.owner === p || !v.owner.alive || !this.canTrade(p, v.owner) || wc[v.water] !== comp) continue;
+      if (reach && (v.x - u.x) * (v.x - u.x) + (v.y - u.y) * (v.y - u.y) > r2) continue;   // out of this port's reach
       cand.push(v);
     }
     if (!cand.length) return;
@@ -500,14 +550,14 @@
       if (p.allies.has(cand[i].owner.id)) pool.push(cand[i]);
     }
     const dst = rng.pick(pool), key = u.water * this.N + dst.water, cached = this.pathCache.get(key);
-    if (cached) { this.spawnTrade(u, dst, cached); return; }
+    if (cached) { this.spawnTrade(u, dst, cached, kind, extra); return; }
     if (cached === null || this.pathQ.length > 6) return;     // route still being worked out, or queue busy
     if (this.pathCache.size > 500) this.pathCache.clear();
     this.pathCache.set(key, null);
     this.requestPath(u.water, dst.water, (path) => {
       if (!path) { this.pathCache.delete(key); return; }
       this.pathCache.set(key, path);
-      this.spawnTrade(u, dst, path);
+      this.spawnTrade(u, dst, path, kind, extra);
     }, false);
   };
   Game.prototype.tickTrade = function (u) {
@@ -523,6 +573,7 @@
     if (u.wait || (u.captured && (!d.active || d.owner !== p))) return;   // its new course is still being worked out
     const q = d.owner, h = this.human;
     p.gold += u.gold;
+    this.tradePaid = (this.tradePaid || 0) + u.gold;
     this.fx.push({ k: 'coin', x: d.x, y: d.y, t: this.ticks, mine: p === h || (q === h && !u.captured), amt: u.gold });
     if (this.fx.length > 300) this.fx.splice(0, 150);
     if (u.captured) {
@@ -576,6 +627,7 @@
     if (i >= 0) o.units.splice(i, 1);
     o.cnt[UT.TRADE]--; np.cnt[UT.TRADE]++;
     ts.owner = np; np.units.push(ts); ts.captured = true;
+    if (this.hafen) ts.gold = Math.floor(ts.gold * G.HAFEN.loot);      // part of the cargo is lost in the fight
     this.fx.push({ k: 'flag', x: ts.x, y: ts.y });
     if (np === h) this.say('Handelsschiff von ' + o.name + ' gekapert (' + fmt(ts.gold) + ' Gold an Bord)', 'good');
     else if (o === h) this.say(np.name + ' hat ein Handelsschiff von dir gekapert', 'warn');
@@ -687,7 +739,11 @@
     }
     if (hunt) {
       const dx = tg.x - u.x, dy = tg.y - u.y;
-      if (dx * dx + dy * dy <= 49) { this.captureTrade(u, tg); tg = u.target = null; u.hunt = null; }
+      if (dx * dx + dy * dy <= 49) {
+        // a large ship has to be hit a few times first (one hit a second alongside)
+        if ((tg.hits || 1) > 1) { if ((T + u.id) % 10 === 0) { tg.hits--; this.fx.push({ k: 'pop', x: tg.x, y: tg.y, hit: true }); } }
+        else { this.captureTrade(u, tg); tg = u.target = null; u.hunt = null; }
+      }
       else if (!u.wait && this.nearQ.length < 12 && (u.hunt !== tg || (T + u.id) % 10 === 0)) {
         // Cut it off instead of trailing behind: aim for the first tile of the merchant's own
         // route that this ship (twice as fast on the chase) reaches no later than the merchant.

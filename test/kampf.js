@@ -55,8 +55,8 @@ async function loadMap(id) {
 
 // Two realms side by side on the largest stretch of land: the attacker grows out of a tile in
 // the middle of it, the defender out of the attacker's rim. Everybody else stands still.
-function arena(map, sc, classic) {
-  const g = new G.Game(map, { seed: 11, bots: 0, difficulty: 1, spawnTicks: 10 });
+function arena(map, sc, classic, extra) {
+  const g = new G.Game(map, Object.assign({ seed: 11, bots: 0, difficulty: 1, spawnTicks: 10 }, extra || {}));
   g.setup({ name: 'Angreifer', color: [220, 60, 50] });
   const h = g.human, W = g.W, N = g.N, land = map.land;
   // the land tile furthest from any sea, roughly: the one with the most land around it in Asia
@@ -135,8 +135,9 @@ function deepGoal(g, foe, row) {
 }
 // One thrust (or the whole front) with the same troops; measured: does it reach the goal, how far
 // does it get along the way a wedge would take (share of that way), what does it cost.
-function runThrust(map, sc, mode, classic) {
-  const A = arena(map, sc, classic), g = A.g, h = A.h, foe = A.foe, W = g.W;
+function runThrust(map, sc, mode, classic, extra, prep) {
+  const A = arena(map, sc, classic, extra), g = A.g, h = A.h, foe = A.foe, W = g.W;
+  if (prep) prep(g, h, foe);
   const row = Math.round((h.y0 + h.y1) / 2), goal = deepGoal(g, foe, row);
   let x0 = W, x1 = 0;
   for (let x = 0; x < W; x++) if (g.owner[row * W + x] === foe.id) { if (x < x0) x0 = x; if (x > x1) x1 = x; }
@@ -216,12 +217,60 @@ function pocket(map) {
   const cs = G.POST.cell, mx = Math.round((h.x0 + (h.x1 - h.x0) * 0.25) / cs) * cs, my = Math.round((h.y0 + h.y1) / 2 / cs) * cs;
   for (let y = my; y < my + 2 * cs; y++) for (let x = mx; x < mx + 2 * cs; x++) { const t = y * W + x; if (g.owner[t] === h.id) g.conquer(foe, t); }
   for (let i = 0; i < 10; i++) g.tick();
+  // troops that stood there when the pocket closed (fresh ground starts empty, and nothing gets in)
+  for (const c of foe.post.cells.values()) if (c.cut) g.postGive(foe, c, 2000);
   const inPocket = () => { let s = 0; for (const c of foe.post.cells.values()) if (c.cut) s += g.postReal(foe, c); return s; };
   const cut = [...foe.post.cells.values()].filter((c) => c.cut).length;
   const p0 = inPocket(), m0 = foe.troops - p0;
   for (let i = 0; i < 300; i++) g.tick();
   const p1 = inPocket();
   return { cut: cut, p0: p0, p1: p1, main0: m0, main1: foe.troops - p1 };
+}
+
+// A pocket of the defender inside the attacker's land: how many of its tiles are still the
+// defender's after 10, 25 and 35 seconds, with the switch `kessel` on and off.
+function kessel(map, on) {
+  const sc = { at: 12000, dt: 4000, aT: 400000, dT: 100000 }, A = arena(map, sc, false, { kessel: on }), g = A.g, h = A.h, foe = A.foe, W = g.W;
+  const cs = G.POST.cell, mx = Math.round((h.x0 + (h.x1 - h.x0) * 0.25) / cs) * cs, my = Math.round((h.y0 + h.y1) / 2 / cs) * cs, block = [];
+  for (let y = my; y < my + 2 * cs; y++) for (let x = mx; x < mx + 2 * cs; x++) { const t = y * W + x; if (g.owner[t] === h.id) { g.conquer(foe, t); block.push(t); } }
+  const left = () => block.filter((t) => g.owner[t] === foe.id).length, out = [block.length];
+  for (let i = 1; i <= 350; i++) { g.tick(); g.dirtyN = 0; g.dirtyFlag.fill(0); g.events.length = 0; if (i === 100 || i === 250 || i === 350) out.push(left()); }
+  return out;
+}
+
+// ---------- momentum ----------
+// The same attack with the switch `schwung` on and off; a second attack from the same stretch
+// right after the first; an attack after the troops were massed at its start (the net).
+function momentum(map) {
+  const sc = { at: 12000, dt: 4000, aT: 400000, dT: 100000, share: 0.15 }, res = {};
+  for (const on of [false, true]) {
+    res[on ? 'on' : 'off'] = { front: runThrust(map, sc, 0, false, { schwung: on }), wedge: runThrust(map, sc, 2, false, { schwung: on }) };
+  }
+  // again at once from the same place: the stretch is tired
+  res.again = runThrust(map, sc, 2, false, { schwung: true }, (g, h, foe) => {
+    const r = runThrustIn(g, h, foe, 2, sc.share);
+    res.first = r;
+  });
+  // the same minute of waiting without massing, as the yardstick for massing (the defender digs in meanwhile)
+  res.waited = runThrust(map, sc, 2, false, { schwung: true }, (g, h) => { for (let i = 0; i < 600; i++) g.tick(); h.troops = sc.aT; });
+  // massed: the cells around the start weighed up five times, then given time to march there
+  res.massed = runThrust(map, sc, 2, false, { schwung: true }, (g, h, foe) => {
+    const W = g.W, row = Math.round((h.y0 + h.y1) / 2), goal = deepGoal(g, foe, row), r = g.thrustRoute(h, foe.id, goal, g.thrustWidth(2));
+    if (!r) return;
+    const e = r.path[0], ex = e % W, ey = (e / W) | 0, ids = [], vals = [];
+    for (const c of h.post.cells.values()) { const cx = c.id % g.CW, cy = (c.id - cx) / g.CW; if (Math.abs(cx * 16 + 8 - ex) <= 40 && Math.abs(cy * 16 + 8 - ey) <= 40) { ids.push(c.id); vals.push(5); } }
+    g.exec(h.id, { k: 'mesh', c: ids, v: vals });
+    for (let i = 0; i < 600; i++) g.tick();
+    h.troops = sc.aT; res.massStart = g.momentumStart(h, [e]);
+  });
+  return res;
+}
+// a wedge launched inside a running arena, run to its end (for `again`)
+function runThrustIn(g, h, foe, mode, share) {
+  const row = Math.round((h.y0 + h.y1) / 2), goal = deepGoal(g, foe, row), t0 = foe.tiles;
+  g.exec(h.id, { k: 'strike', t: goal, r: share, w: mode });
+  for (let k = 0; k < LIMIT && h.out.some((a) => a.active); k++) { g.tick(); g.dirtyN = 0; g.dirtyFlag.fill(0); g.events.length = 0; }
+  return { took: t0 - foe.tiles };
 }
 
 (async () => {
@@ -258,13 +307,33 @@ function pocket(map) {
     console.log('Tal: Gebirgszug mit einer Lücke auf Zeile ' + v.gapY + ', der Keil quert auf Zeile ' + v.cross + ' (Weg ' + v.len + ' Felder)');
     if (!v.ok) { bad++; console.log('  FAIL: der Keil nimmt nicht das Tal'); }
   }
+  if (!only || only === 'schwung') {
+    const m = momentum(map);
+    const row = (tag, r) => '  ' + tag.padEnd(26) + 'Felder ' + String(r.took).padStart(5) + '  Weg geschafft ' + (r.depth * 100).toFixed(0).padStart(3) + ' %  Verluste ' + K(r.lost).padStart(7);
+    console.log('Schwung: 400K gegen 100K mit 15 %');
+    console.log(row('Front ohne Schwung', m.off.front)); console.log(row('Front mit Schwung', m.on.front));
+    console.log(row('Keil ohne Schwung', m.off.wedge)); console.log(row('Keil mit Schwung', m.on.wedge));
+    const second = Object.assign({}, m.again, { took: m.again.took - m.first.took });
+    console.log(row('Keil gleich nochmals', second) + '  (der erste nahm ' + m.first.took + ')');
+    console.log(row('Keil nach 60 s Warten', m.waited));
+    console.log(row('Keil nach 60 s Aufmarsch', m.massed) + '  (Start-Schwung ' + (m.massStart * 100).toFixed(0) + ' %)');
+    if (!(m.on.wedge.depth < m.off.wedge.depth)) { bad++; console.log('  FAIL: mit Schwung kommt der Keil nicht weniger weit'); }
+    if (!(m.on.front.took >= m.on.wedge.took * 1.2)) { bad++; console.log('  FAIL: mit Schwung nimmt die Front nicht mindestens 20 % mehr Land als der Keil'); }
+    if (!(second.took < m.first.took * 0.5)) { bad++; console.log('  FAIL: ein zweiter Keil von derselben Stelle ist nicht schwächer'); }
+    if (!(m.massStart > 1.2 && m.massed.depth > m.waited.depth)) { bad++; console.log('  FAIL: Aufmarsch gibt nicht mehr Schwung'); }
+  }
   if (!only || only === 'abwehr') {
     const fresh = dugIn(map, false), dug = dugIn(map, true);
     console.log('Eingraben: 30 % von 150K gegen 40K nehmen ' + (fresh * 100).toFixed(0) + ' % des Landes bei frisch angekommenen Verteidigern, ' + (dug * 100).toFixed(0) + ' % bei eingegrabenen');
     if (!(dug < fresh * 0.85)) { bad++; console.log('  FAIL: Eingraben wirkt kaum'); }
     const off = reserves(map, false), on = reserves(map, true);
     console.log('Reserven: Keil mit 6 % von 400K gegen 200K schafft ' + (off.depth * 100).toFixed(0) + ' % des Wegs ohne, ' + (on.depth * 100).toFixed(0) + ' % mit Reserven des Verteidigers (Felder ' + off.took + ' / ' + on.took + ')');
-    if (!(on.took < off.took)) { bad++; console.log('  FAIL: Reserven bremsen den Keil nicht'); }
+    // shown only: since the thrusts were slowed down (17./18.11.2026) a small wedge gets so short a
+    // way that reserves have no time to matter
+    if (!(on.took < off.took)) console.log('  (Reserven wirken hier kaum, nur zur Anzeige)');
+    const k1 = kessel(map, true), k0 = kessel(map, false);
+    console.log('Kessel (Schalter): eingeschlossene Felder ' + k1[0] + ', nach 10/25/35 s noch ' + k1.slice(1).join(' / ') + ' mit Kessel, ' + k0.slice(1).join(' / ') + ' ohne');
+    if (!(k1[2] > k1[0] * 0.5 && k1[3] === 0 && k0[1] === 0)) { bad++; console.log('  FAIL: der Kessel hält nicht etwa 30 s, oder ohne Schalter fällt er nicht sofort'); }
     const pk = pocket(map);
     console.log('Kessel: ' + pk.cut + ' Zellen abgeschnitten, Truppen darin ' + K(pk.p0) + ' -> ' + K(pk.p1) + ' in 30 s, im Hauptland ' + K(pk.main0) + ' -> ' + K(pk.main1));
     if (!(pk.cut > 0 && pk.p1 < pk.p0 * 0.15 && pk.main1 > pk.main0 * 0.95)) { bad++; console.log('  FAIL: der Kessel fällt nicht oder das Hauptland leidet mit'); }

@@ -351,7 +351,7 @@
       c.want = base * c.n * c.w + c.r * k;
       c.diff = c.u - c.want;
       c.tol = 1e-7 * H;
-      if (c.diff < -(0.01 * c.want + c.tol)) { from.push(c); lack -= c.diff; }     // a cell asks only when it is clearly short ...
+      if (!c.cut && c.diff < -(0.01 * c.want + c.tol)) { from.push(c); lack -= c.diff; }      // a pocket gets nothing from outside     // a cell asks only when it is clearly short ...
     }
     if (!from.length) return;
     this.postDijkstra(p, from);

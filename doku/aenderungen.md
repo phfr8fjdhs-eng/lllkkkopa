@@ -1,6 +1,16 @@
 # Änderungsprotokoll
 Was seit dem 13.11.2026 geändert wurde und warum. Den heutigen Stand der Regeln beschreiben die anderen Dateien in `doku/`.
 
+## Kessel, Schwung, Bahn mit Lieferungen, Häfen nach Stufe, Gebäude nach Stufe (22.11.2026)
+Vier neue Testschalter (Vorgabe an) und eine neue Grafik. Wunsch des Besitzers: Angriffe im späten Spiel schwächer, aber mit Vorbereitung stärker; Kessel und abgeschnittene Versorgung wichtig; grössere Städte bringen mehr Gold; Häfen mit Stufe wichtiger; man sieht die Stufe eines Gebäudes. Alles mit Messwerten in `doku/testschalter.md`.
+- **Kessel:** Eingeschlossenes Land von Menschen und Nationen hält 30 s. Dabei gefunden: In einen Kessel ohne Küste sickerten Truppen aus dem Hauptland «per Boot»; behoben.
+- **Schwung:** Angriffe verlieren mit jedem Feld Schwung (je teurer das Feld, je schmaler die Front), bleiben unter 25 % stehen. Vorbereitung (Aufmarsch, Erholung, Schiene) gibt mehr. Ohne Schwung war eine Runde nur mit Computer-Spielern nach 10 bis 20 Minuten entschieden (Spitzenreiter 59 % nach 20 Minuten), jetzt nach 40 Minuten etwa 45 bis 50 %.
+- **Bahn:** Lieferungen von der Fabrik in Städte und Häfen, 30K × √Stufe der Stadt, Fabriken weiter auseinander, Netz als Baum, grüne Anzeige für «verbunden». Bahn-Gold etwa wie bisher.
+- **Häfen:** √Stufe öfter, Reichweite mit Stufe, Grossfrachter und Containerschiffe, Kapern bringt die Hälfte. Bei Häfen auf Stufe 1 etwa zwei Drittel des bisherigen Handels.
+- **Gebäude nach Stufe:** Dorf, Stadt, Grossstadt; Hafen mit Kran; Fabrik mit zwei Kaminen; Ringe ab Stufe 10 und 25.
+- **Bots:** einer je 850 Landfelder.
+- **Tests:** `test/kampf.js` neu mit `schwung` und Kessel-Schalter; `test/tarn.js` wartet 20 statt 10 Minuten, weil Nationen mit Schwung später aufrüsten. Der Fall «Reserven» in `kampf.js abwehr` war schon vorher rot (seit die Stösse am 17./18.11. langsamer wurden) und ist jetzt nur Anzeige. `test/vollbild.js` scheitert auf `main` genauso.
+
 ## Startbildschirm und Levelseite aufgeräumt (20.11.2026)
 - Die Knöpfe «Spiel starten», «Levels» und «Mit Freunden spielen» sind jetzt Zeilen mit Symbol, Titel und einer Zeile darunter (Karte und Schwierigkeit, das nächste Level mit Sternen, «Raum öffnen und Link teilen»). «So wird gespielt» ist ein schlichter Textknopf. Wunsch des Besitzers: die alten Knöpfe sahen nicht professionell aus.
 - «Feldzug · Levels» heisst nur noch «Levels». Die Levelseite ist eine Seite: oben die Levels zum Auswählen, darunter das gewählte Level, unten «Spiel starten» und «Zurück». Die eigene Karte pro Level fällt weg.

@@ -11,6 +11,19 @@
 
   G.isStation = function (t) { return t === UT.CITY || t === UT.PORT || t === UT.FACTORY; };
 
+  // Switch `bahn` (22.11.2026): trains carry goods from a factory to a city or port of the network
+  // and are paid on arrival.
+  //   base       gold for a delivery to a city of level 1 over a short way
+  //   every      ticks between two trains of a factory of level 1; level L sends every every/sqrt(L)
+  //   way        a long way pays up to (1 + way) times as much (it also takes longer, so the gold per
+  //              minute of a line stays about the same whatever its length)
+  //   ally       a delivery into an ally's city pays the sender that many times, the ally half of it
+  //   cut        ticks a track stays closed after a train found it running through hostile land
+  //   factoryGap factories stand that many times the usual room between buildings apart
+  // A city or port of level L pays sqrt(L) times the base: every level brings more, each a
+  // little less than the one before (from level 3 on every level costs the same 1M).
+  G.BAHN = { base: 30000, every: 200, way: 1, ally: 1.5, cut: 300, factoryGap: 3 };
+
   // A track between two stations, the way OpenFront lays it: only along the two axes of the map,
   // never at a slant, and every bend costs as much as three tiles of straight track. So a line
   // runs in long straight stretches with a few right-angled corners, like a drawn plan. Tiles on
@@ -117,7 +130,7 @@
       let hop = hopsFrom(f.id);
       for (let i = 0; i < near.length; i++) {
         const s = near[i].s, far = hop.get(s.id);
-        if (far !== undefined && far <= HOPS) continue;
+        if (far !== undefined && (this.bahn || far <= HOPS)) continue;     // with `bahn` a tree: one way to every station
         // join it to the closest station that is already part of this factory's network
         let from = f, bd = near[i].d;
         if (far === undefined) for (const id of hop.keys()) {
@@ -183,10 +196,69 @@
     }
     return ok.length ? ok[this.rng.int(0, ok.length)] : null;
   };
+  // Switch `bahn`: whether a track can carry p's trains now: both ends are p's or an ally's, and it
+  // is not closed after running through hostile land.
+  Game.prototype.railOpen = function (p, e) {
+    if ((e.cutUntil || 0) > this.ticks) return false;
+    const a = e.a.owner, b = e.b.owner;
+    return (a === p || p.allies.has(a.id)) && (b === p || p.allies.has(b.id));
+  };
+  // Every city and port a factory's trains can reach, with the tracks of the way there (breadth
+  // first over the stations, so the way with the fewest tracks) and its length in tiles.
+  Game.prototype.railTargets = function (f) {
+    const p = f.owner, seen = new Map([[f.id, null]]), out = [];
+    let frontier = [f];
+    while (frontier.length) {
+      const next = [];
+      for (const st of frontier) {
+        for (const e of this.railAdj.get(st.id) || []) {
+          const o = e.a === st ? e.b : e.a;
+          if (seen.has(o.id) || !o.active || !o.built || !this.railOpen(p, e)) continue;
+          seen.set(o.id, { e: e, from: st });
+          next.push(o);
+          if (o.type === UT.CITY || o.type === UT.PORT) {
+            const way = [];
+            let len = 0;
+            for (let c = o; seen.get(c.id); c = seen.get(c.id).from) { const s = seen.get(c.id); way.unshift(s.e); len += s.e.path.length; }
+            out.push({ st: o, way: way, len: len });
+          }
+        }
+      }
+      frontier = next;
+    }
+    return out;
+  };
+  // For the build preview (switch `bahn`): what a new building of `type` at `tile` would bring by
+  // rail, roughly, in gold per minute, and which factories it would hang on. Reads the game only.
+  Game.prototype.railGuess = function (p, type, tile) {
+    const W = this.W, x = tile % W, y = (tile / W) | 0, rr = this.R.rail * this.R.rail, B = G.BAHN, res = { perMin: 0, factories: [], stations: 0 };
+    const near = function (u) { return (u.x - x) * (u.x - x) + (u.y - y) * (u.y - y) <= rr; };
+    if (type === UT.FACTORY) {
+      // a new factory: one train every B.every ticks, shared out over the cities and ports in reach
+      let pay = 0;
+      for (const u of p.units) if (u.built && (u.type === UT.CITY || u.type === UT.PORT) && near(u)) { res.stations++; pay += this.deliveryPay(p, u, Math.sqrt((u.x - x) * (u.x - x) + (u.y - y) * (u.y - y)) * 1.3); }
+      if (res.stations) res.perMin = 600 / B.every * pay / res.stations;
+      return res;
+    }
+    // a new city or port: a share of the trains of every own factory in reach
+    for (const f of p.units) {
+      if (f.type !== UT.FACTORY || !f.built || !near(f)) continue;
+      res.factories.push(f);
+      const n = this.railTargets(f).length + 1, d = Math.sqrt((f.x - x) * (f.x - x) + (f.y - y) * (f.y - y)) * 1.3;
+      res.perMin += 600 / (B.every / Math.sqrt(Math.max(1, f.level))) / n * this.deliveryPay(p, { level: 1, owner: p }, d);
+    }
+    return res;
+  };
+  // What a delivery to station `st` pays its sender p, over a way of `len` tiles.
+  Game.prototype.deliveryPay = function (p, st, len) {
+    const B = G.BAHN, way = 1 + B.way * Math.min(1, len / Math.max(1, 2 * this.R.rail));
+    return Math.round(B.base * Math.sqrt(Math.max(1, st.level)) * way * (st.owner === p ? 1 : B.ally));
+  };
 
   Game.prototype.tickRail = function () {
     if (this.railDirty && this.ticks >= this.railAt) this.rebuildRails();
     if (this.ticks % 10) return;
+    if (this.bahn) { this.tickDeliveries(); return; }
     for (const u of this.structAt.values()) {
       if (u.type !== UT.FACTORY || !u.built || this.ticks < u.nextTrain) continue;
       const p = u.owner;
@@ -201,7 +273,62 @@
     }
   };
 
+  // Switch `bahn`: every factory sends a train every G.BAHN.every / sqrt(level) ticks to the next
+  // city or port of its network in turn (so every station gets its share), on the way there.
+  Game.prototype.tickDeliveries = function () {
+    for (const u of this.structAt.values()) {
+      if (u.type !== UT.FACTORY || !u.built || this.ticks < u.nextTrain) continue;
+      const p = u.owner;
+      if (!p.alive) continue;
+      u.nextTrain = this.ticks + Math.round(G.BAHN.every / Math.sqrt(Math.max(1, u.level))) + this.rng.int(0, 20);
+      const ts = this.railTargets(u);
+      if (!ts.length) continue;
+      u.turn = ((u.turn || 0) + 1) % ts.length;
+      const tg = ts[u.turn];
+      const t = this.newUnit(UT.TRAIN, p, u.tile);
+      t.way = tg.way; t.wi = 0; t.goal = tg.st; t.len = tg.len; t.at = u;
+      const e = tg.way[0];
+      t.edge = e; t.fwd = e.a === u; t.pi = t.fwd ? 0 : e.path.length - 1;
+      this.addUnit(t);
+    }
+  };
+  // A delivery train: along its way, track by track; paid when it reaches its goal.
+  Game.prototype.tickDelivery = function (u) {
+    const p = u.owner;
+    let e = u.edge;
+    if (!e.a.active || !e.b.active || !p.alive || !u.goal.active) { this.removeUnit(u); return; }
+    const end = u.fwd ? e.path.length - 1 : 0;
+    if (u.pi !== end) {
+      for (let n = this.stride(u); n > 0 && u.pi !== end; n--) {
+        u.pi += u.fwd ? 1 : -1;
+        this.setPos(u, e.path[u.pi]);
+        const o = this.owner[u.tile];
+        if (o && o !== p.id && !p.allies.has(o)) { e.cutUntil = this.ticks + G.BAHN.cut; this.removeUnit(u); return; }   // the line is cut
+      }
+      return;
+    }
+    const st = u.fwd ? e.b : e.a;
+    if (st !== u.goal) {
+      const nx = u.way[++u.wi];
+      if (!nx || !this.railOpen(p, nx)) { this.removeUnit(u); return; }
+      u.edge = nx; u.fwd = nx.a === st; u.pi = u.fwd ? 0 : nx.path.length - 1;
+      return;
+    }
+    const q = st.owner, h = this.human;
+    if (q !== p && !p.allies.has(q.id)) { this.removeUnit(u); return; }
+    const pay = this.deliveryPay(p, st, u.len);
+    p.gold += pay;
+    if (q !== p) q.gold += Math.round(pay / G.BAHN.ally / 2);
+    this.railPaid = (this.railPaid || 0) + pay;
+    if (h && (p === h || q === h)) { h.trainGold = (h.trainGold || 0) + pay; h.trainTotal = (h.trainTotal || 0) + pay; }
+    this.fx.push({ k: 'coin', x: st.x, y: st.y, t: this.ticks, mine: p === h || q === h, amt: pay });
+    if (this.fx.length > 300) this.fx.splice(0, 150);
+    if (st.type === UT.PORT && this.hafen) this.portCargo(st, pay);      // goods for the sea trade
+    this.removeUnit(u);
+  };
+
   Game.prototype.tickTrain = function (u) {
+    if (u.way) { this.tickDelivery(u); return; }
     const e = u.edge, p = u.owner;
     if (!e.a.active || !e.b.active || !p.alive) { this.removeUnit(u); return; }
     const end = u.fwd ? e.path.length - 1 : 0;
@@ -218,6 +345,7 @@
     u.stops = (u.stops || 0) + 1;
     const worn = Math.max(0, u.stops - 9) * 5000;
     let pay = Math.max(5000, TRAIN_OWN - worn);
+    this.railPaid = (this.railPaid || 0) + pay;
     if (q === p) p.gold += pay;
     else if (q.alive && this.canTrade(p, q)) {
       pay = Math.max(5000, (p.allies.has(q.id) ? TRAIN_ALLY : TRAIN_FOREIGN) - worn);

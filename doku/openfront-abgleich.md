@@ -9,6 +9,8 @@ Die Zahlen stammen aus dem OpenFront-Quellcode (`packages/engine-lib/src/configu
 
 **Verteidigung (16.11.2026):** OpenFront kennt weder Aufstellung noch Eingraben, Reserven oder Kessel; hier haben Menschen und Nationen ein Netz, Truppen graben sich ein (bis +50 %), angegriffene Abschnitte rufen Reserven, abgeschnittene Gruppen ohne Küste verhungern in etwa 30 s (`doku/aufstellung.md`). Dadurch reicht eine Übermacht von zwei zu eins gegen eine Nation, die dicht an der Grenze steht, nur knapp (`node test/kampf.js riesig`).
 
+**Testschalter (22.11.2026):** Kessel (eingeschlossenes Land fällt erst nach 30 s statt sofort), Schwung (Angriffe werden mit der Tiefe teurer und bleiben stehen), Bahn mit Lieferungen (statt Gold pro Halt 10K/25K/35K: 30K × √Stufe der Stadt pro Lieferung), Häfen nach Stufe (Takt √Stufe statt Stufe, Reichweite, grössere Schiffe, Kapern halbe Ladung). Alle abschaltbar; Zahlen in `doku/testschalter.md`.
+
 **Mehr Bots (15.11.2026):** Vorgabe ein Bot je 630 Landfelder statt je 950, höchstens 600 statt 400 (`defaultBots` in `src/07_ui.js`).
 
 **Klima (14.11.2026, nur hier):** OpenFront kennt keine Temperatur. Hier bremst Kälte unter 0 °C jeden Angriff und Marsch, bis zum Doppelten bei −45 °C (`G.CLIMATE`, `G.groundSpeed`; `doku/erde.md`).

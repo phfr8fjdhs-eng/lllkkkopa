@@ -47,6 +47,20 @@
     target: 'M11 1h2v3.1a8 8 0 0 1 6.9 6.9H23v2h-3.1a8 8 0 0 1-6.9 6.9V23h-2v-3.1A8 8 0 0 1 4.1 13H1v-2h3.1A8 8 0 0 1 11 4.1zM12 6a6 6 0 1 0 0 12a6 6 0 0 0 0-12zM12 9.5a2.5 2.5 0 1 1 0 5a2.5 2.5 0 0 1 0-5z'
   };
   const STRUCT_ICON = ['city', 'defense', 'port', 'silo', 'sam', 'factory', 'cloak'];
+  // Signs that change with the level, close up: a village grows into a town and a city of towers,
+  // a port gets a crane and containers, a factory a second hall and chimney.
+  ICON.village = 'M2.5 21v-7.5l4.75-4.5 4.75 4.5V21zM12.5 21V10.5l4.5-4.5 4.5 4.5V21zM6.1 17.5v3.5h2.3v-3.5zM15.8 12.5v2.3h2.4v-2.3zM15.8 16.5v4.5h2.4v-4.5z';
+  ICON.metro = 'M3 21V9h4V21zM8.5 21V3.5L10.75 1.5 13 3.5V21zM14.5 21V7h6.5V21zM9.9 6v1.6h1.7V6zM9.9 10v1.6h1.7V10zM9.9 14v1.6h1.7V14zM4.4 11v1.6h1.2V11zM4.4 15v1.6h1.2V15zM16 9v1.6h1.5V9zM18.5 9v1.6h1.2V9zM16 13v1.6h1.5V13zM18.5 13v1.6h1.2V13z';
+  ICON.port2 = 'M1.5 21v-2.2h21V21zM2.5 18.5V15h5v3.5zM8 18.5V15h5v3.5zM5 14.5V11h5v3.5zM15 18.5V3h2v15.5zM10 4V2.5h12V4zM11 4h1v6h-1zM10 10h3v2h-3z';
+  ICON.factory2 = 'M2 21V11l4.5 3V11l4.5 3V5h2.6v9h2V3h2.6v11H22v7zM4.5 16.5V19h2.4v-2.5zM9.3 16.5V19h2.4v-2.5zM14.1 16.5V19h2.4v-2.5zM18 16.5V19h2.4v-2.5z';
+  // the sign for a building of this type and level, and how much larger it is drawn (up to a quarter)
+  function signOf(type, lv) {
+    if (type === UT.CITY) return lv >= 15 ? 'metro' : lv >= 4 ? 'city' : 'village';
+    if (type === UT.PORT) return lv >= 10 ? 'port2' : 'port';
+    if (type === UT.FACTORY) return lv >= 10 ? 'factory2' : 'factory';
+    return STRUCT_ICON[type];
+  }
+  function growOf(type, lv) { return type === UT.CITY || type === UT.PORT || type === UT.FACTORY ? 1 + Math.min(0.25, 0.012 * (lv - 1)) : 1; }
   const STRUCT_RANK = [1, 5, 3, 0, 4, 2, 6];     // which kind stands for a cluster seen from afar: silo, city, factory, port, air defence, post, cloaking tower
   // Is building u hidden from the player at this screen? Asked every frame, so kept for the tick.
   function hid(g, u) {
@@ -623,6 +637,22 @@
       }
       ctx.restore();
     }
+    // ports by level (switch `hafen`): how far a port trades, while a port is being placed or its
+    // card is open; the dashed outer ring is the reach of its container ships
+    if (g.hafen && h && (this.portSel || (this.ghost && this.ghost.type === UT.PORT && this.ghost.tile >= 0))) {
+      const list = this.portSel ? [this.portSel] : h.units.filter(function (u) { return u.built && u.type === UT.PORT; });
+      if (!this.portSel && this.ghost) list.push({ x: this.ghost.tile % g.W, y: (this.ghost.tile / g.W) | 0, level: 1 });
+      for (const u of list) {
+        const x = (u.x + 0.5) * z + ox, y = (u.y + 0.5) * z + oy, r = g.portRange(u.level, 0) * g.S * z;
+        ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832);
+        ctx.fillStyle = 'rgba(120,190,255,0.06)'; ctx.fill();
+        ctx.setLineDash([9, 6]); ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(140,200,255,0.8)'; ctx.stroke(); ctx.setLineDash([]);
+        if (u.level >= G.HAFEN.ships[1][2]) {
+          ctx.beginPath(); ctx.arc(x, y, r * G.HAFEN.contRange, 0, 6.2832);
+          ctx.setLineDash([3, 7]); ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(140,200,255,0.55)'; ctx.stroke(); ctx.setLineDash([]);
+        }
+      }
+    }
     for (const u of g.structAt.values()) {
       if (!u.built || (u.type !== UT.DEFENSE && u.type !== UT.SAM) || hid(g, u)) continue;
       const own = h && (u.owner === h || h.allies.has(u.owner.id));
@@ -678,7 +708,8 @@
           ctx.fillStyle = 'rgba(255,214,120,.06)'; ctx.fill();
           ctx.setLineDash([8, 6]); ctx.lineWidth = 1.6; ctx.strokeStyle = 'rgba(255,214,120,.85)'; ctx.stroke(); ctx.setLineDash([]);
         }
-        ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(255,214,120,.9)';
+        // with deliveries (`bahn`) a city or port that joins the network is linked in green
+        ctx.lineWidth = 2; ctx.strokeStyle = g.bahn && t !== UT.FACTORY ? 'rgba(99,211,145,.95)' : 'rgba(255,214,120,.9)';
         if (!bad) for (const u of h.units) {
           if (!u.built || !(t === UT.FACTORY ? G.isStation(u.type) : u.type === UT.FACTORY)) continue;
           const dx = u.x - gx, dy = u.y - gy;
@@ -823,8 +854,15 @@
   // One building as a sign, the way OpenFront draws it: the outline filled with a deep shade of
   // the owner's colour, a dark rim that holds the shape on any ground, and a large white sign
   // inside. Own buildings get a white ring outside the rim. `s` is the width on the screen.
-  function structIcon(ctx, type, x, y, s, p, mine, built, sign) {
+  function structIcon(ctx, type, x, y, s, p, mine, built, sign, lv) {
+    lv = lv || 1;
+    if (sign && built) s *= growOf(type, lv);
     const r = s / 2, rim = Math.max(1.4, s * 0.085);
+    // a high level wears a ring around the outline: light from level 10, gold from level 25
+    if (sign && built && lv >= 10 && (type === UT.CITY || type === UT.PORT || type === UT.FACTORY)) {
+      shape(ctx, type, x, y, r + Math.max(3, s * 0.12));
+      ctx.lineWidth = Math.max(1.6, s * 0.06); ctx.strokeStyle = lv >= 25 ? '#f2c14e' : 'rgba(255,255,255,.7)'; ctx.stroke();
+    }
     shape(ctx, type, x, y, r);
     if (mine) { ctx.lineWidth = rim + Math.max(2.2, s * 0.09); ctx.strokeStyle = '#fff'; ctx.stroke(); }
     ctx.fillStyle = built ? p.cssB : '#9da3a8'; ctx.fill();
@@ -832,9 +870,10 @@
     if (!sign) return;
     const gs = s * (type === UT.SILO ? 0.56 : type === UT.SAM ? 0.7 : type === UT.CITY ? 0.66 : 0.64);
     const gy = y + (type === UT.SILO ? s * 0.1 : type === UT.PORT ? s * 0.03 : 0);
-    if (s >= 22) { ctx.fillStyle = 'rgba(0,0,0,.35)'; glyph(ctx, STRUCT_ICON[type], x + s * 0.03, gy + s * 0.04, gs); }
+    const name = signOf(type, built ? lv : 1);
+    if (s >= 22) { ctx.fillStyle = 'rgba(0,0,0,.35)'; glyph(ctx, name, x + s * 0.03, gy + s * 0.04, gs); }
     ctx.fillStyle = built ? '#fff' : 'rgba(255,255,255,.85)';
-    glyph(ctx, STRUCT_ICON[type], x, gy, gs);
+    glyph(ctx, name, x, gy, gs);
   }
   // The level in large white digits with a dark edge, sitting on top of the sign.
   function levelTag(ctx, n, x, y, s) {
@@ -886,13 +925,20 @@
       // your own buildings under a cloaking tower are drawn faded, so you see that others do not see them
       const veil = u.cloak && u.owner === h;
       if (veil) ctx.globalAlpha = 0.55;
-      structIcon(ctx, u.type, x, y, s, u.owner, u.owner === h, u.built, true);
+      structIcon(ctx, u.type, x, y, s, u.owner, u.owner === h, u.built, true, u.level);
       if (veil) ctx.globalAlpha = 1;
+      const sz = u.built ? s * growOf(u.type, u.level) : s;
+      // with deliveries (`bahn`): an own station on the railway network wears a small green dot
+      if (g.bahn && full && u.built && u.owner === h && G.isStation(u.type) && g.railAdj.has(u.id)) {
+        const dx = x + sz * 0.42, dy = y + sz * 0.38, dr = Math.max(3, sz * 0.12);
+        ctx.beginPath(); ctx.arc(dx, dy, dr, 0, 6.2832);
+        ctx.fillStyle = '#63d391'; ctx.fill(); ctx.lineWidth = 1.5; ctx.strokeStyle = '#0b1016'; ctx.stroke();
+      }
       if (!u.built) {
         const k = within((T - u.buildStart) / Math.max(1, u.buildEnd - u.buildStart), 0, 1);
         ctx.beginPath(); ctx.arc(x, y, s / 2 + 4, -1.5708, -1.5708 + 6.2832 * k);
         ctx.strokeStyle = '#f4b740'; ctx.lineWidth = 2.5; ctx.stroke();
-      } else if (u.level > 1) levelTag(ctx, u.level, x, y, s);
+      } else if (u.level > 1) levelTag(ctx, u.level, x, y, sz);
     }
   };
 
@@ -1104,7 +1150,10 @@
   // cargo amidships in the owner's colour, as a row of containers once it is large enough.
   // The cargo always takes the colour of whoever owns the ship now; a captured one carries a small
   // gold mark on the bridge.
-  function merchant(ctx, x, y, ang, s, p, captured) {
+  // kind: 0 freighter, 1 bulk carrier (larger, longer hold), 2 container ship (largest, stacked boxes)
+  function merchant(ctx, x, y, ang, s, p, captured, kind) {
+    kind = kind || 0;
+    s *= kind === 2 ? 1.7 : kind === 1 ? 1.3 : 1;
     hull(ctx, x, y, ang, s, 'trade');
     ctx.lineJoin = 'miter'; ctx.miterLimit = 6;
     ctx.lineWidth = Math.max(1.6, s * 0.2); ctx.strokeStyle = '#0b1016'; ctx.stroke();
@@ -1112,8 +1161,15 @@
     ctx.save();
     ctx.translate(x, y); ctx.rotate(ang); ctx.scale(s, s);
     ctx.fillStyle = p.cssB;                             // cargo in a deep shade of it
-    if (s >= 8) {
-      for (let k = 0; k < 3; k++) ctx.fillRect(-0.56 + k * 0.33, -0.25, 0.28, 0.5);
+    if (kind === 2 && s >= 8) {
+      // container ship: two rows of five boxes, every other one a little lighter
+      for (let k = 0; k < 5; k++) for (let j = 0; j < 2; j++) {
+        ctx.fillStyle = (k + j) % 2 ? p.cssB : p.cssD || p.cssB;
+        ctx.fillRect(-0.6 + k * 0.2, j ? 0.02 : -0.27, 0.17, 0.25);
+      }
+    } else if (s >= 8) {
+      const n = kind === 1 ? 4 : 3, w = 0.94 / n;
+      for (let k = 0; k < n; k++) ctx.fillRect(-0.56 + k * w, -0.25, w - 0.05, 0.5);
     } else ctx.fillRect(-0.56, -0.25, 0.94, 0.5);
     ctx.fillStyle = '#2b323a'; ctx.fillRect(-0.92, -0.26, 0.22, 0.52);
     if (captured) { ctx.beginPath(); ctx.arc(-0.81, 0, 0.17, 0, 6.2832); ctx.fillStyle = '#f4b740'; ctx.fill(); }
@@ -1202,7 +1258,7 @@
         // seen from afar, other people's traffic is drawn small but whole: a warship as a slim
         // hull, a merchant in the owner's colour, a troop boat as a dot in its owner's colour; trains are left out
         if (ty === UT.WARSHIP) warship(ctx, x, y, ang, 6, p, null);
-        else if (ty === UT.TRADE) merchant(ctx, x, y, ang, 4.6, p, u.captured);
+        else if (ty === UT.TRADE) merchant(ctx, x, y, ang, 4.6, p, u.captured, u.kind);
         else if (ty === UT.TRANSPORT) {
           ctx.beginPath(); ctx.arc(x, y, 2.2, 0, 6.2832);
           ctx.fillStyle = p.cssB; ctx.fill();
@@ -1258,7 +1314,13 @@
       } else if (ty === UT.TRADE) {
         // Hull in the owner's colour, cargo in a deep shade of it, dark edge: readable on any water.
         const s = tradeSize(z, p === g.human);
-        merchant(ctx, x, y, ang, s, p, u.captured);
+        merchant(ctx, x, y, ang, s, p, u.captured, u.kind);
+        // a large ship under fire: what is left of it before it can be taken
+        if (u.kind && !u.captured && u.hits < G.HAFEN.ships[u.kind - 1][1]) {
+          const full = G.HAFEN.ships[u.kind - 1][1], bw = s * 2.2;
+          ctx.fillStyle = '#10161d'; ctx.fillRect(x - bw / 2 - 1, y + s * 1.4 - 1, bw + 2, 5);
+          ctx.fillStyle = '#f4b740'; ctx.fillRect(x - bw / 2, y + s * 1.4, bw * u.hits / full, 3);
+        }
         if (z >= 4.5 && p === g.human) {
           ctx.font = '700 ' + within(z * 1.6, 9, 13).toFixed(0) + 'px ' + FONT;
           ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';

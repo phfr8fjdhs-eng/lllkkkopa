@@ -33,6 +33,20 @@
   //   crowd   troops a narrow attack can use at once, per defender it faces (more wait as supply)
   //   dirShare  width of a direction attack as a share of the side of a square as large as the realm
   //   search  most tiles the way-finding looks at before it gives up
+  // A pocket of a person or nation holds out G.KESSEL ticks (30 s) before it falls; seen again
+  // within G.KESSEL_GAP ticks it is the same pocket.
+  G.KESSEL = 300; G.KESSEL_GAP = 60;
+  // Momentum (switch `schwung`): an attack on a realm starts with 1 (up to `max` when prepared)
+  // and loses it with every tile, the more the dearer the tile and the narrower the front:
+  //   decay    loss of momentum per tile = decay x resistance / width of the front, where the
+  //            resistance is what the tile cost in troops over 2 x G.COMBAT.base (0.25 to 4)
+  //   stop     below this the attack halts; what is left of it stands in the land it took
+  //   rest     ticks a stretch of border needs after an attack from it to give full momentum again
+  //   mass     extra momentum per unit of density above the average where it starts (the net)
+  //   rail     extra momentum at most for a railway at the start; along a railway it also fades
+  //            slower (to `railFade` of the decay on the line itself)
+  //   min/max  range of the momentum an attack can start with
+  G.MOMENTUM = { decay: 0.006, stop: 0.25, rest: 300, mass: 0.25, rail: 0.15, railFade: 0.6, min: 0.4, max: 1.5 };
   G.THRUST = { widths: [0, 30, 12], max: 4, pull: 1.2, ring: 0.6, speed: 0.5, flank: 3, deep: 4, hold: 1.5, fan: 0.45, nose: 1, crowd: 2, dirShare: 0.6, search: 250000 };
   G.UNAME = ['Stadt', 'Verteidigungs\u00ADposten', 'Hafen', 'Raketensilo', 'Flugabwehr', 'Fabrik', 'Tarnturm', 'Kriegsschiff', 'Boot',
     'Handelsschiff', 'Zug', 'Granate', 'Abwehrrakete', 'Atombombe', 'Wasserstoff\u00ADbombe', 'MIRV', 'Sprengkopf', 'Marschflug\u00ADkörper', 'Satelliten\u00ADstrahl'];
@@ -99,7 +113,7 @@
     this.map = map; this.W = map.W; this.H = map.H; this.N = map.N; this.S = map.S;
     this.opts = Object.assign({
       seed: 1, difficulty: 1, bots: 100, nations: true, instantBuild: false,
-      infiniteGold: false, infiniteTroops: false, spawnTicks: 150, autoSpawn: false, me: 0, pfeile: false, netz: true, punkt: false, aufstellung: true
+      infiniteGold: false, infiniteTroops: false, spawnTicks: 150, autoSpawn: false, me: 0, pfeile: false, netz: true, punkt: false, aufstellung: true, kessel: true, schwung: true, bahn: true, hafen: true
     }, opts || {});
     // two switches (doku/pfeile.md): `pfeile` plans arrows and launches them together;
     // `netz` lets a person paint the net (without it the troops stand evenly, nothing to set)
@@ -110,6 +124,13 @@
     // `aufstellung` off: no posture at all, every realm is one pool of troops as in OpenFront (no
     // density, digging in, reserves or pockets; the net is gone with it)
     this.aufstellung = this.opts.aufstellung !== false;
+    // switches for testing (doku/vision.md, 22.11.2026): `kessel` land cut off holds out for a
+    // while instead of falling at once; `schwung` attacks lose momentum as they get deep;
+    // `bahn` factories, railways and trains by deliveries; `hafen` ports by level
+    this.kessel = this.opts.kessel !== false;
+    this.schwung = this.opts.schwung !== false;
+    this.bahn = this.opts.bahn !== false;
+    this.hafen = this.opts.hafen !== false;
     this.rng = new G.RNG(this.opts.seed);
     const N = this.N, S = this.S;
     this.owner = new Uint16Array(N);
@@ -807,8 +828,11 @@
       }
     };
     for (const b of p.border) add(b);
-    const step = G.THRUST.speed * this.attackPace, defer = [];
+    const step = G.THRUST.speed * this.attackPace, defer = [], MO = G.MOMENTUM;
     let left = troops, count = 0, head = start, limit = start, carry = 0, reach = 0, done = false, won = false;
+    // momentum as the fight has it (switch `schwung`): starts where the thrust breaks in
+    const mom0 = this.schwung && t ? this.momentumStart(p, [route.entry]) : -1;
+    let mom = mom0;
     for (; T < 3000 && !done; T++) {
       limit = Math.max(limit - step, head - 3 * step);
       const flank = G.THRUST.flank * 2 * count / Math.max(1, width), dAvg = tT / Math.max(1, tN);
@@ -844,6 +868,12 @@
           if (dp && dp.length) for (let i = 0; i < dp.length; i++) { const dx = dp[i].x - x, dy = dp[i].y - y; if (dx * dx + dy * dy <= dr2) { mag *= 3 + 2 * dp[i].level; speed *= 1 + 2 * dp[i].level; break; } }
           loss = (CB.base + CB.exchange * dAvg * pd * within(1 / Math.sqrt(Math.max(r, 0.01)), CB.fMin, CB.fMax)) * mag * botMod * lossMod * traitor;
           used = within(1 / (5 * Math.max(r, 0.01)), 0.2, 1.5) * speed * speedMod * (easy ? 0.45 : 1);
+          if (mom0 > 0) {
+            const fade = this.cellRail && this.CW ? 1 - (1 - MO.railFade) * (1 - this.cellRail[this.cellOf(tile)]) / 0.8 : 1;
+            mom -= MO.decay * within(loss / (2 * CB.base), 0.25, 4) / Math.max(4, width) * fade;
+            const k = Math.max(mom, MO.stop);
+            loss /= Math.sqrt(k); used /= Math.min(1.25, k);
+          }
           const gone = Math.min(tT, dAvg * (pc ? this.postKeep(dens) : 1));
           tT -= gone; tN--;
           if (cs) { cs.c = Math.max(0, cs.c - gone); cs.n--; }
@@ -857,6 +887,7 @@
         if (start > 0 && dt !== undefined) reach = Math.max(reach, 1 - dt / start);
         if (left < 1) { left = 0; done = true; break; }
         if (tile === route.goal) { won = true; done = true; break; }
+        if (mom0 > 0 && mom < MO.stop) { done = true; break; }          // out of momentum: it halts here
         add(tile);
       }
       carry = Math.min(0, budget);
@@ -864,7 +895,36 @@
       defer.length = 0;
     }
     if (won) reach = 1; else left = 0;
-    return { reach: reach, left: left, secs: T / 10, counted: count, tiles: lane.size, len: route.path.length };
+    return { reach: reach, left: left, secs: T / 10, counted: count, tiles: lane.size, len: route.path.length, mom: mom0, stalled: mom0 > 0 && mom < MO.stop };
+  };
+  // ---------- momentum ----------
+  // A coarse key for a stretch of land (16 x 16 tiles), independent of the posture.
+  Game.prototype.zoneOf = function (t) { const W = this.W, x = t % W; return (((t - x) / W) >> 4) * ((W + 15) >> 4) + (x >> 4); };
+  // Where an attack starts, as a handful of tiles: the entry of a thrust, the spot of a direction
+  // attack, otherwise up to 48 tiles of its front.
+  Game.prototype.momentumSpots = function (at) {
+    if (at.path && at.path.length) return [at.path[0]];
+    if (at.spot >= 0) return [at.spot];
+    const out = [], step = Math.max(1, Math.floor(at.front.size / 48));
+    let i = 0;
+    for (const t of at.front) { if (i++ % step === 0) out.push(t); if (out.length >= 48) break; }
+    return out;
+  };
+  // The momentum an attack from these tiles would start with. Reads the game only (the preview
+  // asks too). Rest: how long since the last attack from there; mass: how dense the attacker's
+  // own troops stand there (only with a posture); rail: a railway there.
+  Game.prototype.momentumStart = function (a, spots) {
+    const MO = G.MOMENTUM, T = this.ticks, tired = a.tired;
+    if (!spots.length) return 1;
+    let rest = 0, mass = 0, rail = 0;
+    for (const t of spots) {
+      const last = tired ? tired.get(this.zoneOf(t)) : undefined;
+      rest += last === undefined ? 1 : within((T - last) / MO.rest, 0, 1);
+      if (a.post && this.CW) { const c = a.post.cells.get(this.cellOf(t)); if (c) mass += within((this.postDens(a, c) - 1) * MO.mass, 0, MO.max - 1); }
+      if (this.cellRail && this.CW) rail += MO.rail * (1 - this.cellRail[this.cellOf(t)]) / 0.8;
+    }
+    const n = spots.length;
+    return within((rest / n) * (1 + mass / n + rail / n), MO.min, MO.max);
   };
   // How many thrusts a player has under way.
   // Where a direction attack of p's toward `tile` starts and which way it goes: the own border
@@ -957,6 +1017,8 @@
       }
       this.attacks.push(at);
       if (src < 0) this.refreshFront(at);
+      // momentum: how much push the attack starts with (rest, troops massed there, railway)
+      if (this.schwung && t) at.mom = this.momentumStart(a, this.momentumSpots(at));
     }
     if (src >= 0) this.addFront(at, src);
     at.troops += troops; at.sum = (at.sum || 0) + troops;   // sum: all ever sent, for the display
@@ -1138,6 +1200,15 @@
         const army = within(t.troops / Math.max(1, sent) / CB.armyFrom, 1, CB.army);   // outnumbered by the whole army
         loss = (CB.base + CB.exchange * dd * within(1 / Math.sqrt(Math.max(r, 0.01)), CB.fMin, CB.fMax)) * army * (mag / 80) * botMod * lossMod * traitor;
         used = within(1 / (5 * Math.max(r, 0.01)), 0.2, 1.5) * speed * speedMod * (easy ? 0.45 : 1);
+        if (at.mom !== undefined) {
+          // momentum: fades with every tile, the more the dearer the tile and the narrower the
+          // front, slower along a railway; with little of it every tile is dearer and slower
+          const MO = G.MOMENTUM, wide = narrow ? Math.max(4, at.width || 0) : Math.max(8, at.front.size);
+          const fade = this.cellRail && this.CW ? 1 - (1 - MO.railFade) * (1 - this.cellRail[this.cellOf(tile)]) / 0.8 : 1;
+          at.mom -= MO.decay * within(loss / (2 * CB.base), 0.25, 4) / wide * fade;
+          const k = Math.max(at.mom, MO.stop);
+          loss /= Math.sqrt(k); used /= Math.min(1.25, k);
+        }
         // the defender loses those who stood there; where they stand dense, part of them fall back
         // into the rest of the cell instead (`postKeep`)
         if (pc) this.postTake(t, pc, dAvg * this.postKeep(this.postDens(t, pc)));
@@ -1149,8 +1220,16 @@
       budget -= used; at.troops -= loss;
       if (aimed && dt !== undefined && dt < at.head) at.head = dt;
       at.taken = (at.taken || 0) + 1;
+      if (at.mom !== undefined) (a.tired || (a.tired = new Map())).set(this.zoneOf(tile), this.ticks);
       this.conquer(a, tile);
       if (t && t.tiles < 100) { this.finishOff(a, t); this.endAttack(at, true); return; }
+      if (at.mom !== undefined && at.mom < G.MOMENTUM.stop) {
+        // out of momentum: the attack halts, and those still in it stay as defenders of what they took
+        if (a === this.human) this.say('Der Angriff auf ' + t.name + ' hat keinen Schwung mehr', 'warn');
+        this.redefer(at, defer);
+        this.endAttack(at, true);
+        return;
+      }
     }
     at.carry = Math.min(0, budget);
     this.redefer(at, defer);
@@ -1239,8 +1318,28 @@
     for (let i = 1; i < clusters.length; i++) if (clusters[i].length > clusters[mi].length) mi = i;
     for (let i = 0; i < clusters.length; i++) {
       if (p.tiles <= 0) return;
-      if (i === mi ? this.enclosed(p, clusters[i]) : this.surrounded(p, clusters[i])) this.capturePocket(p, clusters[i]);
+      if (!(i === mi ? this.enclosed(p, clusters[i]) : this.surrounded(p, clusters[i]))) continue;
+      // a pocket of a person or a nation holds out for a while (`G.KESSEL`) before it gives up;
+      // meanwhile it can break out or be relieved, and its troops starve (03b_posture.js)
+      if (this.kessel && p.post && !this.pocketReady(p, clusters[i])) continue;
+      this.capturePocket(p, clusters[i]);
     }
+  };
+  // How long a pocket has been one: every tile remembers when it was first seen in a pocket and
+  // when last; a pocket seen again within `G.KESSEL_GAP` ticks keeps its start. True once it has
+  // held out for `G.KESSEL` ticks.
+  Game.prototype.pocketReady = function (p, cl) {
+    const T = this.ticks, from = p.pocketFrom || (p.pocketFrom = new Map()), seen = p.pocketSeen || (p.pocketSeen = new Map());
+    let f = T;
+    for (let i = 0; i < cl.length; i++) {
+      const t = cl[i], s = seen.get(t);
+      if (s !== undefined && T - s <= G.KESSEL_GAP) { const v = from.get(t); if (v < f) f = v; }
+    }
+    if (f === T && p === this.human) this.say('Ein Teil deines Landes ist eingekesselt', 'bad');
+    for (let i = 0; i < cl.length; i++) { from.set(cl[i], f); seen.set(cl[i], T); }
+    if (seen.size > 4 * cl.length + 2000) for (const [t, s] of seen) if (T - s > G.KESSEL_GAP) { seen.delete(t); from.delete(t); }
+    p.pocketWait = T;
+    return T - f >= G.KESSEL;
   };
   // Every neighbour of the main body belongs to one single other player.
   Game.prototype.enclosed = function (p, cl) {
@@ -1406,7 +1505,7 @@
       if (!p.alive) continue;
       if ((T + i * 7) % 20 === 0 && p.lastChange >= (p.boxAt || 0)) { p.boxAt = T; this.shrinkBox(p); }
       if (p.ai) p.ai.tick();
-      if ((T + i * 3) % 20 === 0 && p.lastChange >= p.lastCluster) { p.lastCluster = T; this.removeClusters(p); }
+      if ((T + i * 3) % 20 === 0 && (p.lastChange >= p.lastCluster || T - (p.pocketWait || -1e9) <= 40)) { p.lastCluster = T; this.removeClusters(p); }
     }
     if (T % 10 === 0) this.tickDiplomacy();
     this.reap();

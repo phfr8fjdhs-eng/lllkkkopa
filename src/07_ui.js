@@ -72,12 +72,16 @@
   let toastTimer = 0, endShown = false, botsTouched = false;
   let mp = null, turnLeft = 0, aim = null, joinCode = '', lobbyNote = '', goldTimer = 0;
   const chips = new Map(), asks = new Map();
-  const cfg = { name: 'Spieler', color: 0, map: 'erde', diff: 1, bots: -1, nations: true, instant: false, gold: false, troops: false, tap: false, music: true, sfx: true, mode: 'klassisch', thrust: 0, botsV2: true, pfeile: true, netz: true, punkt: true, aufstellung: true };
+  const cfg = { name: 'Spieler', color: 0, map: 'erde', diff: 1, bots: -1, nations: true, instant: false, gold: false, troops: false, tap: false, music: true, sfx: true, mode: 'klassisch', thrust: 0, botsV3: true, pfeile: true, netz: true, punkt: true, aufstellung: true, kessel: true, schwung: true, bahn: true, hafen: true };
   // two switches of their own (doku/pfeile.md)
   const SWITCH = [['aufstellung', 'Truppenkonzentration', 'An: deine Truppen stehen in Zellen, dichte Stellen halten besser, eingegraben, Reserven, Kessel. Aus: wie in OpenFront, alle Truppen sind ein Topf, keine Verteilung.'],
     ['netz', 'Netz', 'An: mit dem Netz (Taste N) verteilst du deine Truppen zum Verteidigen. Aus: die Truppen stehen gleichmässig, nichts einzustellen. Nur mit Truppenkonzentration.'],
     ['punkt', 'Richtungsangriff', 'An: als dritte Angriffsart neben Keil und Abschnitt (Taste F): statt der ganzen Front greift nur der Teil an, der in die gezogene Richtung schaut. Sieht aus wie die ganze Front, kein Pfeil.'],
-    ['pfeile', 'Angriffspfeile planen', 'An: Pfeile mit der rechten Maustaste planen, dann «Angreifen» (Enter). Aus: der Pfeil greift sofort an.']];
+    ['pfeile', 'Angriffspfeile planen', 'An: Pfeile mit der rechten Maustaste planen, dann «Angreifen» (Enter). Aus: der Pfeil greift sofort an.'],
+    ['kessel', 'Kessel', 'An: eingeschlossenes Land von Spielern und Nationen hält etwa 30 s, bevor es fällt. Aus: es fällt sofort wie in OpenFront.'],
+    ['schwung', 'Schwung', 'An: Angriffe auf Spieler und Nationen verlieren Schwung, je tiefer sie kommen, und bleiben dann stehen; Vorbereitung gibt mehr Schwung. Aus: wie bisher.'],
+    ['bahn', 'Bahn: Lieferungen', 'An: Fabriken liefern per Zug in Städte, grössere Städte bringen mehr Gold, eroberte Gleise sind kurz beschädigt. Aus: Gold pro Halt wie in OpenFront.'],
+    ['hafen', 'Häfen nach Stufe', 'An: höhere Häfen schicken öfter Schiffe, grössere Schiffe und reichen weiter. Aus: wie bisher.']];
   let plans = [];          // version «Pfeile»: arrows planned, not launched yet
   const MODES = [['klassisch', 'Klassisch', 'Das Spiel wie gewohnt.'], ['arsenal', 'Arsenal', 'Zusätzlich: der Satellitenstrahl. Er kommt aus dem All, braucht kein Silo und lässt sich nicht abfangen. Und der Tarnturm: Er versteckt deine Gebäude ganz in seiner Nähe, bis die anderen nahe herankommen. Auch die Nationen setzen beides ein.']];
   let hoverX = -1, hoverY = -1;
@@ -98,7 +102,7 @@
     G.Audio.on.music = cfg.music; G.Audio.on.sfx = cfg.sfx;
     if (cfg.mode !== 'arsenal') cfg.mode = 'klassisch';
     botsTouched = cfg.bots >= 0;
-    if (!s0.botsV2) { cfg.bots = -1; botsTouched = false; }   // the default rose: forget a count stored under the old one
+    if (!s0.botsV3) { cfg.bots = -1; botsTouched = false; }   // the default rose: forget a count stored under the old one
   }
   function saveCfg() {
     try { localStorage.setItem('grenzland.v1', JSON.stringify(cfg)); } catch (e) { /* ignore */ }
@@ -169,7 +173,8 @@
     });
   }
   // About half as many bots again as before (15.11.2026): more small prey early on.
-  function defaultBots(map) { return Math.min(600, Math.round(map.landTiles / 630 / 10) * 10); }
+  // One bot for every 850 tiles of land (22.11.2026: 630 made the big Earth lag), at most 600.
+  function defaultBots(map) { return Math.min(600, Math.round(map.landTiles / 850 / 10) * 10); }
   function previewMap(id) {
     loadMap(id).then(function (map) {
       if (game || cfg.map !== id) return;
@@ -434,7 +439,7 @@
       this.disabled = true;
       mp.begin({
         seed: (Math.random() * 2e9) | 0, map: cfg.map, mapSeed: (Math.random() * 2e9) | 0,
-        diff: cfg.diff, bots: Math.max(0, cfg.bots), nations: cfg.nations, arsenal: cfg.mode === 'arsenal', res: RES, pfeile: !!cfg.pfeile, netz: !!cfg.netz, punkt: !!cfg.punkt, aufstellung: cfg.aufstellung !== false
+        diff: cfg.diff, bots: Math.max(0, cfg.bots), nations: cfg.nations, arsenal: cfg.mode === 'arsenal', res: RES, pfeile: !!cfg.pfeile, netz: !!cfg.netz, punkt: !!cfg.punkt, aufstellung: cfg.aufstellung !== false, kessel: cfg.kessel !== false, schwung: cfg.schwung !== false, bahn: cfg.bahn !== false, hafen: cfg.hafen !== false
       });
     });
   }
@@ -443,7 +448,7 @@
     turnLeft = 0;
     loadMap(m.map, m.mapSeed).then(function (map) {
       begin(map, {
-        seed: m.seed, difficulty: m.diff, bots: m.bots, nations: m.nations, arsenal: !!m.arsenal, res: !!m.res, pfeile: !!m.pfeile, netz: m.netz !== false, punkt: !!m.punkt, aufstellung: m.aufstellung !== false, spawnTicks: 300, autoSpawn: true, me: me
+        seed: m.seed, difficulty: m.diff, bots: m.bots, nations: m.nations, arsenal: !!m.arsenal, res: !!m.res, pfeile: !!m.pfeile, netz: m.netz !== false, punkt: !!m.punkt, aufstellung: m.aufstellung !== false, kessel: m.kessel !== false, schwung: m.schwung !== false, bahn: m.bahn !== false, hafen: m.hafen !== false, spawnTicks: 300, autoSpawn: true, me: me
       }, m.players.map(function (p) { return { name: p.name, color: COLORS[p.color % 6] }; }));
       $('bSpeed').hidden = true; $('bPause').hidden = !mp.host;
       addMsg(m.players.length > 1 ? m.players.length + ' Spieler sind dabei. Wählt eure Startpunkte.' : 'Du bist allein im Raum.', 'info');
@@ -545,7 +550,7 @@
     $('fStart').disabled = true; $('fStart').querySelector('small').textContent = 'Karte wird vorbereitet';
     loadMap(cfg.map).then(function (map) {
       begin(map, {
-        seed: (Math.random() * 2e9) | 0, difficulty: cfg.diff, bots: cfg.bots, nations: cfg.nations, arsenal: cfg.mode === 'arsenal', res: RES, pfeile: !!cfg.pfeile, netz: !!cfg.netz, punkt: !!cfg.punkt, aufstellung: cfg.aufstellung !== false,
+        seed: (Math.random() * 2e9) | 0, difficulty: cfg.diff, bots: cfg.bots, nations: cfg.nations, arsenal: cfg.mode === 'arsenal', res: RES, pfeile: !!cfg.pfeile, netz: !!cfg.netz, punkt: !!cfg.punkt, aufstellung: cfg.aufstellung !== false, kessel: cfg.kessel !== false, schwung: cfg.schwung !== false, bahn: cfg.bahn !== false, hafen: cfg.hafen !== false,
         instantBuild: cfg.instant, infiniteGold: cfg.gold, infiniteTroops: cfg.troops
       }, { name: cfg.name, color: COLORS[cfg.color] });
     }).catch(function (e) {
@@ -1062,6 +1067,7 @@
     $('purse').innerHTML = svg('gold', 15) + (game.opts.infiniteGold ? '∞' : fmt(h.gold));
     $('sheet').hidden = false; sheetAt = performance.now();
     view.mark = tile; view.showCloak = true;
+    view.portSel = near && near.owner === h && near.type === UT.PORT ? near : null;     // its trade reach as a circle
     snd('open');
   }
   // Build at a tile, or start aiming a bomb at it. Used by the menu and by the keys.
@@ -1099,7 +1105,7 @@
   // The tap that opens the card must not also press a button of it: on a phone the browser sends a click
   // to whatever lies under the finger after the touch, and that is the card by then.
   let sheetAt = 0;
-  function closeBuild() { $('sheet').hidden = true; if (view) { view.mark = -1; view.showCloak = false; } }
+  function closeBuild() { $('sheet').hidden = true; if (view) { view.mark = -1; view.showCloak = false; view.portSel = null; } }
   function onBuild(e) {
     if (performance.now() - sheetAt < 350) return;
     const b = e.target.closest('[data-t],[data-up]');
@@ -1163,7 +1169,13 @@
   // A build key shows what it would place under the mouse pointer; the next click places it.
   // What a factory at this spot would be worth: the stations it would tie in, and roughly what
   // its trains earn a minute (a train every 23 seconds, 10K at each of up to four stops).
-  function railHint(tile) {
+  function railHint(tile, type) {
+    if (game.bahn) {
+      // deliveries: a city or port shows whether it joins the network, a factory what it brings
+      const r = game.railGuess(game.human, type === undefined ? UT.FACTORY : type, tile);
+      if (type === UT.CITY || type === UT.PORT) return r.factories.length ? ' · verbunden, ca. +' + fmt(Math.round(r.perMin)) + '/min' : ' · nicht verbunden (keine Fabrik in Reichweite)';
+      return r.stations ? ' · ' + r.stations + (r.stations === 1 ? ' Stadt oder Hafen' : ' Städte und Häfen') + ', ca. +' + fmt(Math.round(r.perMin)) + '/min' : ' · keine Stadt in Reichweite';
+    }
     const h = game.human, W = game.W, x = tile % W, y = (tile / W) | 0, rr = game.R.rail * game.R.rail;
     let n = 0;
     for (const u of h.units) if (u.built && G.isStation(u.type) && (u.x - x) * (u.x - x) + (u.y - y) * (u.y - y) <= rr) n++;
@@ -1198,7 +1210,7 @@
     // for a bomb: the silo it would start from (or, while all are reloading, any silo), so the flight path can be shown
     const silo = ghost.t >= UT.ATOM && ghost.t !== UT.LASER ? c.silo || game.readySilo(h, tile).silo || h.units.find(function (u) { return u.type === UT.SILO && u.built; }) || null : null;
     view.ghost = { type: ghost.t, icon: icon, tile: tile, ok: c.ok, silo: silo,
-      text: c.ok || c.why === 'Zu wenig Gold' ? plain(ghost.t) + ' · ' + G.fmt(game.cost(h, ghost.t)) + (ghost.t === UT.FACTORY ? railHint(tile) : '') : c.why || 'Hier nicht möglich' };   // too little gold: the price stays, in red
+      text: c.ok || c.why === 'Zu wenig Gold' ? plain(ghost.t) + ' · ' + G.fmt(game.cost(h, ghost.t)) + (ghost.t === UT.FACTORY || (game.bahn && (ghost.t === UT.CITY || ghost.t === UT.PORT)) ? railHint(tile, ghost.t) : '') : c.why || 'Hier nicht möglich' };   // too little gold: the price stays, in red
   }
   // The player's own finished building of the kind being placed, if the pointer is on it.
   function ghostUpgrade(tile) {
@@ -1278,8 +1290,8 @@
     const troops = h.troops * ratio / (game.pfeile ? plans.length + 1 : 1), est = game.thrustEstimate(h, r, troops);
     // green: arrives with a quarter or more to spare; yellow: arrives, or very nearly; red: stops short
     const verdict = est.reach >= 1 && est.left >= troops * 0.25 ? 0 : est.reach >= 0.9 ? 1 : 2;
-    const verdictText = ['reicht bis zum Ziel', 'knapp', 'reicht etwa ' + Math.max(5, Math.round(est.reach * 20) * 5) + ' % des Wegs'][verdict];
-    view.plan = { path: r.path, width: width, troops: troops, col: ['rgb(99,211,145)', 'rgb(244,183,64)', 'rgb(255,107,94)'][verdict], label: THRUST_NAME[mode] + ' · ' + fmtT(troops) + ' · ' + verdictText };
+    const verdictText = ['reicht bis zum Ziel', 'knapp', (est.stalled ? 'Schwung reicht etwa ' : 'reicht etwa ') + Math.max(5, Math.round(est.reach * 20) * 5) + ' % des Wegs'][verdict];
+    view.plan = { path: r.path, width: width, troops: troops, col: ['rgb(99,211,145)', 'rgb(244,183,64)', 'rgb(255,107,94)'][verdict], label: THRUST_NAME[mode] + ' · ' + fmtT(troops) + (est.mom > 0 ? ' · Schwung ' + Math.round(est.mom * 100) + ' %' : '') + ' · ' + verdictText };
     planInfo = { mode: mode, verdict: verdict, text: verdictText, ci: null, path: r.path, tid: a.tid, width: width };
     showCommit();
   }
@@ -1290,7 +1302,7 @@
     if (!at) return;
     cardId = id;
     const el = $('thrustCard');
-    el.innerHTML = '<b>' + THRUST_NAME[at.spot >= 0 ? 3 : at.width === game.thrustWidth(1) ? 1 : 2] + ' · ' + fmtT(at.troops + (at.want || 0)) + '</b>' +
+    el.innerHTML = '<b>' + THRUST_NAME[at.spot >= 0 ? 3 : at.width === game.thrustWidth(1) ? 1 : 2] + ' · ' + fmtT(at.troops + (at.want || 0)) + (at.mom !== undefined ? ' · Schwung ' + Math.max(0, Math.round(at.mom * 100)) + ' %' : '') + '</b>' +
       '<button type="button" data-act="feed">' + svg('up', 14) + 'Verstärken +' + fmtT(game.human.troops * ratio) + '</button>' +
       '<button type="button" data-act="ret" class="ghost">' + svg('close', 13) + 'Zurückziehen</button>';
     el.hidden = false;
