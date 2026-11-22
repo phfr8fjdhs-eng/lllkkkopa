@@ -131,6 +131,20 @@
     this.schwung = this.opts.schwung !== false;
     this.bahn = this.opts.bahn !== false;
     this.hafen = this.opts.hafen !== false;
+    // Two ways of fighting to compare (`kampf`, 22.11.2026, doku/kampfsysteme.md); without it the
+    // single switches above decide, as the tests set them.
+    //   'grenzland': the net as passive defence (density, digging in, reserves, pockets that hold
+    //                out), attacks lose momentum; no cap on how many attackers a narrow attack uses
+    //   'grenzen':   no net to paint (a person's troops stand evenly; nations keep the posture they
+    //                set themselves, as the switch `netz` off had it when this was tuned); narrow
+    //                attacks capped at G.THRUST.crowd attackers per defender; direction attack;
+    //                pockets fall at once; no momentum
+    // Both fight locally (G.COMBAT) and can plan arrows (`pfeile`).
+    this.kampfArt = this.opts.kampf === 'grenzland' || this.opts.kampf === 'grenzen' ? this.opts.kampf : '';
+    this.crowd = this.opts.crowd !== false;
+    this.lokal = false;
+    if (this.kampfArt === 'grenzland') { this.aufstellung = true; this.netz = true; this.kessel = true; this.schwung = true; this.punkt = false; this.crowd = false; }
+    else if (this.kampfArt === 'grenzen') { this.aufstellung = true; this.netz = false; this.kessel = false; this.schwung = false; this.punkt = true; this.crowd = true; }
     this.rng = new G.RNG(this.opts.seed);
     const N = this.N, S = this.S;
     this.owner = new Uint16Array(N);
@@ -1099,13 +1113,13 @@
     // up as the ones in front fall, but does not make the attack faster or cheaper. So a blitz
     // through one spot is no faster than the whole front would be.
     const narrow = at.goal >= 0 || at.spot >= 0;
-    const use = t && narrow ? Math.min(at.troops, G.THRUST.crowd * face) : at.troops;
+    const use = t && narrow && this.crowd ? Math.min(at.troops, G.THRUST.crowd * face) : at.troops;
     // What the front may take this tick. A tile that costs more than is left is paid off over the
     // following ticks (`carry`), so a weak attack really is slow instead of taking a tile a tick
     // regardless.
     // Without a posture (`aufstellung` off) a fight against a realm runs on OpenFront's formula
     // (EngineConfig.attackLogic): a whole tick's budget, each tile a share of it (see below).
-    const of = !!t && !this.aufstellung;
+    const of = !!t && !this.aufstellung && !this.lokal;     // `lokal`: no posture, but the local fight all the same
     let budget = (of ? 1 : t ? within(10 * use / face, 0.01, 0.5) * n * 3 : n * (a.type === PT.BOT ? 1.9 : 2)) * this.attackPace + (at.carry || 0);
     if (budget <= 0) { at.carry = budget; return; }
     const landTiles = map.landTiles;
@@ -1170,7 +1184,7 @@
       // r: how many attackers there are for every defender they face at this tile
       // never more defenders than there are; a narrow attack brings at most `crowd` per defender to bear
       let r = t ? at.troops / Math.max(1, Math.min(t.troops, face * pd)) : 0;
-      if (narrow && r > G.THRUST.crowd) r = G.THRUST.crowd;
+      if (narrow && this.crowd && r > G.THRUST.crowd) r = G.THRUST.crowd;
       let hold = TR.free;
       if (t) hold = within(1.15 - 0.33 * r, 0.15, 1);
       let mag = 80 * (1 + (gl - 1) * hold), speed = 16.5 * (1 + (gs - 1) * hold);

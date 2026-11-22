@@ -1,4 +1,5 @@
 # Schalter «Netz», «Punktangriff» und «Angriffspfeile planen» (17.11.2026)
+**Seit 22.11.2026** wählt der Startbildschirm statt dieser Schalter ein Kampfsystem (`doku/kampfsysteme.md`): «Grenzland» (Netz an, kein Richtungsangriff) oder «Feste Grenzen» (Netz aus, Richtungsangriff). «Angriffe planen» bleibt ein Schalter für beide. Die Regeln unten gelten weiter.
 Auf dem Startbildschirm drei Schalter, je an oder aus (Vorgabe: alle an), frei kombinierbar. Im Mehrspieler gilt die Wahl des Hosts für alle. Netz und Pfeile planen:
 
 | Netz | Pfeile planen | Spiel |

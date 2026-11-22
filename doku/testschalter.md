@@ -1,5 +1,5 @@
-# Testschalter Kessel, Schwung, Bahn, Häfen (22.11.2026)
-Vier Schalter auf dem Startbildschirm, Vorgabe an. Zum Vergleichen beim Testen; im Mehrspieler gilt die Wahl des Hosts. Optionen `opts.kessel`, `opts.schwung`, `opts.bahn`, `opts.hafen`. Wohin das führt: `doku/vision.md`.
+# Kessel, Schwung, Bahn, Häfen (22.11.2026)
+Kessel und Schwung gehören zum Kampfsystem «Grenzland» (`doku/kampfsysteme.md`); «Bahn: Lieferungen» und «Häfen nach Stufe» sind Schalter auf dem Startbildschirm für beide Systeme, Vorgabe an. Optionen `opts.kessel`, `opts.schwung` (in Tests einzeln), `opts.bahn`, `opts.hafen`. Wohin das führt: `doku/vision.md`.
 
 ## Kessel (`G.KESSEL`, `pocketReady` in `src/03_game.js`)
 - Eingeschlossenes Land eines Menschen oder einer Nation fällt nicht mehr sofort an den, der es umgibt. Es hält 30 s (`G.KESSEL` = 300 Ticks) und fällt dann. Bots: wie bisher sofort.

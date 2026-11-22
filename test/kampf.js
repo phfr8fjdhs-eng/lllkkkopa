@@ -307,6 +307,18 @@ function runThrustIn(g, h, foe, mode, share) {
     console.log('Tal: Gebirgszug mit einer Lücke auf Zeile ' + v.gapY + ', der Keil quert auf Zeile ' + v.cross + ' (Weg ' + v.len + ' Felder)');
     if (!v.ok) { bad++; console.log('  FAIL: der Keil nimmt nicht das Tal'); }
   }
+  if (!only || only === 'systeme') {
+    // the two combat systems side by side: the same troops as the whole front, a section, a wedge
+    const sc = { at: 12000, dt: 4000, aT: 400000, dT: 100000, share: 0.15 };
+    const row = (tag, r) => '  ' + tag.padEnd(26) + 'Felder ' + String(r.took).padStart(5) + '  Weg geschafft ' + (r.depth * 100).toFixed(0).padStart(3) + ' %  Verluste ' + K(r.lost).padStart(7);
+    console.log('Kampfsysteme: 400K gegen 100K mit 15 %');
+    for (const k of ['grenzland', 'grenzen']) {
+      const rs = [0, 1, 2].map((m) => runThrust(map, sc, m, false, { kampf: k }));
+      rs.forEach((r, m) => console.log(row((k === 'grenzland' ? 'Grenzland' : 'Feste Grenzen') + ', ' + MODES[m], r)));
+      if (!(rs[0].took >= rs[2].took)) { bad++; console.log('  FAIL: ' + k + ': die ganze Front nimmt weniger Land als der Keil'); }
+      if (!(rs[2].depth > rs[0].depth)) { bad++; console.log('  FAIL: ' + k + ': der Keil kommt nicht tiefer als die ganze Front'); }
+    }
+  }
   if (!only || only === 'schwung') {
     const m = momentum(map);
     const row = (tag, r) => '  ' + tag.padEnd(26) + 'Felder ' + String(r.took).padStart(5) + '  Weg geschafft ' + (r.depth * 100).toFixed(0).padStart(3) + ' %  Verluste ' + K(r.lost).padStart(7);

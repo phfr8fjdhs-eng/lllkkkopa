@@ -1,6 +1,10 @@
 # Änderungsprotokoll
 Was seit dem 13.11.2026 geändert wurde und warum. Den heutigen Stand der Regeln beschreiben die anderen Dateien in `doku/`.
 
+## Zwei Kampfsysteme: Grenzland und Feste Grenzen (22.11.2026)
+Wunsch des Besitzers: das eigene System und das des Kollegen nebeneinander, statt alles zu mischen. Auf dem Startbildschirm «Kampfsystem» statt der Schalter Truppenkonzentration, Netz, Richtungsangriff, Kessel und Schwung. Grenzland: Netz als passive Verteidigung, Kessel 30 s, Schwung, keine Grenze von 2 Angreifern pro Verteidiger. Feste Grenzen: kein Netz, die Grenze von 2 pro Verteidiger, Richtungsangriff, Kessel fallen sofort, kein Schwung. «Angriffe planen» in beiden. Vorher waren beide Bremsen gleichzeitig an. Einzelheiten und Messwerte: `doku/kampfsysteme.md`.
+Dabei gefunden: «Feste Grenzen» ganz ohne Aufstellung (auch für Nationen) liess einen Keil mit 15 % von 400K gegen 100K 1757 Felder nehmen und das Ziel erreichen; so hatte es der Kollege nie gespielt. Jetzt wie zuletzt abgestimmt: nur das Netz zum Malen ist aus, Nationen stellen sich weiter selbst auf (Keil 460 Felder, 67 % des Wegs).
+
 ## Kessel, Schwung, Bahn mit Lieferungen, Häfen nach Stufe, Gebäude nach Stufe (22.11.2026)
 Vier neue Testschalter (Vorgabe an) und eine neue Grafik. Wunsch des Besitzers: Angriffe im späten Spiel schwächer, aber mit Vorbereitung stärker; Kessel und abgeschnittene Versorgung wichtig; grössere Städte bringen mehr Gold; Häfen mit Stufe wichtiger; man sieht die Stufe eines Gebäudes. Alles mit Messwerten in `doku/testschalter.md`.
 - **Kessel:** Eingeschlossenes Land von Menschen und Nationen hält 30 s. Dabei gefunden: In einen Kessel ohne Küste sickerten Truppen aus dem Hauptland «per Boot»; behoben.

@@ -72,16 +72,18 @@
   let toastTimer = 0, endShown = false, botsTouched = false;
   let mp = null, turnLeft = 0, aim = null, joinCode = '', lobbyNote = '', goldTimer = 0;
   const chips = new Map(), asks = new Map();
-  const cfg = { name: 'Spieler', color: 0, map: 'erde', diff: 1, bots: -1, nations: true, instant: false, gold: false, troops: false, tap: false, music: true, sfx: true, mode: 'klassisch', thrust: 0, botsV3: true, pfeile: true, netz: true, punkt: true, aufstellung: true, kessel: true, schwung: true, bahn: true, hafen: true };
+  const cfg = { name: 'Spieler', color: 0, map: 'erde', diff: 1, bots: -1, nations: true, instant: false, gold: false, troops: false, tap: false, music: true, sfx: true, mode: 'klassisch', thrust: 0, botsV3: true, pfeile: true, kampf: 'grenzland', bahn: true, hafen: true };
   // two switches of their own (doku/pfeile.md)
-  const SWITCH = [['aufstellung', 'Truppenkonzentration', 'An: deine Truppen stehen in Zellen, dichte Stellen halten besser, eingegraben, Reserven, Kessel. Aus: wie in OpenFront, alle Truppen sind ein Topf, keine Verteilung.'],
-    ['netz', 'Netz', 'An: mit dem Netz (Taste N) verteilst du deine Truppen zum Verteidigen. Aus: die Truppen stehen gleichmässig, nichts einzustellen. Nur mit Truppenkonzentration.'],
-    ['punkt', 'Richtungsangriff', 'An: als dritte Angriffsart neben Keil und Abschnitt (Taste F): statt der ganzen Front greift nur der Teil an, der in die gezogene Richtung schaut. Sieht aus wie die ganze Front, kein Pfeil.'],
-    ['pfeile', 'Angriffspfeile planen', 'An: Pfeile mit der rechten Maustaste planen, dann «Angreifen» (Enter). Aus: der Pfeil greift sofort an.'],
-    ['kessel', 'Kessel', 'An: eingeschlossenes Land von Spielern und Nationen hält etwa 30 s, bevor es fällt. Aus: es fällt sofort wie in OpenFront.'],
-    ['schwung', 'Schwung', 'An: Angriffe auf Spieler und Nationen verlieren Schwung, je tiefer sie kommen, und bleiben dann stehen; Vorbereitung gibt mehr Schwung. Aus: wie bisher.'],
+  // Two ways of fighting to compare (doku/kampfsysteme.md), and a few switches for both.
+  const KAMPF = [['grenzland', 'Grenzland', 'Netz als passive Verteidigung: dichte Stellen halten besser, eingegraben, Reserven, Kessel halten 30 s. Angriffe verlieren mit der Tiefe Schwung; Aufmarsch, Erholung und Schiene geben mehr.'],
+    ['grenzen', 'Feste Grenzen', 'Kein Netz, alle Truppen ein Topf. Schmale Angriffe setzen höchstens 2 Angreifer pro Verteidiger ein. Dazu der Richtungsangriff. Kessel fallen sofort.']];
+  const SWITCH = [['pfeile', 'Angriffe planen', 'An: Pfeile mit der rechten Maustaste planen, dann «Angreifen» (Enter). Aus: der Pfeil greift sofort an.'],
     ['bahn', 'Bahn: Lieferungen', 'An: Fabriken liefern per Zug in Städte, grössere Städte bringen mehr Gold, eroberte Gleise sind kurz beschädigt. Aus: Gold pro Halt wie in OpenFront.'],
     ['hafen', 'Häfen nach Stufe', 'An: höhere Häfen schicken öfter Schiffe, grössere Schiffe und reichen weiter. Aus: wie bisher.']];
+  // the options of the game that the start screen decides
+  function playOpts(c) {
+    return { kampf: c.kampf === 'grenzen' ? 'grenzen' : 'grenzland', pfeile: c.pfeile !== false, bahn: c.bahn !== false, hafen: c.hafen !== false };
+  }
   let plans = [];          // version «Pfeile»: arrows planned, not launched yet
   const MODES = [['klassisch', 'Klassisch', 'Das Spiel wie gewohnt.'], ['arsenal', 'Arsenal', 'Zusätzlich: der Satellitenstrahl. Er kommt aus dem All, braucht kein Silo und lässt sich nicht abfangen. Und der Tarnturm: Er versteckt deine Gebäude ganz in seiner Nähe, bis die anderen nahe herankommen. Auch die Nationen setzen beides ein.']];
   let hoverX = -1, hoverY = -1;
@@ -279,6 +281,10 @@
       h += '<div class="field"><div class="lab">Spielmodus</div><div class="seg" id="fMode">' + MODES.map(function (m) {
         return '<button type="button" data-id="' + m[0] + '" aria-pressed="' + (m[0] === cfg.mode) + '">' + m[1] + '</button>';
       }).join('') + '</div><p class="hint" id="fModeNote">' + MODES.find(function (m) { return m[0] === cfg.mode; })[2] + '</p></div>';
+      const kNow = cfg.kampf === 'grenzen' ? 'grenzen' : 'grenzland';
+      h += '<div class="field"><div class="lab">Kampfsystem</div><div class="seg" id="fKampf">' + KAMPF.map(function (k) {
+        return '<button type="button" data-id="' + k[0] + '" aria-pressed="' + (k[0] === kNow) + '">' + k[1] + '</button>';
+      }).join('') + '</div><p class="hint" id="fKampfNote">' + KAMPF.find(function (k) { return k[0] === kNow; })[2] + '</p></div>';
       SWITCH.forEach(function (w) {
         h += '<div class="field"><div class="lab">' + w[1] + '</div><div class="seg" id="fSw_' + w[0] + '">' +
           '<button type="button" data-v="1" aria-pressed="' + !!cfg[w[0]] + '">An</button><button type="button" data-v="0" aria-pressed="' + !cfg[w[0]] + '">Aus</button>' +
@@ -325,6 +331,12 @@
       if (!b) return;
       cfg.mode = b.dataset.id; press(this, b); goSub();
       $('fModeNote').textContent = MODES.find(function (m) { return m[0] === cfg.mode; })[2];
+    });
+    $('fKampf').addEventListener('click', function (e) {
+      const b = e.target.closest('button');
+      if (!b) return;
+      cfg.kampf = b.dataset.id; press(this, b); saveCfg();
+      $('fKampfNote').textContent = KAMPF.find(function (k) { return k[0] === cfg.kampf; })[2];
     });
     SWITCH.forEach(function (w) {
       $('fSw_' + w[0]).addEventListener('click', function (e) {
@@ -439,7 +451,7 @@
       this.disabled = true;
       mp.begin({
         seed: (Math.random() * 2e9) | 0, map: cfg.map, mapSeed: (Math.random() * 2e9) | 0,
-        diff: cfg.diff, bots: Math.max(0, cfg.bots), nations: cfg.nations, arsenal: cfg.mode === 'arsenal', res: RES, pfeile: !!cfg.pfeile, netz: !!cfg.netz, punkt: !!cfg.punkt, aufstellung: cfg.aufstellung !== false, kessel: cfg.kessel !== false, schwung: cfg.schwung !== false, bahn: cfg.bahn !== false, hafen: cfg.hafen !== false
+        diff: cfg.diff, bots: Math.max(0, cfg.bots), nations: cfg.nations, arsenal: cfg.mode === 'arsenal', res: RES, opts: playOpts(cfg)
       });
     });
   }
@@ -448,7 +460,7 @@
     turnLeft = 0;
     loadMap(m.map, m.mapSeed).then(function (map) {
       begin(map, {
-        seed: m.seed, difficulty: m.diff, bots: m.bots, nations: m.nations, arsenal: !!m.arsenal, res: !!m.res, pfeile: !!m.pfeile, netz: m.netz !== false, punkt: !!m.punkt, aufstellung: m.aufstellung !== false, kessel: m.kessel !== false, schwung: m.schwung !== false, bahn: m.bahn !== false, hafen: m.hafen !== false, spawnTicks: 300, autoSpawn: true, me: me
+        seed: m.seed, difficulty: m.diff, bots: m.bots, nations: m.nations, arsenal: !!m.arsenal, res: !!m.res, kampf: m.opts ? m.opts.kampf : 'grenzland', pfeile: m.opts ? m.opts.pfeile : true, bahn: m.opts ? m.opts.bahn : true, hafen: m.opts ? m.opts.hafen : true, spawnTicks: 300, autoSpawn: true, me: me
       }, m.players.map(function (p) { return { name: p.name, color: COLORS[p.color % 6] }; }));
       $('bSpeed').hidden = true; $('bPause').hidden = !mp.host;
       addMsg(m.players.length > 1 ? m.players.length + ' Spieler sind dabei. Wählt eure Startpunkte.' : 'Du bist allein im Raum.', 'info');
@@ -550,7 +562,7 @@
     $('fStart').disabled = true; $('fStart').querySelector('small').textContent = 'Karte wird vorbereitet';
     loadMap(cfg.map).then(function (map) {
       begin(map, {
-        seed: (Math.random() * 2e9) | 0, difficulty: cfg.diff, bots: cfg.bots, nations: cfg.nations, arsenal: cfg.mode === 'arsenal', res: RES, pfeile: !!cfg.pfeile, netz: !!cfg.netz, punkt: !!cfg.punkt, aufstellung: cfg.aufstellung !== false, kessel: cfg.kessel !== false, schwung: cfg.schwung !== false, bahn: cfg.bahn !== false, hafen: cfg.hafen !== false,
+        seed: (Math.random() * 2e9) | 0, difficulty: cfg.diff, bots: cfg.bots, nations: cfg.nations, arsenal: cfg.mode === 'arsenal', res: RES, kampf: playOpts(cfg).kampf, pfeile: playOpts(cfg).pfeile, bahn: playOpts(cfg).bahn, hafen: playOpts(cfg).hafen,
         instantBuild: cfg.instant, infiniteGold: cfg.gold, infiniteTroops: cfg.troops
       }, { name: cfg.name, color: COLORS[cfg.color] });
     }).catch(function (e) {

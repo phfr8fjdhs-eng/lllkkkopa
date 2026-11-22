@@ -1506,6 +1506,20 @@ body.placing #cv { cursor: crosshair; }
     this.schwung = this.opts.schwung !== false;
     this.bahn = this.opts.bahn !== false;
     this.hafen = this.opts.hafen !== false;
+    // Two ways of fighting to compare (`kampf`, 22.11.2026, doku/kampfsysteme.md); without it the
+    // single switches above decide, as the tests set them.
+    //   'grenzland': the net as passive defence (density, digging in, reserves, pockets that hold
+    //                out), attacks lose momentum; no cap on how many attackers a narrow attack uses
+    //   'grenzen':   no net to paint (a person's troops stand evenly; nations keep the posture they
+    //                set themselves, as the switch `netz` off had it when this was tuned); narrow
+    //                attacks capped at G.THRUST.crowd attackers per defender; direction attack;
+    //                pockets fall at once; no momentum
+    // Both fight locally (G.COMBAT) and can plan arrows (`pfeile`).
+    this.kampfArt = this.opts.kampf === 'grenzland' || this.opts.kampf === 'grenzen' ? this.opts.kampf : '';
+    this.crowd = this.opts.crowd !== false;
+    this.lokal = false;
+    if (this.kampfArt === 'grenzland') { this.aufstellung = true; this.netz = true; this.kessel = true; this.schwung = true; this.punkt = false; this.crowd = false; }
+    else if (this.kampfArt === 'grenzen') { this.aufstellung = true; this.netz = false; this.kessel = false; this.schwung = false; this.punkt = true; this.crowd = true; }
     this.rng = new G.RNG(this.opts.seed);
     const N = this.N, S = this.S;
     this.owner = new Uint16Array(N);
@@ -2474,13 +2488,13 @@ body.placing #cv { cursor: crosshair; }
     // up as the ones in front fall, but does not make the attack faster or cheaper. So a blitz
     // through one spot is no faster than the whole front would be.
     const narrow = at.goal >= 0 || at.spot >= 0;
-    const use = t && narrow ? Math.min(at.troops, G.THRUST.crowd * face) : at.troops;
+    const use = t && narrow && this.crowd ? Math.min(at.troops, G.THRUST.crowd * face) : at.troops;
     // What the front may take this tick. A tile that costs more than is left is paid off over the
     // following ticks (`carry`), so a weak attack really is slow instead of taking a tile a tick
     // regardless.
     // Without a posture (`aufstellung` off) a fight against a realm runs on OpenFront's formula
     // (EngineConfig.attackLogic): a whole tick's budget, each tile a share of it (see below).
-    const of = !!t && !this.aufstellung;
+    const of = !!t && !this.aufstellung && !this.lokal;     // `lokal`: no posture, but the local fight all the same
     let budget = (of ? 1 : t ? within(10 * use / face, 0.01, 0.5) * n * 3 : n * (a.type === PT.BOT ? 1.9 : 2)) * this.attackPace + (at.carry || 0);
     if (budget <= 0) { at.carry = budget; return; }
     const landTiles = map.landTiles;
@@ -2545,7 +2559,7 @@ body.placing #cv { cursor: crosshair; }
       // r: how many attackers there are for every defender they face at this tile
       // never more defenders than there are; a narrow attack brings at most `crowd` per defender to bear
       let r = t ? at.troops / Math.max(1, Math.min(t.troops, face * pd)) : 0;
-      if (narrow && r > G.THRUST.crowd) r = G.THRUST.crowd;
+      if (narrow && this.crowd && r > G.THRUST.crowd) r = G.THRUST.crowd;
       let hold = TR.free;
       if (t) hold = within(1.15 - 0.33 * r, 0.15, 1);
       let mag = 80 * (1 + (gl - 1) * hold), speed = 16.5 * (1 + (gs - 1) * hold);
@@ -8894,16 +8908,18 @@ body.placing #cv { cursor: crosshair; }
   let toastTimer = 0, endShown = false, botsTouched = false;
   let mp = null, turnLeft = 0, aim = null, joinCode = '', lobbyNote = '', goldTimer = 0;
   const chips = new Map(), asks = new Map();
-  const cfg = { name: 'Spieler', color: 0, map: 'erde', diff: 1, bots: -1, nations: true, instant: false, gold: false, troops: false, tap: false, music: true, sfx: true, mode: 'klassisch', thrust: 0, botsV3: true, pfeile: true, netz: true, punkt: true, aufstellung: true, kessel: true, schwung: true, bahn: true, hafen: true };
+  const cfg = { name: 'Spieler', color: 0, map: 'erde', diff: 1, bots: -1, nations: true, instant: false, gold: false, troops: false, tap: false, music: true, sfx: true, mode: 'klassisch', thrust: 0, botsV3: true, pfeile: true, kampf: 'grenzland', bahn: true, hafen: true };
   // two switches of their own (doku/pfeile.md)
-  const SWITCH = [['aufstellung', 'Truppenkonzentration', 'An: deine Truppen stehen in Zellen, dichte Stellen halten besser, eingegraben, Reserven, Kessel. Aus: wie in OpenFront, alle Truppen sind ein Topf, keine Verteilung.'],
-    ['netz', 'Netz', 'An: mit dem Netz (Taste N) verteilst du deine Truppen zum Verteidigen. Aus: die Truppen stehen gleichmässig, nichts einzustellen. Nur mit Truppenkonzentration.'],
-    ['punkt', 'Richtungsangriff', 'An: als dritte Angriffsart neben Keil und Abschnitt (Taste F): statt der ganzen Front greift nur der Teil an, der in die gezogene Richtung schaut. Sieht aus wie die ganze Front, kein Pfeil.'],
-    ['pfeile', 'Angriffspfeile planen', 'An: Pfeile mit der rechten Maustaste planen, dann «Angreifen» (Enter). Aus: der Pfeil greift sofort an.'],
-    ['kessel', 'Kessel', 'An: eingeschlossenes Land von Spielern und Nationen hält etwa 30 s, bevor es fällt. Aus: es fällt sofort wie in OpenFront.'],
-    ['schwung', 'Schwung', 'An: Angriffe auf Spieler und Nationen verlieren Schwung, je tiefer sie kommen, und bleiben dann stehen; Vorbereitung gibt mehr Schwung. Aus: wie bisher.'],
+  // Two ways of fighting to compare (doku/kampfsysteme.md), and a few switches for both.
+  const KAMPF = [['grenzland', 'Grenzland', 'Netz als passive Verteidigung: dichte Stellen halten besser, eingegraben, Reserven, Kessel halten 30 s. Angriffe verlieren mit der Tiefe Schwung; Aufmarsch, Erholung und Schiene geben mehr.'],
+    ['grenzen', 'Feste Grenzen', 'Kein Netz, alle Truppen ein Topf. Schmale Angriffe setzen höchstens 2 Angreifer pro Verteidiger ein. Dazu der Richtungsangriff. Kessel fallen sofort.']];
+  const SWITCH = [['pfeile', 'Angriffe planen', 'An: Pfeile mit der rechten Maustaste planen, dann «Angreifen» (Enter). Aus: der Pfeil greift sofort an.'],
     ['bahn', 'Bahn: Lieferungen', 'An: Fabriken liefern per Zug in Städte, grössere Städte bringen mehr Gold, eroberte Gleise sind kurz beschädigt. Aus: Gold pro Halt wie in OpenFront.'],
     ['hafen', 'Häfen nach Stufe', 'An: höhere Häfen schicken öfter Schiffe, grössere Schiffe und reichen weiter. Aus: wie bisher.']];
+  // the options of the game that the start screen decides
+  function playOpts(c) {
+    return { kampf: c.kampf === 'grenzen' ? 'grenzen' : 'grenzland', pfeile: c.pfeile !== false, bahn: c.bahn !== false, hafen: c.hafen !== false };
+  }
   let plans = [];          // version «Pfeile»: arrows planned, not launched yet
   const MODES = [['klassisch', 'Klassisch', 'Das Spiel wie gewohnt.'], ['arsenal', 'Arsenal', 'Zusätzlich: der Satellitenstrahl. Er kommt aus dem All, braucht kein Silo und lässt sich nicht abfangen. Und der Tarnturm: Er versteckt deine Gebäude ganz in seiner Nähe, bis die anderen nahe herankommen. Auch die Nationen setzen beides ein.']];
   let hoverX = -1, hoverY = -1;
@@ -9101,6 +9117,10 @@ body.placing #cv { cursor: crosshair; }
       h += '<div class="field"><div class="lab">Spielmodus</div><div class="seg" id="fMode">' + MODES.map(function (m) {
         return '<button type="button" data-id="' + m[0] + '" aria-pressed="' + (m[0] === cfg.mode) + '">' + m[1] + '</button>';
       }).join('') + '</div><p class="hint" id="fModeNote">' + MODES.find(function (m) { return m[0] === cfg.mode; })[2] + '</p></div>';
+      const kNow = cfg.kampf === 'grenzen' ? 'grenzen' : 'grenzland';
+      h += '<div class="field"><div class="lab">Kampfsystem</div><div class="seg" id="fKampf">' + KAMPF.map(function (k) {
+        return '<button type="button" data-id="' + k[0] + '" aria-pressed="' + (k[0] === kNow) + '">' + k[1] + '</button>';
+      }).join('') + '</div><p class="hint" id="fKampfNote">' + KAMPF.find(function (k) { return k[0] === kNow; })[2] + '</p></div>';
       SWITCH.forEach(function (w) {
         h += '<div class="field"><div class="lab">' + w[1] + '</div><div class="seg" id="fSw_' + w[0] + '">' +
           '<button type="button" data-v="1" aria-pressed="' + !!cfg[w[0]] + '">An</button><button type="button" data-v="0" aria-pressed="' + !cfg[w[0]] + '">Aus</button>' +
@@ -9147,6 +9167,12 @@ body.placing #cv { cursor: crosshair; }
       if (!b) return;
       cfg.mode = b.dataset.id; press(this, b); goSub();
       $('fModeNote').textContent = MODES.find(function (m) { return m[0] === cfg.mode; })[2];
+    });
+    $('fKampf').addEventListener('click', function (e) {
+      const b = e.target.closest('button');
+      if (!b) return;
+      cfg.kampf = b.dataset.id; press(this, b); saveCfg();
+      $('fKampfNote').textContent = KAMPF.find(function (k) { return k[0] === cfg.kampf; })[2];
     });
     SWITCH.forEach(function (w) {
       $('fSw_' + w[0]).addEventListener('click', function (e) {
@@ -9261,7 +9287,7 @@ body.placing #cv { cursor: crosshair; }
       this.disabled = true;
       mp.begin({
         seed: (Math.random() * 2e9) | 0, map: cfg.map, mapSeed: (Math.random() * 2e9) | 0,
-        diff: cfg.diff, bots: Math.max(0, cfg.bots), nations: cfg.nations, arsenal: cfg.mode === 'arsenal', res: RES, pfeile: !!cfg.pfeile, netz: !!cfg.netz, punkt: !!cfg.punkt, aufstellung: cfg.aufstellung !== false, kessel: cfg.kessel !== false, schwung: cfg.schwung !== false, bahn: cfg.bahn !== false, hafen: cfg.hafen !== false
+        diff: cfg.diff, bots: Math.max(0, cfg.bots), nations: cfg.nations, arsenal: cfg.mode === 'arsenal', res: RES, opts: playOpts(cfg)
       });
     });
   }
@@ -9270,7 +9296,7 @@ body.placing #cv { cursor: crosshair; }
     turnLeft = 0;
     loadMap(m.map, m.mapSeed).then(function (map) {
       begin(map, {
-        seed: m.seed, difficulty: m.diff, bots: m.bots, nations: m.nations, arsenal: !!m.arsenal, res: !!m.res, pfeile: !!m.pfeile, netz: m.netz !== false, punkt: !!m.punkt, aufstellung: m.aufstellung !== false, kessel: m.kessel !== false, schwung: m.schwung !== false, bahn: m.bahn !== false, hafen: m.hafen !== false, spawnTicks: 300, autoSpawn: true, me: me
+        seed: m.seed, difficulty: m.diff, bots: m.bots, nations: m.nations, arsenal: !!m.arsenal, res: !!m.res, kampf: m.opts ? m.opts.kampf : 'grenzland', pfeile: m.opts ? m.opts.pfeile : true, bahn: m.opts ? m.opts.bahn : true, hafen: m.opts ? m.opts.hafen : true, spawnTicks: 300, autoSpawn: true, me: me
       }, m.players.map(function (p) { return { name: p.name, color: COLORS[p.color % 6] }; }));
       $('bSpeed').hidden = true; $('bPause').hidden = !mp.host;
       addMsg(m.players.length > 1 ? m.players.length + ' Spieler sind dabei. Wählt eure Startpunkte.' : 'Du bist allein im Raum.', 'info');
@@ -9372,7 +9398,7 @@ body.placing #cv { cursor: crosshair; }
     $('fStart').disabled = true; $('fStart').querySelector('small').textContent = 'Karte wird vorbereitet';
     loadMap(cfg.map).then(function (map) {
       begin(map, {
-        seed: (Math.random() * 2e9) | 0, difficulty: cfg.diff, bots: cfg.bots, nations: cfg.nations, arsenal: cfg.mode === 'arsenal', res: RES, pfeile: !!cfg.pfeile, netz: !!cfg.netz, punkt: !!cfg.punkt, aufstellung: cfg.aufstellung !== false, kessel: cfg.kessel !== false, schwung: cfg.schwung !== false, bahn: cfg.bahn !== false, hafen: cfg.hafen !== false,
+        seed: (Math.random() * 2e9) | 0, difficulty: cfg.diff, bots: cfg.bots, nations: cfg.nations, arsenal: cfg.mode === 'arsenal', res: RES, kampf: playOpts(cfg).kampf, pfeile: playOpts(cfg).pfeile, bahn: playOpts(cfg).bahn, hafen: playOpts(cfg).hafen,
         instantBuild: cfg.instant, infiniteGold: cfg.gold, infiniteTroops: cfg.troops
       }, { name: cfg.name, color: COLORS[cfg.color] });
     }).catch(function (e) {
@@ -11045,7 +11071,7 @@ body.placing #cv { cursor: crosshair; }
     tipCur = -1; tipNext = 0; tipSince = 0; hideTip();
     u.begin(mapOf(n), {
       seed: 1000 + n, level: n, difficulty: L.diff === undefined ? 1 : L.diff, bots: 0, nations: false, arsenal: false,
-      pfeile: !!c.pfeile, netz: !!c.netz, punkt: !!c.punkt, aufstellung: c.aufstellung !== false
+      kampf: c.kampf === 'grenzen' ? 'grenzen' : 'grenzland', pfeile: c.pfeile !== false
     }, { name: c.name, color: u.COLORS[c.color] });
     $('lvBar').hidden = false;
     hud();

@@ -46,7 +46,8 @@ Weitere Ordner: `tools/` (Bauen und Kartenerzeugung, Python), `test/` (Tests, No
 | Tasten, Bots, Ausbau, Flugabwehr, Schienen, Bomben-Anzeige, Arsenal (Satellitenstrahl, Tarnturm) | `spielregeln.md` |
 | Netz, Marsch, Dichte und ihre Wirkung | `aufstellung.md` |
 | Schalter «Truppenkonzentration», «Netz», «Richtungsangriff», «Angriffspfeile planen» | `pfeile.md` |
-| Schalter «Kessel», «Schwung», «Bahn: Lieferungen», «Häfen nach Stufe», Gebäude nach Stufe | `testschalter.md` |
+| Kampfsysteme «Grenzland» und «Feste Grenzen» | `kampfsysteme.md` |
+| Kessel, Schwung, «Bahn: Lieferungen», «Häfen nach Stufe», Gebäude nach Stufe | `testschalter.md` |
 | Erdkarte, Daten, Lizenzen der Daten, Gelände | `erde.md` |
 | Mehrspieler, Vermittler | `mehrspieler.md` |
 | Version «Rohstoffe»: Länder, Preise, Länderkarte | `rohstoffe.md` |
@@ -58,7 +59,7 @@ Weitere Ordner: `tools/` (Bauen und Kartenerzeugung, Python), `test/` (Tests, No
 
 ## Welcher Test
 - Regeln und Zahlen: `node test/sim.js`, `node test/all.js`
-- Bodenkampf: `node test/kampf.js` (Messbank)
+- Bodenkampf: `node test/kampf.js` (Messbank; `systeme` vergleicht die zwei Kampfsysteme), Gleichlauf je System: `node test/det.js grenzland`, `node test/det.js grenzen`
 - Gleichlauf auf allen Geräten: `node test/det.js`, `node test/det.js arsenal`, `node test/posture.js`
 - Tarnturm: `node test/tarn.js`
 - Schalter (Truppenkonzentration, Netz, Richtung, Pfeile): `node test/pfeile.js`
