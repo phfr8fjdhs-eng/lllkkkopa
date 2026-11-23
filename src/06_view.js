@@ -342,22 +342,39 @@
       if (p !== h && p.alive) for (const t of p.border) g.markDirty(t);
     }
   };
+  // The changed tiles are copied to the map picture in blocks of BLK x BLK tiles, only the blocks
+  // that hold a change (runs of neighbouring blocks in a row in one go). Until 24.11.2026 one
+  // rectangle around all changes was copied: with fronts all over the Earth that was nearly the
+  // whole picture (16 million pixels) every tick, about 16 ms, for a few thousand changed tiles.
+  const BSH = 5, BLK = 1 << BSH;   // 32 tiles (measured on the Earth: 32 clearly beats 64; 16 only a little better, with four times the calls)
   View.prototype.flush = function () {
     const g = this.game, n = g.dirtyN;
     if (!n) return;
-    const d = g.dirty, f = g.dirtyFlag, W = g.W;
-    let x0 = W, x1 = -1, y0 = g.H, y1 = -1;
+    const d = g.dirty, f = g.dirtyFlag, W = g.W, H = g.H, bw = (W + BLK - 1) >> BSH, bh = (H + BLK - 1) >> BSH;
+    let mk = this.blk;
+    if (!mk || mk.length !== bw * bh) mk = this.blk = new Uint8Array(bw * bh);
+    let b0 = bh, b1 = -1;
     for (let i = 0; i < n; i++) {
-      const t = d[i], x = t % W, y = (t - x) / W;
+      const t = d[i], x = t % W, y = (t - x) / W, by = y >> BSH;
       f[t] = 0;
       this.paint(t);
-      if (x < x0) x0 = x;
-      if (x > x1) x1 = x;
-      if (y < y0) y0 = y;
-      if (y > y1) y1 = y;
+      mk[by * bw + (x >> BSH)] = 1;
+      if (by < b0) b0 = by;
+      if (by > b1) b1 = by;
     }
     g.dirtyN = 0;
-    this.mctx.putImageData(this.img, 0, 0, x0, y0, x1 - x0 + 1, y1 - y0 + 1);
+    for (let by = b0; by <= b1; by++) {
+      const row = by * bw, y = by * BLK, h = Math.min(BLK, H - y);
+      for (let bx = 0; bx < bw; bx++) {
+        if (!mk[row + bx]) continue;
+        let ex = bx;
+        while (ex + 1 < bw && mk[row + ex + 1]) ex++;
+        for (let k = bx; k <= ex; k++) mk[row + k] = 0;
+        const x = bx * BLK;
+        this.mctx.putImageData(this.img, 0, 0, x, y, Math.min(W, (ex + 1) * BLK) - x, h);
+        bx = ex;
+      }
+    }
   };
 
   // ---------- name labels: the largest clear rectangle inside each territory ----------
@@ -1001,7 +1018,10 @@
   // colour inside), and where it will land a crosshair shows: for your own boats and for those
   // bound for you. (On 23.11.2026 for a few hours only a short fading trail and a plain ring.)
   View.prototype.drawWakes = function (ctx, g, z, ox, oy, alpha) {
-    const us = g.units, W = g.W, zz = z * (g.S || 1), h = g.human;
+    const us = g.units, W = g.W, zz = z * (g.S || 1), h = g.human, cw = this.cw, ch = this.ch;
+    // other people's boats only leave their last 20 steps: a boat further off the screen than
+    // that cannot show any of its trail (24.11.2026)
+    const m = 24 * z + 8;
     ctx.lineJoin = 'round'; ctx.lineCap = 'round';
     for (let i = 0; i < us.length; i++) {
       const u = us[i];
@@ -1009,6 +1029,7 @@
       const p = u.path, end = Math.min(u.pi, p.length - 1);
       const hx = (u.vx + 0.5) * z + ox, hy = (u.vy + 0.5) * z + oy;
       const mine = u.owner === h, atMe = !!h && u.tid === h.id;
+      if (!mine && !atMe && (hx < -m || hy < -m || hx > cw + m || hy > ch + m)) continue;
       // the whole way for boats that concern you; other people's leave a short trail only, so the
       // oceans are not crossed by lines
       const from = mine || atMe ? 0 : Math.max(0, end - 20);
@@ -1021,7 +1042,9 @@
         ctx.fillStyle = 'rgb(' + (o.rs !== undefined ? o.rs + ',' + o.gs + ',' + o.bs : o.r + ',' + o.g + ',' + o.b) + ')';
         ctx.globalAlpha = mine || atMe ? 0.6 : 0.35;
         let lx = -9, ly = -9;
-        const cell = function (cx, cy) { ctx.fillRect(Math.floor(cx * cs + ox), Math.floor(cy * cs + oy), Math.ceil(cs), Math.ceil(cs)); };
+        // all cells of one trail in one path and one fill (24.11.2026; before one fillRect each)
+        const cell = function (cx, cy) { ctx.rect(Math.floor(cx * cs + ox), Math.floor(cy * cs + oy), Math.ceil(cs), Math.ceil(cs)); };
+        ctx.beginPath();
         for (let k = from; k < end; k++) {
           const cx = Math.floor((p[k] % W) / n), cy = Math.floor(((p[k] / W) | 0) / n);
           if (cx === lx && cy === ly) continue;
@@ -1030,6 +1053,7 @@
           if (lx > -9 && cx !== lx && cy !== ly) cell(cx, ly);
           cell(cx, cy); lx = cx; ly = cy;
         }
+        ctx.fill();
       }
       ctx.globalAlpha = 1;
       if ((mine || atMe) && !u.retreat) {
@@ -1136,8 +1160,20 @@
     return cv;
   }
   // Draw a ship picture centred at (x, y), its bow along `ang`, `px` screen pixels per picture pixel.
+  // While drawUnits runs, SHIP_DPR holds the screen's pixel ratio: the picture is then placed with
+  // one setTransform and the plain transform put back after, instead of save/translate/rotate/
+  // restore (24.11.2026: about a fifth less time a ship; test/stress_view.js). Elsewhere (tests)
+  // the slow, general way.
+  let SHIP_DPR = 0;
   function drawShip(ctx, kind, x, y, ang, px, p) {
     const cv = shipSprite(kind, p), L = cv.width * SCALE[kind], Wd = cv.height * SCALE[kind];
+    if (SHIP_DPR) {
+      const d = SHIP_DPR, c = Math.cos(ang) * d, s = Math.sin(ang) * d;
+      ctx.setTransform(c, s, -s, c, x * d, y * d);
+      ctx.drawImage(cv, -L * px / 2, -Wd * px / 2, L * px, Wd * px);
+      ctx.setTransform(d, 0, 0, d, 0, 0);
+      return;
+    }
     ctx.save(); ctx.translate(x, y); ctx.rotate(ang);
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(cv, -L * px / 2, -Wd * px / 2, L * px, Wd * px);
@@ -1238,12 +1274,29 @@
     const cw = this.cw, ch = this.ch, us = g.units;
     const zz = z * (g.S || 1), ws = warSize(zz), bs = boatSize(zz);
     this.frame = (this.frame || 0) + 1;
+    // Only ships on the screen (or near it) get their smooth pose worked out (24.11.2026: with
+    // thousands of ships at sea that was a few ms a frame for ships nobody saw). The others sit on
+    // their tile; when they come into sight they take their heading at once, without easing in.
+    // Troop boats that concern you always get it, their whole course is drawn.
+    const h = g.human, m = 30 + 12 * shipPx(zz) + 4 * z;
     for (let i = 0; i < us.length; i++) {
       const u = us[i], ty = u.type;
-      if (u.active && (ty === UT.WARSHIP || ty === UT.TRANSPORT || ty === UT.TRADE)) this.pose(g, u, alpha);
+      if (!u.active || (ty !== UT.WARSHIP && ty !== UT.TRANSPORT && ty !== UT.TRADE)) continue;
+      const sx = (u.x + 0.5) * z + ox, sy = (u.y + 0.5) * z + oy;
+      if ((sx < -m || sy < -m || sx > cw + m || sy > ch + m) && !(ty === UT.TRANSPORT && h && (u.owner === h || u.tid === h.id))) {
+        u.vx = u.x; u.vy = u.y;
+        continue;
+      }
+      this.pose(g, u, alpha);
     }
     this.drawWakes(ctx, g, z, ox, oy, alpha);
     ctx.lineJoin = 'round';
+    const smooth = ctx.imageSmoothingEnabled;
+    ctx.imageSmoothingEnabled = false; SHIP_DPR = this.dpr;
+    try { this.drawUnitList(ctx, g, z, ox, oy, alpha, now, zz); } finally { SHIP_DPR = 0; ctx.imageSmoothingEnabled = smooth; }
+  };
+  View.prototype.drawUnitList = function (ctx, g, z, ox, oy, alpha, now, zz) {
+    const cw = this.cw, ch = this.ch, us = g.units;
     for (let i = 0; i < us.length; i++) {
       const u = us[i], ty = u.type;
       if (!u.active || ty <= UT.CLOAK) continue;

@@ -698,6 +698,63 @@
     }
     return true;
   };
+  // ---------- the ships on the sea, by area ----------
+  // Each warship looks for a target every five ticks. Going through every unit for that made the
+  // cost grow with warships x units: 5000 ships took about 100 ms a tick (24.11.2026, test/stress.js).
+  // Now the ships (troop boats, warships, merchants) are sorted once a tick into cells of SEA_CELL
+  // tiles, and a warship only looks at the cells within its range. The grid is built when the
+  // first warship asks in a tick. Ships keep moving during the tick, so the search reaches one
+  // cell further than the range; the exact distance is checked by the caller with the current
+  // position. Ships added later in the tick are appended. The answer is in the order of
+  // this.units, exactly as the old loop went, so the simulation gives the same numbers.
+  const SEA_CELL = 32;
+  Game.prototype.seaGrid = function () {
+    const us = this.units, n = us.length, cw = (this.W + SEA_CELL - 1) >> 5, chh = (this.H + SEA_CELL - 1) >> 5, nc = cw * chh;
+    let sg = this.sg;
+    if (!sg || sg.nc !== nc) sg = this.sg = { nc: nc, cw: cw, ch: chh, start: new Int32Array(nc + 1), fill: new Int32Array(nc), items: new Int32Array(64), T: -1, arr: null, n: 0 };
+    const start = sg.start, fill = sg.fill;
+    start.fill(0);
+    let m = 0;
+    for (let i = 0; i < n; i++) {
+      const v = us[i], ty = v.type;
+      if (!v.active || (ty !== UT.TRANSPORT && ty !== UT.WARSHIP && ty !== UT.TRADE)) continue;
+      start[(v.y >> 5) * cw + (v.x >> 5) + 1]++; m++;
+    }
+    for (let c = 0; c < nc; c++) start[c + 1] += start[c];
+    if (sg.items.length < m) sg.items = new Int32Array(m * 2);
+    fill.set(start.subarray(0, nc));
+    const items = sg.items;
+    for (let i = 0; i < n; i++) {
+      const v = us[i], ty = v.type;
+      if (!v.active || (ty !== UT.TRANSPORT && ty !== UT.WARSHIP && ty !== UT.TRADE)) continue;
+      items[fill[(v.y >> 5) * cw + (v.x >> 5)]++] = i;
+    }
+    sg.T = this.ticks; sg.arr = us; sg.n = n;
+    return sg;
+  };
+  const NEAR = [];
+  Game.prototype.seaNear = function (x, y, r) {
+    let sg = this.sg;
+    if (!sg || sg.T !== this.ticks || sg.arr !== this.units) sg = this.seaGrid();
+    const us = this.units, items = sg.items, start = sg.start, idx = [];
+    const R = r + SEA_CELL;
+    const cx0 = Math.max(0, (x - R) >> 5), cx1 = Math.min(sg.cw - 1, (x + R) >> 5);
+    const cy0 = Math.max(0, (y - R) >> 5), cy1 = Math.min(sg.ch - 1, (y + R) >> 5);
+    for (let cy = cy0; cy <= cy1; cy++) for (let cx = cx0; cx <= cx1; cx++) {
+      const c = cy * sg.cw + cx;
+      for (let k = start[c]; k < start[c + 1]; k++) idx.push(items[k]);
+    }
+    idx.sort(function (a, b) { return a - b; });
+    NEAR.length = 0;
+    for (let k = 0; k < idx.length; k++) NEAR.push(us[idx[k]]);
+    // ships that came to sea after the grid was built in this tick
+    for (let i = sg.n; i < us.length; i++) {
+      const v = us[i], ty = v.type;
+      if (v.active && (ty === UT.TRANSPORT || ty === UT.WARSHIP || ty === UT.TRADE)) NEAR.push(v);
+    }
+    return NEAR;
+  };
+
   // Give a warship a new course; it holds position until the route is known.
   // How many tiles a ship or train moves this tick. The pace is a fraction of a tile per tick
   // (see G.PACE); the rest is carried in `u.mv`, which the picture also uses to glide between tiles.
@@ -794,10 +851,11 @@
     if ((T + u.id) % 5 === 0) {
       let best = null, bs = Infinity, home;
       const rr = C.range * this.S, r2 = rr * rr, p2 = R.warPatrol * R.warPatrol, pcx = u.patrol % W, pcy = (u.patrol / W) | 0;
-      for (const v of this.units) {
+      // only the ships near this one (a grid of the sea, see seaNear), in the order of
+      // this.units as before, so every device still picks the same target
+      for (const v of this.seaNear(u.x, u.y, rr)) {
         if (!v.active || v.owner === p) continue;
         const ty = v.type;
-        if (ty !== UT.TRANSPORT && ty !== UT.WARSHIP && ty !== UT.TRADE) continue;
         if (v.safeUntil > T || v.docked) continue;   // just changed hands, or under repair at the quay
         if (this.friendly(v.owner, p)) continue;
         if (ty === UT.TRANSPORT) { const q = v.tid ? this.players[v.tid] : null; if (!q || (q !== p && !this.friendly(p, q))) continue; }

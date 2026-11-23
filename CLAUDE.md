@@ -18,6 +18,16 @@ Echtzeit-Eroberungsspiel im Browser, Nachbau von OpenFront, als eine einzige HTM
 - Die Quellenangabe der Kartendaten auf dem Startbildschirm muss bleiben (`doku/erde.md`).
 - Die Reihenfolge der Dateien steht in `tools/build.py`; eine neue `src`-Datei dort eintragen.
 
+## Leistung und Aufbau (Richtlinien, Kurzfassung)
+Ziel: grosse Karten, viele Spieler und Einheiten, später Mehrspieler über einen Server, und das Spiel bleibt flüssig, auch auf dem Handy. Messungen, Engpässe und Plan: `doku/leistung.md`.
+- Bei jeder neuen Funktion fragen: Was kostet sie pro Tick und pro Bild, und wie wächst das mit Feldern, Spielern und Einheiten (100, 1000, 10 000)? Was quadratisch wächst (jeder gegen jeden), braucht eine Suche über ein Raster wie `seaNear` (`src/04_units.js`).
+- Simulation und Zeichnen bleiben getrennt. Die Simulation kennt kein DOM, damit sie in einen Worker oder auf einen Server umziehen kann.
+- Teure Arbeit nicht öfter als nötig: nur bei Änderungen (`markDirty`, `lastChange`), über Ticks verteilt (`(T + id) % n`), nur Sichtbares zeichnen.
+- Im Hot Path keine unnötigen Objekte und Strings pro Einheit und Bild (Müllabfuhr).
+- Erst messen, dann ändern (`test/stress.js`, `test/stress_view.js`, `test/prof.js`). Melden, was echt ist, was wahrscheinlich kommt und was nur theoretisch ist. Kein Umbau ohne messbaren Nutzen, keine Mikro-Optimierung.
+- Optimieren darf keine Spielregel ändern: `det.js` und `posture.js` müssen gleich bleiben, und bei Simulationsänderungen eine Prüfsumme vorher und nachher vergleichen (`SUM=1 node test/stress.js`).
+- Bedenken früh ansprechen, solange sie billig zu beheben sind.
+
 ## Karte von `src/` (Reihenfolge wie im Build, Zeilen ungefähr)
 | Datei | Zeilen | Inhalt, Suchbegriffe |
 | --- | --- | --- |
@@ -56,6 +66,7 @@ Weitere Ordner: `tools/` (Bauen und Kartenerzeugung, Python), `test/` (Tests, No
 | Feldzug: Levels, Quests, Sterne, wie man ein Level anlegt | `feldzug.md` |
 | Was wann und warum geändert wurde | `aenderungen.md` |
 | Wohin das Spiel geht, Reihenfolge der nächsten Schritte | `vision.md` |
+| Leistung: Messungen, Engpässe, Plan | `leistung.md` |
 
 ## Welcher Test
 - Regeln und Zahlen: `node test/sim.js`, `node test/all.js`
@@ -66,3 +77,4 @@ Weitere Ordner: `tools/` (Bauen und Kartenerzeugung, Python), `test/` (Tests, No
 - Version «Rohstoffe»: `node --max-old-space-size=4096 test/res.js`
 - Feldzug (jedes Level baut sich, bleibt gleich, ist zu gewinnen): `node test/level.js`
 - Bedienung im Browser: `node test/ui.js` (braucht Playwright und Chrome)
+- Leistung: `node test/stress.js` (Simulation mit 100 bis 10 000 Schiffen), `node test/stress_view.js` (Bild, nach dem Build)
