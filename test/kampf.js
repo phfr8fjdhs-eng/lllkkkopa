@@ -299,7 +299,7 @@ function runThrustIn(g, h, foe, mode, share) {
     // The net only moves strength about (23.11.2026): twice the troops get on with the whole front
     // even against a defender who put everything on the border facing them. Dense ground is
     // slower to take, and more of the defender fall there.
-    const sc = { at: 3000, dt: 2000, aT: 60000, dT: 30000 };
+    let sc = { at: 3000, dt: 2000, aT: 60000, dT: 30000 };
     const fight = (dense) => {
       const A = arena(map, sc, false, { kampf: 'grenzland' }), g = A.g, h = A.h, foe = A.foe;
       g.postAuto = function () {};
@@ -326,6 +326,13 @@ function runThrustIn(g, h, foe, mode, share) {
     if (!(dn.took >= ev.took * 0.75)) { bad++; console.log('  FAIL: mit doppelt so vielen kommt die ganze Front gegen einen dichten Verteidiger kaum voran'); }
     if (!(dn.left <= ev.left * 1.1)) { bad++; console.log('  FAIL: der dichte Verteidiger verliert nicht mehr'); }
     if (!(dn.secs > ev.secs)) { bad++; console.log('  FAIL: dichter Boden bremst nicht'); }
+    // at even strength the buffer is worth it: less land lost than standing evenly
+    sc = { at: 3000, dt: 2000, aT: 30000, dT: 30000 };
+    const ev2 = fight(false), dn2 = fight(true);
+    console.log('Dichte: 30K gegen 30K, ganze Front mit allem');
+    console.log('  gleichmässig     Land ' + (ev2.took * 100).toFixed(0).padStart(3) + ' %  in ' + ev2.secs.toFixed(0) + ' s  Verteidiger übrig ' + K(ev2.left));
+    console.log('  alles an Grenze  Land ' + (dn2.took * 100).toFixed(0).padStart(3) + ' %  in ' + dn2.secs.toFixed(0) + ' s  Verteidiger übrig ' + K(dn2.left));
+    if (!(dn2.took < ev2.took * 0.9)) { bad++; console.log('  FAIL: bei gleicher Stärke schützt die dichte Grenze nicht'); }
   }
   if (!only || only === 'echt') {
     // As in play (23.11.2026): the defender is a nation that has stood two minutes at its border

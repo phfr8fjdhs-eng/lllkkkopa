@@ -275,6 +275,13 @@
   // 6 = three times as dense), worked out by shadeScan; between the middles of the cells it is
   // blended, so the map shows soft bands instead of the 16 x 16 grid.
   View.prototype.dense = function (o, t, c) {
+    // the height the fight counts (lowland, highland, mountains, as OpenFront) shows clearly under
+    // any flag: highland a little lighter, mountains much lighter. Lighter is ground, darker troops.
+    const mg = this.game.map.mag[t];
+    if (mg >= 10) {
+      const f = mg < 20 ? 44 : 104;
+      c = pack((c & 255) + (((255 - (c & 255)) * f) >> 8), ((c >>> 8) & 255) + (((255 - ((c >>> 8) & 255)) * f) >> 8), ((c >>> 16) & 255) + (((255 - ((c >>> 16) & 255)) * f) >> 8));
+    }
     const m = this.shade && this.shade.get(o);
     if (!m || !m.size) return c;
     const g = this.game, W = g.W, CS = G.POST.cell, CW = g.CW, x = t % W, y = (t - x) / W;
@@ -282,7 +289,7 @@
     const at = (i, j) => (i < 0 || j < 0 || i >= CW ? 0 : m.get(j * CW + i) || 0);
     const st = (at(cx, cy) * (1 - ax) + at(cx + 1, cy) * ax) * (1 - ay) + (at(cx, cy + 1) * (1 - ax) + at(cx + 1, cy + 1) * ax) * ay;
     if (st < 0.25) return c;
-    const f = 256 - Math.round(st * 15);
+    const f = 256 - Math.round(st * 19);
     return pack(((c & 255) * f) >> 8, (((c >>> 8) & 255) * f) >> 8, (((c >>> 16) & 255) * f) >> 8);
   };
   // Once a second: the step of every cell of every realm with a posture; where a step changed, the

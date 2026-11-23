@@ -15,7 +15,7 @@
   //   base      the yardstick for momentum: what a tile of free land costs a person
   // (Until 23.11.2026 a local fight of its own with more constants here: exchange, fMin, fMax,
   // depth, army, armyFrom, dens.)
-  G.COMBAT = { densMax: 3, base: 16 };
+  G.COMBAT = { densMax: 3, dTime: 0.7, dLoss: 0.3, dFall: 0.5, base: 16 };
   // Thrusts: an attack aimed at a spot instead of the whole front.
   //   widths  lane width in tiles on the world map for mode 1 (section) and 2 (wedge); scaled by map.S
   //   max     thrusts a player can have under way at once
@@ -61,19 +61,19 @@
     speed: [1, 1, 1, 1.5, 0.9, 1.3, 2.6, 1.8],
     loss: [1, 1, 1, 1.25, 1, 1.1, 1.5, 1.25],
     riverSpeed: 4, riverLoss: 2, greatSpeed: 6, greatLoss: 3,
-    free: 0.15,         // how much of all that counts on land nobody holds
-    coldLoss: 0.5       // how much of the cold's slowdown also shows in the attacker's losses
+    free: 0.15          // how much of all that counts on land nobody holds
   };
-  // Cover and cold together, as factors over open ground in mild weather: the cold factor of a
-  // tile (1 above freezing, rising to 2 at -45 C, see G.addClimate) multiplies what the cover
-  // costs. So the high, bitterly cold middle of an ice sheet is slower still than its coast.
+  // What the cover adds, as factors over open ground. The cold no longer counts (until 23.11.2026
+  // it made two thirds of the world map up to twice as slow and 1.5 times as dear): it was not
+  // to be seen on the map, and OpenFront has nothing like it. Height (lowland, highland,
+  // mountains) is OpenFront's and drawn clearly, also under a realm's colour (View.paint).
   G.groundSpeed = function (map, t) {
     const cov = map.cover;
-    return (cov ? G.TERRAIN.speed[cov[t]] : 1) * map.coldOf(t);
+    return cov ? G.TERRAIN.speed[cov[t]] : 1;
   };
   G.groundLoss = function (map, t) {
     const cov = map.cover;
-    return (cov ? G.TERRAIN.loss[cov[t]] : 1) * (1 + (map.coldOf(t) - 1) * G.TERRAIN.coldLoss);
+    return cov ? G.TERRAIN.loss[cov[t]] : 1;
   };
   G.LASER_COOL = 450;   // ticks between two shots of the satellite beam (Arsenal mode)
   G.DIFF_NAMES = ['Leicht', 'Mittel', 'Schwer', 'Unmöglich'];
@@ -865,7 +865,7 @@
           }
           let mag = 80 * gl, speed = 16.5 * gs;
           if (dp && dp.length) for (let i = 0; i < dp.length; i++) { const dx = dp[i].x - x, dy = dp[i].y - y; if (dx * dx + dy * dy <= dr2) { mag *= 3 + 2 * dp[i].level; speed *= 1 + 2 * dp[i].level; break; } }
-          const dk = pc ? Math.min(CB.densMax, dens) : 1, D = dAvg * dk;
+          const dk = pc ? Math.min(CB.densMax, dens) : 1, D = dAvg * Math.pow(dk, CB.dFall);
           const R = tT / Math.max(1, left);
           loss = this.tileLoss(mag, R, dAvg, dk, pc ? this.postHold(pc) : 1, p.type !== PT.BOT && t.type === PT.BOT, traitor);
           used = this.tileTime(speed, R, dk, traitor, front.size);
@@ -1083,12 +1083,14 @@
   // mag x within(army / attack, 0.6, 2) x (0.463 + 0.0039 x troops per tile), a human or nation
   // against a bot x 0.7; the tile takes within(R, 0.82, 7.5) x within(R / 20, 1, 50) / 8.55 x its
   // cost of a tick's budget, shared over the front. `mag` and `speed` carry ground, defence posts
-  // and fallout. On top the cell's density `dk` (time x dk, price x √dk) and its hold (cut off).
+  // and fallout. On top the cell's density `dk`, mild on purpose (a buffer that deters, no wall:
+  // time x √dk, price x dk^0.25, so three times as dense is 1.7 times as slow and 1.3 times as
+  // dear; until later on 23.11.2026 time x dk, price x √dk) and its hold (cut off).
   Game.prototype.tileLoss = function (mag, R, dAvg, dk, holdF, botHit, traitor) {
-    return mag * (botHit ? 0.7 : 1) * traitor * within(R, 0.6, 2) * (0.463 + 0.0039 * dAvg) * Math.sqrt(dk) * holdF;
+    return mag * (botHit ? 0.7 : 1) * traitor * within(R, 0.6, 2) * (0.463 + 0.0039 * dAvg) * Math.pow(dk, G.COMBAT.dLoss) * holdF;
   };
   Game.prototype.tileTime = function (speed, R, dk, traitor, front) {
-    return within(R, 0.82, 7.5) * within(R / 20, 1, 50) / 8.55 * speed * (traitor < 1 ? 0.5 : 1) / Math.max(1, front + 1) * dk;
+    return within(R, 0.82, 7.5) * within(R / 20, 1, 50) / 8.55 * speed * (traitor < 1 ? 0.5 : 1) / Math.max(1, front + 1) * Math.pow(dk, G.COMBAT.dTime);
   };
 
   Game.prototype.tickAttack = function (at) {
@@ -1207,7 +1209,7 @@
           const k = Math.max(at.mom, MO.slow);   // at most half as fast (until 23.11.2026 down to a quarter: a tired wedge froze)
           loss /= Math.sqrt(k); used /= Math.min(1.25, k);
         }
-        if (pc) this.postTake(t, pc, dAvg * dk);
+        if (pc) this.postTake(t, pc, dAvg * Math.pow(dk, CB.dFall));
         else t.troops = Math.max(0, t.troops - dAvg);
       } else {
         loss = a.type === PT.BOT ? mag / 10 : mag / 5;

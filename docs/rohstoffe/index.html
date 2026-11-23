@@ -326,6 +326,7 @@ button.ldRow:hover { background: rgba(255, 255, 255, 0.07); }
 .pkNum span, .pkHas span { display: inline-flex; align-items: center; gap: 4px; }
 .pkNum .gold { color: var(--accent); }
 .pkHas { font-size: 13px; color: var(--muted); }
+.pkHere { margin-top: 6px; font-size: 12.5px; color: var(--muted); line-height: 1.35; }
 .pkHas svg { color: var(--ink); }
 .pkHas .none { font-weight: 500; }
 #commit { min-height: 16px; margin-top: 6px; font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
@@ -1391,7 +1392,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   //   base      the yardstick for momentum: what a tile of free land costs a person
   // (Until 23.11.2026 a local fight of its own with more constants here: exchange, fMin, fMax,
   // depth, army, armyFrom, dens.)
-  G.COMBAT = { densMax: 3, base: 16 };
+  G.COMBAT = { densMax: 3, dTime: 0.7, dLoss: 0.3, dFall: 0.5, base: 16 };
   // Thrusts: an attack aimed at a spot instead of the whole front.
   //   widths  lane width in tiles on the world map for mode 1 (section) and 2 (wedge); scaled by map.S
   //   max     thrusts a player can have under way at once
@@ -1437,19 +1438,19 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     speed: [1, 1, 1, 1.5, 0.9, 1.3, 2.6, 1.8],
     loss: [1, 1, 1, 1.25, 1, 1.1, 1.5, 1.25],
     riverSpeed: 4, riverLoss: 2, greatSpeed: 6, greatLoss: 3,
-    free: 0.15,         // how much of all that counts on land nobody holds
-    coldLoss: 0.5       // how much of the cold's slowdown also shows in the attacker's losses
+    free: 0.15          // how much of all that counts on land nobody holds
   };
-  // Cover and cold together, as factors over open ground in mild weather: the cold factor of a
-  // tile (1 above freezing, rising to 2 at -45 C, see G.addClimate) multiplies what the cover
-  // costs. So the high, bitterly cold middle of an ice sheet is slower still than its coast.
+  // What the cover adds, as factors over open ground. The cold no longer counts (until 23.11.2026
+  // it made two thirds of the world map up to twice as slow and 1.5 times as dear): it was not
+  // to be seen on the map, and OpenFront has nothing like it. Height (lowland, highland,
+  // mountains) is OpenFront's and drawn clearly, also under a realm's colour (View.paint).
   G.groundSpeed = function (map, t) {
     const cov = map.cover;
-    return (cov ? G.TERRAIN.speed[cov[t]] : 1) * map.coldOf(t);
+    return cov ? G.TERRAIN.speed[cov[t]] : 1;
   };
   G.groundLoss = function (map, t) {
     const cov = map.cover;
-    return (cov ? G.TERRAIN.loss[cov[t]] : 1) * (1 + (map.coldOf(t) - 1) * G.TERRAIN.coldLoss);
+    return cov ? G.TERRAIN.loss[cov[t]] : 1;
   };
   G.LASER_COOL = 450;   // ticks between two shots of the satellite beam (Arsenal mode)
   G.DIFF_NAMES = ['Leicht', 'Mittel', 'Schwer', 'Unmöglich'];
@@ -2241,7 +2242,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
           }
           let mag = 80 * gl, speed = 16.5 * gs;
           if (dp && dp.length) for (let i = 0; i < dp.length; i++) { const dx = dp[i].x - x, dy = dp[i].y - y; if (dx * dx + dy * dy <= dr2) { mag *= 3 + 2 * dp[i].level; speed *= 1 + 2 * dp[i].level; break; } }
-          const dk = pc ? Math.min(CB.densMax, dens) : 1, D = dAvg * dk;
+          const dk = pc ? Math.min(CB.densMax, dens) : 1, D = dAvg * Math.pow(dk, CB.dFall);
           const R = tT / Math.max(1, left);
           loss = this.tileLoss(mag, R, dAvg, dk, pc ? this.postHold(pc) : 1, p.type !== PT.BOT && t.type === PT.BOT, traitor);
           used = this.tileTime(speed, R, dk, traitor, front.size);
@@ -2459,12 +2460,14 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   // mag x within(army / attack, 0.6, 2) x (0.463 + 0.0039 x troops per tile), a human or nation
   // against a bot x 0.7; the tile takes within(R, 0.82, 7.5) x within(R / 20, 1, 50) / 8.55 x its
   // cost of a tick's budget, shared over the front. `mag` and `speed` carry ground, defence posts
-  // and fallout. On top the cell's density `dk` (time x dk, price x √dk) and its hold (cut off).
+  // and fallout. On top the cell's density `dk`, mild on purpose (a buffer that deters, no wall:
+  // time x √dk, price x dk^0.25, so three times as dense is 1.7 times as slow and 1.3 times as
+  // dear; until later on 23.11.2026 time x dk, price x √dk) and its hold (cut off).
   Game.prototype.tileLoss = function (mag, R, dAvg, dk, holdF, botHit, traitor) {
-    return mag * (botHit ? 0.7 : 1) * traitor * within(R, 0.6, 2) * (0.463 + 0.0039 * dAvg) * Math.sqrt(dk) * holdF;
+    return mag * (botHit ? 0.7 : 1) * traitor * within(R, 0.6, 2) * (0.463 + 0.0039 * dAvg) * Math.pow(dk, G.COMBAT.dLoss) * holdF;
   };
   Game.prototype.tileTime = function (speed, R, dk, traitor, front) {
-    return within(R, 0.82, 7.5) * within(R / 20, 1, 50) / 8.55 * speed * (traitor < 1 ? 0.5 : 1) / Math.max(1, front + 1) * dk;
+    return within(R, 0.82, 7.5) * within(R / 20, 1, 50) / 8.55 * speed * (traitor < 1 ? 0.5 : 1) / Math.max(1, front + 1) * Math.pow(dk, G.COMBAT.dTime);
   };
 
   Game.prototype.tickAttack = function (at) {
@@ -2583,7 +2586,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
           const k = Math.max(at.mom, MO.slow);   // at most half as fast (until 23.11.2026 down to a quarter: a tired wedge froze)
           loss /= Math.sqrt(k); used /= Math.min(1.25, k);
         }
-        if (pc) this.postTake(t, pc, dAvg * dk);
+        if (pc) this.postTake(t, pc, dAvg * Math.pow(dk, CB.dFall));
         else t.troops = Math.max(0, t.troops - dAvg);
       } else {
         loss = a.type === PT.BOT ? mag / 10 : mag / 5;
@@ -6723,6 +6726,13 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   // 6 = three times as dense), worked out by shadeScan; between the middles of the cells it is
   // blended, so the map shows soft bands instead of the 16 x 16 grid.
   View.prototype.dense = function (o, t, c) {
+    // the height the fight counts (lowland, highland, mountains, as OpenFront) shows clearly under
+    // any flag: highland a little lighter, mountains much lighter. Lighter is ground, darker troops.
+    const mg = this.game.map.mag[t];
+    if (mg >= 10) {
+      const f = mg < 20 ? 44 : 104;
+      c = pack((c & 255) + (((255 - (c & 255)) * f) >> 8), ((c >>> 8) & 255) + (((255 - ((c >>> 8) & 255)) * f) >> 8), ((c >>> 16) & 255) + (((255 - ((c >>> 16) & 255)) * f) >> 8));
+    }
     const m = this.shade && this.shade.get(o);
     if (!m || !m.size) return c;
     const g = this.game, W = g.W, CS = G.POST.cell, CW = g.CW, x = t % W, y = (t - x) / W;
@@ -6730,7 +6740,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     const at = (i, j) => (i < 0 || j < 0 || i >= CW ? 0 : m.get(j * CW + i) || 0);
     const st = (at(cx, cy) * (1 - ax) + at(cx + 1, cy) * ax) * (1 - ay) + (at(cx, cy + 1) * (1 - ax) + at(cx + 1, cy + 1) * ax) * ay;
     if (st < 0.25) return c;
-    const f = 256 - Math.round(st * 15);
+    const f = 256 - Math.round(st * 19);
     return pack(((c & 255) * f) >> 8, (((c >>> 8) & 255) * f) >> 8, (((c >>> 16) & 255) * f) >> 8);
   };
   // Once a second: the step of every cell of every realm with a posture; where a step changed, the
@@ -9146,8 +9156,8 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   // does not have sit on free letters. They build at the mouse pointer.
   const BUILD = [
     { t: UT.CITY, icon: 'city', note: 'Truppen-Limit +25K', key: '1' },
-    { t: UT.PORT, icon: 'port', note: 'Handel und Kriegsschiffe', key: '3' },
     { t: UT.FACTORY, icon: 'factory', note: 'Gleise und Züge bringen Gold', key: '2' },
+    { t: UT.PORT, icon: 'port', note: 'Handel und Kriegsschiffe', key: '3' },
     { t: UT.DEFENSE, icon: 'defense', note: 'Grenze fünfmal zäher', key: '4' },
     { t: UT.SILO, icon: 'silo', note: 'Startet Bomben', key: '5' },
     { t: UT.SAM, icon: 'sam', note: 'Fängt Bomben ab', key: '6' },
@@ -9160,16 +9170,19 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     { t: UT.MIRV, icon: 'mirv', note: 'Verwüstet ein ganzes Reich', key: '0' }
   ];
   const TERRAIN = ['Ebene', 'Hochland', 'Gebirge'];
-  // What the ground under a tile is called: its cover on the Earth, with height and river.
+  // What the ground under a tile is called: its cover on the Earth, with height and river, and
+  // what it does to an attack on a realm there (as tickAttack has it), so risky ground is learnt.
   function groundName(tile) {
-    const m = game.map, lvl = m.mag[tile] < 10 ? 0 : m.mag[tile] < 20 ? 1 : 2;
-    // height rounded to 50 m and the mean temperature: both decide how fast the tile falls
-    const clim = ' · ' + (Math.round(m.elevOf(tile) / 50) * 50).toLocaleString('de-CH') + ' m · ' + m.tempOf(tile) + ' °C';
-    if (!m.cover) return TERRAIN[lvl] + clim;
-    let n = G.COVER_NAME[m.cover[tile]];
-    if (lvl) n += ', ' + TERRAIN[lvl];
-    if (m.feat[tile] & 2) n += ', grosser Fluss'; else if (m.feat[tile] & 1) n += ', Fluss';
-    return n + clim;
+    const m = game.map, mg = m.mag[tile], lvl = mg < 10 ? 0 : mg < 20 ? 1 : 2, TR = G.TERRAIN;
+    let loss = [1, 1.25, 1.5][lvl] * G.groundLoss(m, tile), time = [1, 1.2121, 1.5152][lvl] * G.groundSpeed(m, tile);
+    let n = TERRAIN[lvl];
+    if (m.cover) {
+      n = G.COVER_NAME[m.cover[tile]] + (lvl ? ', ' + TERRAIN[lvl] : '');
+      if (m.feat[tile] & 2) { n += ', grosser Fluss'; loss *= TR.greatLoss; time *= TR.greatSpeed; }
+      else if (m.feat[tile] & 1) { n += ', Fluss'; loss *= TR.riverLoss; time *= TR.riverSpeed; }
+    }
+    const x = function (v) { return (Math.round(v * 10) / 10).toLocaleString('de-CH'); };
+    return n + (loss > 1.04 || time > 1.04 ? ' · Angriff ' + x(loss) + '× Verluste, ' + x(time) + '× langsamer' : ' · Angriff normal');
   }
   const snd = function (name, gap) { G.Audio.play(name, gap); };
   const plain = function (t) { return G.UNAME[t].replace('\u00AD', ''); };
@@ -10494,7 +10507,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
       if (o && o !== h.id && game.players[o].alive) q = game.players[o];
     }
     if (!q) { if (!el.hidden) { el.hidden = true; el.dataset.id = ''; } return; }
-    const den = Math.max(1, game.map.landTiles - game.falloutCount);
+    const den = Math.max(1, game.map.landTiles - game.falloutCount), tile = view.tileAt(hoverX, hoverY);
     let tag = q.type === PT.BOT ? 'Bot' : q.type === PT.NATION ? 'Nation' : 'Mitspieler', cls = '';
     if (h.allies.has(q.id)) { tag = 'Verbündet'; cls = 'good'; }
     else if (h.out.some(function (a) { return a.active && a.tid === q.id; }) || h.inc.some(function (a) { return a.active && a.a === q; })) { tag = 'Im Krieg'; cls = 'bad'; }
@@ -10504,6 +10517,12 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     for (const e of PEEK) { const n = seen(q, e[0]); if (n > 0) { any = true; s += '<span title="' + G.UNAME[e[0]].replace('\u00AD', '') + '">' + svg(e[1], 15) + n + '</span>'; } }
     if (!any) s += '<span class="none">keine Gebäude</span>';
     s += '</div>';
+    // the spot under the pointer: what the ground does to an attack, and how dense the troops stand
+    // there (the net, drawn darker on the map)
+    let here = 'Hier: ' + groundName(tile);
+    const cell = q.post && game.CW ? q.post.cells.get(game.cellOf(tile)) : null, dk = cell && cell.n > 0 ? game.postDens(q, cell) : 1;
+    if (dk >= 1.15) here += ' · Truppen ' + (Math.round(Math.min(dk, G.COMBAT.densMax) * 10) / 10).toLocaleString('de-CH') + '× so dicht: langsamer, dort fallen auch mehr';
+    s += '<div class="pkHere">' + esc(here) + '</div>';
     if (el.dataset.html !== s) { el.innerHTML = s; el.dataset.html = s; }
     el.hidden = false;
   }

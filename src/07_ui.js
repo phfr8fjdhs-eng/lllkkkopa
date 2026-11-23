@@ -16,8 +16,8 @@
   // does not have sit on free letters. They build at the mouse pointer.
   const BUILD = [
     { t: UT.CITY, icon: 'city', note: 'Truppen-Limit +25K', key: '1' },
-    { t: UT.PORT, icon: 'port', note: 'Handel und Kriegsschiffe', key: '3' },
     { t: UT.FACTORY, icon: 'factory', note: 'Gleise und Züge bringen Gold', key: '2' },
+    { t: UT.PORT, icon: 'port', note: 'Handel und Kriegsschiffe', key: '3' },
     { t: UT.DEFENSE, icon: 'defense', note: 'Grenze fünfmal zäher', key: '4' },
     { t: UT.SILO, icon: 'silo', note: 'Startet Bomben', key: '5' },
     { t: UT.SAM, icon: 'sam', note: 'Fängt Bomben ab', key: '6' },
@@ -30,16 +30,19 @@
     { t: UT.MIRV, icon: 'mirv', note: 'Verwüstet ein ganzes Reich', key: '0' }
   ];
   const TERRAIN = ['Ebene', 'Hochland', 'Gebirge'];
-  // What the ground under a tile is called: its cover on the Earth, with height and river.
+  // What the ground under a tile is called: its cover on the Earth, with height and river, and
+  // what it does to an attack on a realm there (as tickAttack has it), so risky ground is learnt.
   function groundName(tile) {
-    const m = game.map, lvl = m.mag[tile] < 10 ? 0 : m.mag[tile] < 20 ? 1 : 2;
-    // height rounded to 50 m and the mean temperature: both decide how fast the tile falls
-    const clim = ' · ' + (Math.round(m.elevOf(tile) / 50) * 50).toLocaleString('de-CH') + ' m · ' + m.tempOf(tile) + ' °C';
-    if (!m.cover) return TERRAIN[lvl] + clim;
-    let n = G.COVER_NAME[m.cover[tile]];
-    if (lvl) n += ', ' + TERRAIN[lvl];
-    if (m.feat[tile] & 2) n += ', grosser Fluss'; else if (m.feat[tile] & 1) n += ', Fluss';
-    return n + clim;
+    const m = game.map, mg = m.mag[tile], lvl = mg < 10 ? 0 : mg < 20 ? 1 : 2, TR = G.TERRAIN;
+    let loss = [1, 1.25, 1.5][lvl] * G.groundLoss(m, tile), time = [1, 1.2121, 1.5152][lvl] * G.groundSpeed(m, tile);
+    let n = TERRAIN[lvl];
+    if (m.cover) {
+      n = G.COVER_NAME[m.cover[tile]] + (lvl ? ', ' + TERRAIN[lvl] : '');
+      if (m.feat[tile] & 2) { n += ', grosser Fluss'; loss *= TR.greatLoss; time *= TR.greatSpeed; }
+      else if (m.feat[tile] & 1) { n += ', Fluss'; loss *= TR.riverLoss; time *= TR.riverSpeed; }
+    }
+    const x = function (v) { return (Math.round(v * 10) / 10).toLocaleString('de-CH'); };
+    return n + (loss > 1.04 || time > 1.04 ? ' · Angriff ' + x(loss) + '× Verluste, ' + x(time) + '× langsamer' : ' · Angriff normal');
   }
   const snd = function (name, gap) { G.Audio.play(name, gap); };
   const plain = function (t) { return G.UNAME[t].replace('\u00AD', ''); };
@@ -1364,7 +1367,7 @@
       if (o && o !== h.id && game.players[o].alive) q = game.players[o];
     }
     if (!q) { if (!el.hidden) { el.hidden = true; el.dataset.id = ''; } return; }
-    const den = Math.max(1, game.map.landTiles - game.falloutCount);
+    const den = Math.max(1, game.map.landTiles - game.falloutCount), tile = view.tileAt(hoverX, hoverY);
     let tag = q.type === PT.BOT ? 'Bot' : q.type === PT.NATION ? 'Nation' : 'Mitspieler', cls = '';
     if (h.allies.has(q.id)) { tag = 'Verbündet'; cls = 'good'; }
     else if (h.out.some(function (a) { return a.active && a.tid === q.id; }) || h.inc.some(function (a) { return a.active && a.a === q; })) { tag = 'Im Krieg'; cls = 'bad'; }
@@ -1374,6 +1377,12 @@
     for (const e of PEEK) { const n = seen(q, e[0]); if (n > 0) { any = true; s += '<span title="' + G.UNAME[e[0]].replace('\u00AD', '') + '">' + svg(e[1], 15) + n + '</span>'; } }
     if (!any) s += '<span class="none">keine Gebäude</span>';
     s += '</div>';
+    // the spot under the pointer: what the ground does to an attack, and how dense the troops stand
+    // there (the net, drawn darker on the map)
+    let here = 'Hier: ' + groundName(tile);
+    const cell = q.post && game.CW ? q.post.cells.get(game.cellOf(tile)) : null, dk = cell && cell.n > 0 ? game.postDens(q, cell) : 1;
+    if (dk >= 1.15) here += ' · Truppen ' + (Math.round(Math.min(dk, G.COMBAT.densMax) * 10) / 10).toLocaleString('de-CH') + '× so dicht: langsamer, dort fallen auch mehr';
+    s += '<div class="pkHere">' + esc(here) + '</div>';
     if (el.dataset.html !== s) { el.innerHTML = s; el.dataset.html = s; }
     el.hidden = false;
   }

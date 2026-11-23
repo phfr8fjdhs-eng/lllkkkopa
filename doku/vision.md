@@ -28,7 +28,7 @@ Vorbereitung ist ein Bonus, nie eine Pflicht. Ein Stoss geht immer sofort mit de
 - **Schiffe und Stützpunkte:** Aufträge statt Hinschicken (Patrouille, Blockade, Geleit), Reichweite, Tanken an Stützpunkten.
 - **Luftwaffe und Flugzeugträger.**
 - **Blöcke:** Bündnisse mit gemeinsamer Frühwarnung, Durchmarsch, Stützpunkten beim Partner.
-- **Skill-Tree:** Verbesserungen als Faktoren auf Stoss, Marsch, Verteidigung (zum Beispiel Helikopter an der Front).
+- **Skill-Tree:** Verbesserungen als Faktoren auf Stoss, Marsch, Verteidigung (zum Beispiel Helikopter an der Front). Idee des Besitzers (23.11.2026): Der Dichte-Puffer ist am Anfang mild und lässt sich später im Spiel über den Skill-Tree verstärken.
 - **Karte:** mehr Details, tiefer zoomen. Kann jederzeit nebenher laufen.
 
 ## Reihenfolge

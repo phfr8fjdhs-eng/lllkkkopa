@@ -1,6 +1,17 @@
 # Änderungsprotokoll
 Was seit dem 13.11.2026 geändert wurde und warum. Den heutigen Stand der Regeln beschreiben die anderen Dateien in `doku/`.
 
+## Dichte als milder Puffer, Gelände sichtbar, Kälte weg, Hotbar (23.11.2026)
+**Wunsch des Besitzers:** Die ganze Front OpenFront-ähnlich, die Dichte ein sauberer, erkennbarer Puffer: nicht krass, vor allem gegen Überrennen, wer viel mehr hat, kommt trotzdem durch (verstärken später über den Skill-Tree). Gelände wie in OpenFront langsamer und teurer, aber man soll klar sehen, wo es riskant ist, keine unsichtbaren Flecken. Hotbar: 2 und 3 vertauscht.
+**Vorher geprüft:** Auch am echten OpenFront-Code (aktueller Stand auf GitHub): Kampfformel und Konstanten, ein Klick = 1/5 der Truppen, Gegenangriff hebt Truppe gegen Truppe auf, Rückzug 25 % sind gleich. OpenFronts Nationen schlagen sogar härter zurück als unsere (Angriff plus die Heimarmee des Angreifers). Eine Kostenkarte der Weltkarte zeigte: Fast die Hälfte des Landes war doppelt bis achtmal so teuer wie Flachland, vor allem wegen der Kälte (zwei Drittel des Landes, bis 2× langsamer und 1.5× teurer, auf der Karte nicht zu sehen); Hochland (ein Viertel der Welt) war unter der Farbe eines Reichs kaum zu erkennen.
+**Geändert:**
+- Kälte zählt im Kampf und beim Marsch nicht mehr. Hochland und Gebirge (OpenFront) sind unter jeder Farbe heller gezeichnet, genau nach der Stufe, mit der gerechnet wird.
+- Beim Darüberfahren über ein Reich: «Hier: Gebirge · Angriff 1.5× Verluste, 1.5× langsamer», und wo Truppen dicht stehen, wie dicht.
+- Dichte mild: Zeit × Dichte^0.7, Preis × Dichte^0.3, es fallen √Dichte mal der Schnitt; dichtes Land etwas kräftiger dunkel. Neue Prüfung in `node test/kampf.js dicht`: bei gleicher Stärke schützt die dichte Grenze (15 % statt 19 % Land verloren), bei doppelter Übermacht kommt man gleich weit (88 %), nur langsamer (8 statt 6 s).
+- Hotbar in der Reihenfolge der Tasten: 1 Stadt, 2 Fabrik, 3 Hafen.
+**Im Browser nachgesehen:** Gebirge und Hochland bei einer Nation gut zu erkennen, die Zeile beim Darüberfahren stimmt, Hotbar 1 2 3 4. Fall «100K gegen eine Nation mit 60K, ein Klick»: Der Klick schickt 20K; die nehmen 137 Felder, bis sie nach 9 s aufgebraucht sind (gegen eine Armee von 60K kostet jedes Feld das Doppelte, wie in OpenFront).
+**Testspieler:** überlebt vier von fünf Runden; mit Startwert 4 sitzt er in Europa zwischen starken Nationen, greift nach einer Minute selbst an und wird mit 70K von Polen mit 179K überrollt.
+
 ## Nationen schlagen nicht mehr sofort mit allem zurück (23.11.2026)
 **Rückmeldung des Besitzers:** Ich greife an, er greift zurück, das Land springt hin und her, dann sind alle Truppen tot.
 **Nachgestellt** (echtes Spiel, nach 4 Minuten alle 3 s ein Klick zu 20 % auf die Nachbarnation): kein Fehler beim Umdrehen der Felder (nur normale Angriffe, keines innerhalb von 5 s zurück). Aber die Nation antwortete auf jeden Angriff im selben Augenblick mit allem über ihrer Reserve (30 bis 40 % der Obergrenze). Der Gegenangriff hob den eigenen Angriff Truppe gegen Truppe auf, der Rest lief ins eigene Land, der nächste Klick wurde wieder abgefangen: 900 Felder wechselten dreimal oder öfter den Besitzer, auf beiden Seiten starben die Truppen.
