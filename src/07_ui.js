@@ -8,7 +8,7 @@
     });
   };
   function svg(name, size) {
-    return '<svg viewBox="0 0 24 24" width="' + size + '" height="' + size + '" aria-hidden="true"><path fill="currentColor" d="' + ICON[name] + '"/></svg>';
+    return '<svg viewBox="0 0 24 24" width="' + size + '" height="' + size + '" aria-hidden="true"><path fill="currentColor" fill-rule="evenodd" d="' + ICON[name] + '"/></svg>';
   }
 
   const COLORS = [[208, 92, 84], [84, 128, 200], [216, 164, 80], [146, 112, 196], [70, 160, 148], [206, 112, 160]];   // matt, but a touch stronger than the nations' palette

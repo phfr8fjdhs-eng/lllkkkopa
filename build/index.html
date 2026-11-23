@@ -6205,18 +6205,18 @@ body.placing #cv { cursor: crosshair; }
 
   // Icon shapes on a 24-unit grid, shared by the map and the menus.
   const ICON = G.ICON = {
-    city: 'M3 21V11h5V4h7v6h6v11zM10 6.5v2h1.6v-2zM12.4 6.5v2H14v-2zM10 10.5v2h1.6v-2zM12.4 10.5v2H14v-2zM10 14.5v2h1.6v-2zM12.4 14.5v2H14v-2zM5 13v2h1.6v-2zM5 16.5v2h1.6v-2zM17 12.5v2h1.8v-2zM17 16v2h1.8v-2z',
-    defense: 'M12 2l8.5 3.2v6.3c0 5.2-3.6 9-8.5 10.5c-4.9-1.5-8.5-5.3-8.5-10.5V5.2zM12 4.6v14.7c3.6-1.4 6.1-4.1 6.1-7.8V6.9z',
+    city: 'M1.5 21.5V11.5L6.5 7l5 4.5v10zM12.5 21.5V3.5h9v18zM14.5 6v2.2h2V6zM17.5 6v2.2h2V6zM14.5 10.2v2.2h2v-2.2zM17.5 10.2v2.2h2v-2.2zM14.5 14.4v2.2h2v-2.2zM17.5 14.4v2.2h2v-2.2zM5.3 15v6.5h2.4V15z',
+    defense: 'M12 2l8.5 3.2v6.3c0 5.2-3.6 9-8.5 10.5c-4.9-1.5-8.5-5.3-8.5-10.5V5.2z',
     port: 'M12 1.4a3.1 3.1 0 1 1 0 6.2a3.1 3.1 0 1 1 0-6.2zM12 3.1a1.4 1.4 0 1 0 0 2.8a1.4 1.4 0 1 0 0-2.8zM10.7 7.4h2.6V20h-2.6zM7 9.2h10v2.4H7zM20.8 13A8.8 8.8 0 0 1 3.2 13H6A6 6 0 0 0 18 13zM1.6 14.6L4.4 9.6L7.6 13.8zM22.4 14.6L16.4 13.8L19.6 9.6z',
-    silo: 'M12 1.5c2.3 1.9 3.6 4.6 3.6 7.8V17H8.4V9.3c0-3.2 1.3-5.9 3.6-7.8zM12 6.2a1.6 1.6 0 1 0 0 3.2a1.6 1.6 0 1 0 0-3.2zM8.4 12.5v6l-3.8 2V17zM15.6 12.5l3.8 4.5v3.5l-3.8-2zM10 18h4l-.8 2.4h-2.4zM10.8 21h2.4L12 23.5z',
-    sam: 'M2.5 18h19v3.5h-19zM5.3 14.3L14.8 4.8L18.2 3.8L17.2 7.2L7.7 16.7zM8.6 17.6L18.1 8.1L21.5 7.1L20.5 10.5L11 20zM4 14.5h5.5V18H4z',
+    silo: 'M12 1c2 1.6 3 4 3 6.8V17H9V7.8C9 5 10 2.6 12 1zM9 12.2l-3.2 3.4V20L9 18zM15 12.2l3.2 3.4V20L15 18zM10 18h4v2l-2 2.2l-2-2.2z',
+    sam: 'M2.5 19.5h19V22h-19zM4.5 19L7 16.2L17.6 5.6L21.5 3.5L19.4 7.4L8.8 18zM6.2 13.4l3.2-.8l-2 2.2zM10.6 17.8l.8-3.2l1.4 2z',
     factory: 'M2.5 21V10l5.2 3.4V10l5.2 3.4V3.5h3.6V12h5v9zM5.2 15.5V18h2.4v-2.5zM10.4 15.5V18h2.4v-2.5zM15.6 15.5V18H18v-2.5z',
     warship: 'M1 14.5h22l-3.2 5H4.6zM7.5 14.5v-3h2V8h3.5V5.5h1.6V8h1.4v3.5H18v3zM2.5 12.6h4.2v1.4H2.5zM19 12.2h3v1.3h-3z',
     boat: 'M3 14h18l-3 6H6zM11 3h1.6v10H11zM13.4 4l5.6 8h-5.6z',
     atom: 'M12 2l2 3h-4zM9.5 5h5v2.5c2.6 1 4.5 3.6 4.5 6.6c0 3.9-3.1 7-7 7s-7-3.1-7-7c0-3 1.9-5.6 4.5-6.6z',
     hydro: 'M12 1l2.4 6.2l6.2-2.6l-2.6 6.2L24 12l-6 1.2l2.6 6.2l-6.2-2.6L12 23l-2.4-6.2l-6.2 2.6l2.6-6.2L0 12l6-1.2L3.4 4.6l6.2 2.6z',
     mirv: 'M4 20l2.5-13L9 20zM9.5 20L12 4l2.5 16zM15 20l2.5-13L20 20z',
-    cloak: 'M12 5.5c4.3 0 8 2.6 10 6.5c-.8 1.6-1.9 3-3.3 4.1l-2.6-2.6a4.4 4.4 0 0 0-5.6-5.6L8.3 5.7c1.2-.1 2.4-.2 3.7-.2zM2 12c.8-1.6 1.9-3 3.3-4.1l2.6 2.6a4.4 4.4 0 0 0 5.6 5.6l2.2 2.2c-1.2.4-2.4.6-3.7.6c-4.3 0-8-2.6-10-6.9zM3.2 4.6l1.4-1.4l16.2 16.2l-1.4 1.4z',
+    cloak: 'M12 2.5c4.4 0 7.5 3.4 7.5 8V21.5l-2.5-1.8l-2.5 1.8L12 19.7l-2.5 1.8L7 19.7l-2.5 1.8V10.5c0-4.6 3.1-8 7.5-8z',
     sword: 'M21 3l-1.5 6L10 18.5L5.5 14L15 4.5zM3.5 13L5 11.5l7.5 7.5l-1.5 1.5zM5.2 16.6l2.2 2.2l-2.9 2.9l-2.2-2.2z',
     hammer: 'M13.5 2.5l8 8l-3.5 3.5l-8-8zM11.6 9.6l2.8 2.8L5.3 21.5a2 2 0 0 1-2.8-2.8z',
     info: 'M12 2.5a9.5 9.5 0 1 0 0 19a9.5 9.5 0 0 0 0-19zM12 4.3a7.7 7.7 0 1 1 0 15.4a7.7 7.7 0 0 1 0-15.4zM12 6.3a1.3 1.3 0 1 0 0 2.6a1.3 1.3 0 0 0 0-2.6zM11 10.5h2V18h-2z',
@@ -6246,19 +6246,8 @@ body.placing #cv { cursor: crosshair; }
     target: 'M11 1h2v3.1a8 8 0 0 1 6.9 6.9H23v2h-3.1a8 8 0 0 1-6.9 6.9V23h-2v-3.1A8 8 0 0 1 4.1 13H1v-2h3.1A8 8 0 0 1 11 4.1zM12 6a6 6 0 1 0 0 12a6 6 0 0 0 0-12zM12 9.5a2.5 2.5 0 1 1 0 5a2.5 2.5 0 0 1 0-5z'
   };
   const STRUCT_ICON = ['city', 'defense', 'port', 'silo', 'sam', 'factory', 'cloak'];
-  // Signs that change with the level, close up: a village grows into a town and a city of towers,
-  // a port gets a crane and containers, a factory a second hall and chimney.
-  ICON.village = 'M2.5 21v-7.5l4.75-4.5 4.75 4.5V21zM12.5 21V10.5l4.5-4.5 4.5 4.5V21zM6.1 17.5v3.5h2.3v-3.5zM15.8 12.5v2.3h2.4v-2.3zM15.8 16.5v4.5h2.4v-4.5z';
-  ICON.metro = 'M3 21V9h4V21zM8.5 21V3.5L10.75 1.5 13 3.5V21zM14.5 21V7h6.5V21zM9.9 6v1.6h1.7V6zM9.9 10v1.6h1.7V10zM9.9 14v1.6h1.7V14zM4.4 11v1.6h1.2V11zM4.4 15v1.6h1.2V15zM16 9v1.6h1.5V9zM18.5 9v1.6h1.2V9zM16 13v1.6h1.5V13zM18.5 13v1.6h1.2V13z';
-  ICON.port2 = 'M1.5 21v-2.2h21V21zM2.5 18.5V15h5v3.5zM8 18.5V15h5v3.5zM5 14.5V11h5v3.5zM15 18.5V3h2v15.5zM10 4V2.5h12V4zM11 4h1v6h-1zM10 10h3v2h-3z';
-  ICON.factory2 = 'M2 21V11l4.5 3V11l4.5 3V5h2.6v9h2V3h2.6v11H22v7zM4.5 16.5V19h2.4v-2.5zM9.3 16.5V19h2.4v-2.5zM14.1 16.5V19h2.4v-2.5zM18 16.5V19h2.4v-2.5z';
-  // the sign for a building of this type and level, and how much larger it is drawn (up to a quarter)
-  function signOf(type, lv) {
-    if (type === UT.CITY) return lv >= 15 ? 'metro' : lv >= 4 ? 'city' : 'village';
-    if (type === UT.PORT) return lv >= 10 ? 'port2' : 'port';
-    if (type === UT.FACTORY) return lv >= 10 ? 'factory2' : 'factory';
-    return STRUCT_ICON[type];
-  }
+  // The sign of a kind of building, the same at every level (the level is a number above it)
+  function signOf(type) { return STRUCT_ICON[type]; }
   // Is building u hidden from the player at this screen? Asked every frame, so kept for the tick.
   function hid(g, u) {
     if (u.hidT !== g.ticks) { u.hidT = g.ticks; u.hidV = g.hiddenFrom(u, g.human); }
@@ -6271,7 +6260,7 @@ body.placing #cv { cursor: crosshair; }
     ctx.save();
     ctx.translate(x - s / 2, y - s / 2);
     ctx.scale(s / 24, s / 24);
-    ctx.fill(p);
+    ctx.fill(p, 'evenodd');   // windows and doors are holes in the sign
     ctx.restore();
   }
 
@@ -6417,6 +6406,7 @@ body.placing #cv { cursor: crosshair; }
       p.cssL = 'rgb(' + Math.round(p.r * 0.3 + 172) + ',' + Math.round(p.g * 0.3 + 172) + ',' + Math.round(p.b * 0.3 + 172) + ')';
       p.css = 'rgb(' + p.r + ',' + p.g + ',' + p.b + ')';
       p.cssB = 'rgb(' + Math.round(p.r * 0.58) + ',' + Math.round(p.g * 0.58) + ',' + Math.round(p.b * 0.58) + ')';
+      { const l = p.r * 0.299 + p.g * 0.587 + p.b * 0.114; p.rs = Math.round(l + (p.r - l) * 0.85); p.gs = Math.round(l + (p.g - l) * 0.85); p.bs = Math.round(l + (p.b - l) * 0.85); }
       // buildings and rails as OpenFront colours them: fill at 65 % brightness, rim and other people's rails darker
       p.cssI = 'rgb(' + Math.round(p.r * 0.65) + ',' + Math.round(p.g * 0.65) + ',' + Math.round(p.b * 0.65) + ')';
       p.cssR = 'rgb(' + Math.round(p.r * 0.1) + ',' + Math.round(p.g * 0.1) + ',' + Math.round(p.b * 0.1) + ')';
@@ -6466,7 +6456,9 @@ body.placing #cv { cursor: crosshair; }
         this.px[t] = this.dense(o, t, pack(r > 255 ? 255 : r, gg > 255 ? 255 : gg, bl > 255 ? 255 : bl));
       }
     } else {
-      this.px[t] = this.dense(o, t, pack(((b & 255) * 84 + p.r * 172) >> 8, (((b >>> 8) & 255) * 84 + p.g * 172) >> 8, (((b >>> 16) & 255) * 84 + p.b * 172) >> 8));
+      // as OpenFront: the owner's colour at 85 % saturation laid over the ground at 59 % (until
+      // 23.11.2026 67 %, full colour, and highland and mountains lightened on top)
+      this.px[t] = this.dense(o, t, pack(((b & 255) * 105 + p.rs * 151) >> 8, (((b >>> 8) & 255) * 105 + p.gs * 151) >> 8, (((b >>> 16) & 255) * 105 + p.bs * 151) >> 8));
     }
   };
   // Density shows on the map (23.11.2026): land is darker where its owner keeps more troops than
@@ -6475,13 +6467,6 @@ body.placing #cv { cursor: crosshair; }
   // 6 = three times as dense), worked out by shadeScan; between the middles of the cells it is
   // blended, so the map shows soft bands instead of the 16 x 16 grid.
   View.prototype.dense = function (o, t, c) {
-    // the height the fight counts (lowland, highland, mountains, as OpenFront) shows clearly under
-    // any flag: highland a little lighter, mountains much lighter. Lighter is ground, darker troops.
-    const mg = this.game.map.mag[t];
-    if (mg >= 10) {
-      const f = mg < 20 ? 26 : 84;
-      c = pack((c & 255) + (((255 - (c & 255)) * f) >> 8), ((c >>> 8) & 255) + (((255 - ((c >>> 8) & 255)) * f) >> 8), ((c >>> 16) & 255) + (((255 - ((c >>> 16) & 255)) * f) >> 8));
-    }
     const m = this.shade && this.shade.get(o);
     if (!m || !m.size) return c;
     const g = this.game, W = g.W, CS = G.POST.cell, CW = g.CW, x = t % W, y = (t - x) / W;
@@ -6921,6 +6906,54 @@ body.placing #cv { cursor: crosshair; }
 
   // What a build key is about to place, shown under the mouse pointer: in the player's colour when it
   // can be built there, red when it cannot (too little gold, wrong spot ...). Bombs show their blast.
+  // Placing a station (city, port, factory), as OpenFront shows it: the railway network it would join
+  // lights up green, and the new tracks to it are drawn faintly. A city or port joins the network
+  // of the nearest factory in reach, at its station nearest to the spot (as rebuildRails does); a
+  // factory ties in the stations around it. Worked out once per spot (railPath is heavy).
+  View.prototype.railPreview = function (ctx, g, z, ox, oy, gh) {
+    const W = g.W, h = g.human, key = gh.tile + ':' + gh.type + ':' + g.rails.length;
+    let pv = this.railPv;
+    if (!pv || pv.key !== key) {
+      pv = this.railPv = { key: key, paths: [], net: new Set() };
+      const gx = gh.tile % W, gy = (gh.tile / W) | 0, r2 = g.R.rail * g.R.rail;
+      const near = [];
+      for (const u of g.structAt.values()) {
+        if (!u.built || !G.isStation(u.type) || hid(g, u)) continue;
+        const d = (u.x - gx) * (u.x - gx) + (u.y - gy) * (u.y - gy);
+        if (d <= r2) near.push({ u: u, d: d });
+      }
+      near.sort(function (a, b) { return a.d - b.d || a.u.id - b.u.id; });
+      const to = [];
+      if (gh.type === UT.FACTORY) { for (let i = 0; i < near.length && to.length < 6; i++) to.push(near[i].u); }
+      else {
+        // the nearest factory in reach and, of its network, the station nearest to the spot
+        const f = near.find(function (e) { return e.u.type === UT.FACTORY; });
+        if (f) {
+          const seen = new Set([f.u.id]), queue = [f.u];
+          for (let i = 0; i < queue.length; i++) for (const e of g.railAdj.get(queue[i].id) || []) {
+            pv.net.add(e);
+            const o = e.a === queue[i] ? e.b : e.a;
+            if (!seen.has(o.id)) { seen.add(o.id); queue.push(o); }
+          }
+          let best = f.u, bd = f.d;
+          for (const e of near) if (seen.has(e.u.id) && e.d < bd) { bd = e.d; best = e.u; }
+          to.push(best);
+        }
+      }
+      for (const u of to) { const path = g.railPath(gh.tile, u.tile); if (path) pv.paths.push(path); }
+    }
+    const zz = z * (g.S || 1), lw = Math.max(2, zz);
+    ctx.lineJoin = 'miter'; ctx.lineCap = 'square';
+    const line = function (c) {
+      ctx.beginPath();
+      for (let i = 0; i < c.length; i++) { const x = (c[i] % W + 0.5) * z + ox, y = (((c[i] / W) | 0) + 0.5) * z + oy; if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y); }
+      ctx.stroke();
+    };
+    ctx.lineWidth = lw; ctx.strokeStyle = 'rgba(51,217,77,0.9)';
+    for (const e of pv.net) line(e.path.pts || e.path);
+    ctx.lineWidth = lw; ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+    for (const p of pv.paths) line(p);
+  };
   View.prototype.drawGhost = function (ctx, g, z, ox, oy, now) {
     const gh = this.ghost, W = g.W, R = g.R, h = g.human;
     if (gh.tile < 0 || !h) return;
@@ -6939,6 +6972,7 @@ body.placing #cv { cursor: crosshair; }
     } else if (rout) {
       telegraph(ctx, x, y, rin * z, rout * z, bad ? '200,208,216' : REL.aim, now);
     } else if (t <= UT.CLOAK) {
+      if (!bad && g.bahn !== undefined && G.isStation(t)) this.railPreview(ctx, g, z, ox, oy, gh);
       // what the building would cover: a defence post its stretch of border, an air defence its sky,
       // a cloaking tower the few buildings around it that it hides
       const reach = t === UT.DEFENSE ? R.defense : t === UT.SAM ? g.samRange({ level: 1 }) : t === UT.CLOAK ? R.cloak : 0;
@@ -7160,8 +7194,7 @@ body.placing #cv { cursor: crosshair; }
 
   // The water a ship has crossed. A troop boat keeps its whole course in its owner's colour until it
   // lands (as in OpenFront); warships and merchants leave nothing behind.
-  // A troop boat leaves a short trail that fades out behind it (the last 24 tiles); your own boats
-  // also show a small ring where they will land. Until 23.11.2026 the whole course stayed on the
+  // A troop boat leaves a short trail that fades out behind it (the last 16 tiles). Until 23.11.2026 the whole course stayed on the
   // map as a heavy line, the part still ahead dashed: long lines across the oceans that drew the
   // eye more than the boats.
   View.prototype.drawWakes = function (ctx, g, z, ox, oy, alpha) {
@@ -7172,8 +7205,8 @@ body.placing #cv { cursor: crosshair; }
       if (!u.active || !u.path || u.type !== UT.TRANSPORT) continue;
       const p = u.path, end = Math.min(u.pi, p.length - 1);
       const hx = (u.vx + 0.5) * z + ox, hy = (u.vy + 0.5) * z + oy, col = u.owner.cssB || u.owner.css;
-      const len = 24, from = Math.max(0, end - len);
-      ctx.lineWidth = Math.max(1.5, zz * 1.2); ctx.strokeStyle = col;
+      const len = 16, from = Math.max(0, end - len);
+      ctx.lineWidth = Math.max(1.2, zz * 0.8); ctx.strokeStyle = col;
       for (let k = from; k < end; k += 2) {
         const a = p[k], b = p[Math.min(end, k + 2)];
         ctx.globalAlpha = 0.6 * (k - from + 1) / (end - from + 1);
@@ -7182,12 +7215,6 @@ body.placing #cv { cursor: crosshair; }
         ctx.stroke();
       }
       ctx.globalAlpha = 1;
-      if (u.owner === g.human && !u.retreat) {
-        const lt = p[p.length - 1], lx = (lt % W + 0.5) * z + ox, ly = (((lt / W) | 0) + 0.5) * z + oy, r = Math.max(5, zz * 3);
-        ctx.beginPath(); ctx.arc(lx, ly, r, 0, 6.2832);
-        ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(8,14,22,.7)'; ctx.stroke();
-        ctx.lineWidth = 1.6; ctx.strokeStyle = '#fff'; ctx.stroke();
-      }
     }
   };
 
@@ -7430,9 +7457,9 @@ body.placing #cv { cursor: crosshair; }
         ctx.beginPath();
         ctx.moveTo(-bs * 0.85, -bs * 0.5); ctx.lineTo(bs * 0.3, -bs * 0.5); ctx.quadraticCurveTo(bs, -bs * 0.45, bs, 0);
         ctx.quadraticCurveTo(bs, bs * 0.45, bs * 0.3, bs * 0.5); ctx.lineTo(-bs * 0.85, bs * 0.5); ctx.closePath();
-        ctx.lineJoin = 'round'; ctx.lineWidth = Math.max(1.6, bs * 0.22); ctx.strokeStyle = '#fff'; ctx.stroke();
+        ctx.lineJoin = 'round'; ctx.lineWidth = Math.max(1.4, bs * 0.18); ctx.strokeStyle = '#0b1016'; ctx.stroke();
         ctx.fillStyle = p.css; ctx.fill();
-        ctx.fillStyle = p.cssB; ctx.fillRect(-bs * 0.5, -bs * 0.22, bs * 0.8, bs * 0.44);
+        ctx.fillStyle = 'rgba(245,247,250,.92)'; ctx.fillRect(-bs * 0.45, -bs * 0.2, bs * 0.7, bs * 0.4);
         ctx.restore();
       } else if (ty === UT.TRAIN) {
         if (u.edge && (hid(g, u.edge.a) || hid(g, u.edge.b))) continue;
@@ -8782,7 +8809,7 @@ body.placing #cv { cursor: crosshair; }
     });
   };
   function svg(name, size) {
-    return '<svg viewBox="0 0 24 24" width="' + size + '" height="' + size + '" aria-hidden="true"><path fill="currentColor" d="' + ICON[name] + '"/></svg>';
+    return '<svg viewBox="0 0 24 24" width="' + size + '" height="' + size + '" aria-hidden="true"><path fill="currentColor" fill-rule="evenodd" d="' + ICON[name] + '"/></svg>';
   }
 
   const COLORS = [[208, 92, 84], [84, 128, 200], [216, 164, 80], [146, 112, 196], [70, 160, 148], [206, 112, 160]];   // matt, but a touch stronger than the nations' palette

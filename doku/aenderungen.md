@@ -1,6 +1,14 @@
 # Änderungsprotokoll
 Was seit dem 13.11.2026 geändert wurde und warum. Den heutigen Stand der Regeln beschreiben die anderen Dateien in `doku/`.
 
+## Neue Zeichen, Schienen-Vorschau beim Bauen, Landfarbe wie OpenFront (23.11.2026)
+**Rückmeldung des Besitzers:** Fabrik und Hafen gefallen, die übrigen Zeichen nicht; Rakete wie eine Interkontinentalrakete, Flugabwehr wie eine Abfangrakete. Beim Platzieren sollen die Gleise grün leuchten, damit man sieht, zu welcher Fabrik eine Stadt gehört (wie OpenFront). Der Hintergrund scheint bei OpenFront schöner durch. Transportboot: Route, Aussehen und Zielkreis gefallen nicht.
+**Geändert** (`src/06_view.js`, `src/07_ui.js`):
+- Zeichen neu: Stadt (Haus mit Giebel und Hochhaus mit Fenstern), Verteidigungsposten (Schild), Silo (aufrechte Interkontinentalrakete mit Flossen), Flugabwehr (schlanke Abfangrakete schräg auf der Rampe), Tarnturm (Gespenst). Fabrik und Hafen bleiben. Ein Zeichen je Art, die Stufe nur als Zahl. Fenster und Türen als Löcher (Füllregel evenodd, auch in der Hotbar).
+- Beim Platzieren einer Stadt oder eines Hafens leuchtet das Netz der nächsten Fabrik in Reichweite grün, und die neue Strecke zu ihrem nächsten Bahnhof ist hell vorgezeichnet; bei einer Fabrik die Strecken zu den Bahnhöfen um sie (`railPreview`).
+- Landfarbe wie OpenFront: die Besitzerfarbe mit 85 % Sättigung zu 59 % über dem Gelände (vorher 67 %, volle Farbe, Hoch- und Gebirge zusätzlich aufgehellt).
+- Transportboot: dunkler Rand, heller Aufbau, kürzere und dünnere Spur (16 Felder), kein Zielkreis mehr.
+
 ## Handel in drei Klassen, Kriegsschiffe zurückhaltender (23.11.2026)
 **Wunsch des Besitzers:** Handelsschiff klein, wenig Gold, kurze Reichweite; dann grössere mit mehr Reichweite; Containerschiffe im späten Spiel mit grosser, aber begrenzter Reichweite, langsam, schwer zu kapern, viel Gold. Kriegsschiffe zu stark: sie sollen vor allem kapern und Transportboote abwehren, kleinerer Radius, und nur auf Boote schiessen, die einen selbst oder einen Verbündeten angreifen.
 **Geändert:**
