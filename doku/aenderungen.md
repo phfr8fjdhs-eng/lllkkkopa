@@ -1,6 +1,19 @@
 # Änderungsprotokoll
 Was seit dem 13.11.2026 geändert wurde und warum. Den heutigen Stand der Regeln beschreiben die anderen Dateien in `doku/`.
 
+## Ganze Front wieder brauchbar: Preis nach der ganzen Stärke (23.11.2026)
+**Rückmeldung des Besitzers:** Mit der ganzen Front sterben die Truppen extrem schnell; im frühen Spiel soll die ganze Front der Normalfall sein, ohne gezielt angreifen zu müssen.
+**Nachgestellt** in einem echten frühen Spiel (Weltkarte, Nationen auf «Mittel», Optionen wie auf dem Startbildschirm, nach 4 Minuten ein Klick mit 20 % auf die erste Nation):
+- Mit 196K von 980K gegen eine Nation mit 475K verlor der Angriff sechs Truppen pro gefallenem Verteidiger. Grund: Wie OpenFront verglich der Preis die Armee des Verteidigers nur mit dem Angriff, also galt mit 20 % fast immer der Höchstpreis, obwohl man doppelt so stark war.
+- Nach 6 bis 8 s griff die Nation zurück, und ihr Gegenangriff hob den eigenen Angriff Truppe gegen Truppe auf (wie OpenFront), ohne jede Meldung. Für den Spieler: Angriff weg, Truppen weg.
+**Geändert:**
+- Der Preis pro Feld der ganzen Front vergleicht die Armee des Verteidigers mit allem, was der Angreifer hat (Angriffe plus Truppen zu Hause). Das stärkere Reich kämpft billiger, egal ob es 20 % oder 100 % schickt. Hinter Keil, Abschnitt und Richtung stehen nur 15 % der Truppen zu Hause (`G.COMBAT.back`); mit allen brach ein Keil in «Feste Grenzen» überall durch und nahm mehr Land als die ganze Front, ohne sie kam er kaum tiefer als die ganze Front. Vorschau und Warnung in der Leiste («der Gegner ist stärker») rechnen gleich.
+- Messbank: «Eingraben» schickt weiter 45K, aber aus einem Reich von 60K statt 150K (sonst fegte die ganze Front 91 % weg, eingegraben oder nicht).
+- Meldung, wenn ein Gegenangriff den eigenen Angriff abfängt.
+- `test/spieler.js`: Der Testspieler hielt Wasser für freies Land (Wasser hat auch keinen Besitzer) und griff darum nie eine Nation an; behoben.
+**Gemessen** mit dem Testspieler (20 Minuten, Grenzland, Startwerte 4 bis 7): Angriffe auf Nationen nehmen 109 bis 130 Felder pro 10K Verluste statt 36 bis 73. Er überlebt alle vier Runden (zweimal Platz 1, zweimal Platz 2, wenn sein Kontinent voll ist); vorher schied er in zwei der vier aus. `node test/kampf.js echt`: 50K gegen eine eingesessene Nation mit 30K, halb geschickt, 370 von 2000 Feldern (OpenFront 254).
+**Noch offen, gemessen:** Ohne Schwung auf der ganzen Front (seit dem Eintrag davor) schneeballt eine Runde: Die stärkste Nation hat nach 10 bis 15 Minuten gut 40 % der Welt und überrennt dann alles (Testspieler mit Startwert 4: 1.4M Truppen, von 5.9M in 5 s überrannt). Das war mit dem alten Preis gleich. Nächster Schritt: Angriffe grosser Reiche im späten Spiel bremsen.
+
 ## Angriff blieb stehen, Truppen kamen zurück (23.11.2026)
 **Rückmeldung des Besitzers:** mit 80K gegen eine Nation mit 10K angegriffen, der Angriff geht nicht vorwärts, die Truppen sind wieder in der Reserve.
 **Nachgestellt** (80K gegen 10K, alle 3 s ein Klick auf die ganze Front): Jeder Klick speiste denselben Angriff, und der hatte Schwung. Mehrere Klicks hintereinander von denselben Abschnitten liessen ihn müde starten (28 bis 32 %), er blieb nach wenigen Feldern stehen («keinen Schwung mehr») und die Truppen kamen zurück. Ein zweiter Keil von derselben Stelle fror ein: Schwung knapp über 25 %, jedes Feld dadurch viermal langsamer, an verteidigtem Boden ein Feld alle paar Minuten, 51K Truppen gebunden, ohne Meldung; ein weiterer Klick hängte sich an diesen eingefrorenen Angriff.

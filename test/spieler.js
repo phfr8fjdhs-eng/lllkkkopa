@@ -46,7 +46,7 @@ async function loadMap(id) {
     return end(at, refund);
   };
   const step = () => { g.tick(); g.dirtyN = 0; g.dirtyFlag.fill(0); g.events.length = 0; };
-  const near = (q) => { for (const b of h.border) for (const n of [b - 1, b + 1, b - W, b + W]) if (n >= 0 && n < g.N && g.owner[n] === q) return n; return -1; };
+  const near = (q) => { for (const b of h.border) for (const n of [b - 1, b + 1, b - W, b + W]) if (n >= 0 && n < g.N && map.land[n] && g.owner[n] === q) return n; return -1; };   // land only: water has no owner either
   let turn = 0;
   const think = () => {
     if (!h.alive || g.phase !== 'play') return;

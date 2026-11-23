@@ -24,7 +24,9 @@
   //   dens      since 23.11.2026 a tile costs OpenFront's price (within(army / attack, 0.6, 2) x troops
   //             per tile), times density^dens and the cell's hold (dug in, cut off); base, exchange,
   //             fMin, fMax, army and armyFrom no longer price a tile (base still scales momentum)
-  G.COMBAT = { base: 16, exchange: 1, fMin: 0.7, fMax: 1.5, depth: 24, army: 2, armyFrom: 1.5, dens: 0.6 };
+  //   back      how much of the troops at home stand behind a narrow attack in its price (the whole
+  //             front has all of them behind it, see tickAttack `R`; 23.11.2026)
+  G.COMBAT = { back: 0.15, base: 16, exchange: 1, fMin: 0.7, fMax: 1.5, depth: 24, army: 2, armyFrom: 1.5, dens: 0.6 };
   // Thrusts: an attack aimed at a spot instead of the whole front.
   //   widths  lane width in tiles on the world map for mode 1 (section) and 2 (wedge); scaled by map.S
   //   max     thrusts a player can have under way at once
@@ -886,7 +888,7 @@
           let mag = 1 + (gl - 1) * hold, speed = 16.5 * (1 + (gs - 1) * hold);
           if (dp && dp.length) for (let i = 0; i < dp.length; i++) { const dx = dp[i].x - x, dy = dp[i].y - y; if (dx * dx + dy * dy <= dr2) { mag *= 3 + 2 * dp[i].level; speed *= 1 + 2 * dp[i].level; break; } }
           // as the fight has it (tickAttack): OpenFront's price, then density and holding
-          const R = tT / Math.max(1, troops), m0 = gl * mag / (1 + (gl - 1) * hold), dk = pc ? dens * (1 + 0.25 * Math.min(1, T / 100)) : 1, D = dAvg * dk;
+          const R = tT / Math.max(1, troops + Math.max(0, p.troops - troops) * CB.back), m0 = gl * mag / (1 + (gl - 1) * hold), dk = pc ? dens * (1 + 0.25 * Math.min(1, T / 100)) : 1, D = dAvg * dk;
           loss = Math.max(80 * m0 * within(R, 0.6, 2) * (0.463 + 0.0039 * dAvg) * dk * (pc ? this.postHold(pc) : 1) * botMod * lossMod * traitor, CB.base * m0 * within(R, 0.6, 2) * botMod * lossMod);
           used = within(1 / (5 * Math.max(r, 0.01)), 0.2, 1.5) * speed * speedMod * (easy ? 0.45 : 1);
           used *= within(R, 0.82, 7.5) * within(R / 20, 1, 50) / 0.82;
@@ -1066,6 +1068,8 @@
       if (!inc.active || inc.a !== t) continue;
       if (inc.troops > troops) { inc.troops -= troops; return 0; }
       troops -= inc.troops;
+      // a counter-attack catches our attack: both lose as many, one for one (as OpenFront)
+      if (t === this.human && t.alive) this.say('Dein Angriff auf ' + a.name + ' wurde vom Gegenangriff abgefangen (' + G.fmt(inc.troops) + ' gegen ' + G.fmt(inc.troops) + ')', 'warn');
       this.endAttack(inc, false);
     }
     return troops;
@@ -1236,7 +1240,15 @@
         // Until 23.11.2026 a flat 16 per tile came on top, dense ground lost fewer of its own than
         // stood there, and the factors stood in a row: against a nation dug in along its border an
         // attacker lost almost four times what the defender lost, twice OpenFront's rate.
-        const R = t.troops / Math.max(1, sent), D = dAvg * (pc ? this.postDens(t, pc) : 1), holdF = pc ? this.postHold(pc) : 1;
+        // R: the defender's army against everything the attacker has (this attack, the others on
+        // the same defender, the troops at home), for the whole front. OpenFront counts only the
+        // attack, so a click with 20 % paid the top price against any nation with more than that,
+        // however much stronger the attacker was: 196K of 980K against a nation of 475K lost six
+        // for every defender (until 23.11.2026). Now the stronger realm fights cheaper on the whole
+        // front, whatever share it sends. A narrow attack (wedge, section, direction) has only a
+        // little of that behind it (`back`): a blitz needs troops of its own, and a wedge still
+        // gets deeper than the whole front (with all of the realm it broke through everywhere).
+        const R = t.troops / Math.max(1, sent + a.troops * (narrow ? CB.back : 1)), D = dAvg * (pc ? this.postDens(t, pc) : 1), holdF = pc ? this.postHold(pc) : 1;
         const m0 = 80 * gl * (mag / (80 * (1 + (gl - 1) * hold)));
         loss = m0 * within(R, 0.6, 2) * (0.463 + 0.0039 * dAvg) * (D / Math.max(1e-6, dAvg)) * holdF * botMod * lossMod * traitor;
         // never cheaper than empty land: a thinly held stretch still has to be crossed (`base`, what

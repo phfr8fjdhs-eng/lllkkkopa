@@ -196,10 +196,12 @@ function valley(map) {
 // The whole front against a defender whose troops have stood a long time (dug in) and one that has
 // just arrived: dug in holds more land.
 function dugIn(map, dug) {
-  const sc = { at: 3000, dt: 1200, aT: 150000, dT: 40000 }, A = arena(map, sc, false), g = A.g, h = A.h, foe = A.foe;
+  // 45K sent, as ever, but from a realm of 60K: since 23.11.2026 the whole front fights with the
+  // whole realm behind it, and 150K behind 45K swept 91 % of the land however dug in it was
+  const sc = { at: 3000, dt: 1200, aT: 60000, dT: 40000 }, A = arena(map, sc, false), g = A.g, h = A.h, foe = A.foe;
   for (const c of foe.post.cells.values()) c.e = dug ? 1 : 0;
   const t0 = foe.tiles;
-  g.exec(h.id, { k: 'strike', t: foe.border.values().next().value, r: 0.3, w: 0 });
+  g.exec(h.id, { k: 'strike', t: foe.border.values().next().value, r: 0.75, w: 0 });
   for (let k = 0; k < LIMIT && h.out.some((a) => a.active); k++) { g.tick(); g.dirtyN = 0; g.dirtyFlag.fill(0); g.events.length = 0; }
   return 1 - foe.tiles / t0;
 }
@@ -364,7 +366,7 @@ function runThrustIn(g, h, foe, mode, share) {
   }
   if (!only || only === 'abwehr') {
     const fresh = dugIn(map, false), dug = dugIn(map, true);
-    console.log('Eingraben: 30 % von 150K gegen 40K nehmen ' + (fresh * 100).toFixed(0) + ' % des Landes bei frisch angekommenen Verteidigern, ' + (dug * 100).toFixed(0) + ' % bei eingegrabenen');
+    console.log('Eingraben: 45K (75 % von 60K) gegen 40K nehmen ' + (fresh * 100).toFixed(0) + ' % des Landes bei frisch angekommenen Verteidigern, ' + (dug * 100).toFixed(0) + ' % bei eingegrabenen');
     if (!(dug < fresh * 0.85)) { bad++; console.log('  FAIL: Eingraben wirkt kaum'); }
     const off = reserves(map, false), on = reserves(map, true);
     console.log('Reserven: Keil mit 6 % von 400K gegen 200K schafft ' + (off.depth * 100).toFixed(0) + ' % des Wegs ohne, ' + (on.depth * 100).toFixed(0) + ' % mit Reserven des Verteidigers (Felder ' + off.took + ' / ' + on.took + ')');
