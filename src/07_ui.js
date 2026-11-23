@@ -1332,15 +1332,16 @@
       if (i && i.later >= 1) t += ' · ' + fmtT(i.now) + ' sofort, ' + fmtT(i.later) + ' unterwegs (ca. ' + Math.max(1, Math.round(i.eta)) + ' s)';
       return t;
     }
-    // the whole front: a warning when the other's army is bigger than all we have (attacks under
-    // way and troops at home); then every tile costs up to twice as much (tickAttack, `R`)
+    // the whole front: a warning when what goes against the other (this click and what already
+    // runs against him) is small against his whole army; then every tile costs up to twice as much
+    // (OpenFront: within(army / attack, 0.6, 2), tileLoss)
     const o = game.owner[tile], q = o ? game.players[o] : null;
     if (q && q.alive && q.type !== PT.BOT && !game.friendly(h, q)) {
-      let all = h.troops;
-      for (const a of h.out) if (a.active && a.tid === q.id) all += a.troops;
-      const k = q.troops / Math.max(1, all);
-      if (k > 1.2) return 'Ganze Front · deine ' + fmtT(all) + ' gegen ' + fmtT(q.troops) + ': der Gegner ist stärker, jedes Feld kostet ' + (k >= 2 ? 'doppelt' : 'deutlich mehr');
-      if (k > 0.8) return 'Ganze Front · deine ' + fmtT(all) + ' gegen ' + fmtT(q.troops) + ': ausgeglichen, teuer';
+      let sent = h.troops * ratio;
+      for (const a of h.out) if (a.active && a.tid === q.id) sent += a.troops;
+      const k = q.troops / Math.max(1, sent);
+      if (k > 1.2) return 'Ganze Front · ' + fmtT(sent) + ' gegen ' + fmtT(q.troops) + ': jedes Feld kostet ' + (k >= 2 ? 'doppelt' : 'deutlich mehr') + ', schicke mehr';
+      if (k > 0.8) return 'Ganze Front · ' + fmtT(sent) + ' gegen ' + fmtT(q.troops) + ': ausgeglichen, teuer';
     }
     return '';
   }

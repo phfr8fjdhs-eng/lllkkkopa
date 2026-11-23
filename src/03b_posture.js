@@ -374,31 +374,13 @@
       this.postStarve(p);
     }
   };
-  // How a nation stands: its computer decides, every few seconds, much as a person would with the
-  // net. A little denser along borders with realms that could hurt it (the stronger the
-  // neighbour, the denser, at most twice the interior), allies and bots count as safe. Until
-  // 23.11.2026 up to four times the interior, allies at 40 %: a whole-front attack on a nation
-  // then always met a wall.
+  // How a nation stands: evenly, so a whole-front attack on it is OpenFront's fight exactly. Until
+  // 23.11.2026 its computer stood denser along threatened borders (up to four, then two times the
+  // interior): an attack on a nation then almost never met a realm standing as in OpenFront.
+  // Weighing its borders is left for when the nations get smarter.
   const AUTO = 50;
   Game.prototype.postAuto = function (p) {
-    const cells = p.post.cells, own = this.owner, W = this.W, N = this.N, ps = this.players, pid = p.id;
-    for (const c of cells.values()) c.thr = 0;
-    const T = Math.max(1, p.troops);
-    for (const b of p.border) {
-      const x = b % W;
-      let thr = 0;
-      for (let k = 0; k < 4; k++) {
-        const n = k === 0 ? (x > 0 ? b - 1 : -1) : k === 1 ? (x < W - 1 ? b + 1 : -1) : k === 2 ? b - W : b + W;
-        if (n < 0 || n >= N) continue;
-        const o = own[n];
-        if (!o || o === pid) continue;
-        const q = ps[o];
-        const v = this.friendly(p, q) || q.type === G.PT.BOT ? 0 : within(q.troops / T, 0.2, 2);
-        if (v > thr) thr = v;
-      }
-      if (thr > 0) { const c = cells.get(this.cellOf(b)); if (c && thr > c.thr) c.thr = thr; }
-    }
-    for (const c of cells.values()) c.m = within(1 + 0.5 * c.thr, M_MIN, M_MAX);     // at most 2 : 1
+    for (const c of p.post.cells.values()) c.m = 1;
   };
 
   // ---------- the net ----------

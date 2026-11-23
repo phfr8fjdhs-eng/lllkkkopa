@@ -1,6 +1,13 @@
 # Änderungsprotokoll
 Was seit dem 13.11.2026 geändert wurde und warum. Den heutigen Stand der Regeln beschreiben die anderen Dateien in `doku/`.
 
+## Ganze Front genau wie OpenFront (23.11.2026)
+**Rückmeldung des Besitzers:** Manchmal schwankt das Land hin und her (er hat viel, dann ich, dann er). Die Dichte an der Grenze soll nur ein Bonus sein, sonst alles wie OpenFront. Erst die ganze Front und die Verteidigung, Keil später einzeln.
+**Was noch von OpenFront abwich:** Der Preis verglich die Armee des Verteidigers mit dem ganzen Reich des Angreifers (seit dem Mittag), dadurch war jeder Angriff billig, auch jeder Gegenangriff. Und Nationen standen an bedrohten Grenzen bis doppelt so dicht, die ganze Front traf also fast nie auf «normal».
+**Geändert:** Die Armee des Verteidigers zählt wieder gegen den Angriff (OpenFront), für alle Angriffe. Nationen stehen gleichmässig. Die Warnung in der Leiste vergleicht wieder Angriff und Armee («schicke mehr»). Die Dichte wirkt nur noch, wo jemand mit dem Netz bewusst verstärkt (dunkleres Land).
+**Gemessen:** `node test/kampf.js echt` jetzt wie OpenFront: 254 / 254 Felder mit 50 %, mit 100 % 1146 / 1147 («Feste Grenzen») und 1098 («Grenzland», eingeschlossene Teile halten 30 s); auch die gefallenen Verteidiger gleich. Im echten Spiel (80 s, alle 3 s ein Klick zu 20 %) wechselt das Land 3-mal die Richtung, mit OpenFront pur 5-mal. Testspieler (20 Minuten, Startwerte 4 bis 7, und «Feste Grenzen»): überlebt alle Runden, 61 bis 249 Felder pro 10K Verluste. Messbank: Der Fall «Nation 5K gegen Mensch 30K mit dünner Grenze, 3000 Felder» darf 8 % nehmen wie der mit 1000 Feldern (eine dünne Front fällt schneller, so gewollt).
+**Noch offen:** Keil und Abschnitt einzeln ansehen; die Runde ist zu früh entschieden.
+
 ## Ein Kampf wie OpenFront, die Dichte nur obendrauf, Linksklick greift an (23.11.2026)
 **Wunsch des Besitzers:** Das Netz soll heissen «wo gewichte ich meine Verteidigung», nicht zu stark: Wer viel mehr Truppen hat, soll trotzdem gewinnen. Dichte bremst, aber dort fallen auch mehr. Man soll sehen, wo eine Front dünn ist. Eingraben weg. Der Angriff soll sich so sauber anfühlen wie in OpenFront, auch das Klicken.
 **Verglichen mit OpenFront:** Truppenwachstum und Obergrenze sind dieselbe Formel. Der Klick nahm die Truppen wie dort sofort ab. Anders war die Rechnung danach: ein eigener örtlicher Kampf (Grundpreis, Überzahl am Ort, Gelände nach Überzahl, Eingraben, Reserven) und Nationen, die an der Grenze bis viermal so dicht standen wie im Hinterland. Mit der Maus griff erst ein Doppelklick an.

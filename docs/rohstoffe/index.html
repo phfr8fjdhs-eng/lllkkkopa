@@ -1385,25 +1385,13 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   };
   // Buildings are the kinds up to the cloaking tower; everything after them moves.
   G.isStruct = function (type) { return type <= UT.CLOAK; };
-  // Ground combat. An attack fights the defenders at its front, not the whole army:
-  //   base      troops a tile costs even when nobody stands on it (what free land costs a person)
-  //   exchange  attackers lost per defender standing on the tile, at even strength
-  //   fMin/fMax how far outnumbering (or being outnumbered) at the spot bends that exchange
-  //   depth     how many tiles behind the front the defenders count as facing the attack
-  // OpenFront compares the attack with the defender's whole army and charges per tile whatever
-  // stands there; see doku/openfront-abgleich.md.
-  //   army      as in OpenFront: an attack much smaller than the defender's whole army pays more per
-  //             tile. Once the army is more than `armyFrom` times what is sent against it (all attacks
-  //             on that defender together), by the ratio beyond that, at most `army` times.
-  //             OpenFront: within(defender / attack, 0.6, 2); its discount below 1 is left out,
-  //             outnumbering is already rewarded at the spot.
-  //   dens      since 23.11.2026 a tile costs OpenFront's price (within(army / attack, 0.6, 2) x troops
-  //             per tile), times density^dens and the cell's hold (dug in, cut off); base, exchange,
-  //             fMin, fMax, army and armyFrom no longer price a tile (base still scales momentum)
-  //   densMax   the densest a cell counts for in the whole front's fight (times the average)
-  //   back      how much of the troops at home stand behind a narrow attack in its price (the whole
-  //             front has all of them behind it, see tickAttack `R`; 23.11.2026)
-  G.COMBAT = { back: 1, densMax: 3, base: 16, exchange: 1, fMin: 0.7, fMax: 1.5, depth: 24, army: 2, armyFrom: 1.5, dens: 0.6 };
+  // Ground combat: OpenFront's fight (tileLoss, tileTime; doku/openfront-abgleich.md), and on top
+  // only the density of the cell a tile lies in (src/03b_posture.js).
+  //   densMax   the densest a cell counts for (times the realm's average)
+  //   base      the yardstick for momentum: what a tile of free land costs a person
+  // (Until 23.11.2026 a local fight of its own with more constants here: exchange, fMin, fMax,
+  // depth, army, armyFrom, dens.)
+  G.COMBAT = { densMax: 3, base: 16 };
   // Thrusts: an attack aimed at a spot instead of the whole front.
   //   widths  lane width in tiles on the world map for mode 1 (section) and 2 (wedge); scaled by map.S
   //   max     thrusts a player can have under way at once
@@ -2229,7 +2217,6 @@ globalThis.G = { VARIANT: 'rohstoffe' };
       limit = Math.max(limit - step, head - 3 * step);
       const dAvg = tT / Math.max(1, tN);
       const n = front.size + 2;
-      // as tickAttack: what stays at home stands behind the thrust too (`back`)
       let budget = (t ? 1 : n * (p.type === PT.BOT ? 1.9 : 2)) * this.attackPace + carry;
       if (budget <= 0) { carry = budget; continue; }
       while (budget > 0) {
@@ -2255,7 +2242,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
           let mag = 80 * gl, speed = 16.5 * gs;
           if (dp && dp.length) for (let i = 0; i < dp.length; i++) { const dx = dp[i].x - x, dy = dp[i].y - y; if (dx * dx + dy * dy <= dr2) { mag *= 3 + 2 * dp[i].level; speed *= 1 + 2 * dp[i].level; break; } }
           const dk = pc ? Math.min(CB.densMax, dens) : 1, D = dAvg * dk;
-          const R = tT / Math.max(1, left + Math.max(0, p.troops - troops) * CB.back);
+          const R = tT / Math.max(1, left);
           loss = this.tileLoss(mag, R, dAvg, dk, pc ? this.postHold(pc) : 1, p.type !== PT.BOT && t.type === PT.BOT, traitor);
           used = this.tileTime(speed, R, dk, traitor, front.size);
           if (mom0 > 0) {
@@ -2489,10 +2476,6 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     const own = this.owner, map = this.map, mg = map.mag, W = this.W, H = this.H, aid = a.id;
     const n = at.front.size + this.rng.int(0, 5);
     const CB = G.COMBAT, dAvg = t ? t.troops / Math.max(1, t.tiles) : 0;
-    // everything the attacker has under way against this defender, so several small clicks count
-    // like one big one against the whole army
-    let sent = 0;
-    if (t) for (const o of a.out) if (o.active && o.tid === tid) sent += o.troops;
     const narrow = at.goal >= 0 || at.spot >= 0;
     // («Feste Grenzen» capped until 23.11.2026 what a narrow attack could bring to bear, two per
     // defender facing it, so a blitz was no faster than the whole front. With the whole realm
@@ -2583,14 +2566,11 @@ globalThis.G = { VARIANT: 'rohstoffe' };
         // fall with it. Density so buys time and costs the defender troops; it adds no strength.
         // Since 23.11.2026; before, a local fight of its own with digging in, reserves, a floor
         // price and ground weighed by the local odds: nobody could judge whom he could beat.
-        // R: the defender's army against what the attacker has behind the attack. Without a posture
-        // (tests only) the attack alone, as OpenFront. Otherwise everything the attacker has on the
-        // whole front (all attacks on this defender and the troops at home): OpenFront's way, a
-        // click with 20 % paid the top price against any nation with more than that, however much
-        // stronger one was. A narrow attack has only a little of the troops at home behind it
-        // (`back`): a blitz needs troops of its own.
+        // R: the defender's whole army against this attack, as OpenFront. (For a few hours on
+        // 23.11.2026 the attacker's whole realm counted instead: every attack, a counter-attack as
+        // well, then came cheap, and land swung to and fro.)
         const dk = pc ? Math.min(CB.densMax, this.postDens(t, pc)) : 1;
-        const R = t.troops / Math.max(1, this.aufstellung ? sent + a.troops * (narrow ? CB.back : 1) : at.troops);
+        const R = t.troops / Math.max(1, at.troops);
         loss = this.tileLoss(mag, R, dAvg, dk, pc ? this.postHold(pc) : 1, a.type !== PT.BOT && t.type === PT.BOT, traitor);
         used = this.tileTime(speed, R, dk, traitor, at.front.size);
         if (at.mom !== undefined) {
@@ -3775,31 +3755,13 @@ globalThis.G = { VARIANT: 'rohstoffe' };
       this.postStarve(p);
     }
   };
-  // How a nation stands: its computer decides, every few seconds, much as a person would with the
-  // net. A little denser along borders with realms that could hurt it (the stronger the
-  // neighbour, the denser, at most twice the interior), allies and bots count as safe. Until
-  // 23.11.2026 up to four times the interior, allies at 40 %: a whole-front attack on a nation
-  // then always met a wall.
+  // How a nation stands: evenly, so a whole-front attack on it is OpenFront's fight exactly. Until
+  // 23.11.2026 its computer stood denser along threatened borders (up to four, then two times the
+  // interior): an attack on a nation then almost never met a realm standing as in OpenFront.
+  // Weighing its borders is left for when the nations get smarter.
   const AUTO = 50;
   Game.prototype.postAuto = function (p) {
-    const cells = p.post.cells, own = this.owner, W = this.W, N = this.N, ps = this.players, pid = p.id;
-    for (const c of cells.values()) c.thr = 0;
-    const T = Math.max(1, p.troops);
-    for (const b of p.border) {
-      const x = b % W;
-      let thr = 0;
-      for (let k = 0; k < 4; k++) {
-        const n = k === 0 ? (x > 0 ? b - 1 : -1) : k === 1 ? (x < W - 1 ? b + 1 : -1) : k === 2 ? b - W : b + W;
-        if (n < 0 || n >= N) continue;
-        const o = own[n];
-        if (!o || o === pid) continue;
-        const q = ps[o];
-        const v = this.friendly(p, q) || q.type === G.PT.BOT ? 0 : within(q.troops / T, 0.2, 2);
-        if (v > thr) thr = v;
-      }
-      if (thr > 0) { const c = cells.get(this.cellOf(b)); if (c && thr > c.thr) c.thr = thr; }
-    }
-    for (const c of cells.values()) c.m = within(1 + 0.5 * c.thr, M_MIN, M_MAX);     // at most 2 : 1
+    for (const c of p.post.cells.values()) c.m = 1;
   };
 
   // ---------- the net ----------
@@ -10484,15 +10446,16 @@ globalThis.G = { VARIANT: 'rohstoffe' };
       if (i && i.later >= 1) t += ' · ' + fmtT(i.now) + ' sofort, ' + fmtT(i.later) + ' unterwegs (ca. ' + Math.max(1, Math.round(i.eta)) + ' s)';
       return t;
     }
-    // the whole front: a warning when the other's army is bigger than all we have (attacks under
-    // way and troops at home); then every tile costs up to twice as much (tickAttack, `R`)
+    // the whole front: a warning when what goes against the other (this click and what already
+    // runs against him) is small against his whole army; then every tile costs up to twice as much
+    // (OpenFront: within(army / attack, 0.6, 2), tileLoss)
     const o = game.owner[tile], q = o ? game.players[o] : null;
     if (q && q.alive && q.type !== PT.BOT && !game.friendly(h, q)) {
-      let all = h.troops;
-      for (const a of h.out) if (a.active && a.tid === q.id) all += a.troops;
-      const k = q.troops / Math.max(1, all);
-      if (k > 1.2) return 'Ganze Front · deine ' + fmtT(all) + ' gegen ' + fmtT(q.troops) + ': der Gegner ist stärker, jedes Feld kostet ' + (k >= 2 ? 'doppelt' : 'deutlich mehr');
-      if (k > 0.8) return 'Ganze Front · deine ' + fmtT(all) + ' gegen ' + fmtT(q.troops) + ': ausgeglichen, teuer';
+      let sent = h.troops * ratio;
+      for (const a of h.out) if (a.active && a.tid === q.id) sent += a.troops;
+      const k = q.troops / Math.max(1, sent);
+      if (k > 1.2) return 'Ganze Front · ' + fmtT(sent) + ' gegen ' + fmtT(q.troops) + ': jedes Feld kostet ' + (k >= 2 ? 'doppelt' : 'deutlich mehr') + ', schicke mehr';
+      if (k > 0.8) return 'Ganze Front · ' + fmtT(sent) + ' gegen ' + fmtT(q.troops) + ': ausgeglichen, teuer';
     }
     return '';
   }

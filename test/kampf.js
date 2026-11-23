@@ -37,7 +37,7 @@ const SCENARIOS = [
   // a border held thin falls faster: since 23.11.2026 a tile costs what really stands on it (at
   // least what empty land costs), so up to 8 % here instead of 6 %
   { name: 'schwach: Nation 5K gegen Mensch 30K, dünne Grenze, 1000 Felder', at: 1000, dt: 1000, aT: 5000, dT: 30000, clicks: [[1, 0]], want: 0, maxTook: 0.08, flip: true, thin: true },
-  { name: 'schwach: Nation 5K gegen Mensch 30K, dünne Grenze, 3000 Felder', at: 1000, dt: 3000, aT: 5000, dT: 30000, clicks: [[1, 0]], want: 0, maxTook: 0.06, flip: true, thin: true },
+  { name: 'schwach: Nation 5K gegen Mensch 30K, dünne Grenze, 3000 Felder', at: 1000, dt: 3000, aT: 5000, dT: 30000, clicks: [[1, 0]], want: 0, maxTook: 0.08, flip: true, thin: true },
   { name: 'gleich: 80K gegen 80K, ein Klick 50 %', at: 3000, dt: 3000, aT: 80000, dT: 80000, clicks: [[0.5, 0]], want: 0 },
   // since nations stand dense along a threatening border (15.11.2026), two to one against them is a
   // close call either way (want -1: only shown, not checked)
