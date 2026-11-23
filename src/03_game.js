@@ -42,8 +42,9 @@
   //   min/max  range of the momentum an attack can start with
   G.MOMENTUM = { decay: 0.012, stop: 0.25, slow: 0.5, stall: 200, rest: 300, mass: 0.25, rail: 0.15, railFade: 0.6, min: 0.55, max: 1.5 };
   G.THRUST = { widths: [0, 30, 12], max: 4, pull: 1.2, ring: 0.6, speed: 0.5, flank: 3, deep: 4, hold: 1.5, fan: 0.45, nose: 1, crowd: 2, dirShare: 0.6, search: 250000 };
-  G.UNAME = ['Stadt', 'Verteidigungs\u00ADposten', 'Hafen', 'Raketensilo', 'Flugabwehr', 'Fabrik', 'Tarnturm', 'Kriegsschiff', 'Boot',
+  G.UNAME = ['Stadt', 'Verteidigungs\u00ADposten', 'Hafen', 'Raketensilo', 'Flugabwehr', 'Fabrik', 'Tarnturm', 'Zerstörer', 'Boot',
     'Handelsschiff', 'Zug', 'Granate', 'Abwehrrakete', 'Atombombe', 'Wasserstoff\u00ADbombe', 'MIRV', 'Sprengkopf', 'Marschflug\u00ADkörper', 'Satelliten\u00ADstrahl'];
+  G.UNAME[7.5] = 'Schlachtschiff';   // the interface's own number for warship class 1 (src/07_ui.js, BS)
   // Tempo. The numbers of the simulation are OpenFront's, but its maps have two million tiles and
   // ours are smaller (map.S is the scale of a side), so the same tiles per tick looked hectic:
   // a ship crossed our Atlantic in 0.6 of the time, a front rolled over a country in 0.6 of the
@@ -1665,9 +1666,10 @@
       case 'build': {
         if (!tileOk || !(c.u <= UT.WARSHIP || c.u === UT.ATOM || c.u === UT.HYDRO || c.u === UT.MIRV || c.u === UT.CRUISE || c.u === UT.LASER) || !(c.u >= 0)) return 'Nicht möglich';
         if (this.lv && !this.levelAllows(c.u)) return 'In diesem Level noch gesperrt';
-        const chk = this.buildCheck(p, c.u, c.t);
+        const cls = c.u === UT.WARSHIP && c.cls === 1 ? 1 : 0;    // a battleship
+        const chk = this.buildCheck(p, c.u, c.t, cls);
         if (!chk.ok) return chk.why || 'Nicht möglich';
-        return this.build(p, c.u, c.t) ? '' : 'Nicht möglich';
+        return this.build(p, c.u, c.t, cls) ? '' : 'Nicht möglich';
       }
       case 'up': {
         const u = tileOk ? this.structNear(c.t, 4) : null;

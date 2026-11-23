@@ -22,7 +22,8 @@
     { t: UT.SILO, icon: 'silo', note: 'Startet Bomben', key: '5' },
     { t: UT.SAM, icon: 'sam', note: 'Fängt Bomben ab', key: '6' },
     { t: UT.CLOAK, icon: 'cloak', note: 'Versteckt Gebäude ganz in der Nähe', key: 'x' },
-    { t: UT.WARSHIP, icon: 'warship', note: 'Nimmt fremde Schiffe ein', key: '7' },
+    { t: UT.WARSHIP, icon: 'warship', note: 'Schnell, kapert Handelsschiffe, wehrt Boote ab', key: '7' },
+    { t: 7.5, icon: 'battleship', note: 'Gross, Raketen, sieht über Inseln, versenkt Schiffe', key: 'j' },
     { t: UT.CRUISE, icon: 'cruise', note: 'Trifft genau, keine Verstrahlung', key: 'v' },
     { t: UT.ATOM, icon: 'atom', note: 'Kleiner Krater', key: '8' },
     { t: UT.HYDRO, icon: 'hydro', note: 'Riesiger Krater', key: '9' },
@@ -49,7 +50,14 @@
   // what only the Arsenal mode has
   const armory = function (t) { return t === UT.LASER || t === UT.CLOAK; };
   // what can be built in this game: the Arsenal's two only in that mode, in a level only what it unlocks
-  const offered = function (t) { return (!armory(t) || game.opts.arsenal) && (!game.lv || game.levelAllows(t)); };
+  const offered = function (t) { t = real(t).u; return (!armory(t) || game.opts.arsenal) && (!game.lv || game.levelAllows(t)); };
+  // The battleship is warship class 1 in the game; the interface gives it a number of its own (BS,
+  // between warship 7 and boat 8, so every test for 'a ship, not a bomb' holds) and turns it back
+  // into the warship and its class wherever it talks to the game.
+  const BS = 7.5;
+  function real(t) { return t === BS ? { u: UT.WARSHIP, cls: 1 } : { u: t, cls: 0 }; }
+  function costOf(h, t) { const r = real(t), c = game.cost(h, r.u); return r.cls ? Math.round(c * G.SHIP_CLASS[1].cost) : c; }
+  function shipsOf(h, cls) { let n = 0; for (const u of h.units) if (u.type === UT.WARSHIP && (u.cls || 0) === cls) n++; return n; }
   // how many of a kind of building you can see at player q (a cloaking tower hides some)
   const seen = function (q, t) { return game.seenCount(game.human, q, t); };
   const coin = function (n) { return '<span class="price">' + svg('gold', 13) + (n ? fmt(n) : 'gratis') + '</span>'; };
@@ -801,8 +809,8 @@
     el.hidden = false;
     const rich = game.opts.infiniteGold;
     const cells = BUILD.filter(function (b) { return offered(b.t); }).map(function (b) {
-      const cost = game.cost(h, b.t), wait = b.t === UT.LASER ? Math.ceil(((h.laserAt || 0) - game.ticks) / 10) : 0;
-      const have = b.t === UT.WARSHIP ? h.units.filter(function (u) { return u.type === UT.WARSHIP; }).length : b.t <= UT.CLOAK ? h.units.filter(function (u) { return u.type === b.t; }).length : 0;
+      const cost = costOf(h, b.t), wait = b.t === UT.LASER ? Math.ceil(((h.laserAt || 0) - game.ticks) / 10) : 0;
+      const have = b.t === UT.WARSHIP || b.t === BS ? shipsOf(h, real(b.t).cls) : b.t <= UT.CLOAK ? h.units.filter(function (u) { return u.type === b.t; }).length : 0;
       return { b: b, cost: wait > 0 ? wait + ' s' : fmt(cost), poor: wait > 0 || (!rich && h.gold < cost), have: have, on: !!ghost && ghost.t === b.t };
     });
     const sig = cells.map(function (c) { return c.cost + (c.poor ? '!' : '') + c.have + (c.on ? '*' : ''); }).join('|');
@@ -1079,7 +1087,7 @@
     }
     const cell = function (b) {
       const nuke = b.t >= UT.ATOM;
-      let ok, note, cost = game.cost(h, b.t);
+      let ok, note, cost = costOf(h, b.t);
       if (b.t === UT.LASER) {
         const wait = (h.laserAt || 0) - game.ticks;
         ok = wait <= 0 && h.gold >= cost && game.ticks >= game.immuneUntil;
@@ -1089,10 +1097,10 @@
         ok = s.any && h.gold >= cost;
         note = !s.any ? 'Dafür brauchst du ein Raketensilo' : h.gold < cost ? 'Zu wenig Gold' : 'Ziel wählen und abfeuern';
       } else {
-        const c = game.buildCheck(h, b.t, tile);
+        const c = game.buildCheck(h, real(b.t).u, tile, real(b.t).cls);
         ok = c.ok; note = c.ok ? b.note : c.why; cost = c.cost;
       }
-      const have = b.t < UT.ATOM ? h.cnt[b.t] : 0;
+      const have = b.t === UT.WARSHIP || b.t === BS ? shipsOf(h, real(b.t).cls) : b.t < UT.ATOM ? h.cnt[b.t] : 0;
       return '<button class="item' + (nuke ? ' nuke' : '') + (!game.opts.infiniteGold && h.gold < cost ? ' poor' : '') + '" type="button" data-t="' + b.t + '"' + (ok ? '' : ' disabled') + '><kbd>' + b.key.toUpperCase() + '</kbd>' + (have ? '<i class="own">' + have + '</i>' : '') +
         '<span class="ic">' + svg(b.icon, 24) + '</span><b>' + G.UNAME[b.t] + '</b><small>' + esc(note) + '</small>' + coin(cost) + '</button>';
     };
@@ -1116,7 +1124,8 @@
       startAim(t, tile);
       return;
     }
-    act({ k: 'build', u: t, t: tile, say: t === UT.WARSHIP ? 'Kriegsschiff läuft aus' : plain(t) + (game.opts.instantBuild ? ' gebaut' : ' wird gebaut') });
+    const r = real(t);
+    act({ k: 'build', u: r.u, cls: r.cls, t: tile, say: r.u === UT.WARSHIP ? plain(t) + ' läuft aus' : plain(t) + (game.opts.instantBuild ? ' gebaut' : ' wird gebaut') });
   }
   function doUpgrade(tile, n) {
     const u = game.structNear(tile, 4);
@@ -1241,11 +1250,11 @@
         text: top ? 'Höchste Stufe erreicht' : 'Ausbauen auf Stufe ' + (up.level + 1) + ' · ' + G.fmt(cost) };   // too little gold: same text, shown in red
       return;
     }
-    const c = game.buildCheck(h, ghost.t, tile);
+    const c = game.buildCheck(h, real(ghost.t).u, tile, real(ghost.t).cls);
     // for a bomb: the silo it would start from (or, while all are reloading, any silo), so the flight path can be shown
     const silo = ghost.t >= UT.ATOM && ghost.t !== UT.LASER ? c.silo || game.readySilo(h, tile).silo || h.units.find(function (u) { return u.type === UT.SILO && u.built; }) || null : null;
     view.ghost = { type: ghost.t, icon: icon, tile: tile, ok: c.ok, silo: silo,
-      text: c.ok || c.why === 'Zu wenig Gold' ? plain(ghost.t) + ' · ' + G.fmt(game.cost(h, ghost.t)) + (ghost.t === UT.FACTORY || (game.bahn && (ghost.t === UT.CITY || ghost.t === UT.PORT)) ? railHint(tile, ghost.t) : '') : c.why || 'Hier nicht möglich' };   // too little gold: the price stays, in red
+      text: c.ok || c.why === 'Zu wenig Gold' ? plain(ghost.t) + ' · ' + G.fmt(costOf(h, ghost.t)) + (ghost.t === UT.FACTORY || (game.bahn && (ghost.t === UT.CITY || ghost.t === UT.PORT)) ? railHint(tile, ghost.t) : '') : c.why || 'Hier nicht möglich' };   // too little gold: the price stays, in red
   }
   // The player's own finished building of the kind being placed, if the pointer is on it.
   function ghostUpgrade(tile) {
@@ -1261,7 +1270,7 @@
       if (!shiftHeld) setGhost(null);
       return;
     }
-    const c = game.buildCheck(h, t, tile);
+    const c = game.buildCheck(h, real(t).u, tile, real(t).cls);
     if (!c.ok) { toast(plain(t) + ': ' + (c.why || 'Hier nicht möglich')); snd('deny'); return; }
     if (t >= UT.ATOM) act({ k: 'build', u: t, t: tile, say: plain(t) + ' gestartet' });
     else doBuild(t, tile);

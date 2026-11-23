@@ -123,6 +123,9 @@
       const near = [];
       for (const s of stations) {
         if (s === f) continue;
+        // only the factory owner's own stations and those of allies: a track to a foreign station
+        // carried no train of his anyway and ran across other realms (until 23.11.2026)
+        if (s.owner !== f.owner && !this.friendly(f.owner, s.owner)) continue;
         const d = (s.x - f.x) * (s.x - f.x) + (s.y - f.y) * (s.y - f.y);
         if (d <= range2) near.push({ s: s, d: d });
       }

@@ -31,15 +31,15 @@ Kessel und Schwung gehören zum Kampfsystem «Grenzland» (`doku/kampfsysteme.md
 - **Takt:** Ein Hafen der Stufe L schickt √L-mal so oft ein Schiff wie einer der Stufe 1.
 - **Drei Schiffsklassen** (seit 23.11.2026; Reichweite in OpenFronts Feldern, Gold nach OpenFronts Formel für die Strecke mal Faktor):
 
-| Klasse | ab Stufe | Chance | Reichweite | Tempo | Gold | Treffer zum Kapern |
-| --- | --- | --- | --- | --- | --- | --- |
-| Frachter | 1 | sonst | 350 | 1 | ×1 | 1 |
-| Massengutfrachter | 3 | 10 % pro Stufe, höchstens 50 % | 700 | 0.8 | ×1.6 | 5 |
-| Containerschiff | 8 | 6 % pro Stufe, höchstens 40 % | 1400 (höchstens) | 0.6 | ×2.5 | 12 |
+| Klasse | ab Hafenstufe | Reichweite | Tempo | Gold | Treffer zum Kapern |
+| --- | --- | --- | --- | --- | --- |
+| Frachter | 1 | 350 | 1 | ×1 | 1 |
+| Massengutfrachter | 3 | 700 | 0.8 | ×1.6 | 5 |
+| Containerschiff | 8 | 1400 (höchstens) | 0.6 | ×2.5 | 12 |
 
-  Ein grösseres Schiff fährt bevorzugt zu einem Hafen jenseits der Reichweite der Klasse darunter. Die Kreise beim Bauen eines Hafens und bei offener Karte zeigen die Reichweite jeder Klasse, die der Hafen schon schickt. Ein Kriegsschiff trifft einmal pro Sekunde, solange es daneben ist; ein gelber Balken zeigt, was übrig ist.
-- **Nationen bauen aus:** Ab 1M Gold heben sie ab und zu einen Hafen oder eine Stadt eine Stufe, die tiefste zuerst, Häfen vor Städten (vorher blieben ihre Häfen auf Stufe 1).
-- **Gemessen** (Weltkarte, nur Computer-Spieler, 20 Minuten): 1464 Frachter (Ø 52K), 120 Massengutfrachter (Ø 164K), 2 Containerschiffe (Ø 298K), Häfen Ø Stufe 3.4. Vorher (eine Klasse, 550 Felder) Ø 79K je Schiff, das Dreifache an Handel.
+  Welche Klasse fährt, entscheidet die Strecke (`shipFor`): die kleinste, die den Zielhafen erreicht, höchstens die grösste, die der Hafen schon schickt. Kurze Fahrten macht also immer ein Frachter, nur weite ein Containerschiff. Die Kreise beim Bauen eines Hafens und bei offener Karte zeigen die Reichweite jeder Klasse, die der Hafen schon schickt. Ein Kriegsschiff trifft einmal pro Sekunde, solange es daneben ist; ein gelber Balken zeigt, was übrig ist.
+- **Nationen bauen aus:** Ab 2.5M Gold (darunter sparen sie für Silos und Ähnliches) heben sie ab und zu einen Hafen oder eine Stadt eine Stufe, die tiefste zuerst, Häfen vor Städten (vorher blieben ihre Häfen auf Stufe 1).
+- **Gemessen** (Weltkarte, nur Computer-Spieler, 30 Minuten): 1708 Frachter (Ø 46K), 278 Massengutfrachter (Ø 175K), 2 Containerschiffe (Ø 313K), Häfen Ø Stufe 3.2.
 - **Kapern** bringt nur die Hälfte der Ladung (`loot`).
 - **Züge:** Jeder zweite Zug, der einen Hafen erreicht, schickt ein zusätzliches Schiff mit der Hälfte seines Lohns als Ladung (`trainShip`).
 

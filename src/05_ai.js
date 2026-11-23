@@ -257,17 +257,10 @@
       const t = cities.length ? this.tileNear(r.pick(cities).tile) : -1;
       if (t >= 0 && g.build(p, UT.FACTORY, t)) return;
     }
-    // a richer economy: now and then a level more for a port or a city, the lowest first and ports
-    // before cities (a port's level brings the larger merchants, see G.HAFEN). Until 23.11.2026
-    // nations never raised a port above level 1, so their trade never grew.
-    if (p.gold >= 1e6 && r.chance(2)) {
-      let best = null, bk = Infinity;
-      for (const u of p.units) {
-        if ((u.type !== UT.PORT && u.type !== UT.CITY) || !g.canUpgrade(p, u)) continue;
-        const k = u.level * (u.type === UT.PORT ? 1 : 3);
-        if (k < bk) { bk = k; best = u; }
-      }
-      if (best && p.gold >= g.cost(p, best.type) * 1.3 && g.upgrade(p, best)) return;
+    // later, with a fleet already afloat and gold to spare: now and then a battleship
+    if (c[UT.WARSHIP] >= 2 && p.gold >= 3e6 && p.gold >= g.cost(p, UT.WARSHIP) * G.SHIP_CLASS[1].cost * 1.5 && r.chance(6)) {
+      const ports = p.units.filter(function (u) { return u.type === UT.PORT && u.built; });
+      if (ports.length && g.build(p, UT.WARSHIP, r.pick(ports).water, 1)) return;
     }
     if (c[UT.PORT] >= 1 && c[UT.WARSHIP] < Math.min(3, c[UT.PORT]) && can(UT.WARSHIP, 1.5) && r.chance(3)) {
       const ports = p.units.filter(function (u) { return u.type === UT.PORT && u.built; });
@@ -304,6 +297,18 @@
         const t = this.frontTile(worst.a);
         if (t >= 0) g.build(p, UT.DEFENSE, t);
       }
+    }
+    // a richer economy: now and then a level more for a port or a city, the lowest first and ports
+    // before cities (a port's level brings the larger merchants, see G.HAFEN). Until 23.11.2026
+    // nations never raised a port above level 1, so their trade never grew.
+    if (p.gold >= 2.5e6 && r.chance(2)) {   // only with gold to spare: below that it saves for silos and the like
+      let best = null, bk = Infinity;
+      for (const u of p.units) {
+        if ((u.type !== UT.PORT && u.type !== UT.CITY) || !g.canUpgrade(p, u)) continue;
+        const k = u.level * (u.type === UT.PORT ? 1 : 3);
+        if (k < bk) { bk = k; best = u; }
+      }
+      if (best && p.gold >= g.cost(p, best.type) * 1.3 && g.upgrade(p, best)) return;
     }
   };
 

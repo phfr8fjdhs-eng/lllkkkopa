@@ -17,6 +17,11 @@ Kriegsschiffe nehmen Handelsschiffe samt Gold und Boote samt der Hälfte der Tru
 - **Mehrere Flanken:** jeder Stoss ist eigen, höchstens 4 gleichzeitig (`G.THRUST.max`).
 - **Ausgewogen:** Gerechnet wird mit dem Verhältnis am Ort. Ein Stoss trifft auch auf die Verteidiger an seinen beiden Flanken, umso mehr, je tiefer er ist (`G.THRUST.flank`); seine Flanken sind frisch erobert und nicht eingegraben. Sein Vorteil ist die Tiefe. Die Spitze kommt höchstens etwa 8 Felder pro Sekunde voran (`G.THRUST.speed`). Gemessen mit `node test/kampf.js stoss`.
 - Bots und Nationen greifen weiter mit der ganzen Front an.
+- **Kriegsschiffe** (`G.SHIP_CLASS`, `tickWarship` in `src/04_units.js`, seit 23.11.2026 zwei Klassen):
+  - **Zerstörer** (Taste 7): 1000 Lebenspunkte, schnell, kleine Granaten (250 Schaden alle 2 s) auf 70 Felder (× Massstab), nur bei freier Sicht über Wasser; kapert Handelsschiffe, wehrt Transportboote ab, die zu dir oder einem Verbündeten fahren, kämpft gegen Kriegsschiffe.
+  - **Schlachtschiff** (Taste J, 2.5-mal so teuer): 2500 Lebenspunkte, Tempo 0.6, Raketen (450 Schaden alle 3.5 s) auf 140 Felder; sieht über Inseln und dünne Küsten (bis 3 Felder Land am Stück); versenkt zuerst Kriegsschiffe, dann solche Transportboote; kapert nicht. Nationen bauen ab und zu eines, wenn sie schon zwei Kriegsschiffe und Gold übrig haben.
+  - Gemessen: Ein Schlachtschiff versenkt einen Zerstörer auf freier See in 8 s und behält 1500.
+- **Transportboot:** ein Landungsboot von oben; hinter ihm eine klare Linie über seinen ganzen bisherigen Weg, am Landeplatz ein Fadenkreuz (weiss für deine Boote, rot für Boote, die zu dir fahren).
 - **Gegenangriff der Nationen** (seit 23.11.2026, `strikeBack` in `src/05_ai.js`): Eine angegriffene Nation schlägt frühestens 4 s nach Beginn des Angriffs zurück (`G.AI_REACT`) und mit etwa dem Anderthalbfachen des Angriffs, nicht mehr mit allem über ihrer Reserve. Ein Gegenangriff hebt den Angriff Truppe gegen Truppe auf (wie OpenFront); eine Meldung sagt es.
 
 ## Bots, Tippen, Ausbau, Arsenal

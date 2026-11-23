@@ -1425,8 +1425,9 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   //   min/max  range of the momentum an attack can start with
   G.MOMENTUM = { decay: 0.012, stop: 0.25, slow: 0.5, stall: 200, rest: 300, mass: 0.25, rail: 0.15, railFade: 0.6, min: 0.55, max: 1.5 };
   G.THRUST = { widths: [0, 30, 12], max: 4, pull: 1.2, ring: 0.6, speed: 0.5, flank: 3, deep: 4, hold: 1.5, fan: 0.45, nose: 1, crowd: 2, dirShare: 0.6, search: 250000 };
-  G.UNAME = ['Stadt', 'Verteidigungs\u00ADposten', 'Hafen', 'Raketensilo', 'Flugabwehr', 'Fabrik', 'Tarnturm', 'Kriegsschiff', 'Boot',
+  G.UNAME = ['Stadt', 'Verteidigungs\u00ADposten', 'Hafen', 'Raketensilo', 'Flugabwehr', 'Fabrik', 'Tarnturm', 'Zerstörer', 'Boot',
     'Handelsschiff', 'Zug', 'Granate', 'Abwehrrakete', 'Atombombe', 'Wasserstoff\u00ADbombe', 'MIRV', 'Sprengkopf', 'Marschflug\u00ADkörper', 'Satelliten\u00ADstrahl'];
+  G.UNAME[7.5] = 'Schlachtschiff';   // the interface's own number for warship class 1 (src/07_ui.js, BS)
   // Tempo. The numbers of the simulation are OpenFront's, but its maps have two million tiles and
   // ours are smaller (map.S is the scale of a side), so the same tiles per tick looked hectic:
   // a ship crossed our Atlantic in 0.6 of the time, a front rolled over a country in 0.6 of the
@@ -3048,9 +3049,10 @@ globalThis.G = { VARIANT: 'rohstoffe' };
       case 'build': {
         if (!tileOk || !(c.u <= UT.WARSHIP || c.u === UT.ATOM || c.u === UT.HYDRO || c.u === UT.MIRV || c.u === UT.CRUISE || c.u === UT.LASER) || !(c.u >= 0)) return 'Nicht möglich';
         if (this.lv && !this.levelAllows(c.u)) return 'In diesem Level noch gesperrt';
-        const chk = this.buildCheck(p, c.u, c.t);
+        const cls = c.u === UT.WARSHIP && c.cls === 1 ? 1 : 0;    // a battleship
+        const chk = this.buildCheck(p, c.u, c.t, cls);
         if (!chk.ok) return chk.why || 'Nicht möglich';
-        return this.build(p, c.u, c.t) ? '' : 'Nicht möglich';
+        return this.build(p, c.u, c.t, cls) ? '' : 'Nicht möglich';
       }
       case 'up': {
         const u = tileOk ? this.structNear(c.t, 4) : null;
@@ -4311,6 +4313,17 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   const BUILD_TICKS = [20, 50, 50, 100, 300, 20, 60];   // city, defence post, port, silo, air defence, factory, cloaking tower
   G.BUILD_TICKS = BUILD_TICKS;
   G.WARSHIP_CAPTURE = false;
+  // Classes of warship (23.11.2026; `u.cls`). range in OpenFront's tiles (x S), rate in ticks
+  // between two shots, land: how many tiles of land in a row it sees across (islands, a thin
+  // coast), capture: whether it takes merchants. Costs are the warship's times `cost`.
+  //   destroyer   small and quick: small shells at short range in clear sight, takes merchants,
+  //               fends off troop boats bound for you or an ally
+  //   battleship  large and slow, more hull: missiles at long range, sees over islands and thin
+  //               coasts, sinks other warships first, takes no merchants
+  G.SHIP_CLASS = [
+    { name: 'Zerstörer', hp: 1000, speed: 1, range: 70, dmg: 250, rate: 20, land: 0, capture: true, cost: 1 },
+    { name: 'Schlachtschiff', hp: 2500, speed: 0.6, range: 140, dmg: 450, rate: 35, land: 3, capture: false, cost: 2.5 }
+  ];
   G.MAX_LEVEL = 100;
   G.SILO_RELOAD = 270;   // ticks a silo slot needs to reload after a launch (27 s, 3x OpenFront's 9 s)
   G.CITY_MAX_LEVEL = 100;
@@ -4563,8 +4576,9 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     return { silo: best, any: any };
   };
 
-  Game.prototype.buildCheck = function (p, type, tile) {
+  Game.prototype.buildCheck = function (p, type, tile, cls) {
     const res = { ok: false, why: '', cost: this.cost(p, type), tile: tile, port: null, silo: null };
+    if (type === UT.WARSHIP && cls) res.cost = Math.round(res.cost * G.SHIP_CLASS[1].cost);
     const map = this.map, W = this.W;
     if (!p.alive || this.phase !== 'play') { res.why = 'Nicht möglich'; return res; }
     if (type <= UT.CLOAK) {
@@ -4612,8 +4626,9 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     return res;
   };
 
-  Game.prototype.build = function (p, type, tile) {
-    const c = this.buildCheck(p, type, tile);
+  Game.prototype.build = function (p, type, tile, cls) {
+    cls = type === UT.WARSHIP && cls === 1 ? 1 : 0;
+    const c = this.buildCheck(p, type, tile, cls);
     if (!c.ok) return null;
     p.gold -= c.cost;
     let u;
@@ -4626,7 +4641,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
       if (this.opts.instantBuild) this.finishBuild(u);
     } else if (type === UT.WARSHIP) {
       u = this.newUnit(type, p, c.port.water);
-      u.hp = 1000; u.patrol = c.tile; u.shotAt = 0; u.target = null; u.path = null; u.pi = 0; u.wait = false;
+      u.cls = cls; u.hp = G.SHIP_CLASS[cls].hp; u.patrol = c.tile; u.shotAt = 0; u.target = null; u.path = null; u.pi = 0; u.wait = false;
       this.addUnit(u);
       this.sail(u, c.tile, p.type === PT.HUMAN, 'order');
     } else if (type === UT.LASER) {
@@ -4789,8 +4804,9 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   //   speed  share of the usual pace at sea
   //   gold   payout for the way times this
   //   hits   how many times a warship must hit it before it can be taken (one hit a second)
-  //   from   the smallest port level that sends it; `per` the chance per level above that, at
-  //          most `top` (the higher class is drawn first)
+  //   from   the smallest port level that sends it
+  // Which class sails is decided by the way (tickPort): the smallest class that reaches the port it
+  // trades with, so short hops always go by freighter and only far ones by container ship.
   // A freighter is small, quick and earns little on its short hops; a bulk carrier goes further;
   // the container ship is the late game: slow, hard to take, far and rich.
   //   loot      share of the cargo a captured ship still carries
@@ -4798,21 +4814,26 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   // A port of level L sends ships sqrt(L) times as often as one of level 1.
   G.HAFEN = {
     ships: [
-      { name: 'Frachter', range: 350, speed: 1, gold: 1, hits: 1, from: 1, per: 1, top: 1 },
-      { name: 'Massengutfrachter', range: 700, speed: 0.8, gold: 1.6, hits: 5, from: 3, per: 0.1, top: 0.5 },
-      { name: 'Containerschiff', range: 1400, speed: 0.6, gold: 2.5, hits: 12, from: 8, per: 0.06, top: 0.4 }
+      { name: 'Frachter', range: 350, speed: 1, gold: 1, hits: 1, from: 1 },
+      { name: 'Massengutfrachter', range: 700, speed: 0.8, gold: 1.6, hits: 5, from: 3 },
+      { name: 'Containerschiff', range: 1400, speed: 0.6, gold: 2.5, hits: 12, from: 8 }
     ],
     loot: 0.5, trainShip: 2
   };
   Game.prototype.portRange = function (lv, kind) { return G.HAFEN.ships[kind || 0].range; };
-  // Which ship a port of level lv sends: 0 freighter, 1 bulk carrier, 2 container ship.
-  Game.prototype.shipKind = function (lv) {
-    const S = G.HAFEN.ships, r = this.rng.next();
-    for (let k = S.length - 1; k >= 1; k--) {
-      const s = S[k], p = lv >= s.from ? Math.min(s.top, s.per * (lv - s.from + 1)) : 0;
-      if (r < p) return k;
-    }
-    return 0;
+  // The largest class a port of level lv can send: 0 freighter, 1 bulk carrier, 2 container ship.
+  Game.prototype.shipTop = function (lv) {
+    const S = G.HAFEN.ships;
+    let k = 0;
+    while (k + 1 < S.length && lv >= S[k + 1].from) k++;
+    return k;
+  };
+  // The class for a way of d tiles (OpenFront's): the smallest that reaches, at most `top`.
+  Game.prototype.shipFor = function (d, top) {
+    const S = G.HAFEN.ships;
+    let k = 0;
+    while (k < top && d > S[k].range) k++;
+    return k;
   };
   // Goods brought to a port by train (from 04b_rail.js): every G.HAFEN.trainShip trains it sends an
   // extra ship that carries their worth on top.
@@ -4844,7 +4865,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
       // send one more
       if ((u.load || 0) >= G.HAFEN.trainShip) { go = true; extra = (u.cargo || 0) * 0.5; u.load -= G.HAFEN.trainShip; u.cargo = 0; }
       else go = rng.next() * rate < Math.sqrt(Math.max(1, u.level));
-      if (go) kind = this.shipKind(u.level);
+      if (go) kind = this.shipTop(u.level);      // what it could send; the way decides below
     } else for (let i = 0; i < u.level && !go; i++) go = rng.chance(rate);
     if (!go) return;
     const p = u.owner, wc = this.map.wcomp, comp = wc[u.water], cand = [];
@@ -4855,12 +4876,6 @@ globalThis.G = { VARIANT: 'rohstoffe' };
       cand.push(v);
     }
     if (!cand.length) return;
-    // a larger ship goes where it pays: beyond the reach of the class below, if there is a port there
-    if (this.hafen && kind) {
-      const near = G.HAFEN.ships[kind - 1].range * 0.6 * this.S, n2 = near * near;
-      const far = cand.filter(function (v) { return (v.x - u.x) * (v.x - u.x) + (v.y - u.y) * (v.y - u.y) > n2; });
-      if (far.length) { cand.length = 0; for (const v of far) cand.push(v); }
-    }
     cand.sort(function (a, b) {
       return (Math.abs(a.x - u.x) + Math.abs(a.y - u.y)) - (Math.abs(b.x - u.x) + Math.abs(b.y - u.y));
     });
@@ -4871,6 +4886,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
       if (p.allies.has(cand[i].owner.id)) pool.push(cand[i]);
     }
     const dst = rng.pick(pool), key = u.water * this.N + dst.water, cached = this.pathCache.get(key);
+    if (this.hafen) kind = this.shipFor(Math.sqrt((dst.x - u.x) * (dst.x - u.x) + (dst.y - u.y) * (dst.y - u.y)) / this.S, kind);
     if (cached) { this.spawnTrade(u, dst, cached, kind, extra); return; }
     if (cached === null || this.pathQ.length > 6) return;     // route still being worked out, or queue busy
     if (this.pathCache.size > 500) this.pathCache.clear();
@@ -4957,6 +4973,17 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     this.tradeHome(ts);
   };
 
+  // Whether a ship at (ax, ay) sees (bx, by): along the straight line no more than `land` tiles of
+  // land in a row (0: clear water all the way).
+  Game.prototype.seaSight = function (ax, ay, bx, by, land) {
+    const W = this.W, L = this.map.land, n = Math.ceil(Math.max(Math.abs(bx - ax), Math.abs(by - ay)));
+    let run = 0;
+    for (let i = 1; i < n; i++) {
+      const x = Math.round(ax + (bx - ax) * i / n), y = Math.round(ay + (by - ay) * i / n);
+      if (L[y * W + x]) { if (++run > land) return false; } else run = 0;
+    }
+    return true;
+  };
   // Give a warship a new course; it holds position until the route is known.
   // How many tiles a ship or train moves this tick. The pace is a fraction of a tile per tick
   // (see G.PACE); the rest is carried in `u.mv`, which the picture also uses to glide between tiles.
@@ -4995,10 +5022,11 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     // heads for the nearest one once it is below three quarters of its strength, and is patched up
     // fast when it lies at the quay (the faster, the higher the port's level).
     let dock = u.repair;
-    if (dock && (!dock.active || dock.owner !== p || u.hp >= 1000)) dock = u.repair = null;
-    if (u.hp < 1000) {
+    const C = G.SHIP_CLASS[u.cls || 0], full = C.hp;
+    if (dock && (!dock.active || dock.owner !== p || u.hp >= full)) dock = u.repair = null;
+    if (u.hp < full) {
       // looked at every two seconds; a ship that is badly hit and not yet bound for a port looks at once
-      if ((T + u.id) % 20 === 0 || (!dock && u.hp < 750 && (T + u.id) % 3 === 0)) {
+      if ((T + u.id) % 20 === 0 || (!dock && u.hp < full * 0.75 && (T + u.id) % 3 === 0)) {
         let best = null, bd = Infinity;
         for (const v of p.units) {
           if (v.type !== UT.PORT || !v.built || map.wcomp[v.water] !== map.wcomp[u.tile]) continue;
@@ -5006,7 +5034,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
           if (d < bd) { bd = d; best = v; }
         }
         u.home = best;
-        if (!dock && best && u.hp < 750) {
+        if (!dock && best && u.hp < full * 0.75) {
           dock = u.repair = best;
           u.target = null; u.hunt = null;      // repairs come before prizes: the chase is broken off
           if (p === this.human) this.say('Kriegsschiff läuft zur Reparatur den Hafen an', 'warn');
@@ -5015,8 +5043,8 @@ globalThis.G = { VARIANT: 'rohstoffe' };
       const hm = u.home && u.home.active && u.home.owner === p ? u.home : null;
       if (hm) {
         const d2 = (hm.x - u.x) * (hm.x - u.x) + (hm.y - u.y) * (hm.y - u.y), heal = 150 * this.S, quay = Math.max(4, 5 * this.S);
-        if (d2 <= quay * quay) u.hp = Math.min(1000, u.hp + 1 + 5 * hm.level);
-        else if (d2 <= heal * heal) u.hp = Math.min(1000, u.hp + 1);
+        if (d2 <= quay * quay) u.hp = Math.min(full, u.hp + 1 + 5 * hm.level);
+        else if (d2 <= heal * heal) u.hp = Math.min(full, u.hp + 1);
       }
     }
     // At the quay a ship is out of the fight, as in OpenFront: it neither shoots nor is shot at
@@ -5029,7 +5057,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     // only counts while it is inside the patrol area, so the ship is not lured away from its post.
     if ((T + u.id) % 5 === 0) {
       let best = null, bs = Infinity, home;
-      const r2 = R.warTarget * R.warTarget, p2 = R.warPatrol * R.warPatrol, pcx = u.patrol % W, pcy = (u.patrol / W) | 0;
+      const rr = C.range * this.S, r2 = rr * rr, p2 = R.warPatrol * R.warPatrol, pcx = u.patrol % W, pcy = (u.patrol / W) | 0;
       for (const v of this.units) {
         if (!v.active || v.owner === p) continue;
         const ty = v.type;
@@ -5038,6 +5066,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
         if (this.friendly(v.owner, p)) continue;
         if (ty === UT.TRANSPORT) { const q = v.tid ? this.players[v.tid] : null; if (!q || (q !== p && !this.friendly(p, q))) continue; }
         if (ty === UT.TRADE) {
+          if (!C.capture) continue;                       // a battleship takes no merchants
           // only worth chasing with a port of one's own on this water to bring it into
           if (v.captured || !v.path || this.friendly(v.dstPort.owner, p) || map.wcomp[v.tile] !== map.wcomp[u.tile]) continue;
           if (home === undefined) home = this.portNear(p, u.tile);
@@ -5046,7 +5075,9 @@ globalThis.G = { VARIANT: 'rohstoffe' };
         }
         const dx = v.x - u.x, dy = v.y - u.y, d2 = dx * dx + dy * dy;
         if (d2 > r2) continue;
-        const s = d2 + (ty === UT.TRANSPORT ? 0 : ty === UT.WARSHIP ? 1e7 : 2e7);
+        if (ty !== UT.TRADE && !this.seaSight(u.x, u.y, v.x, v.y, C.land)) continue;   // a shot needs sight
+        // a destroyer goes for troop boats first, a battleship for warships
+        const s = d2 + (u.cls ? (ty === UT.WARSHIP ? 0 : 1e7) : (ty === UT.TRANSPORT ? 0 : ty === UT.WARSHIP ? 1e7 : 2e7));
         if (s < bs) { bs = s; best = v; }
       }
       u.target = best;
@@ -5055,9 +5086,10 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     if (tg && (!tg.active || tg.owner === p || tg.docked || (tg.type === UT.TRADE && tg.captured))) tg = u.target = null;
     const hunt = !dock && !!tg && tg.type === UT.TRADE;
     if (tg && tg.type !== UT.TRADE && T >= u.shotAt) {
-      u.shotAt = T + 20;
+      u.shotAt = T + C.rate;
       const s = this.newUnit(UT.SHELL, p, u.tile);
       s.target = tg; s.sx = u.x; s.sy = u.y; s.ship = u;          // `ship` only tells the picture where the gun is
+      s.dmg = C.dmg; s.missile = !!u.cls;
       this.addUnit(s);
       this.fx.push({ k: 'muzzle', x: u.x, y: u.y, tx: tg.x, ty: tg.y, ship: u });
       if (this.fx.length > 300) this.fx.splice(0, 150);
@@ -5086,7 +5118,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
 
     // Under way. On the chase a warship makes twice its cruising speed (as in OpenFront).
     if (u.path && u.pi < u.path.length - 1) {
-      for (let n = this.stride(u, hunt ? 2 * this.pace : this.pace); n > 0 && u.pi < u.path.length - 1; n--) { u.pi++; this.setPos(u, u.path[u.pi]); }
+      for (let n = this.stride(u, (hunt ? 2 : 1) * this.pace * C.speed); n > 0 && u.pi < u.path.length - 1; n--) { u.pi++; this.setPos(u, u.path[u.pi]); }
     }
     if (u.wait || hunt) return;
     const left = u.path ? u.path.length - 1 - u.pi : 0;
@@ -5147,14 +5179,14 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   Game.prototype.tickShell = function (u) {
     const tg = u.target;
     if (!tg || !tg.active) { this.removeUnit(u); return; }
-    const dx = tg.x - u.x, dy = tg.y - u.y, d = Math.hypot(dx, dy), sp = Math.max(2, 4 * this.pace);
+    const dx = tg.x - u.x, dy = tg.y - u.y, d = Math.hypot(dx, dy), sp = Math.max(2, (u.missile ? 2.5 : 4) * this.pace);
     if (d > sp) { u.x += dx / d * sp; u.y += dy / d * sp; return; }
     this.removeUnit(u);
     const by = u.owner, h = this.human, was = tg.owner;
     if (was === by || this.friendly(was, by)) return;
     this.fx.push({ k: 'pop', x: tg.x, y: tg.y, hit: true });
     if (tg.type === UT.WARSHIP) {
-      tg.hp -= 250;
+      tg.hp -= u.dmg || 250;
       if (tg.hp > 0) return;
       // a beaten warship blows up and sinks (set G.WARSHIP_CAPTURE = true for the old behaviour: the victor takes it over)
       if (!G.WARSHIP_CAPTURE || !by.alive || by.cnt[UT.WARSHIP] >= 8) {
@@ -5581,6 +5613,9 @@ globalThis.G = { VARIANT: 'rohstoffe' };
       const near = [];
       for (const s of stations) {
         if (s === f) continue;
+        // only the factory owner's own stations and those of allies: a track to a foreign station
+        // carried no train of his anyway and ran across other realms (until 23.11.2026)
+        if (s.owner !== f.owner && !this.friendly(f.owner, s.owner)) continue;
         const d = (s.x - f.x) * (s.x - f.x) + (s.y - f.y) * (s.y - f.y);
         if (d <= range2) near.push({ s: s, d: d });
       }
@@ -6079,17 +6114,10 @@ globalThis.G = { VARIANT: 'rohstoffe' };
       const t = cities.length ? this.tileNear(r.pick(cities).tile) : -1;
       if (t >= 0 && g.build(p, UT.FACTORY, t)) return;
     }
-    // a richer economy: now and then a level more for a port or a city, the lowest first and ports
-    // before cities (a port's level brings the larger merchants, see G.HAFEN). Until 23.11.2026
-    // nations never raised a port above level 1, so their trade never grew.
-    if (p.gold >= 1e6 && r.chance(2)) {
-      let best = null, bk = Infinity;
-      for (const u of p.units) {
-        if ((u.type !== UT.PORT && u.type !== UT.CITY) || !g.canUpgrade(p, u)) continue;
-        const k = u.level * (u.type === UT.PORT ? 1 : 3);
-        if (k < bk) { bk = k; best = u; }
-      }
-      if (best && p.gold >= g.cost(p, best.type) * 1.3 && g.upgrade(p, best)) return;
+    // later, with a fleet already afloat and gold to spare: now and then a battleship
+    if (c[UT.WARSHIP] >= 2 && p.gold >= 3e6 && p.gold >= g.cost(p, UT.WARSHIP) * G.SHIP_CLASS[1].cost * 1.5 && r.chance(6)) {
+      const ports = p.units.filter(function (u) { return u.type === UT.PORT && u.built; });
+      if (ports.length && g.build(p, UT.WARSHIP, r.pick(ports).water, 1)) return;
     }
     if (c[UT.PORT] >= 1 && c[UT.WARSHIP] < Math.min(3, c[UT.PORT]) && can(UT.WARSHIP, 1.5) && r.chance(3)) {
       const ports = p.units.filter(function (u) { return u.type === UT.PORT && u.built; });
@@ -6126,6 +6154,18 @@ globalThis.G = { VARIANT: 'rohstoffe' };
         const t = this.frontTile(worst.a);
         if (t >= 0) g.build(p, UT.DEFENSE, t);
       }
+    }
+    // a richer economy: now and then a level more for a port or a city, the lowest first and ports
+    // before cities (a port's level brings the larger merchants, see G.HAFEN). Until 23.11.2026
+    // nations never raised a port above level 1, so their trade never grew.
+    if (p.gold >= 2.5e6 && r.chance(2)) {   // only with gold to spare: below that it saves for silos and the like
+      let best = null, bk = Infinity;
+      for (const u of p.units) {
+        if ((u.type !== UT.PORT && u.type !== UT.CITY) || !g.canUpgrade(p, u)) continue;
+        const k = u.level * (u.type === UT.PORT ? 1 : 3);
+        if (k < bk) { bk = k; best = u; }
+      }
+      if (best && p.gold >= g.cost(p, best.type) * 1.3 && g.upgrade(p, best)) return;
     }
   };
 
@@ -6500,6 +6540,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     silo: 'M12 1c2 1.6 3 4 3 6.8V17H9V7.8C9 5 10 2.6 12 1zM9 12.2l-3.2 3.4V20L9 18zM15 12.2l3.2 3.4V20L15 18zM10 18h4v2l-2 2.2l-2-2.2z',
     sam: 'M2.5 19.5h19V22h-19zM4.5 19L7 16.2L17.6 5.6L21.5 3.5L19.4 7.4L8.8 18zM6.2 13.4l3.2-.8l-2 2.2zM10.6 17.8l.8-3.2l1.4 2z',
     factory: 'M2.5 21V10l5.2 3.4V10l5.2 3.4V3.5h3.6V12h5v9zM5.2 15.5V18h2.4v-2.5zM10.4 15.5V18h2.4v-2.5zM15.6 15.5V18H18v-2.5z',
+    battleship: 'M1 12L4 8.6h13.5L23 12l-5.5 3.4H4zM15.4 10.4a1.6 1.6 0 1 0 0 3.2a1.6 1.6 0 1 0 0-3.2zM11.4 10.4a1.6 1.6 0 1 0 0 3.2a1.6 1.6 0 1 0 0-3.2zM5.8 10.6a1.4 1.4 0 1 0 0 2.8a1.4 1.4 0 1 0 0-2.8z',
     warship: 'M1 14.5h22l-3.2 5H4.6zM7.5 14.5v-3h2V8h3.5V5.5h1.6V8h1.4v3.5H18v3zM2.5 12.6h4.2v1.4H2.5zM19 12.2h3v1.3h-3z',
     boat: 'M3 14h18l-3 6H6zM11 3h1.6v10H11zM13.4 4l5.6 8h-5.6z',
     atom: 'M12 2l2 3h-4zM9.5 5h5v2.5c2.6 1 4.5 3.6 4.5 6.6c0 3.9-3.1 7-7 7s-7-3.1-7-7c0-3 1.9-5.6 4.5-6.6z',
@@ -7207,7 +7248,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
       const gx = gh.tile % W, gy = (gh.tile / W) | 0, r2 = g.R.rail * g.R.rail;
       const near = [];
       for (const u of g.structAt.values()) {
-        if (!u.built || !G.isStation(u.type) || hid(g, u)) continue;
+        if (!u.built || !G.isStation(u.type) || hid(g, u) || (u.owner !== h && !h.allies.has(u.owner.id))) continue;   // as rebuildRails: own and allied stations
         const d = (u.x - gx) * (u.x - gx) + (u.y - gy) * (u.y - gy);
         if (d <= r2) near.push({ u: u, d: d });
       }
@@ -7448,6 +7489,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     ctx.fillStyle = '#fff'; ctx.fillText(String(n), x, ty);
   }
   G.structIcon = structIcon;
+  G.shipArt = function (ctx, kind, x, y, ang, s, p) { if (kind === 'war' || kind === 'battle') warship(ctx, x, y, ang, s, p, null, kind === 'battle' ? 1 : 0); else merchant(ctx, x, y, ang, s, p, false, kind); };   // for checking the pictures (tests)
   // Buildings: up to zoom 1.2 the bare outline small, without its sign; nearer the full sign, the
   // level above it from level 2 (as OpenFront).
   // `zz`: the zoom in OpenFront's tiles. A tile of ours is 1 / S of theirs (S = 0.59 on the world
@@ -7483,38 +7525,45 @@ globalThis.G = { VARIANT: 'rohstoffe' };
 
   // The water a ship has crossed. A troop boat keeps its whole course in its owner's colour until it
   // lands (as in OpenFront); warships and merchants leave nothing behind.
-  // A troop boat leaves a short trail that fades out behind it (the last 16 tiles). Until 23.11.2026 the whole course stayed on the
-  // map as a heavy line, the part still ahead dashed: long lines across the oceans that drew the
-  // eye more than the boats.
+  // A troop boat leaves a clear line along the whole way it has come (a dark edge, its owner's
+  // colour inside), and where it will land a crosshair shows: for your own boats and for those
+  // bound for you. (On 23.11.2026 for a few hours only a short fading trail and a plain ring.)
   View.prototype.drawWakes = function (ctx, g, z, ox, oy, alpha) {
-    const us = g.units, W = g.W, zz = z * (g.S || 1);
+    const us = g.units, W = g.W, zz = z * (g.S || 1), h = g.human;
     ctx.lineJoin = 'round'; ctx.lineCap = 'round';
     for (let i = 0; i < us.length; i++) {
       const u = us[i];
       if (!u.active || !u.path || u.type !== UT.TRANSPORT) continue;
       const p = u.path, end = Math.min(u.pi, p.length - 1);
-      const hx = (u.vx + 0.5) * z + ox, hy = (u.vy + 0.5) * z + oy, col = u.owner.cssB || u.owner.css;
-      const len = 16, from = Math.max(0, end - len);
-      ctx.lineWidth = Math.max(1.2, zz * 0.8); ctx.strokeStyle = col;
-      for (let k = from; k < end; k += 2) {
-        const a = p[k], b = p[Math.min(end, k + 2)];
-        ctx.globalAlpha = 0.6 * (k - from + 1) / (end - from + 1);
-        ctx.beginPath(); ctx.moveTo((a % W + 0.5) * z + ox, (((a / W) | 0) + 0.5) * z + oy);
-        if (k + 2 >= end) ctx.lineTo(hx, hy); else ctx.lineTo((b % W + 0.5) * z + ox, (((b / W) | 0) + 0.5) * z + oy);
-        ctx.stroke();
+      const hx = (u.vx + 0.5) * z + ox, hy = (u.vy + 0.5) * z + oy;
+      if (end >= 1) {
+        const step = Math.max(1, Math.round(2 / z));
+        ctx.beginPath();
+        for (let k = 0; k < end; k += step) { const x = (p[k] % W + 0.5) * z + ox, y = (((p[k] / W) | 0) + 0.5) * z + oy; if (k) ctx.lineTo(x, y); else ctx.moveTo(x, y); }
+        ctx.lineTo(hx, hy);
+        const lw = Math.max(1.4, zz * 0.7);
+        ctx.lineWidth = lw + 2; ctx.strokeStyle = 'rgba(8,14,22,.55)'; ctx.stroke();
+        ctx.lineWidth = lw; ctx.strokeStyle = u.owner.css; ctx.stroke();
       }
-      ctx.globalAlpha = 1;
+      const mine = u.owner === h, atMe = h && u.tid === h.id;
+      if ((mine || atMe) && !u.retreat) {
+        const lt = p[p.length - 1], lx = (lt % W + 0.5) * z + ox, ly = (((lt / W) | 0) + 0.5) * z + oy, r = Math.max(6, zz * 3);
+        const col = atMe ? '#ff5a4e' : '#ffffff';
+        ctx.lineCap = 'butt';
+        for (const [w, c] of [[3.4, 'rgba(8,14,22,.75)'], [1.6, col]]) {
+          ctx.lineWidth = w; ctx.strokeStyle = c;
+          ctx.beginPath(); ctx.arc(lx, ly, r, 0, 6.2832); ctx.stroke();
+          ctx.beginPath();
+          ctx.moveTo(lx - r * 1.5, ly); ctx.lineTo(lx - r * 0.45, ly); ctx.moveTo(lx + r * 0.45, ly); ctx.lineTo(lx + r * 1.5, ly);
+          ctx.moveTo(lx, ly - r * 1.5); ctx.lineTo(lx, ly - r * 0.45); ctx.moveTo(lx, ly + r * 0.45); ctx.lineTo(lx, ly + r * 1.5);
+          ctx.stroke();
+        }
+        ctx.lineCap = 'round';
+      }
     }
   };
 
-
-
-  // ---------- how ships sit on the water ----------
-  // A route is a chain of tiles, eight directions only. Drawn tile by tile a ship zigzags and its
-  // bow snaps round by 45 degrees every step, which is what made the sea look nervous. So the
-  // picture glides along the route instead: the position is the average of a short stretch of
-  // the route around the ship, the heading is the direction of that stretch, and the heading
-  // is eased from frame to frame.
+  // Where along a route (tile list) is step f, between two tiles.
   function routeAt(path, W, f, out) {
     const n = path.length - 1;
     if (f <= 0) { out.x = path[0] % W; out.y = (path[0] / W) | 0; return out; }
@@ -7556,31 +7605,44 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     u.vf = this.frame; u.vx = x; u.vy = y;
   };
 
-  // A warship, seen from above, drawn as a destroyer and not as a yacht: a long, slender hull
-  // (five times as long as wide) with a straight, sharp bow and a square stern, the hull in the
-  // owner's colour, and on deck grey steel: a gun turret forward, a block of missile cells, a
-  // stepped superstructure with mast and funnel, a second turret and a helicopter deck aft. The
-  // turrets turn towards whatever the ship is fighting. `s` is half the length on the screen.
-  // Steel in a dark naval grey, so the coloured hull around it is what catches the eye.
-  const BOW = 1.0, GUN_FORE = 0.42, GUN_AFT = -0.5, BARREL = 0.34;     // in half-lengths of the hull
-  // Ships are small plain shapes in their owner's colour with a dark edge, growing with the map
-  // (until 23.11.2026 detailed models with decks, turrets and cargo, too busy on the map).
-  // A warship: long and pointed, a deep stripe along the middle and one gun that turns to its target.
-  function warship(ctx, x, y, ang, s, p, aim) {
+  const BOW = 1.0, GUN_FORE = 0.5, GUN_AFT = -0.5, BARREL = 0.3;     // in half-lengths of the hull
+  // Warships from above, the hull in the owner's colour with a dark edge, the steel grey.
+  //   destroyer (cls 0): slender and sharp, a low superstructure amidships, one gun forward that
+  //     turns to its target
+  //   battleship (cls 1): long and broad, a tall superstructure, three heavy turrets (two forward,
+  //     one aft) and a block of missile cells
+  function warship(ctx, x, y, ang, s, p, aim, cls) {
     ctx.save();
     ctx.translate(x, y); ctx.rotate(ang);
+    const big = cls === 1, w = big ? 0.3 : 0.2;
     ctx.beginPath();
-    ctx.moveTo(-s, -0.26 * s); ctx.lineTo(0.45 * s, -0.26 * s); ctx.lineTo(BOW * s, 0); ctx.lineTo(0.45 * s, 0.26 * s); ctx.lineTo(-s, 0.26 * s); ctx.closePath();
-    ctx.lineJoin = 'round';
-    ctx.lineWidth = Math.max(1.6, s * 0.12); ctx.strokeStyle = '#0b1016'; ctx.stroke();
+    ctx.moveTo(-s, -w * 0.85 * s); ctx.lineTo(-0.7 * s, -w * s); ctx.lineTo(0.4 * s, -w * s); ctx.lineTo(BOW * s, 0);
+    ctx.lineTo(0.4 * s, w * s); ctx.lineTo(-0.7 * s, w * s); ctx.lineTo(-s, w * 0.85 * s); ctx.closePath();
+    ctx.lineJoin = 'round'; ctx.lineWidth = Math.max(1.5, s * 0.08); ctx.strokeStyle = '#0b1016'; ctx.stroke();
     ctx.fillStyle = p.css; ctx.fill();
-    ctx.fillStyle = p.cssB; ctx.fillRect(-0.7 * s, -0.09 * s, 1.1 * s, 0.18 * s);
-    if (s >= 6) {
-      const ta = aim !== null ? aim : 0, tx = GUN_FORE * s;
-      ctx.beginPath(); ctx.moveTo(tx, 0); ctx.lineTo(tx + Math.cos(ta) * BARREL * s, Math.sin(ta) * BARREL * s);
-      ctx.lineWidth = Math.max(1, s * 0.06); ctx.strokeStyle = '#151b21'; ctx.lineCap = 'butt'; ctx.stroke();
-      ctx.beginPath(); ctx.arc(tx, 0, Math.max(1.4, s * 0.12), 0, 6.2832);
-      ctx.fillStyle = '#e6e9ec'; ctx.fill(); ctx.lineWidth = Math.max(0.7, s * 0.03); ctx.strokeStyle = '#151b21'; ctx.stroke();
+    if (s < 6) { ctx.restore(); return; }
+    const steel = '#8f989f', dark = '#1d2329';
+    ctx.lineWidth = Math.max(0.6, s * 0.02); ctx.strokeStyle = dark;
+    const turret = function (tx, r, barrel, a) {
+      ctx.beginPath(); ctx.moveTo(tx, 0); ctx.lineTo(tx + Math.cos(a) * barrel, Math.sin(a) * barrel);
+      ctx.lineWidth = Math.max(1, r * 0.45); ctx.strokeStyle = dark; ctx.lineCap = 'butt'; ctx.stroke();
+      ctx.beginPath(); ctx.arc(tx, 0, r, 0, 6.2832); ctx.fillStyle = '#b8c0c7'; ctx.fill();
+      ctx.lineWidth = Math.max(0.6, r * 0.2); ctx.strokeStyle = dark; ctx.stroke();
+    };
+    const fwd = aim !== null ? aim : 0;
+    if (!big) {
+      ctx.fillStyle = steel; ctx.fillRect(-0.45 * s, -0.09 * s, 0.55 * s, 0.18 * s);
+      ctx.fillStyle = dark; ctx.fillRect(-0.2 * s, -0.05 * s, 0.1 * s, 0.1 * s);     // funnel
+      turret(GUN_FORE * s, 0.1 * s, BARREL * s, fwd);
+    } else {
+      ctx.fillStyle = steel; ctx.fillRect(-0.3 * s, -0.16 * s, 0.4 * s, 0.32 * s);
+      ctx.fillStyle = '#c9d0d6'; ctx.fillRect(-0.18 * s, -0.09 * s, 0.18 * s, 0.18 * s);  // bridge
+      ctx.fillStyle = dark; ctx.fillRect(-0.62 * s, -0.12 * s, 0.22 * s, 0.24 * s);       // missile cells
+      ctx.fillStyle = '#4b545c';
+      for (let k = 0; k < 3; k++) for (let j = 0; j < 2; j++) ctx.fillRect((-0.6 + k * 0.07) * s, (-0.1 + j * 0.11) * s, 0.05 * s, 0.09 * s);
+      turret(0.62 * s, 0.13 * s, 0.32 * s, fwd);
+      turret(0.32 * s, 0.13 * s, 0.32 * s, fwd);
+      turret(-0.82 * s, 0.11 * s, 0.26 * s, aim !== null && Math.cos(aim) < 0 ? aim : Math.PI);
     }
     ctx.restore();
   }
@@ -7588,14 +7650,14 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   // pixels. A warship about twice a merchant, a troop boat a little smaller than a merchant.
   // `zz` is the zoom in OpenFront's tiles: there a troop boat and a merchant are 5 tiles long, a
   // warship 11 (half-lengths here)
-  function warSize(zz) { return within(zz * 5.5, 7, 60); }
+  function warSize(zz, cls) { return within(zz * 5.5, 7, 60) * (cls === 1 ? 1.5 : 1); }
   function tradeSize(zz) { return within(zz * 2.5, 4, 30); }
   function boatSize(zz) { return within(zz * 2.5, 5, 30); }
   // Where the muzzle of the gun that fires is on the screen, aiming at world point (tx, ty): the
   // forward turret for a target ahead, the after one for a target astern, so no shot crosses the
   // ship's own deck. The barrel points at the target.
   function gunTip(g, u, z, ox, oy, tx, ty, out) {
-    const s = warSize(z * (g.S || 1)), a = u.va || 0;
+    const s = warSize(z * (g.S || 1), u.cls), a = u.va || 0;
     const cx = ((u.vx !== undefined ? u.vx : u.x) + 0.5) * z + ox, cy = ((u.vy !== undefined ? u.vy : u.y) + 0.5) * z + oy;
     const wx = (tx + 0.5) * z + ox, wy = (ty + 0.5) * z + oy;
     const ahead = (wx - cx) * Math.cos(a) + (wy - cy) * Math.sin(a) >= 0;
@@ -7607,20 +7669,37 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   }
   const TIP = { x: 0, y: 0, a: 0 };
 
-  // A merchant: short and round at the bow, in the owner's colour with a light stripe of cargo
-  // (so it is never taken for a warship); larger kinds (bulk carrier, container ship) a little
-  // longer. A captured one carries a small gold dot.
+  // A merchant, by class: a freighter (small, the bridge aft and one load), a bulk carrier (longer,
+  // three hatches) and a container ship (longest, rows of coloured boxes). The hull is the owner's
+  // colour with a dark edge, pointed at the bow and square at the stern; the bridge white. A
+  // captured one carries a small gold dot on the bridge.
+  const BOXES = ['#e0793a', '#3d7fc4', '#c94a3f', '#4f9a5a', '#d8b23a', '#8a64b5'];
   function merchant(ctx, x, y, ang, s, p, captured, kind) {
-    s *= kind === 2 ? 1.3 : kind === 1 ? 1.15 : 1;
+    s *= kind === 2 ? 1.45 : kind === 1 ? 1.2 : 1;
+    const w = kind === 2 ? 0.36 : 0.32;
     ctx.save();
     ctx.translate(x, y); ctx.rotate(ang);
     ctx.beginPath();
-    ctx.moveTo(-s, -0.36 * s); ctx.lineTo(0.35 * s, -0.36 * s); ctx.quadraticCurveTo(s, -0.3 * s, s, 0); ctx.quadraticCurveTo(s, 0.3 * s, 0.35 * s, 0.36 * s); ctx.lineTo(-s, 0.36 * s); ctx.closePath();
-    ctx.lineJoin = 'round';
-    ctx.lineWidth = Math.max(1.4, s * 0.16); ctx.strokeStyle = '#0b1016'; ctx.stroke();
+    ctx.moveTo(-s, -w * s); ctx.lineTo(0.55 * s, -w * s); ctx.lineTo(s, 0); ctx.lineTo(0.55 * s, w * s); ctx.lineTo(-s, w * s); ctx.closePath();
+    ctx.lineJoin = 'round'; ctx.lineWidth = Math.max(1.3, s * 0.11); ctx.strokeStyle = '#0b1016'; ctx.stroke();
     ctx.fillStyle = p.css; ctx.fill();
-    ctx.fillStyle = 'rgba(240,243,246,.9)'; ctx.fillRect(-0.6 * s, -0.14 * s, 1.0 * s, 0.28 * s);
-    if (captured) { ctx.beginPath(); ctx.arc(-0.78 * s, 0, Math.max(1.2, 0.16 * s), 0, 6.2832); ctx.fillStyle = '#f4b740'; ctx.fill(); }
+    const big = s >= 7;
+    if (kind === 2 && big) {
+      // two rows of five boxes in mixed colours
+      const bw = 0.24 * s, bh = (w * 2 - 0.16) * s / 2;
+      for (let k = 0; k < 5; k++) for (let j = 0; j < 2; j++) {
+        ctx.fillStyle = BOXES[(k * 2 + j + (p.id || 0)) % BOXES.length];
+        ctx.fillRect(-0.62 * s + k * (bw + 0.03 * s), -w * s + 0.08 * s + j * bh, bw, bh - 0.02 * s);
+      }
+    } else if (kind === 1 && big) {
+      ctx.fillStyle = 'rgba(20,26,32,.75)';
+      for (let k = 0; k < 3; k++) ctx.fillRect(-0.55 * s + k * 0.38 * s, -w * 0.6 * s, 0.28 * s, w * 1.2 * s);
+    } else {
+      ctx.fillStyle = 'rgba(235,238,242,.9)'; ctx.fillRect(-0.5 * s, -w * 0.55 * s, 0.85 * s, w * 1.1 * s);
+    }
+    // the bridge, aft
+    ctx.fillStyle = '#f4f6f8'; ctx.fillRect(-0.92 * s, -w * 0.75 * s, 0.22 * s, w * 1.5 * s);
+    if (captured) { ctx.beginPath(); ctx.arc(-0.81 * s, 0, Math.max(1.2, 0.14 * s), 0, 6.2832); ctx.fillStyle = '#f4b740'; ctx.fill(); }
     ctx.restore();
   }
   // How high a bomb's arc rises at its top, in tiles, and how high it is at a point of its flight.
@@ -7717,22 +7796,28 @@ globalThis.G = { VARIANT: 'rohstoffe' };
           }
         }
         x = sx; y = sy;
-        const dx = u.x - u.px, dy = u.y - u.py, d = Math.hypot(dx, dy) || 1, len = within(z * 2.2, 6, 13);
-        const bx = x - dx / d * len, by = y - dy / d * len;
-        ctx.lineCap = 'round';
-        ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(x, y);
-        ctx.lineWidth = 3.6; ctx.strokeStyle = 'rgba(255,120,30,.38)'; ctx.stroke();
-        ctx.beginPath(); ctx.moveTo(x - dx / d * len * 0.55, y - dy / d * len * 0.55); ctx.lineTo(x, y);
-        ctx.lineWidth = 1.7; ctx.strokeStyle = '#ffe9a8'; ctx.stroke();
-        ctx.beginPath(); ctx.arc(x, y, 1.5, 0, 6.2832); ctx.fillStyle = '#fff'; ctx.fill();
+        const dx = u.x - u.px, dy = u.y - u.py, d = Math.hypot(dx, dy) || 1;
+        if (u.missile) {
+          // a battleship's missile: a small rocket with a fading trail
+          const len = within(zz * 2.2, 6, 16), a = Math.atan2(dy, dx);
+          ctx.lineCap = 'round';
+          ctx.beginPath(); ctx.moveTo(x - dx / d * len * 2.2, y - dy / d * len * 2.2); ctx.lineTo(x, y);
+          ctx.lineWidth = Math.max(1.4, len * 0.18); ctx.strokeStyle = 'rgba(230,235,240,.35)'; ctx.stroke();
+          rocket(ctx, x, y, a, len, '255,140,60', 1, 0.8, false);
+        } else {
+          // a destroyer's shell: a small bright speck, no more
+          const r = Math.max(1.1, zz * 0.35);
+          ctx.fillStyle = '#ffe9a8'; ctx.fillRect(x - r, y - r, 2 * r, 2 * r);
+        }
         continue;
       }
       if (ty === UT.WARSHIP) {
-        const s = ws, tg = u.target && u.target.active && u.target.type !== UT.TRADE ? u.target : null;
-        warship(ctx, x, y, ang, s, p, tg ? Math.atan2(tg.y - u.y, tg.x - u.x) - ang : null);
-        if (u.hp < 1000) {
-          ctx.fillStyle = '#10161d'; ctx.fillRect(x - ws / 2 - 1, y + ws * 1.15 - 1, ws + 2, 5);
-          ctx.fillStyle = u.hp < 400 ? '#ff6b5e' : u.hp < 750 ? '#f4b740' : '#63d391'; ctx.fillRect(x - ws / 2, y + ws * 1.15, ws * u.hp / 1000, 3);
+        const s = warSize(zz, u.cls), tg = u.target && u.target.active && u.target.type !== UT.TRADE ? u.target : null, full = G.SHIP_CLASS[u.cls || 0].hp;
+        warship(ctx, x, y, ang, s, p, tg ? Math.atan2(tg.y - u.y, tg.x - u.x) - ang : null, u.cls);
+        if (u.hp < full) {
+          const k = u.hp / full;
+          ctx.fillStyle = '#10161d'; ctx.fillRect(x - s / 2 - 1, y + s * 0.7 - 1, s + 2, 5);
+          ctx.fillStyle = k < 0.4 ? '#ff6b5e' : k < 0.75 ? '#f4b740' : '#63d391'; ctx.fillRect(x - s / 2, y + s * 0.7, s * k, 3);
         }
         if (u.repair) {
           // heading for the quay or lying there: a small spanner-coloured ring
@@ -7740,15 +7825,19 @@ globalThis.G = { VARIANT: 'rohstoffe' };
           ctx.setLineDash([3, 3]); ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(244,183,64,.9)'; ctx.stroke(); ctx.setLineDash([]);
         }
       } else if (ty === UT.TRANSPORT) {
-        // a troop boat: a stubby boat in the owner's colour with a white edge and a light deck, so a
-        // landing is seen coming
+        // a troop boat: a landing craft from above, square and broad, the bow a ramp (darker), the
+        // well with the troops in a deep shade, a small white wheelhouse aft
         ctx.save(); ctx.translate(x, y); ctx.rotate(ang);
+        const hw = bs * 0.42;
         ctx.beginPath();
-        ctx.moveTo(-bs * 0.85, -bs * 0.5); ctx.lineTo(bs * 0.3, -bs * 0.5); ctx.quadraticCurveTo(bs, -bs * 0.45, bs, 0);
-        ctx.quadraticCurveTo(bs, bs * 0.45, bs * 0.3, bs * 0.5); ctx.lineTo(-bs * 0.85, bs * 0.5); ctx.closePath();
-        ctx.lineJoin = 'round'; ctx.lineWidth = Math.max(1.4, bs * 0.18); ctx.strokeStyle = '#0b1016'; ctx.stroke();
+        ctx.moveTo(-bs, -hw); ctx.lineTo(bs * 0.75, -hw); ctx.lineTo(bs, -hw * 0.7); ctx.lineTo(bs, hw * 0.7); ctx.lineTo(bs * 0.75, hw); ctx.lineTo(-bs, hw); ctx.closePath();
+        ctx.lineJoin = 'round'; ctx.lineWidth = Math.max(1.3, bs * 0.14); ctx.strokeStyle = '#0b1016'; ctx.stroke();
         ctx.fillStyle = p.css; ctx.fill();
-        ctx.fillStyle = 'rgba(245,247,250,.92)'; ctx.fillRect(-bs * 0.45, -bs * 0.2, bs * 0.7, bs * 0.4);
+        if (bs >= 6) {
+          ctx.fillStyle = p.cssB; ctx.fillRect(-bs * 0.45, -hw * 0.62, bs * 1.05, hw * 1.24);     // the well
+          ctx.fillStyle = 'rgba(10,14,18,.55)'; ctx.fillRect(bs * 0.66, -hw * 0.75, bs * 0.16, hw * 1.5);   // the ramp
+          ctx.fillStyle = '#f4f6f8'; ctx.fillRect(-bs * 0.86, -hw * 0.5, bs * 0.3, hw);              // wheelhouse
+        }
         ctx.restore();
       } else if (ty === UT.TRAIN) {
         if (u.edge && (hid(g, u.edge.a) || hid(g, u.edge.b))) continue;
@@ -9112,7 +9201,8 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     { t: UT.SILO, icon: 'silo', note: 'Startet Bomben', key: '5' },
     { t: UT.SAM, icon: 'sam', note: 'Fängt Bomben ab', key: '6' },
     { t: UT.CLOAK, icon: 'cloak', note: 'Versteckt Gebäude ganz in der Nähe', key: 'x' },
-    { t: UT.WARSHIP, icon: 'warship', note: 'Nimmt fremde Schiffe ein', key: '7' },
+    { t: UT.WARSHIP, icon: 'warship', note: 'Schnell, kapert Handelsschiffe, wehrt Boote ab', key: '7' },
+    { t: 7.5, icon: 'battleship', note: 'Gross, Raketen, sieht über Inseln, versenkt Schiffe', key: 'j' },
     { t: UT.CRUISE, icon: 'cruise', note: 'Trifft genau, keine Verstrahlung', key: 'v' },
     { t: UT.ATOM, icon: 'atom', note: 'Kleiner Krater', key: '8' },
     { t: UT.HYDRO, icon: 'hydro', note: 'Riesiger Krater', key: '9' },
@@ -9139,7 +9229,14 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   // what only the Arsenal mode has
   const armory = function (t) { return t === UT.LASER || t === UT.CLOAK; };
   // what can be built in this game: the Arsenal's two only in that mode, in a level only what it unlocks
-  const offered = function (t) { return (!armory(t) || game.opts.arsenal) && (!game.lv || game.levelAllows(t)); };
+  const offered = function (t) { t = real(t).u; return (!armory(t) || game.opts.arsenal) && (!game.lv || game.levelAllows(t)); };
+  // The battleship is warship class 1 in the game; the interface gives it a number of its own (BS,
+  // between warship 7 and boat 8, so every test for 'a ship, not a bomb' holds) and turns it back
+  // into the warship and its class wherever it talks to the game.
+  const BS = 7.5;
+  function real(t) { return t === BS ? { u: UT.WARSHIP, cls: 1 } : { u: t, cls: 0 }; }
+  function costOf(h, t) { const r = real(t), c = game.cost(h, r.u); return r.cls ? Math.round(c * G.SHIP_CLASS[1].cost) : c; }
+  function shipsOf(h, cls) { let n = 0; for (const u of h.units) if (u.type === UT.WARSHIP && (u.cls || 0) === cls) n++; return n; }
   // how many of a kind of building you can see at player q (a cloaking tower hides some)
   const seen = function (q, t) { return game.seenCount(game.human, q, t); };
   const coin = function (n) { return '<span class="price">' + svg('gold', 13) + (n ? fmt(n) : 'gratis') + '</span>'; };
@@ -9891,8 +9988,8 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     el.hidden = false;
     const rich = game.opts.infiniteGold;
     const cells = BUILD.filter(function (b) { return offered(b.t); }).map(function (b) {
-      const cost = game.cost(h, b.t), wait = b.t === UT.LASER ? Math.ceil(((h.laserAt || 0) - game.ticks) / 10) : 0;
-      const have = b.t === UT.WARSHIP ? h.units.filter(function (u) { return u.type === UT.WARSHIP; }).length : b.t <= UT.CLOAK ? h.units.filter(function (u) { return u.type === b.t; }).length : 0;
+      const cost = costOf(h, b.t), wait = b.t === UT.LASER ? Math.ceil(((h.laserAt || 0) - game.ticks) / 10) : 0;
+      const have = b.t === UT.WARSHIP || b.t === BS ? shipsOf(h, real(b.t).cls) : b.t <= UT.CLOAK ? h.units.filter(function (u) { return u.type === b.t; }).length : 0;
       return { b: b, cost: wait > 0 ? wait + ' s' : fmt(cost), poor: wait > 0 || (!rich && h.gold < cost), have: have, on: !!ghost && ghost.t === b.t };
     });
     const sig = cells.map(function (c) { return c.cost + (c.poor ? '!' : '') + c.have + (c.on ? '*' : ''); }).join('|');
@@ -10169,7 +10266,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     }
     const cell = function (b) {
       const nuke = b.t >= UT.ATOM;
-      let ok, note, cost = game.cost(h, b.t);
+      let ok, note, cost = costOf(h, b.t);
       if (b.t === UT.LASER) {
         const wait = (h.laserAt || 0) - game.ticks;
         ok = wait <= 0 && h.gold >= cost && game.ticks >= game.immuneUntil;
@@ -10179,10 +10276,10 @@ globalThis.G = { VARIANT: 'rohstoffe' };
         ok = s.any && h.gold >= cost;
         note = !s.any ? 'Dafür brauchst du ein Raketensilo' : h.gold < cost ? 'Zu wenig Gold' : 'Ziel wählen und abfeuern';
       } else {
-        const c = game.buildCheck(h, b.t, tile);
+        const c = game.buildCheck(h, real(b.t).u, tile, real(b.t).cls);
         ok = c.ok; note = c.ok ? b.note : c.why; cost = c.cost;
       }
-      const have = b.t < UT.ATOM ? h.cnt[b.t] : 0;
+      const have = b.t === UT.WARSHIP || b.t === BS ? shipsOf(h, real(b.t).cls) : b.t < UT.ATOM ? h.cnt[b.t] : 0;
       return '<button class="item' + (nuke ? ' nuke' : '') + (!game.opts.infiniteGold && h.gold < cost ? ' poor' : '') + '" type="button" data-t="' + b.t + '"' + (ok ? '' : ' disabled') + '><kbd>' + b.key.toUpperCase() + '</kbd>' + (have ? '<i class="own">' + have + '</i>' : '') +
         '<span class="ic">' + svg(b.icon, 24) + '</span><b>' + G.UNAME[b.t] + '</b><small>' + esc(note) + '</small>' + coin(cost) + '</button>';
     };
@@ -10206,7 +10303,8 @@ globalThis.G = { VARIANT: 'rohstoffe' };
       startAim(t, tile);
       return;
     }
-    act({ k: 'build', u: t, t: tile, say: t === UT.WARSHIP ? 'Kriegsschiff läuft aus' : plain(t) + (game.opts.instantBuild ? ' gebaut' : ' wird gebaut') });
+    const r = real(t);
+    act({ k: 'build', u: r.u, cls: r.cls, t: tile, say: r.u === UT.WARSHIP ? plain(t) + ' läuft aus' : plain(t) + (game.opts.instantBuild ? ' gebaut' : ' wird gebaut') });
   }
   function doUpgrade(tile, n) {
     const u = game.structNear(tile, 4);
@@ -10331,11 +10429,11 @@ globalThis.G = { VARIANT: 'rohstoffe' };
         text: top ? 'Höchste Stufe erreicht' : 'Ausbauen auf Stufe ' + (up.level + 1) + ' · ' + G.fmt(cost) };   // too little gold: same text, shown in red
       return;
     }
-    const c = game.buildCheck(h, ghost.t, tile);
+    const c = game.buildCheck(h, real(ghost.t).u, tile, real(ghost.t).cls);
     // for a bomb: the silo it would start from (or, while all are reloading, any silo), so the flight path can be shown
     const silo = ghost.t >= UT.ATOM && ghost.t !== UT.LASER ? c.silo || game.readySilo(h, tile).silo || h.units.find(function (u) { return u.type === UT.SILO && u.built; }) || null : null;
     view.ghost = { type: ghost.t, icon: icon, tile: tile, ok: c.ok, silo: silo,
-      text: c.ok || c.why === 'Zu wenig Gold' ? plain(ghost.t) + ' · ' + G.fmt(game.cost(h, ghost.t)) + (ghost.t === UT.FACTORY || (game.bahn && (ghost.t === UT.CITY || ghost.t === UT.PORT)) ? railHint(tile, ghost.t) : '') : c.why || 'Hier nicht möglich' };   // too little gold: the price stays, in red
+      text: c.ok || c.why === 'Zu wenig Gold' ? plain(ghost.t) + ' · ' + G.fmt(costOf(h, ghost.t)) + (ghost.t === UT.FACTORY || (game.bahn && (ghost.t === UT.CITY || ghost.t === UT.PORT)) ? railHint(tile, ghost.t) : '') : c.why || 'Hier nicht möglich' };   // too little gold: the price stays, in red
   }
   // The player's own finished building of the kind being placed, if the pointer is on it.
   function ghostUpgrade(tile) {
@@ -10351,7 +10449,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
       if (!shiftHeld) setGhost(null);
       return;
     }
-    const c = game.buildCheck(h, t, tile);
+    const c = game.buildCheck(h, real(t).u, tile, real(t).cls);
     if (!c.ok) { toast(plain(t) + ': ' + (c.why || 'Hier nicht möglich')); snd('deny'); return; }
     if (t >= UT.ATOM) act({ k: 'build', u: t, t: tile, say: plain(t) + ' gestartet' });
     else doBuild(t, tile);

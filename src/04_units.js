@@ -5,6 +5,17 @@
   const BUILD_TICKS = [20, 50, 50, 100, 300, 20, 60];   // city, defence post, port, silo, air defence, factory, cloaking tower
   G.BUILD_TICKS = BUILD_TICKS;
   G.WARSHIP_CAPTURE = false;
+  // Classes of warship (23.11.2026; `u.cls`). range in OpenFront's tiles (x S), rate in ticks
+  // between two shots, land: how many tiles of land in a row it sees across (islands, a thin
+  // coast), capture: whether it takes merchants. Costs are the warship's times `cost`.
+  //   destroyer   small and quick: small shells at short range in clear sight, takes merchants,
+  //               fends off troop boats bound for you or an ally
+  //   battleship  large and slow, more hull: missiles at long range, sees over islands and thin
+  //               coasts, sinks other warships first, takes no merchants
+  G.SHIP_CLASS = [
+    { name: 'Zerstörer', hp: 1000, speed: 1, range: 70, dmg: 250, rate: 20, land: 0, capture: true, cost: 1 },
+    { name: 'Schlachtschiff', hp: 2500, speed: 0.6, range: 140, dmg: 450, rate: 35, land: 3, capture: false, cost: 2.5 }
+  ];
   G.MAX_LEVEL = 100;
   G.SILO_RELOAD = 270;   // ticks a silo slot needs to reload after a launch (27 s, 3x OpenFront's 9 s)
   G.CITY_MAX_LEVEL = 100;
@@ -257,8 +268,9 @@
     return { silo: best, any: any };
   };
 
-  Game.prototype.buildCheck = function (p, type, tile) {
+  Game.prototype.buildCheck = function (p, type, tile, cls) {
     const res = { ok: false, why: '', cost: this.cost(p, type), tile: tile, port: null, silo: null };
+    if (type === UT.WARSHIP && cls) res.cost = Math.round(res.cost * G.SHIP_CLASS[1].cost);
     const map = this.map, W = this.W;
     if (!p.alive || this.phase !== 'play') { res.why = 'Nicht möglich'; return res; }
     if (type <= UT.CLOAK) {
@@ -306,8 +318,9 @@
     return res;
   };
 
-  Game.prototype.build = function (p, type, tile) {
-    const c = this.buildCheck(p, type, tile);
+  Game.prototype.build = function (p, type, tile, cls) {
+    cls = type === UT.WARSHIP && cls === 1 ? 1 : 0;
+    const c = this.buildCheck(p, type, tile, cls);
     if (!c.ok) return null;
     p.gold -= c.cost;
     let u;
@@ -320,7 +333,7 @@
       if (this.opts.instantBuild) this.finishBuild(u);
     } else if (type === UT.WARSHIP) {
       u = this.newUnit(type, p, c.port.water);
-      u.hp = 1000; u.patrol = c.tile; u.shotAt = 0; u.target = null; u.path = null; u.pi = 0; u.wait = false;
+      u.cls = cls; u.hp = G.SHIP_CLASS[cls].hp; u.patrol = c.tile; u.shotAt = 0; u.target = null; u.path = null; u.pi = 0; u.wait = false;
       this.addUnit(u);
       this.sail(u, c.tile, p.type === PT.HUMAN, 'order');
     } else if (type === UT.LASER) {
@@ -483,8 +496,9 @@
   //   speed  share of the usual pace at sea
   //   gold   payout for the way times this
   //   hits   how many times a warship must hit it before it can be taken (one hit a second)
-  //   from   the smallest port level that sends it; `per` the chance per level above that, at
-  //          most `top` (the higher class is drawn first)
+  //   from   the smallest port level that sends it
+  // Which class sails is decided by the way (tickPort): the smallest class that reaches the port it
+  // trades with, so short hops always go by freighter and only far ones by container ship.
   // A freighter is small, quick and earns little on its short hops; a bulk carrier goes further;
   // the container ship is the late game: slow, hard to take, far and rich.
   //   loot      share of the cargo a captured ship still carries
@@ -492,21 +506,26 @@
   // A port of level L sends ships sqrt(L) times as often as one of level 1.
   G.HAFEN = {
     ships: [
-      { name: 'Frachter', range: 350, speed: 1, gold: 1, hits: 1, from: 1, per: 1, top: 1 },
-      { name: 'Massengutfrachter', range: 700, speed: 0.8, gold: 1.6, hits: 5, from: 3, per: 0.1, top: 0.5 },
-      { name: 'Containerschiff', range: 1400, speed: 0.6, gold: 2.5, hits: 12, from: 8, per: 0.06, top: 0.4 }
+      { name: 'Frachter', range: 350, speed: 1, gold: 1, hits: 1, from: 1 },
+      { name: 'Massengutfrachter', range: 700, speed: 0.8, gold: 1.6, hits: 5, from: 3 },
+      { name: 'Containerschiff', range: 1400, speed: 0.6, gold: 2.5, hits: 12, from: 8 }
     ],
     loot: 0.5, trainShip: 2
   };
   Game.prototype.portRange = function (lv, kind) { return G.HAFEN.ships[kind || 0].range; };
-  // Which ship a port of level lv sends: 0 freighter, 1 bulk carrier, 2 container ship.
-  Game.prototype.shipKind = function (lv) {
-    const S = G.HAFEN.ships, r = this.rng.next();
-    for (let k = S.length - 1; k >= 1; k--) {
-      const s = S[k], p = lv >= s.from ? Math.min(s.top, s.per * (lv - s.from + 1)) : 0;
-      if (r < p) return k;
-    }
-    return 0;
+  // The largest class a port of level lv can send: 0 freighter, 1 bulk carrier, 2 container ship.
+  Game.prototype.shipTop = function (lv) {
+    const S = G.HAFEN.ships;
+    let k = 0;
+    while (k + 1 < S.length && lv >= S[k + 1].from) k++;
+    return k;
+  };
+  // The class for a way of d tiles (OpenFront's): the smallest that reaches, at most `top`.
+  Game.prototype.shipFor = function (d, top) {
+    const S = G.HAFEN.ships;
+    let k = 0;
+    while (k < top && d > S[k].range) k++;
+    return k;
   };
   // Goods brought to a port by train (from 04b_rail.js): every G.HAFEN.trainShip trains it sends an
   // extra ship that carries their worth on top.
@@ -538,7 +557,7 @@
       // send one more
       if ((u.load || 0) >= G.HAFEN.trainShip) { go = true; extra = (u.cargo || 0) * 0.5; u.load -= G.HAFEN.trainShip; u.cargo = 0; }
       else go = rng.next() * rate < Math.sqrt(Math.max(1, u.level));
-      if (go) kind = this.shipKind(u.level);
+      if (go) kind = this.shipTop(u.level);      // what it could send; the way decides below
     } else for (let i = 0; i < u.level && !go; i++) go = rng.chance(rate);
     if (!go) return;
     const p = u.owner, wc = this.map.wcomp, comp = wc[u.water], cand = [];
@@ -549,12 +568,6 @@
       cand.push(v);
     }
     if (!cand.length) return;
-    // a larger ship goes where it pays: beyond the reach of the class below, if there is a port there
-    if (this.hafen && kind) {
-      const near = G.HAFEN.ships[kind - 1].range * 0.6 * this.S, n2 = near * near;
-      const far = cand.filter(function (v) { return (v.x - u.x) * (v.x - u.x) + (v.y - u.y) * (v.y - u.y) > n2; });
-      if (far.length) { cand.length = 0; for (const v of far) cand.push(v); }
-    }
     cand.sort(function (a, b) {
       return (Math.abs(a.x - u.x) + Math.abs(a.y - u.y)) - (Math.abs(b.x - u.x) + Math.abs(b.y - u.y));
     });
@@ -565,6 +578,7 @@
       if (p.allies.has(cand[i].owner.id)) pool.push(cand[i]);
     }
     const dst = rng.pick(pool), key = u.water * this.N + dst.water, cached = this.pathCache.get(key);
+    if (this.hafen) kind = this.shipFor(Math.sqrt((dst.x - u.x) * (dst.x - u.x) + (dst.y - u.y) * (dst.y - u.y)) / this.S, kind);
     if (cached) { this.spawnTrade(u, dst, cached, kind, extra); return; }
     if (cached === null || this.pathQ.length > 6) return;     // route still being worked out, or queue busy
     if (this.pathCache.size > 500) this.pathCache.clear();
@@ -651,6 +665,17 @@
     this.tradeHome(ts);
   };
 
+  // Whether a ship at (ax, ay) sees (bx, by): along the straight line no more than `land` tiles of
+  // land in a row (0: clear water all the way).
+  Game.prototype.seaSight = function (ax, ay, bx, by, land) {
+    const W = this.W, L = this.map.land, n = Math.ceil(Math.max(Math.abs(bx - ax), Math.abs(by - ay)));
+    let run = 0;
+    for (let i = 1; i < n; i++) {
+      const x = Math.round(ax + (bx - ax) * i / n), y = Math.round(ay + (by - ay) * i / n);
+      if (L[y * W + x]) { if (++run > land) return false; } else run = 0;
+    }
+    return true;
+  };
   // Give a warship a new course; it holds position until the route is known.
   // How many tiles a ship or train moves this tick. The pace is a fraction of a tile per tick
   // (see G.PACE); the rest is carried in `u.mv`, which the picture also uses to glide between tiles.
@@ -689,10 +714,11 @@
     // heads for the nearest one once it is below three quarters of its strength, and is patched up
     // fast when it lies at the quay (the faster, the higher the port's level).
     let dock = u.repair;
-    if (dock && (!dock.active || dock.owner !== p || u.hp >= 1000)) dock = u.repair = null;
-    if (u.hp < 1000) {
+    const C = G.SHIP_CLASS[u.cls || 0], full = C.hp;
+    if (dock && (!dock.active || dock.owner !== p || u.hp >= full)) dock = u.repair = null;
+    if (u.hp < full) {
       // looked at every two seconds; a ship that is badly hit and not yet bound for a port looks at once
-      if ((T + u.id) % 20 === 0 || (!dock && u.hp < 750 && (T + u.id) % 3 === 0)) {
+      if ((T + u.id) % 20 === 0 || (!dock && u.hp < full * 0.75 && (T + u.id) % 3 === 0)) {
         let best = null, bd = Infinity;
         for (const v of p.units) {
           if (v.type !== UT.PORT || !v.built || map.wcomp[v.water] !== map.wcomp[u.tile]) continue;
@@ -700,7 +726,7 @@
           if (d < bd) { bd = d; best = v; }
         }
         u.home = best;
-        if (!dock && best && u.hp < 750) {
+        if (!dock && best && u.hp < full * 0.75) {
           dock = u.repair = best;
           u.target = null; u.hunt = null;      // repairs come before prizes: the chase is broken off
           if (p === this.human) this.say('Kriegsschiff läuft zur Reparatur den Hafen an', 'warn');
@@ -709,8 +735,8 @@
       const hm = u.home && u.home.active && u.home.owner === p ? u.home : null;
       if (hm) {
         const d2 = (hm.x - u.x) * (hm.x - u.x) + (hm.y - u.y) * (hm.y - u.y), heal = 150 * this.S, quay = Math.max(4, 5 * this.S);
-        if (d2 <= quay * quay) u.hp = Math.min(1000, u.hp + 1 + 5 * hm.level);
-        else if (d2 <= heal * heal) u.hp = Math.min(1000, u.hp + 1);
+        if (d2 <= quay * quay) u.hp = Math.min(full, u.hp + 1 + 5 * hm.level);
+        else if (d2 <= heal * heal) u.hp = Math.min(full, u.hp + 1);
       }
     }
     // At the quay a ship is out of the fight, as in OpenFront: it neither shoots nor is shot at
@@ -723,7 +749,7 @@
     // only counts while it is inside the patrol area, so the ship is not lured away from its post.
     if ((T + u.id) % 5 === 0) {
       let best = null, bs = Infinity, home;
-      const r2 = R.warTarget * R.warTarget, p2 = R.warPatrol * R.warPatrol, pcx = u.patrol % W, pcy = (u.patrol / W) | 0;
+      const rr = C.range * this.S, r2 = rr * rr, p2 = R.warPatrol * R.warPatrol, pcx = u.patrol % W, pcy = (u.patrol / W) | 0;
       for (const v of this.units) {
         if (!v.active || v.owner === p) continue;
         const ty = v.type;
@@ -732,6 +758,7 @@
         if (this.friendly(v.owner, p)) continue;
         if (ty === UT.TRANSPORT) { const q = v.tid ? this.players[v.tid] : null; if (!q || (q !== p && !this.friendly(p, q))) continue; }
         if (ty === UT.TRADE) {
+          if (!C.capture) continue;                       // a battleship takes no merchants
           // only worth chasing with a port of one's own on this water to bring it into
           if (v.captured || !v.path || this.friendly(v.dstPort.owner, p) || map.wcomp[v.tile] !== map.wcomp[u.tile]) continue;
           if (home === undefined) home = this.portNear(p, u.tile);
@@ -740,7 +767,9 @@
         }
         const dx = v.x - u.x, dy = v.y - u.y, d2 = dx * dx + dy * dy;
         if (d2 > r2) continue;
-        const s = d2 + (ty === UT.TRANSPORT ? 0 : ty === UT.WARSHIP ? 1e7 : 2e7);
+        if (ty !== UT.TRADE && !this.seaSight(u.x, u.y, v.x, v.y, C.land)) continue;   // a shot needs sight
+        // a destroyer goes for troop boats first, a battleship for warships
+        const s = d2 + (u.cls ? (ty === UT.WARSHIP ? 0 : 1e7) : (ty === UT.TRANSPORT ? 0 : ty === UT.WARSHIP ? 1e7 : 2e7));
         if (s < bs) { bs = s; best = v; }
       }
       u.target = best;
@@ -749,9 +778,10 @@
     if (tg && (!tg.active || tg.owner === p || tg.docked || (tg.type === UT.TRADE && tg.captured))) tg = u.target = null;
     const hunt = !dock && !!tg && tg.type === UT.TRADE;
     if (tg && tg.type !== UT.TRADE && T >= u.shotAt) {
-      u.shotAt = T + 20;
+      u.shotAt = T + C.rate;
       const s = this.newUnit(UT.SHELL, p, u.tile);
       s.target = tg; s.sx = u.x; s.sy = u.y; s.ship = u;          // `ship` only tells the picture where the gun is
+      s.dmg = C.dmg; s.missile = !!u.cls;
       this.addUnit(s);
       this.fx.push({ k: 'muzzle', x: u.x, y: u.y, tx: tg.x, ty: tg.y, ship: u });
       if (this.fx.length > 300) this.fx.splice(0, 150);
@@ -780,7 +810,7 @@
 
     // Under way. On the chase a warship makes twice its cruising speed (as in OpenFront).
     if (u.path && u.pi < u.path.length - 1) {
-      for (let n = this.stride(u, hunt ? 2 * this.pace : this.pace); n > 0 && u.pi < u.path.length - 1; n--) { u.pi++; this.setPos(u, u.path[u.pi]); }
+      for (let n = this.stride(u, (hunt ? 2 : 1) * this.pace * C.speed); n > 0 && u.pi < u.path.length - 1; n--) { u.pi++; this.setPos(u, u.path[u.pi]); }
     }
     if (u.wait || hunt) return;
     const left = u.path ? u.path.length - 1 - u.pi : 0;
@@ -841,14 +871,14 @@
   Game.prototype.tickShell = function (u) {
     const tg = u.target;
     if (!tg || !tg.active) { this.removeUnit(u); return; }
-    const dx = tg.x - u.x, dy = tg.y - u.y, d = Math.hypot(dx, dy), sp = Math.max(2, 4 * this.pace);
+    const dx = tg.x - u.x, dy = tg.y - u.y, d = Math.hypot(dx, dy), sp = Math.max(2, (u.missile ? 2.5 : 4) * this.pace);
     if (d > sp) { u.x += dx / d * sp; u.y += dy / d * sp; return; }
     this.removeUnit(u);
     const by = u.owner, h = this.human, was = tg.owner;
     if (was === by || this.friendly(was, by)) return;
     this.fx.push({ k: 'pop', x: tg.x, y: tg.y, hit: true });
     if (tg.type === UT.WARSHIP) {
-      tg.hp -= 250;
+      tg.hp -= u.dmg || 250;
       if (tg.hp > 0) return;
       // a beaten warship blows up and sinks (set G.WARSHIP_CAPTURE = true for the old behaviour: the victor takes it over)
       if (!G.WARSHIP_CAPTURE || !by.alive || by.cnt[UT.WARSHIP] >= 8) {

@@ -66,12 +66,15 @@ const ok = (c, msg) => { if (!c) { console.log('FAIL', msg); process.exitCode = 
     for (const b of h.border) { for (const n of [b - 1, b + 1, b - g.W, b + g.W]) if (g.owner[n] && g.owner[n] !== h.id && map.land[n]) { foe = n; break; } if (foe >= 0) break; }
     const tid = g.owner[foe], before = new Set();
     for (let i = 0; i < g.N; i++) if (g.owner[i] === h.id) before.add(i);
+    // land that falls to us because it was enclosed (capturePocket) is not the attack's doing
+    const pocket = new Set(), cp = g.capturePocket.bind(g);
+    g.capturePocket = function () { const keep = new Set(); for (let i = 0; i < g.N; i++) if (g.owner[i] === h.id) keep.add(i); const r = cp.apply(g, arguments); for (let i = 0; i < g.N; i++) if (g.owner[i] === h.id && !keep.has(i)) pocket.add(i); return r; };
     const why = g.exec(h.id, { k: 'strike', t: foe, r: 0.3, w: 3 });
     const at = h.out.find((o) => o.active && o.spot >= 0);
     const rad = at ? at.rad : 0, o = at ? at.spot : 0, ddx = at ? at.dx : 0, ddy = at ? at.dy : 0;
     step(300);
     let far = 0, got = 0;
-    for (let i = 0; i < g.N; i++) if (g.owner[i] === h.id && !before.has(i)) {
+    for (let i = 0; i < g.N; i++) if (g.owner[i] === h.id && !before.has(i) && !pocket.has(i)) {
       got++;
       const vx = i % g.W - o % g.W, vy = ((i / g.W) | 0) - ((o / g.W) | 0);
       if (Math.abs(vx * ddy - vy * ddx) > rad + 1.5 || vx * ddx + vy * ddy < -3) far++;

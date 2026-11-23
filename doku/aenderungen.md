@@ -1,6 +1,15 @@
 # Änderungsprotokoll
 Was seit dem 13.11.2026 geändert wurde und warum. Den heutigen Stand der Regeln beschreiben die anderen Dateien in `doku/`.
 
+## Zerstörer und Schlachtschiff, Handelsklasse nach Strecke, Transportboot, Schienen (23.11.2026)
+**Rückmeldung des Besitzers:** Schienen springen herum; Containerschiffe sollen nicht immer kommen, kurze Strecken mit normalen Schiffen, und besser aussehen; Zerstörer mit kleinen Geschossen, kurzer Reichweite und nur in Sicht; dazu Schlachtschiffe: grösser, langsamer, mehr Leben, Raketen, sehen über Inseln und dünne Küsten, versenken vor allem Schiffe, kapern nicht. Transportboot: klare Linie dahinter, Fadenkreuz am Ziel, und es sah aus «wie ein Tampon».
+**Schienen:** Im Browser nachgestellt (Züge Bild für Bild, Vorschau beim Bewegen, Schienen über 15 Minuten): kein Springen gefunden. Gefunden aber: Eine Fabrik verband jeden Bahnhof in Reichweite, auch den fremder, nicht verbündeter Länder; diese Strecken liefen quer durch andere Reiche und trugen keinen Zug des Besitzers. Jetzt nur eigene und verbündete Bahnhöfe (auch in der Vorschau).
+**Handel:** Die Klasse folgt der Strecke (`shipFor`): kurze Fahrten immer mit dem Frachter, mittlere mit dem Massengutfrachter, weite mit dem Containerschiff, sofern der Hafen hoch genug ist. Neue Grafik: Frachter mit einer Ladung, Massengutfrachter mit drei Luken, Containerschiff mit bunten Containerreihen; Brücke hinten.
+**Kriegsschiffe:** zwei Klassen (`G.SHIP_CLASS`, `u.cls`): Zerstörer und Schlachtschiff, Werte in `doku/spielregeln.md`. Sicht über Wasser (`seaSight`). Neue Grafik: Zerstörer schlank mit einem Geschütz, Schlachtschiff breit mit drei Türmen und Raketenzellen; Granaten als kleine helle Punkte, Raketen als kleine Rakete mit Schweif. Das Schlachtschiff hat Taste J; die Oberfläche führt es als eigenen Eintrag (Wert 7.5) und schickt «Kriegsschiff, Klasse 1».
+**Transportboot:** Landungsboot von oben (Rampe vorn, Laderaum, Steuerhaus hinten), eine klare Linie über den ganzen bisherigen Weg, ein Fadenkreuz am Landeplatz.
+**Nationen** bauen Häfen und Städte erst ab 2.5M Gold aus (ab 1M fehlte ihnen das Gold für Silos, dann auch für Tarntürme).
+**Tests:** `test/pfeile.js` zählt für «nur im Band» keine Felder mehr mit, die als eingeschlossenes Stück an den Angreifer fallen (`capturePocket`).
+
 ## Neue Zeichen, Schienen-Vorschau beim Bauen, Landfarbe wie OpenFront (23.11.2026)
 **Rückmeldung des Besitzers:** Fabrik und Hafen gefallen, die übrigen Zeichen nicht; Rakete wie eine Interkontinentalrakete, Flugabwehr wie eine Abfangrakete. Beim Platzieren sollen die Gleise grün leuchten, damit man sieht, zu welcher Fabrik eine Stadt gehört (wie OpenFront). Der Hintergrund scheint bei OpenFront schöner durch. Transportboot: Route, Aussehen und Zielkreis gefallen nicht.
 **Geändert** (`src/06_view.js`, `src/07_ui.js`):
