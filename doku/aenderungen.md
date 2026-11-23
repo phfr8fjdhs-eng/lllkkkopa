@@ -1,6 +1,12 @@
 # Änderungsprotokoll
 Was seit dem 13.11.2026 geändert wurde und warum. Den heutigen Stand der Regeln beschreiben die anderen Dateien in `doku/`.
 
+## Symbole, Schienen und Zoom nach OpenFronts Regeln (23.11.2026)
+**Wunsch des Besitzers:** Schienen und Symbole sollen sich im Aussehen noch mehr wie OpenFront verhalten; der Zoom mit dem Touchpad war viel zu langsam.
+**Nachgesehen im OpenFront-Code** (Shader und Einstellungen, nur Regeln übernommen; die Zeichen sind unsere eigenen): Gebäude haben je Art eine Form (Kreis, Fünfeck, Sechseck, Achteck, Quadrat, Dreieck), gefüllt mit der Besitzerfarbe auf 65 %, Rand fast schwarz, weisses Zeichen; Grösse 60 px × Zoomfaktor (bis Zoom 1.2 30 % ohne Zeichen, bis Zoom 3 wachsend, bis 7 gleich, darüber mit der Karte), Flugabwehr 1.4×, Silo 1.55×, Hafen und Fabrik 1.08×. Schienen ab Zoom 1 eingeblendet, ab 3 ganz, eine Kachel breit; ab Zoom 6 zwei Schienen und eine Schwelle pro Kachel; fremde in einer dunklen Variante der Besitzerfarbe, eigene grau. Zoom: jeder Schritt × 600 / (600 + delta), ein Zusammenziehen auf dem Touchpad (Rad mit Strg) zählt zehnfach.
+**Geändert:** so umgesetzt (`structIcon`, `iconScaleAt`, `drawRails` in `src/06_view.js`, Rad in `src/07_ui.js`). Damit sind auch die Formen je Art zurück, die ich am Mittag fälschlich durch gleiche Kreise ersetzt hatte. Zusätzlich zu OpenFront: Rad-Werte in Zeilen oder Seiten werden in Pixel umgerechnet.
+**Im Browser angesehen** bei Zoom 1.1, 2, 3.5 und 8.
+
 ## Optik übersichtlicher, nach OpenFronts Regeln (23.11.2026)
 **Wunsch des Besitzers:** optisch näher an OpenFront und viel übersichtlicher; Handels-, Kriegs- und Transportschiffe gefallen nicht, zu viele Meldungen, nicht zu sehen, wer angreift und wer verbündet ist, Schienen und Symbole nicht wie bei OpenFront.
 **Nachgesehen im OpenFront-Code** (Regeln, keine Grafik übernommen; die Zeichen sind unsere eigenen): Gebäude als gefüllter Kreis in der Besitzerfarbe mit weissem Zeichen, weit draussen nur Punkte, Stufe als Zahl ab 2; Schiffe als kleine Formen in der Besitzerfarbe; Schienen erst nah, in der Besitzerfarbe; Meldungen kurz (etwa 8 s) und getrennt von einer Liste der Angriffe mit Gegenangriff-Knopf.

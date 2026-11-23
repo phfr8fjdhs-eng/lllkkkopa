@@ -1899,12 +1899,16 @@
       e.preventDefault();
       if (e.shiftKey || (rdrag && rdrag.started)) { setRatio(ratio * 100 + (e.deltaY < 0 ? 5 : -5)); planKey = ''; return; }
       const r = cv.getBoundingClientRect();
-      // the wheel in pixels (some browsers count lines or pages); a touchpad pinch comes as a wheel
-      // with the Ctrl key and many small steps, so it gets a much larger factor per step. Until
-      // 23.11.2026 one factor for all, and a pinch on a touchpad barely zoomed.
-      let d = e.deltaY * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1);
-      d = within(d, -150, 150);
-      view.zoomAt(e.clientX - r.left, e.clientY - r.top, Math.exp(-d * (e.ctrlKey ? 0.012 : 0.0028)));
+      // as OpenFront (InputHandler, TransformHandler): each step multiplies the zoom by
+      // 600 / (600 + delta); a touchpad pinch (a wheel with Ctrl, small steps) counts ten times.
+      // The wheel in pixels (some browsers count lines or pages). Until 23.11.2026 exp(-delta x
+      // 0.0016) for everything, and a pinch on a touchpad barely zoomed.
+      let d = e.deltaY || e.deltaX;
+      d *= e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1;
+      if (e.ctrlKey && Math.abs(d) <= 10) d *= 10;
+      else if (Math.abs(d) < 2) return;
+      d = within(d, -300, 300);
+      view.zoomAt(e.clientX - r.left, e.clientY - r.top, 600 / (600 + d));
     }, { passive: false });
     window.addEventListener('resize', function () { view.resize(); });
     document.addEventListener('visibilitychange', function () { last = performance.now(); G.Audio.hush(document.hidden); });
