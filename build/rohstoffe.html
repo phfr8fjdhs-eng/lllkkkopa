@@ -7294,11 +7294,11 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   // Colour: other people's in a dark shade of their colour, your own grey.
   const RAIL_MIN = 1, RAIL_FULL = 3, RAIL_DETAIL = 6;
   View.prototype.drawRails = function (ctx, g, z, ox, oy) {
-    const rails = g.rails;
-    if (!rails.length || z <= RAIL_MIN) return;
-    const fade = within((z - RAIL_MIN) / (RAIL_FULL - RAIL_MIN), 0, 1), h = g.human;
+    const rails = g.rails, zz = z * (g.S || 1);               // zoom in OpenFront's tiles (drawStructures)
+    if (!rails.length || zz <= RAIL_MIN) return;
+    const fade = within((zz - RAIL_MIN) / (RAIL_FULL - RAIL_MIN), 0, 1), h = g.human;
     const W = g.W, x0 = -ox / z - 2, y0 = -oy / z - 2, x1 = (this.cw - ox) / z + 2, y1 = (this.ch - oy) / z + 2;
-    const detail = z >= RAIL_DETAIL, q = z / 3;
+    const detail = zz >= RAIL_DETAIL, q = zz / 3, hw = zz / 2;   // one of their tiles wide: zz pixels
     ctx.globalAlpha = fade;
     for (const e of rails) {
       if (e.x1 < x0 || e.x0 > x1 || e.y1 < y0 || e.y0 > y1) continue;
@@ -7312,21 +7312,21 @@ globalThis.G = { VARIANT: 'rohstoffe' };
           const x = (c[i] % W + 0.5) * z + ox, y = (((c[i] / W) | 0) + 0.5) * z + oy;
           if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y);
         }
-        ctx.lineWidth = z; ctx.lineJoin = 'miter'; ctx.lineCap = 'square'; ctx.stroke();
+        ctx.lineWidth = zz; ctx.lineJoin = 'miter'; ctx.lineCap = 'square'; ctx.stroke();
         continue;
       }
       // the track, straight run by straight run: two rails along it and a sleeper on every tile
       for (let i = 1; i < n; i++) {
         const ax = c[i - 1] % W, ay = (c[i - 1] / W) | 0, bx = c[i] % W, by = (c[i] / W) | 0;
-        const lx = Math.min(ax, bx), ly = Math.min(ay, by), sx = (lx) * z + ox, sy = (ly) * z + oy;
+        const mx = (Math.min(ax, bx) + 0.5) * z + ox, my = (Math.min(ay, by) + 0.5) * z + oy;
         if (ay === by) {
-          const len = (Math.abs(bx - ax) + 1) * z;
-          ctx.fillRect(sx, sy, len, q); ctx.fillRect(sx, sy + 2 * q, len, q);
-          for (let x = lx; x <= Math.max(ax, bx); x++) ctx.fillRect(x * z + ox + q, sy + q, q, q);
+          const len = Math.abs(bx - ax) * z;
+          ctx.fillRect(mx - hw, my - hw, len + zz, q); ctx.fillRect(mx - hw, my + hw - q, len + zz, q);
+          for (let x = Math.min(ax, bx); x <= Math.max(ax, bx); x++) ctx.fillRect((x + 0.5) * z + ox - q / 2, my - q / 2, q, q);
         } else {
-          const len = (Math.abs(by - ay) + 1) * z;
-          ctx.fillRect(sx, sy, q, len); ctx.fillRect(sx + 2 * q, sy, q, len);
-          for (let y = ly; y <= Math.max(ay, by); y++) ctx.fillRect(sx + q, y * z + oy + q, q, q);
+          const len = Math.abs(by - ay) * z;
+          ctx.fillRect(mx - hw, my - hw, q, len + zz); ctx.fillRect(mx + hw - q, my - hw, q, len + zz);
+          for (let y = Math.min(ay, by); y <= Math.max(ay, by); y++) ctx.fillRect(mx - q / 2, (y + 0.5) * z + oy - q / 2, q, q);
         }
       }
     }
@@ -7385,9 +7385,12 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   G.structIcon = structIcon;
   // Buildings: up to zoom 1.2 the bare outline small, without its sign; nearer the full sign, the
   // level above it from level 2 (as OpenFront).
+  // `zz`: the zoom in OpenFront's tiles. A tile of ours is 1 / S of theirs (S = 0.59 on the world
+  // map), so the same view is zz = z x S there; without it signs and rails were nearly twice as
+  // large as in OpenFront and buildings at the least distance covered each other.
   View.prototype.drawStructures = function (ctx, g, z, ox, oy) {
-    const cw = this.cw, ch = this.ch, T = g.ticks, h = g.human;
-    const far = z <= 1.2, k = iconScaleAt(z), m = ICON_PX * k;
+    const cw = this.cw, ch = this.ch, T = g.ticks, h = g.human, zz = z * (g.S || 1);
+    const far = zz <= 1.2, k = iconScaleAt(zz), m = ICON_PX * k;
     ctx.lineJoin = 'miter'; ctx.miterLimit = 4;
     if (!far) g.cloakScan();
     for (const u of g.structAt.values()) {
@@ -7400,7 +7403,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
       if (veil) ctx.globalAlpha = 1;
       if (far) continue;
       // with deliveries (`bahn`): an own station on the railway network wears a small green dot
-      if (g.bahn && z >= 3 && u.built && u.owner === h && G.isStation(u.type) && g.railAdj.has(u.id)) {
+      if (g.bahn && zz >= 3 && u.built && u.owner === h && G.isStation(u.type) && g.railAdj.has(u.id)) {
         const dx = x + side * 0.36, dy = y + side * 0.34, dr = Math.max(2.5, side * 0.09);
         ctx.beginPath(); ctx.arc(dx, dy, dr, 0, 6.2832);
         ctx.fillStyle = '#63d391'; ctx.fill(); ctx.lineWidth = 1.2; ctx.strokeStyle = '#0b1016'; ctx.stroke();
@@ -7415,67 +7418,38 @@ globalThis.G = { VARIANT: 'rohstoffe' };
 
   // The water a ship has crossed. A troop boat keeps its whole course in its owner's colour until it
   // lands (as in OpenFront); warships and merchants leave nothing behind.
+  // A troop boat leaves a short trail that fades out behind it (the last 24 tiles); your own boats
+  // also show a small ring where they will land. Until 23.11.2026 the whole course stayed on the
+  // map as a heavy line, the part still ahead dashed: long lines across the oceans that drew the
+  // eye more than the boats.
   View.prototype.drawWakes = function (ctx, g, z, ox, oy, alpha) {
-    const us = g.units, W = g.W, cw = this.cw, ch = this.ch;
+    const us = g.units, W = g.W, zz = z * (g.S || 1);
     ctx.lineJoin = 'round'; ctx.lineCap = 'round';
     for (let i = 0; i < us.length; i++) {
-      const u = us[i], ty = u.type;
-      if (!u.active || !u.path || ty !== UT.TRANSPORT) continue;
+      const u = us[i];
+      if (!u.active || !u.path || u.type !== UT.TRANSPORT) continue;
       const p = u.path, end = Math.min(u.pi, p.length - 1);
-      const hx = (u.vx + 0.5) * z + ox, hy = (u.vy + 0.5) * z + oy;
-      if (ty === UT.TRANSPORT) {
-        if (end < 1) continue;
-        const step = Math.max(1, Math.round(2.5 / z));
-        ctx.beginPath();
-        for (let k = 0; k < end - 2; k += step) {
-          const x = (p[k] % W + 0.5) * z + ox, y = (((p[k] / W) | 0) + 0.5) * z + oy;
-          if (k) ctx.lineTo(x, y); else ctx.moveTo(x, y);
-        }
-        ctx.lineTo(hx, hy);
-        // The route a boat has sailed is background information: faint enough not to compete
-        // with borders and buildings, still clear enough to follow.
-        // The course of a troop boat is worth seeing at a glance: a dark edge, the owner's
-        // colour on top, a light core. What lies ahead is dashed, and a ring marks the landing.
-        // Own boats are drawn in full; those of others are a thin line, fainter the further out.
-        const own = u.owner === g.human, fa = own ? 1 : within(z / 2.2, 0.3, 0.75);
-        if (own) { ctx.globalAlpha = 0.5; ctx.lineWidth = Math.max(3.2, z * 1.3); ctx.strokeStyle = 'rgba(8,14,22,1)'; ctx.stroke(); }
-        ctx.globalAlpha = 0.95 * fa;
-        ctx.lineWidth = own ? Math.max(2, z * 0.9) : Math.max(1.1, z * 0.6); ctx.strokeStyle = u.owner.cssB || u.owner.css; ctx.stroke();
-        if (own) { ctx.globalAlpha = 0.5; ctx.lineWidth = Math.max(0.7, z * 0.26); ctx.strokeStyle = '#fff'; ctx.stroke(); }
-        if (own && !u.retreat && end < p.length - 1) {
-          ctx.beginPath(); ctx.moveTo(hx, hy);
-          for (let k = end + 2; k < p.length; k += step) ctx.lineTo((p[k] % W + 0.5) * z + ox, (((p[k] / W) | 0) + 0.5) * z + oy);
-          const lt = p[p.length - 1], lx = (lt % W + 0.5) * z + ox, ly = (((lt / W) | 0) + 0.5) * z + oy;
-          ctx.lineTo(lx, ly);
-          ctx.setLineDash([6, 5]);
-          ctx.globalAlpha = 0.5; ctx.lineWidth = Math.max(3, z * 1.1); ctx.strokeStyle = 'rgba(8,14,22,1)'; ctx.stroke();
-          ctx.globalAlpha = 0.9; ctx.lineWidth = Math.max(1.6, z * 0.6); ctx.strokeStyle = u.owner.cssB || u.owner.css; ctx.stroke();
-          ctx.setLineDash([]);
-          ctx.beginPath(); ctx.arc(lx, ly, Math.max(5, z * 1.6), 0, 6.2832);
-          ctx.globalAlpha = 0.9; ctx.lineWidth = 3.5; ctx.strokeStyle = 'rgba(8,14,22,1)'; ctx.stroke();
-          ctx.lineWidth = 2; ctx.strokeStyle = u.owner.cssB || u.owner.css; ctx.stroke();
-        }
-        ctx.globalAlpha = 1;
-        continue;
+      const hx = (u.vx + 0.5) * z + ox, hy = (u.vy + 0.5) * z + oy, col = u.owner.cssB || u.owner.css;
+      const len = 24, from = Math.max(0, end - len);
+      ctx.lineWidth = Math.max(1.5, zz * 1.2); ctx.strokeStyle = col;
+      for (let k = from; k < end; k += 2) {
+        const a = p[k], b = p[Math.min(end, k + 2)];
+        ctx.globalAlpha = 0.6 * (k - from + 1) / (end - from + 1);
+        ctx.beginPath(); ctx.moveTo((a % W + 0.5) * z + ox, (((a / W) | 0) + 0.5) * z + oy);
+        if (k + 2 >= end) ctx.lineTo(hx, hy); else ctx.lineTo((b % W + 0.5) * z + ox, (((b / W) | 0) + 0.5) * z + oy);
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+      if (u.owner === g.human && !u.retreat) {
+        const lt = p[p.length - 1], lx = (lt % W + 0.5) * z + ox, ly = (((lt / W) | 0) + 0.5) * z + oy, r = Math.max(5, zz * 3);
+        ctx.beginPath(); ctx.arc(lx, ly, r, 0, 6.2832);
+        ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(8,14,22,.7)'; ctx.stroke();
+        ctx.lineWidth = 1.6; ctx.strokeStyle = '#fff'; ctx.stroke();
       }
     }
   };
 
-  // A hull seen from above, pointing along the ship's course.
-  function hull(ctx, x, y, ang, s, kind) {
-    ctx.save();
-    ctx.translate(x, y); ctx.rotate(ang); ctx.scale(s, s);
-    ctx.beginPath();
-    if (kind === 'war') {
-      ctx.moveTo(-1.05, -0.4); ctx.lineTo(0.35, -0.44); ctx.lineTo(1.2, 0); ctx.lineTo(0.35, 0.44); ctx.lineTo(-1.05, 0.4); ctx.lineTo(-0.85, 0);
-    } else if (kind === 'boat') {
-      ctx.moveTo(-0.8, -0.46); ctx.lineTo(0.2, -0.46); ctx.lineTo(1, 0); ctx.lineTo(0.2, 0.46); ctx.lineTo(-0.8, 0.46);
-    } else {
-      ctx.moveTo(-1, -0.38); ctx.lineTo(0.42, -0.38); ctx.lineTo(1.08, 0); ctx.lineTo(0.42, 0.38); ctx.lineTo(-1, 0.38);
-    }
-    ctx.closePath();
-    ctx.restore();
-  }
+
 
   // ---------- how ships sit on the water ----------
   // A route is a chain of tiles, eight directions only. Drawn tile by tile a ship zigzags and its
@@ -7554,14 +7528,16 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   }
   // How large ships are drawn (half-lengths in pixels): with the map, never smaller than a few
   // pixels. A warship about twice a merchant, a troop boat a little smaller than a merchant.
-  function warSize(z) { return within(z * 2.4, 6, 30); }
-  function tradeSize(z) { return within(z * 1.25, 3.5, 15); }
-  function boatSize(z) { return within(z * 1.05, 3, 12); }
+  // `zz` is the zoom in OpenFront's tiles: there a troop boat and a merchant are 5 tiles long, a
+  // warship 11 (half-lengths here)
+  function warSize(zz) { return within(zz * 5.5, 7, 60); }
+  function tradeSize(zz) { return within(zz * 2.5, 4, 30); }
+  function boatSize(zz) { return within(zz * 2.5, 5, 30); }
   // Where the muzzle of the gun that fires is on the screen, aiming at world point (tx, ty): the
   // forward turret for a target ahead, the after one for a target astern, so no shot crosses the
   // ship's own deck. The barrel points at the target.
   function gunTip(g, u, z, ox, oy, tx, ty, out) {
-    const s = warSize(z), a = u.va || 0;
+    const s = warSize(z * (g.S || 1)), a = u.va || 0;
     const cx = ((u.vx !== undefined ? u.vx : u.x) + 0.5) * z + ox, cy = ((u.vy !== undefined ? u.vy : u.y) + 0.5) * z + oy;
     const wx = (tx + 0.5) * z + ox, wy = (ty + 0.5) * z + oy;
     const ahead = (wx - cx) * Math.cos(a) + (wy - cy) * Math.sin(a) >= 0;
@@ -7650,7 +7626,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
 
   View.prototype.drawUnits = function (ctx, g, z, ox, oy, alpha, now) {
     const cw = this.cw, ch = this.ch, us = g.units;
-    const ws = warSize(z), bs = boatSize(z);
+    const zz = z * (g.S || 1), ws = warSize(zz), bs = boatSize(zz);
     this.frame = (this.frame || 0) + 1;
     for (let i = 0; i < us.length; i++) {
       const u = us[i], ty = u.type;
@@ -7706,17 +7682,23 @@ globalThis.G = { VARIANT: 'rohstoffe' };
           ctx.setLineDash([3, 3]); ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(244,183,64,.9)'; ctx.stroke(); ctx.setLineDash([]);
         }
       } else if (ty === UT.TRANSPORT) {
-        // a troop boat: a small rounded boat in the owner's colour, with a white edge so a landing
-        // is seen coming
-        hull(ctx, x, y, ang, bs, 'boat');
-        ctx.lineWidth = Math.max(1.2, bs * 0.2); ctx.strokeStyle = 'rgba(255,255,255,.9)'; ctx.stroke();
+        // a troop boat: a stubby boat in the owner's colour with a white edge and a light deck, so a
+        // landing is seen coming
+        ctx.save(); ctx.translate(x, y); ctx.rotate(ang);
+        ctx.beginPath();
+        ctx.moveTo(-bs * 0.85, -bs * 0.5); ctx.lineTo(bs * 0.3, -bs * 0.5); ctx.quadraticCurveTo(bs, -bs * 0.45, bs, 0);
+        ctx.quadraticCurveTo(bs, bs * 0.45, bs * 0.3, bs * 0.5); ctx.lineTo(-bs * 0.85, bs * 0.5); ctx.closePath();
+        ctx.lineJoin = 'round'; ctx.lineWidth = Math.max(1.6, bs * 0.22); ctx.strokeStyle = '#fff'; ctx.stroke();
         ctx.fillStyle = p.css; ctx.fill();
+        ctx.fillStyle = p.cssB; ctx.fillRect(-bs * 0.5, -bs * 0.22, bs * 0.8, bs * 0.44);
+        ctx.restore();
       } else if (ty === UT.TRAIN) {
         if (u.edge && (hid(g, u.edge.a) || hid(g, u.edge.b))) continue;
-        if (z >= RAIL_FULL || (z >= RAIL_MIN && p === g.human)) this.drawTrain(ctx, g, u, z, ox, oy, alpha);
+        const zz = z * (g.S || 1);
+        if (zz >= RAIL_FULL || (zz >= RAIL_MIN && p === g.human)) this.drawTrain(ctx, g, u, z, ox, oy, alpha);
       } else if (ty === UT.TRADE) {
         // Hull in the owner's colour, cargo in a deep shade of it, dark edge: readable on any water.
-        const s = tradeSize(z);
+        const s = tradeSize(zz);
         merchant(ctx, x, y, ang, s, p, u.captured, u.kind);
         // a large ship under fire: what is left of it before it can be taken
         if (u.kind && !u.captured && u.hits < G.HAFEN.ships[u.kind - 1][1]) {

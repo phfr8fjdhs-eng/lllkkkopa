@@ -1,6 +1,14 @@
 # Änderungsprotokoll
 Was seit dem 13.11.2026 geändert wurde und warum. Den heutigen Stand der Regeln beschreiben die anderen Dateien in `doku/`.
 
+## OpenFronts Grössen im richtigen Massstab, Transportboot neu (23.11.2026)
+**Rückmeldung des Besitzers:** Transportschiffe sehen schlecht aus, ihre Linien und Bewegung wirken verbuggt; nach dem Bau einer Fabrik gehen die Linien nicht zu den Städten.
+**Gefunden:**
+- Unsere Kachel ist grösser als OpenFronts (auf der Weltkarte S = 0.59). OpenFronts Zoom-Grenzen und Grössen waren ohne Umrechnung übernommen, also beim gleichen Ausschnitt fast doppelt so gross; Gebäude im Mindestabstand deckten sich und die kurzen Schienen dazwischen zu.
+- Die Schienen werden gebaut (nachgestellt: zwei Städte und eine Fabrik, beide verbunden, grüner Punkt an der Stadt).
+- Der Kurs eines Transportboots ist sauber (Kachel für Kachel, nie über Land, im Browser Bild für Bild gleichmässig). Aber der ganze, oft 300 bis 900 Kacheln lange Kurs blieb als dicke Linie stehen, voraus gestrichelt, bei allen Booten; das Boot selbst war ein kleiner Punkt.
+**Geändert:** Zoom für Symbole, Schienen und Schiffe in OpenFronts Kacheln (`zz` = Zoom × S). Schiffe in OpenFronts Länge (Transportboot und Handelsschiff 5, Kriegsschiff 11 ihrer Kacheln). Transportboot: kurzes, rundes Boot in der Besitzerfarbe mit weissem Rand; dahinter nur eine kurze, auslaufende Spur (24 Kacheln); bei eigenen Booten ein kleiner Ring am Landeplatz.
+
 ## Symbole, Schienen und Zoom nach OpenFronts Regeln (23.11.2026)
 **Wunsch des Besitzers:** Schienen und Symbole sollen sich im Aussehen noch mehr wie OpenFront verhalten; der Zoom mit dem Touchpad war viel zu langsam.
 **Nachgesehen im OpenFront-Code** (Shader und Einstellungen, nur Regeln übernommen; die Zeichen sind unsere eigenen): Gebäude haben je Art eine Form (Kreis, Fünfeck, Sechseck, Achteck, Quadrat, Dreieck), gefüllt mit der Besitzerfarbe auf 65 %, Rand fast schwarz, weisses Zeichen; Grösse 60 px × Zoomfaktor (bis Zoom 1.2 30 % ohne Zeichen, bis Zoom 3 wachsend, bis 7 gleich, darüber mit der Karte), Flugabwehr 1.4×, Silo 1.55×, Hafen und Fabrik 1.08×. Schienen ab Zoom 1 eingeblendet, ab 3 ganz, eine Kachel breit; ab Zoom 6 zwei Schienen und eine Schwelle pro Kachel; fremde in einer dunklen Variante der Besitzerfarbe, eigene grau. Zoom: jeder Schritt × 600 / (600 + delta), ein Zusammenziehen auf dem Touchpad (Rad mit Strg) zählt zehnfach.
