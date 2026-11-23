@@ -17,6 +17,7 @@ Kriegsschiffe nehmen Handelsschiffe samt Gold und Boote samt der Hälfte der Tru
 - **Mehrere Flanken:** jeder Stoss ist eigen, höchstens 4 gleichzeitig (`G.THRUST.max`).
 - **Ausgewogen:** Gerechnet wird mit dem Verhältnis am Ort. Ein Stoss trifft auch auf die Verteidiger an seinen beiden Flanken, umso mehr, je tiefer er ist (`G.THRUST.flank`); seine Flanken sind frisch erobert und nicht eingegraben. Sein Vorteil ist die Tiefe. Die Spitze kommt höchstens etwa 8 Felder pro Sekunde voran (`G.THRUST.speed`). Gemessen mit `node test/kampf.js stoss`.
 - Bots und Nationen greifen weiter mit der ganzen Front an.
+- **Gegenangriff der Nationen** (seit 23.11.2026, `strikeBack` in `src/05_ai.js`): Eine angegriffene Nation schlägt frühestens 4 s nach Beginn des Angriffs zurück (`G.AI_REACT`) und mit etwa dem Anderthalbfachen des Angriffs, nicht mehr mit allem über ihrer Reserve. Ein Gegenangriff hebt den Angriff Truppe gegen Truppe auf (wie OpenFront); eine Meldung sagt es.
 
 ## Bots, Tippen, Ausbau, Arsenal
 Bots greifen niemanden an, bauen nichts und wachsen nur langsam bis zu einer kleinen Grösse; wer einen erobert, bekommt sein Gold, 60K Prämie (`G.BOT_BOUNTY`) und wie bei jedem eroberten Reich 60 Gold pro Feld seiner grössten Ausdehnung (`G.LAND_GOLD`, `p.peak`); bei Bots wird alles zusammen um 20 % gekürzt (`G.BOT_LOOT` = 0.8, `lootValue`). Ein Tipp auf freies Land oder einen Bot greift sofort an, Nationen und Mitspieler nur über das Menü; lange drücken öffnet das Menü überall.

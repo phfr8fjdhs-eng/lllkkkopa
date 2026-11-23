@@ -1,6 +1,12 @@
 # Änderungsprotokoll
 Was seit dem 13.11.2026 geändert wurde und warum. Den heutigen Stand der Regeln beschreiben die anderen Dateien in `doku/`.
 
+## Nationen schlagen nicht mehr sofort mit allem zurück (23.11.2026)
+**Rückmeldung des Besitzers:** Ich greife an, er greift zurück, das Land springt hin und her, dann sind alle Truppen tot.
+**Nachgestellt** (echtes Spiel, nach 4 Minuten alle 3 s ein Klick zu 20 % auf die Nachbarnation): kein Fehler beim Umdrehen der Felder (nur normale Angriffe, keines innerhalb von 5 s zurück). Aber die Nation antwortete auf jeden Angriff im selben Augenblick mit allem über ihrer Reserve (30 bis 40 % der Obergrenze). Der Gegenangriff hob den eigenen Angriff Truppe gegen Truppe auf, der Rest lief ins eigene Land, der nächste Klick wurde wieder abgefangen: 900 Felder wechselten dreimal oder öfter den Besitzer, auf beiden Seiten starben die Truppen.
+**Geändert** (`strikeBack`, `G.AI_REACT`): Eine Nation schlägt frühestens 4 s nach Beginn eines Angriffs zurück und mit etwa dem Anderthalbfachen des Angriffs.
+**Jetzt:** im selben Spiel kein Feld mehr, das dreimal den Besitzer wechselt; der Angriff kommt stetig voran. Testspieler (20 Minuten, fünf Runden): überlebt alle, 104 bis 185 Felder pro 10K Verluste. Nebenbei: Die führende Nation hat nach 10 Minuten in drei von fünf Runden nur noch 18 bis 29 % statt gut 40 %.
+
 ## Ganze Front genau wie OpenFront (23.11.2026)
 **Rückmeldung des Besitzers:** Manchmal schwankt das Land hin und her (er hat viel, dann ich, dann er). Die Dichte an der Grenze soll nur ein Bonus sein, sonst alles wie OpenFront. Erst die ganze Front und die Verteidigung, Keil später einzeln.
 **Was noch von OpenFront abwich:** Der Preis verglich die Armee des Verteidigers mit dem ganzen Reich des Angreifers (seit dem Mittag), dadurch war jeder Angriff billig, auch jeder Gegenangriff. Und Nationen standen an bedrohten Grenzen bis doppelt so dicht, die ganze Front traf also fast nie auf «normal».

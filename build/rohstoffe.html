@@ -5795,6 +5795,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
 (function (G) {
   'use strict';
   const Math = G.M;   // same results on every device, see 00_util.js
+  G.AI_REACT = 40;    // ticks before a nation answers an attack on it (strikeBack)
   const PT = G.PT, UT = G.UT;
 
   // Computer opponents. Bots only spread a little and are there to be conquered; nations build, sail, ally and bomb.
@@ -5819,6 +5820,19 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     const troops = p.troops - g.maxTroops(p) * (target ? this.reserve : this.expand);
     if (troops < 1) return false;
     return !!g.attack(p, target ? target.id : 0, troops, -1);
+  };
+
+  // Answer an attack as a person would: not in the very second it starts but after a few seconds
+  // (`G.AI_REACT`), and with about one and a half times what comes at us, enough to catch it
+  // (a counter-attack cancels the attack one for one) and carry on a little. Until 23.11.2026 a
+  // nation answered at once with everything above its reserve: a click with 20 % was caught on
+  // the spot and the rest of its army swept into the attacker's land, and the land swung to and fro.
+  AI.prototype.strikeBack = function (at) {
+    const g = this.g, p = this.p;
+    if (g.ticks - at.start < G.AI_REACT) return false;
+    const troops = Math.min(p.troops - g.maxTroops(p) * this.reserve, at.troops * 1.5);
+    if (troops < 1) return false;
+    return !!g.attack(p, at.a.id, troops, -1);
   };
 
   // Bots are easy prey and build nothing. They take free land at a steady pace until they have a
@@ -5890,9 +5904,11 @@ globalThis.G = { VARIANT: 'rohstoffe' };
       const q = r.pick(list);
       if (!g.friendly(p, q) && g.relation(p, q) >= 0 && !g.isTraitor(q) && g.requestAlliance(p, q)) return;
     }
+    this.hit = null;
     const target = this.choose(list);
     if (!target) { this.overseas(); return; }
     if (g.opts.arsenal) this.beam(target);
+    if (this.hit) { this.strikeBack(this.hit); return; }
     if (p.troops / g.maxTroops(p) >= this.trigger) this.send(target);
   };
 
@@ -5901,8 +5917,8 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     const foes = list.filter(function (q) { return !g.friendly(p, q); });
     // strike back at the heaviest attack against us
     let top = null, best = p.troops * 0.05;
-    for (const a of p.inc) if (a.active && a.troops > best && foes.indexOf(a.a) >= 0) { best = a.troops; top = a.a; }
-    if (top) return top;
+    for (const a of p.inc) if (a.active && a.troops > best && foes.indexOf(a.a) >= 0) { best = a.troops; top = a; }
+    if (top) { this.hit = top; return top.a; }
     // stand by an ally who is being attacked by one of our neighbours
     for (const e of p.allies) {
       for (const a of g.players[e[0]].inc) if (a.active && foes.indexOf(a.a) >= 0 && r.chance(2)) return a.a;
