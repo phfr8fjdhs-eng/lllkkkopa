@@ -5,6 +5,7 @@ Was seit dem 13.11.2026 geändert wurde und warum. Den heutigen Stand der Regeln
 - Wunsch: Schiffe sahen fein und unruhig aus, nicht wie OpenFront; Containerschiffe zu klein; die Linie des Transportboots zu glatt.
 - Alle Schiffe sind jetzt eigene kleine Pixelbilder auf dem Kachelraster (Besitzerfarbe, dunkler Rand, Schatten auf einer Seite), je Besitzer und Art einmal gezeichnet und gecacht. Das Containerschiff ist 22 Bildpunkte lang, doppelt so lang wie der Frachter.
 - Die Spur des Transportboots ist eine Reihe von Kacheln in der Besitzerfarbe, an schrägen Schritten mit einer Treppenkachel geschlossen.
+- Nachgebessert nach Rückmeldung: wieder das kurze Boot und die Bilder ohne Schattenreihe, Containerschiff 20 statt 18 Bildpunkte, alle Schiffe etwas kleiner, Schlachtschiff, Zerstörer und Massengutfrachter noch etwas mehr.
 - Granaten, Raketen, Mündungsfeuer und Treffer als Quadrate statt weicher Verläufe: weniger Rechenaufwand. Im Browser geprüft: Schüsse gehen vom vorderen Geschütz aus und treffen das Ziel auf 1 bis 2 Kacheln.
 
 ## Kriegsschiffe zurückrufen und lagern, Unterhalt, tiefes Wasser (23.11.2026)

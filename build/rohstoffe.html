@@ -7704,15 +7704,18 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   // g light grey, G dark grey, F flame, r red, 0-4 container colours, . nothing
   const ART = {
     rkt: ['Fwwr'],
-    boat: ['.kkkkkk...', 'kwoGoGokk.', 'kwoooooook', 'kwoGoGokk.', '.kkkkkk...'],
+    boat: ['.kkkkk.', 'kwooddk', 'kwooddk', 'kwooddk', '.kkkkk.'],
     trade0: ['.kkkkkkkk..', 'kwwogggook.', 'kwwogggoook', 'kwwogggook.', '.kkkkkkkk..'],
     trade1: ['.kkkkkkkkkkk..', 'kwwoddoddoddk.', 'kwwoddoddoddok', 'kwwoddoddoddk.', '.kkkkkkkkkkk..'],
-    trade2: ['.kkkkkkkkkkkkkkkkkk...', 'kww00112233440011ook..', 'kww33440011223344oook.', 'kww11223344001122ooook', 'kww44001122334400oook.', 'kww22334400112233ook..', '.kkkkkkkkkkkkkkkkkk...'],
+    trade2: ['.kkkkkkkkkkkkkkkkk..', 'kww00112233440011ok.', 'kww33440011223344ook', 'kww11223344001122ook', 'kww44001122334400ok.', '.kkkkkkkkkkkkkkkkk..'],
     war0: ['.kkkkkkkkkk...', 'koooowwoooook.', 'kogGowwoGggook', 'koooowwoooook.', '.kkkkkkkkkk...'],
     war1: ['.kkkkkkkkkkkkkkk....', 'koooooowwwoooooook..', 'kogGGowwwwwoGGgoook.', 'kggGGowwwwwoGGggoook', 'kogGGowwwwwoGGgoook.', 'koooooowwwoooooook..', '.kkkkkkkkkkkkkkk....']
   };
   const HULLS = {};
-  for (const k in ART) HULLS[k] = [ART[k][0].length, ART[k].length];
+  // how large each picture is drawn, against one picture pixel per OpenFront tile (the battleship
+  // and the destroyer a little smaller than their grid, so that they are chunky, not huge)
+  const SCALE = { rkt: 1, boat: 0.85, trade0: 0.85, trade1: 0.75, trade2: 0.85, war0: 0.75, war1: 0.62 };
+  for (const k in ART) HULLS[k] = [ART[k][0].length * SCALE[k], ART[k].length * SCALE[k]];
   const BOXCOL = ['#e0793a', '#3d7fc4', '#c94a3f', '#4f9a5a', '#d8b23a'];
   function hullGrid(kind) { return ART[kind]; }
   const SPRITES = new Map();
@@ -7728,8 +7731,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
       w: '#f2f4f6', g: '#a7afb6', G: '#4b545c', F: '#ffb04a', r: '#e04a3a'
     };
     for (let y = 0; y < Wd; y++) for (let x = 0; x < L; x++) {
-      let ch = g[y][x] || '.';
-      if (ch === 'o' && Wd > 2 && y > Wd / 2 && (g[y + 1] || '')[x] === 'k') ch = 'd';
+      const ch = g[y][x] || '.';
       if (ch === '.') continue;
       c.fillStyle = col[ch] || BOXCOL[+ch] || col.o; c.fillRect(x, y, 1, 1);
     }
@@ -7739,7 +7741,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   }
   // Draw a ship picture centred at (x, y), its bow along `ang`, `px` screen pixels per picture pixel.
   function drawShip(ctx, kind, x, y, ang, px, p) {
-    const cv = shipSprite(kind, p), L = cv.width, Wd = cv.height;
+    const cv = shipSprite(kind, p), L = cv.width * SCALE[kind], Wd = cv.height * SCALE[kind];
     ctx.save(); ctx.translate(x, y); ctx.rotate(ang);
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(cv, -L * px / 2, -Wd * px / 2, L * px, Wd * px);
