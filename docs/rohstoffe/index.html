@@ -1425,7 +1425,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   //   rail     extra momentum at most for a railway at the start; along a railway it also fades
   //            slower (to `railFade` of the decay on the line itself)
   //   min/max  range of the momentum an attack can start with
-  G.MOMENTUM = { decay: 0.012, stop: 0.25, rest: 300, mass: 0.25, rail: 0.15, railFade: 0.6, min: 0.32, max: 1.5 };
+  G.MOMENTUM = { decay: 0.012, stop: 0.25, slow: 0.5, stall: 200, rest: 300, mass: 0.25, rail: 0.15, railFade: 0.6, min: 0.55, max: 1.5 };
   G.THRUST = { widths: [0, 30, 12], max: 4, pull: 1.2, ring: 0.6, speed: 0.5, flank: 3, deep: 4, hold: 1.5, fan: 0.45, nose: 1, crowd: 2, dirShare: 0.6, search: 250000 };
   G.UNAME = ['Stadt', 'Verteidigungs\u00ADposten', 'Hafen', 'Raketensilo', 'Flugabwehr', 'Fabrik', 'Tarnturm', 'Kriegsschiff', 'Boot',
     'Handelsschiff', 'Zug', 'Granate', 'Abwehrrakete', 'Atombombe', 'Wasserstoff\u00ADbombe', 'MIRV', 'Sprengkopf', 'Marschflug\u00ADkörper', 'Satelliten\u00ADstrahl'];
@@ -2269,7 +2269,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
           if (mom0 > 0) {
             const fade = this.cellRail && this.CW ? 1 - (1 - MO.railFade) * (1 - this.cellRail[this.cellOf(tile)]) / 0.8 : 1;
             mom -= MO.decay * within(loss / (2 * CB.base), 0.25, 4) / Math.max(4, width) * fade;
-            const k = Math.max(mom, MO.stop);
+            const k = Math.max(mom, MO.slow);
             loss /= Math.sqrt(k); used /= Math.min(1.25, k);
           }
           const gone = Math.min(tT, D);
@@ -2415,8 +2415,11 @@ globalThis.G = { VARIANT: 'rohstoffe' };
       }
       this.attacks.push(at);
       if (src < 0) this.refreshFront(at);
-      // momentum: how much push the attack starts with (rest, troops massed there, railway)
-      if (this.schwung && t) at.mom = this.momentumStart(a, this.momentumSpots(at));
+      // momentum: how much push a narrow attack (wedge, section, direction) starts with (rest,
+      // troops massed there, railway). Only narrow ones: the whole front is the broad, safe way,
+      // and every click on it feeds the same attack; with momentum (until 23.11.2026) a few
+      // clicks in a row left it tired, it halted at once and the troops came home.
+      if (this.schwung && t && (at.goal >= 0 || at.spot >= 0)) at.mom = this.momentumStart(a, this.momentumSpots(at));
     }
     if (src >= 0) this.addFront(at, src);
     at.troops += troops; at.sum = (at.sum || 0) + troops;   // sum: all ever sent, for the display
@@ -2505,6 +2508,15 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     // (EngineConfig.attackLogic): a whole tick's budget, each tile a share of it (see below).
     const of = !!t && !this.aufstellung && !this.lokal;     // `lokal`: no posture, but the local fight all the same
     let budget = (of ? 1 : t ? within(10 * use / face, 0.01, 0.5) * n * 3 : n * (a.type === PT.BOT ? 1.9 : 2)) * this.attackPace + (at.carry || 0);
+    // A narrow attack with momentum that has taken nothing for `stall` ticks has stuck fast: it
+    // halts like one out of momentum, its troops stay as defenders. Before 23.11.2026 it could sit
+    // there for minutes paying off one dear tile, with its troops tied up and nothing to see.
+    if (at.want > 0) at.took = this.ticks;   // troops still marching up: not stuck
+    if (at.mom !== undefined && this.ticks - (at.took !== undefined ? at.took : at.start) > G.MOMENTUM.stall) {
+      if (a === this.human) this.say('Der Angriff auf ' + t.name + ' steckt fest und hält an', 'warn');
+      this.endAttack(at, true);
+      return;
+    }
     if (budget <= 0) { at.carry = budget; return; }
     const landTiles = map.landTiles;
     const lossMod = a.tiles > landTiles * 0.17 ? Math.sqrt(landTiles * 0.17 / a.tiles) : 1;
@@ -2617,7 +2629,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
           const MO = G.MOMENTUM, wide = narrow ? Math.max(4, at.width || 0) : Math.max(8, at.front.size);
           const fade = this.cellRail && this.CW ? 1 - (1 - MO.railFade) * (1 - this.cellRail[this.cellOf(tile)]) / 0.8 : 1;
           at.mom -= MO.decay * within(loss / (2 * CB.base), 0.25, 4) / wide * fade;
-          const k = Math.max(at.mom, MO.stop);
+          const k = Math.max(at.mom, MO.slow);   // at most half as fast (until 23.11.2026 down to a quarter: a tired wedge froze)
           loss /= Math.sqrt(k); used /= Math.min(1.25, k);
         }
         // the defender loses those who stood there; where they stand dense, part of them fall back
@@ -2631,6 +2643,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
       budget -= used; at.troops -= loss;
       if (aimed && dt !== undefined && dt < at.head) at.head = dt;
       at.taken = (at.taken || 0) + 1;
+      at.took = this.ticks;
       if (at.mom !== undefined) (a.tired || (a.tired = new Map())).set(this.zoneOf(tile), this.ticks);
       this.conquer(a, tile);
       if (t && t.tiles < 100) { this.finishOff(a, t); this.endAttack(at, true); return; }

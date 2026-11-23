@@ -1,6 +1,16 @@
 # Änderungsprotokoll
 Was seit dem 13.11.2026 geändert wurde und warum. Den heutigen Stand der Regeln beschreiben die anderen Dateien in `doku/`.
 
+## Angriff blieb stehen, Truppen kamen zurück (23.11.2026)
+**Rückmeldung des Besitzers:** mit 80K gegen eine Nation mit 10K angegriffen, der Angriff geht nicht vorwärts, die Truppen sind wieder in der Reserve.
+**Nachgestellt** (80K gegen 10K, alle 3 s ein Klick auf die ganze Front): Jeder Klick speiste denselben Angriff, und der hatte Schwung. Mehrere Klicks hintereinander von denselben Abschnitten liessen ihn müde starten (28 bis 32 %), er blieb nach wenigen Feldern stehen («keinen Schwung mehr») und die Truppen kamen zurück. Ein zweiter Keil von derselben Stelle fror ein: Schwung knapp über 25 %, jedes Feld dadurch viermal langsamer, an verteidigtem Boden ein Feld alle paar Minuten, 51K Truppen gebunden, ohne Meldung; ein weiterer Klick hängte sich an diesen eingefrorenen Angriff.
+**Geändert:**
+- Schwung nur noch für schmale Angriffe (Keil, Abschnitt, Richtung). Die ganze Front ist der breite, sichere Weg ohne Schwung.
+- Wenig Schwung macht höchstens halb so schnell (`G.MOMENTUM.slow` 0.5, vorher bis ein Viertel).
+- Ein schmaler Angriff, der 20 s kein Feld nimmt, steckt fest und hält an (`G.MOMENTUM.stall`, Meldung «steckt fest und hält an»); seine Truppen bleiben als Verteidiger stehen.
+- Mindest-Schwung nach einem Angriff 55 % statt 32 %.
+**Jetzt:** 80K gegen 10K mit wiederholten Klicks erobert die Nation in gut 2 Minuten. Zweiter Keil sofort von derselben Stelle 82 Felder (vorher 1), der erste 233.
+
 ## Testspieler, Tempo unterlegener Angriffe, Hauptland bei Grenzland (23.11.2026)
 **Neu: Testspieler** (`node test/spieler.js [grenzland|grenzen] [Minuten] [Startwert]`): ein Computer, der wie ein Mensch spielt (erst freies Land und Bots, Nationen nur wenn stärker und mit genug Truppen, schlägt zurück, baut Städte, Hafen, Fabriken), in einer ganzen Runde auf der Weltkarte. Er misst Land und Platz alle 10 Minuten und wie viel seiner Angriffe auf Nationen verpufft.
 **Damit gefunden:**

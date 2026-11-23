@@ -8,15 +8,15 @@ Kessel und Schwung gehören zum Kampfsystem «Grenzland» (`doku/kampfsysteme.md
 - Gemessen (`node test/kampf.js abwehr`): 1024 eingeschlossene Felder, nach 10 und 25 s noch alle, nach 35 s keins; ohne Schalter sofort weg.
 
 ## Schwung (`G.MOMENTUM`, `momentumStart`, Abnahme in `tickAttack`)
-- Jeder Angriff auf einen Menschen oder eine Nation startet mit Schwung. Der Start ist 100 %, mehr mit Vorbereitung (höchstens 150 %), weniger, wenn derselbe Abschnitt gerade angegriffen hat (höchstens 40 % weniger).
+- Jeder schmale Angriff (Keil, Abschnitt, Richtung) auf einen Menschen oder eine Nation startet mit Schwung; die ganze Front hat seit 23.11.2026 keinen (wiederholte Klicks liessen sie sonst müde stehen bleiben). Der Start ist 100 %, mehr mit Vorbereitung (höchstens 150 %), weniger, wenn derselbe Abschnitt gerade angegriffen hat (mindestens 55 %).
   - **Erholung:** Ein Abschnitt (16 × 16 Felder), aus dem ein Angriff kam, braucht 30 s bis zum vollen Schwung (`rest`).
   - **Aufmarsch:** Je dichter die eigenen Truppen am Start stehen (Netz), desto mehr: +25 % pro Dichte über dem Schnitt (`mass`).
   - **Schiene:** bis +15 % an einer Schiene (`rail`).
 - **Abnahme pro erobertem Feld:** `decay` × Widerstand ÷ Breite der Front. Widerstand = was das Feld an Truppen kostete ÷ 32, zwischen 0.25 und 4. Gegen Bots und freies Land darum kaum, gegen dichte, eingegrabene Nationen schnell. Eine breite Front verliert pro Feld wenig, ein Keil viel. Entlang einer Schiene langsamer (bis auf 60 %, `railFade`).
-- **Wirkung:** Verluste pro Feld ÷ √Schwung, Zeit pro Feld ÷ Schwung (höchstens 1.25). Unter 25 % bleibt der Angriff stehen (`stop`), die übrigen Truppen kommen zurück. Meldung «Der Angriff auf … hat keinen Schwung mehr».
+- **Wirkung:** Verluste pro Feld ÷ √Schwung, Zeit pro Feld ÷ Schwung (Schwung dabei zwischen 50 % und 125 %, `slow`). Unter 25 % bleibt der Angriff stehen (`stop`), die übrigen Truppen bleiben als Verteidiger. Meldung «Der Angriff auf … hat keinen Schwung mehr». Nimmt er 20 s kein Feld (`stall`), hält er ebenso an: «… steckt fest und hält an».
 - **Anzeige:** Vorschau beim Ziehen «Keil · 12K · Schwung 120 % · …», Karte eines laufenden Pfeils «Schwung 63 %».
 - **Abgestimmt** mit `decay` 0.006 auf einer 40-Minuten-Runde nur mit Computer-Spielern (`node test/sim.js welt 24000`): Ohne Schwung hat der Spitzenreiter nach 10 Minuten 40 % und nach 20 Minuten 59 % (Schneeball, früh entschieden). Mit 0.012 gab es nach 40 Minuten keinen Sieger, mit 0.005 einen Spitzenreiter mit 75 %, mit 0.006 etwa 45 bis 50 %. Die Läufe streuen; Menschen bereiten vor und sollten schneller durchkommen.
-- **Gemessen** (`node test/kampf.js schwung`, 400K gegen 100K, 15 %): Keil ohne Schwung 460 Felder und 67 % des Wegs, mit Schwung 403 Felder und 62 %; ganze Front 545 Felder. Ein zweiter Keil sofort von derselben Stelle: 88 Felder. Nach 60 s Aufmarsch (Netz ×5 am Start) Start-Schwung 136 %, 58 % des Wegs statt 44 % nach 60 s Warten ohne Aufmarsch.
+- **Gemessen** (`node test/kampf.js schwung`, 400K gegen 100K, 15 %, Stand 23.11.2026): Keil ohne Schwung 283 Felder und 42 % des Wegs, mit Schwung 233 Felder und 36 %; ganze Front 379 Felder (mit und ohne Schwung gleich). Ein zweiter Keil sofort von derselben Stelle: 82 Felder. Nach 60 s Aufmarsch (Netz ×5 am Start) Start-Schwung 136 %, 38 % des Wegs statt 29 % nach 60 s Warten ohne Aufmarsch.
 
 ## Bahn: Lieferungen (`G.BAHN`, `tickDeliveries`, `tickDelivery` in `src/04b_rail.js`)
 - **Fabriken** stehen dreimal so weit auseinander wie andere Gebäude (`factoryGap`).

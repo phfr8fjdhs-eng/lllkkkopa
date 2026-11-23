@@ -4,7 +4,7 @@ Auf dem Startbildschirm unter «Kampfsystem». Im Mehrspieler gilt die Wahl des 
 | | Grenzland | Feste Grenzen |
 | --- | --- | --- |
 | Verteidigung | Netz von Hand (Taste N), Eingraben, Reserven, Kessel halten 30 s | kein Netz: deine Truppen stehen gleichmässig; Kessel fallen sofort |
-| Bremse für schmale Angriffe | Schwung: sinkt mit Tiefe und Widerstand, Vorbereitung gibt mehr (`doku/testschalter.md`) | höchstens 2 Angreifer pro Verteidiger (`G.THRUST.crowd`), der Rest ist Nachschub |
+| Bremse für schmale Angriffe | Schwung (nur schmale Angriffe, die ganze Front hat keinen): sinkt mit Tiefe und Widerstand, Vorbereitung gibt mehr (`doku/testschalter.md`) | höchstens 2 Angreifer pro Verteidiger (`G.THRUST.crowd`), der Rest ist Nachschub |
 | Angriffsarten | ganze Front, Keil, Abschnitt | ganze Front, Keil, Abschnitt, Richtung |
 | Truppen eines Angriffs | aus dem ganzen Land | aus dem ganzen Land |
 
