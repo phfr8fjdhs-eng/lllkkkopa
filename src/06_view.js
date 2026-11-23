@@ -1012,21 +1012,23 @@
       // the whole way for boats that concern you; other people's leave a short trail only, so the
       // oceans are not crossed by lines
       const from = mine || atMe ? 0 : Math.max(0, end - 20);
-      if (!mine && !atMe) ctx.globalAlpha = 0.45;
       if (end - from >= 1) {
-        // the tiles the boat has passed, painted in its owner's colour, one tile each: a pixel
-        // line on the grid of the map, as in OpenFront (before 23.11.2026, a smooth stroke)
-        const q = Math.max(1, z), step = z < 1 ? Math.max(1, Math.round(1 / z)) : 1;
-        ctx.fillStyle = u.owner.css;
-        if (mine || atMe) ctx.globalAlpha = 0.75;
-        const cq = Math.ceil(q), sh = (z - q) / 2;
-        let lx = -1, ly = -1;
-        for (let k = from; k < end; k += step) {
-          const tx = p[k] % W, ty = (p[k] / W) | 0;
-          ctx.fillRect(Math.floor(tx * z + ox + sh), Math.floor(ty * z + oy + sh), cq, cq);
-          // a diagonal step gets a stair tile, so the line stays closed
-          if (step === 1 && lx >= 0 && tx !== lx && ty !== ly) ctx.fillRect(Math.floor(tx * z + ox + sh), Math.floor(ly * z + oy + sh), cq, cq);
-          lx = tx; ly = ty;
+        // the way the boat has come, painted cell by cell in the owner's pale territory colour,
+        // as OpenFront paints its boat trails (alpha 150 of 255). The cells are a little coarser
+        // than a tile (about an OpenFront cell on screen, at least 2 px), so the line is calm and
+        // of a piece with the ship pictures, not a fine staircase.
+        const n = Math.max(1, Math.round(Math.max(2, zz * 1.3) / z)), cs = n * z, o = u.owner;   // n tiles a cell, on the map's grid
+        ctx.fillStyle = 'rgb(' + (o.rs !== undefined ? o.rs + ',' + o.gs + ',' + o.bs : o.r + ',' + o.g + ',' + o.b) + ')';
+        ctx.globalAlpha = mine || atMe ? 0.6 : 0.35;
+        let lx = -9, ly = -9;
+        const cell = function (cx, cy) { ctx.fillRect(Math.floor(cx * cs + ox), Math.floor(cy * cs + oy), Math.ceil(cs), Math.ceil(cs)); };
+        for (let k = from; k < end; k++) {
+          const cx = Math.floor((p[k] % W) / n), cy = Math.floor(((p[k] / W) | 0) / n);
+          if (cx === lx && cy === ly) continue;
+          // a diagonal step: one cell more, so the line runs in closed steps as in OpenFront,
+          // whose boats only move in four directions
+          if (lx > -9 && cx !== lx && cy !== ly) cell(cx, ly);
+          cell(cx, cy); lx = cx; ly = cy;
         }
       }
       ctx.globalAlpha = 1;
@@ -1098,7 +1100,7 @@
   // g light grey, G dark grey, F flame, r red, 0-4 container colours, . nothing
   const ART = {
     rkt: ['Fwwr'],
-    boat: ['.kkkkk.', 'kwooddk', 'kwooddk', 'kwooddk', '.kkkkk.'],
+    boat: ['.dddd.', 'dwoood', 'dwoood', '.dddd.'],
     trade0: ['.kkkkkkkk..', 'kwwogggook.', 'kwwogggoook', 'kwwogggook.', '.kkkkkkkk..'],
     trade1: ['.kkkkkkkkkkk..', 'kwwoddoddoddk.', 'kwwoddoddoddok', 'kwwoddoddoddk.', '.kkkkkkkkkkk..'],
     trade2: ['.kkkkkkkkkkkkkkkkk..', 'kww00112233440011ok.', 'kww33440011223344ook', 'kww11223344001122ook', 'kww44001122334400ok.', '.kkkkkkkkkkkkkkkkk..'],
@@ -1108,7 +1110,7 @@
   const HULLS = {};
   // how large each picture is drawn, against one picture pixel per OpenFront tile (the battleship
   // and the destroyer a little smaller than their grid, so that they are chunky, not huge)
-  const SCALE = { rkt: 1, boat: 0.85, trade0: 0.85, trade1: 0.75, trade2: 0.85, war0: 0.75, war1: 0.62 };
+  const SCALE = { rkt: 1, boat: 0.85, trade0: 0.85, trade1: 0.75, trade2: 0.85, war0: 0.75, war1: 0.5 };
   for (const k in ART) HULLS[k] = [ART[k][0].length * SCALE[k], ART[k].length * SCALE[k]];
   const BOXCOL = ['#e0793a', '#3d7fc4', '#c94a3f', '#4f9a5a', '#d8b23a'];
   function hullGrid(kind) { return ART[kind]; }
