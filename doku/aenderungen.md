@@ -1,6 +1,18 @@
 # Änderungsprotokoll
 Was seit dem 13.11.2026 geändert wurde und warum. Den heutigen Stand der Regeln beschreiben die anderen Dateien in `doku/`.
 
+## Optik übersichtlicher, nach OpenFronts Regeln (23.11.2026)
+**Wunsch des Besitzers:** optisch näher an OpenFront und viel übersichtlicher; Handels-, Kriegs- und Transportschiffe gefallen nicht, zu viele Meldungen, nicht zu sehen, wer angreift und wer verbündet ist, Schienen und Symbole nicht wie bei OpenFront.
+**Nachgesehen im OpenFront-Code** (Regeln, keine Grafik übernommen; die Zeichen sind unsere eigenen): Gebäude als gefüllter Kreis in der Besitzerfarbe mit weissem Zeichen, weit draussen nur Punkte, Stufe als Zahl ab 2; Schiffe als kleine Formen in der Besitzerfarbe; Schienen erst nah, in der Besitzerfarbe; Meldungen kurz (etwa 8 s) und getrennt von einer Liste der Angriffe mit Gegenangriff-Knopf.
+**Geändert** (`src/06_view.js`, `src/07_ui.js`, `src/template.html`):
+- Gebäude: ein Kreis in einer tiefen Variante der Besitzerfarbe mit weissem Zeichen, gleich für alle Arten; eigene mit dünnem weissem Ring; Stufe als kleine Zahl darüber. Bis Zoom 1.2 nur ein Punkt. Vorher eigene Umrisse je Art, Zeichen und Ringe nach Stufe, grosse dunkle Abzeichen schon weit draussen.
+- Schiffe: Kriegsschiff lang und spitz mit einem Geschütz, Handelsschiff kurz und rund mit hellem Ladestreifen, Transportboot klein mit weissem Rand; alle in der Besitzerfarbe, mit der Karte wachsend.
+- Schienen: erst ab Zoom 2.5 eingeblendet, ganz ab 4, dünn, in einer hellen Variante der Besitzerfarbe (die eigenen hellgrau).
+- Meldungen unten rechts, höchstens 3, 6 s; die gleiche Meldung nochmals zählt hoch («×2»). Links nur noch die Angriffe und Bündnis-Anfragen; ein Angriff auf dich hat einen Knopf für den Gegenangriff.
+- Auf der Karte: Wer dich angreift, steht rot mit ⚔, immer sichtbar; Verbündete grün mit ✓ und Restzeit.
+- Gelände unter der Landfarbe ruhiger: Hochland nur leicht, Gebirge deutlich heller.
+**Im Browser angesehen** bei Zoom 1.15, 2.6 und 5.
+
 ## Dichte als milder Puffer, Gelände sichtbar, Kälte weg, Hotbar (23.11.2026)
 **Wunsch des Besitzers:** Die ganze Front OpenFront-ähnlich, die Dichte ein sauberer, erkennbarer Puffer: nicht krass, vor allem gegen Überrennen, wer viel mehr hat, kommt trotzdem durch (verstärken später über den Skill-Tree). Gelände wie in OpenFront langsamer und teurer, aber man soll klar sehen, wo es riskant ist, keine unsichtbaren Flecken. Hotbar: 2 und 3 vertauscht.
 **Vorher geprüft:** Auch am echten OpenFront-Code (aktueller Stand auf GitHub): Kampfformel und Konstanten, ein Klick = 1/5 der Truppen, Gegenangriff hebt Truppe gegen Truppe auf, Rückzug 25 % sind gleich. OpenFronts Nationen schlagen sogar härter zurück als unsere (Angriff plus die Heimarmee des Angreifers). Eine Kostenkarte der Weltkarte zeigte: Fast die Hälfte des Landes war doppelt bis achtmal so teuer wie Flachland, vor allem wegen der Kälte (zwei Drittel des Landes, bis 2× langsamer und 1.5× teurer, auf der Karte nicht zu sehen); Hochland (ein Viertel der Welt) war unter der Farbe eines Reichs kaum zu erkennen.

@@ -38,8 +38,8 @@ Kessel und Schwung gehören zum Kampfsystem «Grenzland» (`doku/kampfsysteme.md
 - **Züge:** Jeder zweite Zug, der einen Hafen erreicht, schickt ein zusätzliches Schiff mit der Hälfte seines Lohns als Ladung (`trainShip`).
 - **Gemessen** (Weltkarte, nur Computer-Spieler, die ihre Häfen nicht ausbauen): Handel pro Minute nach 10 / 20 / 30 Minuten bisher 5.5M / 9.6M / 11.2M, nach Stufe 3.7M / 6.6M / 7.0M. Gerechnet für einen Hafen: Stufe 9 bringt etwa viermal, Stufe 25 etwa zwölfmal so viel wie Stufe 1; der Ausbau bis 25 zahlt sich nach etwa 20 Minuten aus.
 
-## Gebäude nach Stufe (`signOf`, `growOf` in `src/06_view.js`, immer an)
-Beim Hineinzoomen: Stadt Stufe 1–3 ein Dorf, 4–14 eine Stadt, ab 15 eine Grossstadt mit Hochhäusern; Hafen ab Stufe 10 Kran und Container; Fabrik ab Stufe 10 mit zweiter Halle und Kamin. Das Zeichen wird mit der Stufe etwas grösser (bis +25 % bei Stufe 22). Ab Stufe 10 ein heller Ring, ab 25 ein goldener.
+## Gebäude nach Stufe (entfernt am 23.11.2026)
+Vom 22. bis 23.11.2026 änderte sich das Zeichen mit der Stufe (Dorf, Stadt, Grossstadt; Hafen mit Kran; Fabrik mit zwei Kaminen) und trug Ringe ab Stufe 10 und 25. Ersetzt durch einen gleichen Kreis für alle Gebäude mit der Stufe als Zahl darüber, wie OpenFront (`doku/aenderungen.md`).
 
 ## Bots
 Vorgabe ein Bot je 850 Landfelder (vorher 630), höchstens 600, damit die Erde weniger ruckelt. Eine gespeicherte Zahl wird einmal zurückgesetzt.

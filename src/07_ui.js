@@ -590,7 +590,7 @@
     $('bRes').hidden = true;
     plans.length = 0; syncPlans();
     $('mPunkt').hidden = !game.punkt; setThrust(cfg.thrust);
-    $('feedMsgs').innerHTML = ''; $('feedLive').innerHTML = ''; chips.clear(); asks.clear();
+    $('feedMsgs').innerHTML = ''; $('feedLive').innerHTML = ''; $('news').innerHTML = ''; chips.clear(); asks.clear();
     $('lbRows').innerHTML = ''; $('clock').textContent = '0:00';
     speed = 1; $('bSpeed').textContent = '1×'; acc = 0; endShown = false; lbAt = liveAt = -99; tradeAt = 0; aim = null;
     setPaused(false);
@@ -637,13 +637,25 @@
   }
 
   // ---------- feed ----------
+  // Messages: at most three at the bottom right, gone after 6 s; the same message again counts up
+  // on the one already there instead of stacking (until 23.11.2026 up to four on the left, among
+  // the attacks, each repeat a new line).
   function addMsg(text, cls) {
-    const box = $('feedMsgs'), el = document.createElement('div');
+    const box = $('news');
+    for (const el of box.children) {
+      if (el.dataset.text !== text) continue;
+      el.dataset.n = (+el.dataset.n || 1) + 1;
+      el.lastChild.textContent = '×' + el.dataset.n;
+      clearTimeout(el.timer); el.timer = setTimeout(function () { el.remove(); }, 6000);
+      return;
+    }
+    const el = document.createElement('div');
     el.className = 'msg ' + (cls || 'info');
-    el.textContent = text;
+    el.dataset.text = text;
+    el.appendChild(document.createTextNode(text)); el.appendChild(document.createElement('b'));
     box.appendChild(el);
-    while (box.querySelectorAll('.msg:not(.ask)').length > 4) box.querySelector('.msg:not(.ask)').remove();
-    setTimeout(function () { el.remove(); }, 7000);
+    while (box.children.length > 3) box.firstChild.remove();
+    el.timer = setTimeout(function () { el.remove(); }, 6000);
   }
   function addAsk(key, text, yes, no, onYes, onNo) {
     if (asks.has(key)) return;
@@ -723,7 +735,7 @@
       if (!el) {
         el = document.createElement('div');
         el.className = 'msg chip ' + cls;
-        el.innerHTML = '<span></span>' + (action ? '<button type="button" aria-label="Zurückrufen">' + svg('close', 13) + '</button>' : '');
+        el.innerHTML = '<span></span>' + (action ? '<button type="button" aria-label="' + (cls === 'bad' ? 'Gegenangriff' : 'Zurückrufen') + '">' + svg(cls === 'bad' ? 'sword' : 'close', 13) + '</button>' : '');
         if (action) el.lastChild.addEventListener('click', action);
         box.appendChild(el);
         chips.set(key, el);
@@ -735,7 +747,15 @@
         put('o' + a.id, 'info', 'Angriff auf ' + (a.tid ? game.players[a.tid].name : 'freies Land') + ' · ' + fmtT(a.troops) + (a.want >= 1 ? ' · +' + fmtT(a.want) + ' unterwegs' : ''), function () { act({ k: 'ret', a: a.id }); });
       }
       const inc = h.inc.slice().sort(function (a, b) { return b.troops - a.troops; });
-      for (let i = 0; i < inc.length && i < 3; i++) put('i' + inc[i].id, 'bad', inc[i].a.name + ' greift an · ' + fmtT(inc[i].troops) + (inc[i].sum > inc[i].troops * 1.2 ? ' (von ' + fmtT(inc[i].sum) + ')' : ''), null);
+      // incoming attacks, the largest first, each with a button to strike back at once (as OpenFront)
+      for (let i = 0; i < inc.length && i < 3; i++) {
+        const q = inc[i].a;
+        put('i' + inc[i].id, 'bad', q.name + ' greift an · ' + fmtT(inc[i].troops) + (inc[i].sum > inc[i].troops * 1.2 ? ' (von ' + fmtT(inc[i].sum) + ')' : ''), q.type === PT.BOT ? null : function () {
+          let t = -1;
+          for (const b of h.border) { const W = game.W; for (const n of [b - 1, b + 1, b - W, b + W]) if (n >= 0 && n < game.N && game.owner[n] === q.id) { t = n; break; } if (t >= 0) break; }
+          if (t >= 0) strikeAt(t);
+        });
+      }
       if (inc.length > 3) put('more', 'bad', '+' + (inc.length - 3) + ' weitere Angriffe', null);
       for (const u of h.units) {
         if (u.type !== UT.TRANSPORT) continue;

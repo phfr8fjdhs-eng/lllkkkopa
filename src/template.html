@@ -82,6 +82,11 @@ button { font: inherit; color: inherit; cursor: pointer; }
 /* bottom: messages and control bar */
 #bottom { position: absolute; left: 0; right: 0; bottom: 0; max-width: 560px; margin: 0 auto; padding: 8px; display: flex; flex-direction: column; gap: 6px; pointer-events: none; }
 #feed, #feedMsgs, #feedLive { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+/* messages: a short list at the bottom right, apart from the attacks on the left (as OpenFront) */
+#news { position: absolute; right: 8px; bottom: 8px; width: min(340px, calc(100% - 16px)); display: flex; flex-direction: column; align-items: flex-end; gap: 4px; pointer-events: none; z-index: 3; }
+#news .msg { pointer-events: none; }
+#news .msg b { margin-left: 6px; color: var(--muted); font-weight: 700; }
+@media (max-width: 699px) { #news { top: 54px; bottom: auto; } }
 .msg {
   pointer-events: auto; max-width: 100%; padding: 5px 10px; font-size: 13px; background: var(--panel);
   border: 1px solid var(--line); border-left: 3px solid var(--muted); border-radius: 8px;
@@ -568,6 +573,7 @@ body.placing #cv { cursor: crosshair; }
     <div id="hotbar" class="panel" hidden></div>
     <div id="lvBar" class="panel" hidden></div>
     <div id="lvTip" hidden></div>
+    <div id="news" aria-live="polite"></div>
     <div id="bottom">
       <div id="feed"><div id="feedMsgs"></div><div id="feedLive"></div></div>
       <div id="ctrl" class="panel">

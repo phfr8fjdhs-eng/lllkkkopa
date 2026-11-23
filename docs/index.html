@@ -82,6 +82,11 @@ button { font: inherit; color: inherit; cursor: pointer; }
 /* bottom: messages and control bar */
 #bottom { position: absolute; left: 0; right: 0; bottom: 0; max-width: 560px; margin: 0 auto; padding: 8px; display: flex; flex-direction: column; gap: 6px; pointer-events: none; }
 #feed, #feedMsgs, #feedLive { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+/* messages: a short list at the bottom right, apart from the attacks on the left (as OpenFront) */
+#news { position: absolute; right: 8px; bottom: 8px; width: min(340px, calc(100% - 16px)); display: flex; flex-direction: column; align-items: flex-end; gap: 4px; pointer-events: none; z-index: 3; }
+#news .msg { pointer-events: none; }
+#news .msg b { margin-left: 6px; color: var(--muted); font-weight: 700; }
+@media (max-width: 699px) { #news { top: 54px; bottom: auto; } }
 .msg {
   pointer-events: auto; max-width: 100%; padding: 5px 10px; font-size: 13px; background: var(--panel);
   border: 1px solid var(--line); border-left: 3px solid var(--muted); border-radius: 8px;
@@ -568,6 +573,7 @@ body.placing #cv { cursor: crosshair; }
     <div id="hotbar" class="panel" hidden></div>
     <div id="lvBar" class="panel" hidden></div>
     <div id="lvTip" hidden></div>
+    <div id="news" aria-live="polite"></div>
     <div id="bottom">
       <div id="feed"><div id="feedMsgs"></div><div id="feedLive"></div></div>
       <div id="ctrl" class="panel">
@@ -6222,8 +6228,6 @@ body.placing #cv { cursor: crosshair; }
     if (type === UT.FACTORY) return lv >= 10 ? 'factory2' : 'factory';
     return STRUCT_ICON[type];
   }
-  function growOf(type, lv) { return type === UT.CITY || type === UT.PORT || type === UT.FACTORY ? 1 + Math.min(0.25, 0.012 * (lv - 1)) : 1; }
-  const STRUCT_RANK = [1, 5, 3, 0, 4, 2, 6];     // which kind stands for a cluster seen from afar: silo, city, factory, port, air defence, post, cloaking tower
   // Is building u hidden from the player at this screen? Asked every frame, so kept for the tick.
   function hid(g, u) {
     if (u.hidT !== g.ticks) { u.hidT = g.ticks; u.hidV = g.hiddenFrom(u, g.human); }
@@ -6441,7 +6445,7 @@ body.placing #cv { cursor: crosshair; }
     // any flag: highland a little lighter, mountains much lighter. Lighter is ground, darker troops.
     const mg = this.game.map.mag[t];
     if (mg >= 10) {
-      const f = mg < 20 ? 44 : 104;
+      const f = mg < 20 ? 26 : 84;
       c = pack((c & 255) + (((255 - (c & 255)) * f) >> 8), ((c >>> 8) & 255) + (((255 - ((c >>> 8) & 255)) * f) >> 8), ((c >>> 16) & 255) + (((255 - ((c >>> 16) & 255)) * f) >> 8));
     }
     const m = this.shade && this.shade.get(o);
@@ -6936,7 +6940,7 @@ body.placing #cv { cursor: crosshair; }
     // a dark rim first, so the marker stands out on any colour of land
     ctx.beginPath(); ctx.arc(x, y, s / 2 + 3, 0, 6.2832);
     ctx.fillStyle = 'rgba(13,20,27,.85)'; ctx.fill();
-    shape(ctx, t <= UT.CLOAK ? t : UT.CITY, x, y, s / 2);
+    ctx.beginPath(); ctx.arc(x, y, s / 2, 0, 6.2832);
     ctx.fillStyle = bad ? '#e02a20' : h.cssD; ctx.fill();
     ctx.lineWidth = 2; ctx.strokeStyle = bad ? '#ffd0cb' : '#fff'; ctx.stroke();
     ctx.fillStyle = '#fff';
@@ -6992,20 +6996,28 @@ body.placing #cv { cursor: crosshair; }
   // Railways are part of the close view only. From afar the map shows land, borders and names;
   // tracks fade in as one zooms into a region (OpenFront does the same). The player's own network
   // and that of allies is drawn clearly, with a light core; everybody else's stays a thin grey line.
-  const RAIL_MIN = 1.7, RAIL_FULL = 2.6, RAIL_DETAIL = 5;
+  // Railways only show close in (fading in from zoom 2.5, full at 4), each in a light shade of its owner's colour,
+  // your own in light grey: a thin line, sleepers only very close. Until 23.11.2026 every track of
+  // every realm was a dark line from zoom 1.7 on, and the map far out was scribbled over.
+  const RAIL_MIN = 2.5, RAIL_FULL = 4, RAIL_DETAIL = 7;
   View.prototype.drawRails = function (ctx, g, z, ox, oy) {
     const rails = g.rails;
     if (!rails.length || z < RAIL_MIN) return;
     const fade = within((z - RAIL_MIN) / (RAIL_FULL - RAIL_MIN), 0, 1), h = g.human;
     const W = g.W, x0 = -ox / z - 2, y0 = -oy / z - 2, x1 = (this.cw - ox) / z + 2, y1 = (this.ch - oy) / z + 2;
-    const mine = [], other = [];
+    const by = this.railBy || (this.railBy = new Map());
+    by.clear();
     for (const e of rails) {
       if (e.x1 < x0 || e.x0 > x1 || e.y1 < y0 || e.y0 > y1) continue;
       if (hid(g, e.a) || hid(g, e.b)) continue;   // a track would give a hidden station away
-      const oa = e.a.owner, ob = e.b.owner;
-      ((h && (oa === h || ob === h || h.allies.has(oa.id) || h.allies.has(ob.id))) ? mine : other).push(railGeo(e, W));
+      const o = e.a.owner;
+      let l = by.get(o);
+      if (!l) { l = []; by.set(o, l); }
+      l.push(railGeo(e, W));
     }
-    const trace = function (list) {
+    ctx.lineJoin = 'round'; ctx.lineCap = 'butt';
+    const wd = within(z * 0.22, 1, 2.4);
+    for (const [o, list] of by) {
       ctx.beginPath();
       for (const geo of list) {
         const xs = geo.xs, ys = geo.ys, n = xs.length;
@@ -7014,141 +7026,72 @@ body.placing #cv { cursor: crosshair; }
           if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y);
         }
       }
-    };
-    ctx.lineJoin = 'round'; ctx.lineCap = 'butt';
-    const wd = within(z * 0.5, 1.4, 4.5);
-    if (other.length) {
-      trace(other);
-      ctx.lineWidth = wd * 0.8; ctx.strokeStyle = 'rgba(58,52,46,' + (0.42 * fade).toFixed(3) + ')'; ctx.stroke();
+      const col = o === h ? '226,229,233' : Math.round(o.r * 0.5 + 110) + ',' + Math.round(o.g * 0.5 + 110) + ',' + Math.round(o.b * 0.5 + 110);
       if (z >= RAIL_DETAIL) {
-        ctx.setLineDash([z * 0.18, z * 0.34]);
-        ctx.lineWidth = wd * 1.7; ctx.strokeStyle = 'rgba(58,52,46,.34)'; ctx.stroke();
+        ctx.setLineDash([z * 0.14, z * 0.36]);
+        ctx.lineWidth = wd * 2.4; ctx.strokeStyle = 'rgba(' + col + ',' + (0.55 * fade).toFixed(3) + ')'; ctx.stroke();
         ctx.setLineDash([]);
       }
-    }
-    if (mine.length) {
-      trace(mine);
-      if (z >= RAIL_DETAIL) {
-        // close up: sleepers as short cross strokes under the line
-        ctx.setLineDash([z * 0.18, z * 0.34]);
-        ctx.lineWidth = wd * 2; ctx.strokeStyle = 'rgba(40,34,28,.6)'; ctx.stroke();
-        ctx.setLineDash([]);
-      }
-      ctx.lineWidth = wd * 1.25; ctx.strokeStyle = 'rgba(30,26,22,' + (0.85 * fade).toFixed(3) + ')'; ctx.stroke();
-      ctx.lineWidth = Math.max(0.8, wd * 0.42); ctx.strokeStyle = 'rgba(244,240,230,' + (0.92 * fade).toFixed(3) + ')'; ctx.stroke();
+      ctx.lineWidth = wd; ctx.strokeStyle = 'rgba(' + col + ',' + (0.7 * fade).toFixed(3) + ')'; ctx.stroke();
     }
   };
 
-  // Every kind of building has its own outline, the same ones as in OpenFront, so it can be told
-  // apart without reading the sign inside: city a circle, port a pentagon, factory a hexagon,
-  // defence post an octagon, air defence a square, missile silo a triangle. r is half the size.
-  function poly(ctx, x, y, r, n, rot) {
-    for (let i = 0; i < n; i++) {
-      const a = rot + i * 6.2832 / n, px = x + Math.cos(a) * r, py = y + Math.sin(a) * r;
-      if (i) ctx.lineTo(px, py); else ctx.moveTo(px, py);
-    }
-    ctx.closePath();
-  }
-  function shape(ctx, type, x, y, r) {
-    ctx.beginPath();
-    if (type === UT.CITY) ctx.arc(x, y, r * 0.96, 0, 6.2832);
-    else if (type === UT.PORT) poly(ctx, x, y + r * 0.06, r * 1.1, 5, -1.5708);
-    else if (type === UT.FACTORY) poly(ctx, x, y, r * 1.08, 6, 0);
-    else if (type === UT.DEFENSE) poly(ctx, x, y, r * 1.04, 8, 0.3927);
-    else if (type === UT.SAM) { const q = r * 0.88; ctx.rect(x - q, y - q, 2 * q, 2 * q); }
-    else if (type === UT.CLOAK) poly(ctx, x, y, r * 1.12, 4, 0);
-    else poly(ctx, x, y + r * 0.2, r * 1.3, 3, -1.5708);
-  }
-  G.structShape = shape;
 
-  // One building as a sign, the way OpenFront draws it: the outline filled with a deep shade of
-  // the owner's colour, a dark rim that holds the shape on any ground, and a large white sign
-  // inside. Own buildings get a white ring outside the rim. `s` is the width on the screen.
-  function structIcon(ctx, type, x, y, s, p, mine, built, sign, lv) {
-    lv = lv || 1;
-    if (sign && built) s *= growOf(type, lv);
-    const r = s / 2, rim = Math.max(1.4, s * 0.085);
-    // a high level wears a ring around the outline: light from level 10, gold from level 25
-    if (sign && built && lv >= 10 && (type === UT.CITY || type === UT.PORT || type === UT.FACTORY)) {
-      shape(ctx, type, x, y, r + Math.max(3, s * 0.12));
-      ctx.lineWidth = Math.max(1.6, s * 0.06); ctx.strokeStyle = lv >= 25 ? '#f2c14e' : 'rgba(255,255,255,.7)'; ctx.stroke();
-    }
-    shape(ctx, type, x, y, r);
-    if (mine) { ctx.lineWidth = rim + Math.max(2.2, s * 0.09); ctx.strokeStyle = '#fff'; ctx.stroke(); }
+  // One building as a sign: a disc in a deep shade of the owner's colour with a thin dark rim and a
+  // white sign inside, the same disc for every kind (the sign tells them apart). Own buildings get
+  // a thin white ring. The level is a small number above (levelTag), not another shape: until
+  // 23.11.2026 each kind had its own outline, levels changed the sign and wore rings, and from far
+  // out the map was buried under large dark badges.
+  function structIcon(ctx, type, x, y, s, p, mine, built, sign) {
+    const r = s / 2, rim = Math.max(1, s * 0.06);
+    ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832);
+    if (mine) { ctx.lineWidth = rim + Math.max(1.6, s * 0.08); ctx.strokeStyle = 'rgba(255,255,255,.95)'; ctx.stroke(); }
     ctx.fillStyle = built ? p.cssB : '#9da3a8'; ctx.fill();
-    ctx.lineWidth = rim; ctx.strokeStyle = built ? '#0b1016' : '#4a4f55'; ctx.stroke();
+    ctx.lineWidth = rim; ctx.strokeStyle = built ? 'rgba(8,12,18,.85)' : '#4a4f55'; ctx.stroke();
     if (!sign) return;
-    const gs = s * (type === UT.SILO ? 0.56 : type === UT.SAM ? 0.7 : type === UT.CITY ? 0.66 : 0.64);
-    const gy = y + (type === UT.SILO ? s * 0.1 : type === UT.PORT ? s * 0.03 : 0);
-    const name = signOf(type, built ? lv : 1);
-    if (s >= 22) { ctx.fillStyle = 'rgba(0,0,0,.35)'; glyph(ctx, name, x + s * 0.03, gy + s * 0.04, gs); }
     ctx.fillStyle = built ? '#fff' : 'rgba(255,255,255,.85)';
-    glyph(ctx, name, x, gy, gs);
+    glyph(ctx, signOf(type, 1), x, y + (type === UT.SILO ? s * 0.06 : 0), s * 0.6);
   }
   // The level in large white digits with a dark edge, sitting on top of the sign.
   function levelTag(ctx, n, x, y, s) {
-    const fs = Math.round(Math.max(11, s * 0.46)), ty = y - s * 0.5 - fs * 0.05;
+    const fs = Math.round(Math.max(10, s * 0.42)), ty = y - s * 0.5 - fs * 0.15;
     ctx.font = '800 ' + fs + 'px ' + FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.lineJoin = 'round';
     ctx.lineWidth = Math.max(3, fs * 0.32); ctx.strokeStyle = '#0b1016'; ctx.strokeText(String(n), x, ty);
     ctx.fillStyle = '#fff'; ctx.fillText(String(n), x, ty);
   }
   G.structIcon = structIcon;
-  // Buildings, in three steps of nearness, so the map of the world is not buried under signs:
-  //   close:  large signs with the level on top, growing with the map once one is far in
-  //   middle: smaller signs, still with the white symbol inside
-  //   far:    small bare outlines, and what lies close together is drawn once, with a number
+  // Buildings: from far out (zoom up to 1.2) only a small dot in the owner's colour; nearer a disc
+  // with its sign, the same size on the screen whatever the zoom, a little larger far in.
   View.prototype.drawStructures = function (ctx, g, z, ox, oy) {
     const cw = this.cw, ch = this.ch, T = g.ticks, h = g.human;
-    const full = z >= 1.5, far = z < 1.1;
-    const s = full ? Math.min(64, Math.max(within(6 + z * 7, 24, 40), z * 3.6)) : far ? 12 : 20;
+    const far = z <= 1.2, s = far ? Math.max(3, z * 3) : within(12 + z * 2.2, 16, 30);
     ctx.lineJoin = 'round';
-    if (far) {
-      // bucket by owner and by a coarse screen grid; the most important kind stands for the lot
-      const cell = 15, bk = this.sBk || (this.sBk = new Map());
-      bk.clear();
-      for (const u of g.structAt.values()) {
-        const x = (u.x + 0.5) * z + ox, y = (u.y + 0.5) * z + oy;
-        if (x < -s || y < -s || x > cw + s || y > ch + s || hid(g, u)) continue;
-        const key = (u.owner.id * 4096 + ((y / cell) | 0)) * 4096 + ((x / cell) | 0);
-        let e = bk.get(key);
-        if (!e) { e = { n: 0, x: 0, y: 0, type: u.type, rank: 99, owner: u.owner }; bk.set(key, e); }
-        e.n++; e.x += x; e.y += y;
-        const rank = STRUCT_RANK[u.type];
-        if (rank < e.rank) { e.rank = rank; e.type = u.type; }
-      }
-      for (const e of bk.values()) {
-        const x = e.x / e.n, y = e.y / e.n;
-        structIcon(ctx, e.type, x, y, s, e.owner, e.owner === h, true, false);
-        if (e.n > 1) {
-          ctx.font = '800 10px ' + FONT; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-          ctx.lineWidth = 3; ctx.strokeStyle = '#0b1016'; ctx.strokeText(String(e.n), x + s / 2 + 1.5, y + 0.5);
-          ctx.fillStyle = '#fff'; ctx.fillText(String(e.n), x + s / 2 + 1.5, y + 0.5);
-        }
-      }
-      return;
-    }
-    g.cloakScan();
+    if (!far) g.cloakScan();
     for (const u of g.structAt.values()) {
       const x = (u.x + 0.5) * z + ox, y = (u.y + 0.5) * z + oy;
       if (x < -s || y < -s || x > cw + s || y > ch + s || hid(g, u)) continue;
+      if (far) {
+        ctx.beginPath(); ctx.arc(x, y, s / 2, 0, 6.2832);
+        ctx.fillStyle = u.owner === h ? '#fff' : u.owner.cssB; ctx.fill();
+        continue;
+      }
       // your own buildings under a cloaking tower are drawn faded, so you see that others do not see them
       const veil = u.cloak && u.owner === h;
       if (veil) ctx.globalAlpha = 0.55;
-      structIcon(ctx, u.type, x, y, s, u.owner, u.owner === h, u.built, true, u.level);
+      structIcon(ctx, u.type, x, y, s, u.owner, u.owner === h, u.built, true);
       if (veil) ctx.globalAlpha = 1;
-      const sz = u.built ? s * growOf(u.type, u.level) : s;
       // with deliveries (`bahn`): an own station on the railway network wears a small green dot
-      if (g.bahn && full && u.built && u.owner === h && G.isStation(u.type) && g.railAdj.has(u.id)) {
-        const dx = x + sz * 0.42, dy = y + sz * 0.38, dr = Math.max(3, sz * 0.12);
+      if (g.bahn && z >= 3 && u.built && u.owner === h && G.isStation(u.type) && g.railAdj.has(u.id)) {
+        const dx = x + s * 0.4, dy = y + s * 0.38, dr = Math.max(2.5, s * 0.12);
         ctx.beginPath(); ctx.arc(dx, dy, dr, 0, 6.2832);
-        ctx.fillStyle = '#63d391'; ctx.fill(); ctx.lineWidth = 1.5; ctx.strokeStyle = '#0b1016'; ctx.stroke();
+        ctx.fillStyle = '#63d391'; ctx.fill(); ctx.lineWidth = 1.2; ctx.strokeStyle = '#0b1016'; ctx.stroke();
       }
       if (!u.built) {
         const k = within((T - u.buildStart) / Math.max(1, u.buildEnd - u.buildStart), 0, 1);
-        ctx.beginPath(); ctx.arc(x, y, s / 2 + 4, -1.5708, -1.5708 + 6.2832 * k);
-        ctx.strokeStyle = '#f4b740'; ctx.lineWidth = 2.5; ctx.stroke();
-      } else if (u.level > 1) levelTag(ctx, u.level, x, y, sz);
+        ctx.beginPath(); ctx.arc(x, y, s / 2 + 3, -1.5708, -1.5708 + 6.2832 * k);
+        ctx.strokeStyle = '#f4b740'; ctx.lineWidth = 2; ctx.stroke();
+      } else if (u.level > 1) levelTag(ctx, u.level, x, y, s);
     }
   };
 
@@ -7269,82 +7212,38 @@ body.placing #cv { cursor: crosshair; }
   // stepped superstructure with mast and funnel, a second turret and a helicopter deck aft. The
   // turrets turn towards whatever the ship is fighting. `s` is half the length on the screen.
   // Steel in a dark naval grey, so the coloured hull around it is what catches the eye.
-  const WAR = { deck: '#566069', pad: '#6d7780', dark: '#2a3138', top: '#959ea6', step: '#7f8890', line: '#30373e', funnel: '#1f252b', turret: '#7a848c' };
-  const BOW = 1.0, GUN_FORE = 0.54, GUN_AFT = -0.6, BARREL = 0.38;     // in half-lengths of the hull
+  const BOW = 1.0, GUN_FORE = 0.42, GUN_AFT = -0.5, BARREL = 0.34;     // in half-lengths of the hull
+  // Ships are small plain shapes in their owner's colour with a dark edge, growing with the map
+  // (until 23.11.2026 detailed models with decks, turrets and cargo, too busy on the map).
+  // A warship: long and pointed, a deep stripe along the middle and one gun that turns to its target.
   function warship(ctx, x, y, ang, s, p, aim) {
     ctx.save();
     ctx.translate(x, y); ctx.rotate(ang);
-    const W = 0.22;
     ctx.beginPath();
-    ctx.moveTo(-s, -W * 0.82 * s); ctx.lineTo(-0.62 * s, -W * s); ctx.lineTo(0.48 * s, -W * s);
-    ctx.lineTo(BOW * s, -0.05 * s); ctx.lineTo(BOW * s, 0.05 * s);
-    ctx.lineTo(0.48 * s, W * s); ctx.lineTo(-0.62 * s, W * s); ctx.lineTo(-s, W * 0.82 * s); ctx.closePath();
+    ctx.moveTo(-s, -0.26 * s); ctx.lineTo(0.45 * s, -0.26 * s); ctx.lineTo(BOW * s, 0); ctx.lineTo(0.45 * s, 0.26 * s); ctx.lineTo(-s, 0.26 * s); ctx.closePath();
     ctx.lineJoin = 'round';
-    ctx.lineWidth = Math.max(2.2, s * 0.13); ctx.strokeStyle = '#0b1016'; ctx.stroke();      // dark edge: shows on any water
-    ctx.fillStyle = p.css; ctx.fill();                                                       // hull: whose it is
-    if (s < 7) {
-      ctx.fillStyle = WAR.top; ctx.fillRect(-0.34 * s, -0.1 * s, 0.5 * s, 0.2 * s);
-      ctx.restore(); return;
-    }
-    // the deck in a deep shade of the owner's colour, so the whole ship reads as theirs
-    ctx.beginPath();
-    ctx.moveTo(-0.95 * s, -0.1 * s); ctx.lineTo(0.48 * s, -0.1 * s); ctx.lineTo(0.84 * s, -0.025 * s);
-    ctx.lineTo(0.84 * s, 0.025 * s); ctx.lineTo(0.48 * s, 0.1 * s); ctx.lineTo(-0.95 * s, 0.1 * s); ctx.closePath();
-    ctx.fillStyle = p.cssB; ctx.fill();
-    const fine = s >= 11, thin = Math.max(0.7, s * 0.03);
-    // helicopter deck at the stern
-    if (fine) {
-      ctx.fillStyle = WAR.pad; ctx.fillRect(-0.95 * s, -0.1 * s, 0.24 * s, 0.2 * s);
-      ctx.beginPath(); ctx.arc(-0.83 * s, 0, 0.055 * s, 0, 6.2832);
-      ctx.lineWidth = thin; ctx.strokeStyle = '#c9ced3'; ctx.stroke();
-    }
-    // missile cells ahead of the bridge
-    ctx.fillStyle = WAR.dark; ctx.fillRect(0.2 * s, -0.08 * s, 0.16 * s, 0.16 * s);
-    if (fine) {
-      ctx.beginPath();
-      for (let k = 1; k < 3; k++) { ctx.moveTo((0.2 + k * 0.053) * s, -0.08 * s); ctx.lineTo((0.2 + k * 0.053) * s, 0.08 * s); }
-      ctx.moveTo(0.2 * s, 0); ctx.lineTo(0.36 * s, 0);
-      ctx.lineWidth = Math.max(0.5, s * 0.012); ctx.strokeStyle = WAR.deck; ctx.stroke();
-    }
-    // superstructure: a long block that steps down aft, with a slanted front and the bridge windows
-    ctx.beginPath();
-    ctx.moveTo(-0.5 * s, -0.12 * s); ctx.lineTo(0.06 * s, -0.15 * s); ctx.lineTo(0.15 * s, -0.09 * s);
-    ctx.lineTo(0.15 * s, 0.09 * s); ctx.lineTo(0.06 * s, 0.15 * s); ctx.lineTo(-0.5 * s, 0.12 * s); ctx.closePath();
-    ctx.fillStyle = WAR.top; ctx.fill();
-    ctx.lineWidth = thin; ctx.strokeStyle = WAR.line; ctx.stroke();
-    ctx.fillStyle = WAR.step; ctx.fillRect(-0.5 * s, -0.09 * s, 0.22 * s, 0.18 * s);
-    ctx.fillStyle = '#12171c'; ctx.fillRect(0.1 * s, -0.08 * s, 0.035 * s, 0.16 * s);
-    // funnel and mast
-    ctx.fillStyle = WAR.funnel;
-    ctx.beginPath(); ctx.ellipse(-0.2 * s, 0, 0.07 * s, 0.05 * s, 0, 0, 6.2832); ctx.fill();
-    if (fine) {
-      ctx.beginPath(); ctx.moveTo(-0.02 * s, -0.17 * s); ctx.lineTo(-0.02 * s, 0.17 * s);
-      ctx.lineWidth = thin; ctx.strokeStyle = WAR.funnel; ctx.stroke();
-      ctx.beginPath(); ctx.arc(-0.02 * s, 0, 0.04 * s, 0, 6.2832); ctx.fillStyle = WAR.funnel; ctx.fill();
-    }
-    // two turrets with long barrels; at rest the forward one points ahead and the after one astern,
-    // and each swings only to a target on its own side of the ship
-    ctx.lineCap = 'butt';
-    for (let i = 0; i < 2; i++) {
-      const ahead = aim !== null && Math.cos(aim) >= 0, swing = aim !== null && (i ? !ahead : ahead);
-      const tx = (i ? GUN_AFT : GUN_FORE) * s, tr = (i ? 0.09 : 0.115) * s, ta = swing ? aim : (i ? Math.PI : 0);
-      const bl = (i ? 0.28 : BARREL) * s;
-      ctx.beginPath(); ctx.moveTo(tx, 0); ctx.lineTo(tx + Math.cos(ta) * bl, Math.sin(ta) * bl);
-      ctx.lineWidth = Math.max(1, s * 0.045); ctx.strokeStyle = '#151b21'; ctx.stroke();
-      ctx.beginPath(); ctx.arc(tx, 0, Math.max(1.5, tr), 0, 6.2832);
-      ctx.fillStyle = WAR.turret; ctx.fill();
-      ctx.lineWidth = Math.max(0.7, s * 0.025); ctx.strokeStyle = '#151b21'; ctx.stroke();
+    ctx.lineWidth = Math.max(1.6, s * 0.12); ctx.strokeStyle = '#0b1016'; ctx.stroke();
+    ctx.fillStyle = p.css; ctx.fill();
+    ctx.fillStyle = p.cssB; ctx.fillRect(-0.7 * s, -0.09 * s, 1.1 * s, 0.18 * s);
+    if (s >= 6) {
+      const ta = aim !== null ? aim : 0, tx = GUN_FORE * s;
+      ctx.beginPath(); ctx.moveTo(tx, 0); ctx.lineTo(tx + Math.cos(ta) * BARREL * s, Math.sin(ta) * BARREL * s);
+      ctx.lineWidth = Math.max(1, s * 0.06); ctx.strokeStyle = '#151b21'; ctx.lineCap = 'butt'; ctx.stroke();
+      ctx.beginPath(); ctx.arc(tx, 0, Math.max(1.4, s * 0.12), 0, 6.2832);
+      ctx.fillStyle = '#e6e9ec'; ctx.fill(); ctx.lineWidth = Math.max(0.7, s * 0.03); ctx.strokeStyle = '#151b21'; ctx.stroke();
     }
     ctx.restore();
   }
-  // How large ships are drawn: warships half-length, merchants half-length.
-  function warSize(z) { return within(5 + z * 2.6, 9, 22); }
-  function tradeSize(z, own) { return within(4 + z * 1.5, 6, 13) * (own ? 1 : 0.85); }
+  // How large ships are drawn (half-lengths in pixels): with the map, never smaller than a few
+  // pixels. A warship about twice a merchant, a troop boat a little smaller than a merchant.
+  function warSize(z) { return within(z * 2.4, 6, 30); }
+  function tradeSize(z) { return within(z * 1.25, 3.5, 15); }
+  function boatSize(z) { return within(z * 1.05, 3, 12); }
   // Where the muzzle of the gun that fires is on the screen, aiming at world point (tx, ty): the
   // forward turret for a target ahead, the after one for a target astern, so no shot crosses the
   // ship's own deck. The barrel points at the target.
   function gunTip(g, u, z, ox, oy, tx, ty, out) {
-    const s = u.owner !== g.human && z < 1.1 ? 6 : warSize(z), a = u.va || 0;
+    const s = warSize(z), a = u.va || 0;
     const cx = ((u.vx !== undefined ? u.vx : u.x) + 0.5) * z + ox, cy = ((u.vy !== undefined ? u.vy : u.y) + 0.5) * z + oy;
     const wx = (tx + 0.5) * z + ox, wy = (ty + 0.5) * z + oy;
     const ahead = (wx - cx) * Math.cos(a) + (wy - cy) * Math.sin(a) >= 0;
@@ -7356,36 +7255,22 @@ body.placing #cv { cursor: crosshair; }
   }
   const TIP = { x: 0, y: 0, a: 0 };
 
-  // A merchant: a white hull, square at the stern and pointed at the bow, the bridge aft and the
-  // cargo amidships in the owner's colour, as a row of containers once it is large enough.
-  // The cargo always takes the colour of whoever owns the ship now; a captured one carries a small
-  // gold mark on the bridge.
-  // kind: 0 freighter, 1 bulk carrier (larger, longer hold), 2 container ship (largest, stacked boxes)
+  // A merchant: short and round at the bow, in the owner's colour with a light stripe of cargo
+  // (so it is never taken for a warship); larger kinds (bulk carrier, container ship) a little
+  // longer. A captured one carries a small gold dot.
   function merchant(ctx, x, y, ang, s, p, captured, kind) {
-    kind = kind || 0;
-    s *= kind === 2 ? 1.7 : kind === 1 ? 1.3 : 1;
-    hull(ctx, x, y, ang, s, 'trade');
-    ctx.lineJoin = 'miter'; ctx.miterLimit = 6;
-    ctx.lineWidth = Math.max(1.6, s * 0.2); ctx.strokeStyle = '#0b1016'; ctx.stroke();
-    ctx.fillStyle = p.css; ctx.fill();                  // hull in the owner's colour
+    s *= kind === 2 ? 1.3 : kind === 1 ? 1.15 : 1;
     ctx.save();
-    ctx.translate(x, y); ctx.rotate(ang); ctx.scale(s, s);
-    ctx.fillStyle = p.cssB;                             // cargo in a deep shade of it
-    if (kind === 2 && s >= 8) {
-      // container ship: two rows of five boxes, every other one a little lighter
-      for (let k = 0; k < 5; k++) for (let j = 0; j < 2; j++) {
-        ctx.fillStyle = (k + j) % 2 ? p.cssB : p.cssD || p.cssB;
-        ctx.fillRect(-0.6 + k * 0.2, j ? 0.02 : -0.27, 0.17, 0.25);
-      }
-    } else if (s >= 8) {
-      const n = kind === 1 ? 4 : 3, w = 0.94 / n;
-      for (let k = 0; k < n; k++) ctx.fillRect(-0.56 + k * w, -0.25, w - 0.05, 0.5);
-    } else ctx.fillRect(-0.56, -0.25, 0.94, 0.5);
-    ctx.fillStyle = '#2b323a'; ctx.fillRect(-0.92, -0.26, 0.22, 0.52);
-    if (captured) { ctx.beginPath(); ctx.arc(-0.81, 0, 0.17, 0, 6.2832); ctx.fillStyle = '#f4b740'; ctx.fill(); }
+    ctx.translate(x, y); ctx.rotate(ang);
+    ctx.beginPath();
+    ctx.moveTo(-s, -0.36 * s); ctx.lineTo(0.35 * s, -0.36 * s); ctx.quadraticCurveTo(s, -0.3 * s, s, 0); ctx.quadraticCurveTo(s, 0.3 * s, 0.35 * s, 0.36 * s); ctx.lineTo(-s, 0.36 * s); ctx.closePath();
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = Math.max(1.4, s * 0.16); ctx.strokeStyle = '#0b1016'; ctx.stroke();
+    ctx.fillStyle = p.css; ctx.fill();
+    ctx.fillStyle = 'rgba(240,243,246,.9)'; ctx.fillRect(-0.6 * s, -0.14 * s, 1.0 * s, 0.28 * s);
+    if (captured) { ctx.beginPath(); ctx.arc(-0.78 * s, 0, Math.max(1.2, 0.16 * s), 0, 6.2832); ctx.fillStyle = '#f4b740'; ctx.fill(); }
     ctx.restore();
   }
-
   // How high a bomb's arc rises at its top, in tiles, and how high it is at a point of its flight.
   // Only the picture flies in an arc; the simulation moves the bomb along the ground line.
   function liftTop(n) { return Math.min(n.dist * 0.28, 70) * (n.type === UT.CRUISE ? 0.12 : 1); }
@@ -7447,7 +7332,7 @@ body.placing #cv { cursor: crosshair; }
 
   View.prototype.drawUnits = function (ctx, g, z, ox, oy, alpha, now) {
     const cw = this.cw, ch = this.ch, us = g.units;
-    const ws = warSize(z), bs = within(3 + z * 1.6, 5, 12);
+    const ws = warSize(z), bs = boatSize(z);
     this.frame = (this.frame || 0) + 1;
     for (let i = 0; i < us.length; i++) {
       const u = us[i], ty = u.type;
@@ -7464,18 +7349,6 @@ body.placing #cv { cursor: crosshair; }
       if (x < -30 || y < -30 || x > cw + 30 || y > ch + 30) continue;
       const p = u.owner;
       const ang = sea ? u.va : 0;
-      if (z < 1.1 && p !== g.human && ty !== UT.SHELL) {
-        // seen from afar, other people's traffic is drawn small but whole: a warship as a slim
-        // hull, a merchant in the owner's colour, a troop boat as a dot in its owner's colour; trains are left out
-        if (ty === UT.WARSHIP) warship(ctx, x, y, ang, 6, p, null);
-        else if (ty === UT.TRADE) merchant(ctx, x, y, ang, 4.6, p, u.captured, u.kind);
-        else if (ty === UT.TRANSPORT) {
-          ctx.beginPath(); ctx.arc(x, y, 2.2, 0, 6.2832);
-          ctx.fillStyle = p.cssB; ctx.fill();
-          ctx.lineWidth = 0.8; ctx.strokeStyle = 'rgba(255,255,255,.75)'; ctx.stroke();
-        }
-        continue;
-      }
       if (ty === UT.SHELL) {
         // a shell: a short glowing streak along its flight, not a dot. The simulation fires it
         // from the middle of the ship's tile; the picture lets it leave the muzzle of the forward
@@ -7515,15 +7388,17 @@ body.placing #cv { cursor: crosshair; }
           ctx.setLineDash([3, 3]); ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(244,183,64,.9)'; ctx.stroke(); ctx.setLineDash([]);
         }
       } else if (ty === UT.TRANSPORT) {
-        hull(ctx, x, y, ang, bs * 0.72, 'boat');
+        // a troop boat: a small rounded boat in the owner's colour, with a white edge so a landing
+        // is seen coming
+        hull(ctx, x, y, ang, bs, 'boat');
+        ctx.lineWidth = Math.max(1.2, bs * 0.2); ctx.strokeStyle = 'rgba(255,255,255,.9)'; ctx.stroke();
         ctx.fillStyle = p.css; ctx.fill();
-        ctx.lineWidth = 1.6; ctx.strokeStyle = p.cssD; ctx.stroke();
       } else if (ty === UT.TRAIN) {
         if (u.edge && (hid(g, u.edge.a) || hid(g, u.edge.b))) continue;
         if (z >= RAIL_FULL || (z >= RAIL_MIN && p === g.human)) this.drawTrain(ctx, g, u, z, ox, oy, alpha);
       } else if (ty === UT.TRADE) {
         // Hull in the owner's colour, cargo in a deep shade of it, dark edge: readable on any water.
-        const s = tradeSize(z, p === g.human);
+        const s = tradeSize(z);
         merchant(ctx, x, y, ang, s, p, u.captured, u.kind);
         // a large ship under fire: what is left of it before it can be taken
         if (u.kind && !u.captured && u.hits < G.HAFEN.ships[u.kind - 1][1]) {
@@ -7969,7 +7844,7 @@ body.placing #cv { cursor: crosshair; }
       if (!p.alive) continue;
       if (!leader || p.tiles > leader.tiles) leader = p;
       if (!p.nameSize) continue;
-      const fs = p.nameSize * z, min = p === h || (h && h.allies.has(p.id)) ? 0 : p.type === PT.BOT ? 13 : p.type === PT.NATION ? 10.5 : 9;
+      const fs = p.nameSize * z, min = p === h || (h && h.allies.has(p.id)) || (h && h.inc.some(function (at) { return at.active && at.a === p && p.type !== PT.BOT; })) ? 0 : p.type === PT.BOT ? 13 : p.type === PT.NATION ? 10.5 : 9;
       if (fs < min) continue;
       const x = p.nameX * z + ox, y = p.nameY * z + oy;
       if (x < -160 || y < -40 || x > cw + 160 || y > ch + 40) continue;
@@ -7980,6 +7855,10 @@ body.placing #cv { cursor: crosshair; }
     boxes.length = 0;
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
     let drawn = 0;
+    // who attacks you right now: their name in red with a sword (bots left out, as OpenFront)
+    const foes = this.nmFoes || (this.nmFoes = new Set());
+    foes.clear();
+    if (h) for (const at of h.inc) if (at.active && at.a.type !== PT.BOT) foes.add(at.a);
     for (let i = 0; i < list.length && drawn < 60; i++) {
       const p = list[i];
       let fs = p.nameSize * z;
@@ -7994,16 +7873,18 @@ body.placing #cv { cursor: crosshair; }
         label += ' ✓ ' + ((left / 60) | 0) + ':' + String(left % 60).padStart(2, '0');
       }
       if (p.traitorUntil > T) label += ' !';
+      const foe = foes.has(p), ally = !!h && p !== h && h.allies.has(p.id);
+      if (foe) label = '⚔ ' + label;
       ctx.font = '700 ' + fs.toFixed(1) + 'px ' + FONT;
       const hw = ctx.measureText(label).width / 2 + 2, top = y - fs * 0.95, bot = y + fs * 0.95;
       let hit = false;
       for (let k = 0; k < boxes.length; k += 4) if (x - hw < boxes[k + 2] && x + hw > boxes[k] && top < boxes[k + 3] && bot > boxes[k + 1]) { hit = true; break; }
-      if (hit && p !== h && !(h && h.allies.has(p.id))) continue;
+      if (hit && p !== h && !(h && h.allies.has(p.id)) && !foes.has(p)) continue;
       boxes.push(x - hw, top, x + hw, bot); drawn++;
       const person = p.type === PT.HUMAN;
       ctx.lineWidth = Math.max(2, fs / 5.5);
       ctx.strokeStyle = person ? 'rgba(255,255,255,0.82)' : p.type === PT.NATION ? 'rgba(255,255,255,0.5)' : 'rgba(255,255,255,0.34)';
-      ctx.fillStyle = person ? '#06090d' : p.type === PT.NATION ? '#33383e' : '#565c63';
+      ctx.fillStyle = foe ? '#c8261c' : ally ? '#16733a' : person ? '#06090d' : p.type === PT.NATION ? '#33383e' : '#565c63';
       ctx.strokeText(label, x, y - fs * 0.36);
       ctx.fillText(label, x, y - fs * 0.36);
       const fs2 = fs * 0.66;
@@ -9441,7 +9322,7 @@ body.placing #cv { cursor: crosshair; }
     $('bRes').hidden = true;
     plans.length = 0; syncPlans();
     $('mPunkt').hidden = !game.punkt; setThrust(cfg.thrust);
-    $('feedMsgs').innerHTML = ''; $('feedLive').innerHTML = ''; chips.clear(); asks.clear();
+    $('feedMsgs').innerHTML = ''; $('feedLive').innerHTML = ''; $('news').innerHTML = ''; chips.clear(); asks.clear();
     $('lbRows').innerHTML = ''; $('clock').textContent = '0:00';
     speed = 1; $('bSpeed').textContent = '1×'; acc = 0; endShown = false; lbAt = liveAt = -99; tradeAt = 0; aim = null;
     setPaused(false);
@@ -9488,13 +9369,25 @@ body.placing #cv { cursor: crosshair; }
   }
 
   // ---------- feed ----------
+  // Messages: at most three at the bottom right, gone after 6 s; the same message again counts up
+  // on the one already there instead of stacking (until 23.11.2026 up to four on the left, among
+  // the attacks, each repeat a new line).
   function addMsg(text, cls) {
-    const box = $('feedMsgs'), el = document.createElement('div');
+    const box = $('news');
+    for (const el of box.children) {
+      if (el.dataset.text !== text) continue;
+      el.dataset.n = (+el.dataset.n || 1) + 1;
+      el.lastChild.textContent = '×' + el.dataset.n;
+      clearTimeout(el.timer); el.timer = setTimeout(function () { el.remove(); }, 6000);
+      return;
+    }
+    const el = document.createElement('div');
     el.className = 'msg ' + (cls || 'info');
-    el.textContent = text;
+    el.dataset.text = text;
+    el.appendChild(document.createTextNode(text)); el.appendChild(document.createElement('b'));
     box.appendChild(el);
-    while (box.querySelectorAll('.msg:not(.ask)').length > 4) box.querySelector('.msg:not(.ask)').remove();
-    setTimeout(function () { el.remove(); }, 7000);
+    while (box.children.length > 3) box.firstChild.remove();
+    el.timer = setTimeout(function () { el.remove(); }, 6000);
   }
   function addAsk(key, text, yes, no, onYes, onNo) {
     if (asks.has(key)) return;
@@ -9574,7 +9467,7 @@ body.placing #cv { cursor: crosshair; }
       if (!el) {
         el = document.createElement('div');
         el.className = 'msg chip ' + cls;
-        el.innerHTML = '<span></span>' + (action ? '<button type="button" aria-label="Zurückrufen">' + svg('close', 13) + '</button>' : '');
+        el.innerHTML = '<span></span>' + (action ? '<button type="button" aria-label="' + (cls === 'bad' ? 'Gegenangriff' : 'Zurückrufen') + '">' + svg(cls === 'bad' ? 'sword' : 'close', 13) + '</button>' : '');
         if (action) el.lastChild.addEventListener('click', action);
         box.appendChild(el);
         chips.set(key, el);
@@ -9586,7 +9479,15 @@ body.placing #cv { cursor: crosshair; }
         put('o' + a.id, 'info', 'Angriff auf ' + (a.tid ? game.players[a.tid].name : 'freies Land') + ' · ' + fmtT(a.troops) + (a.want >= 1 ? ' · +' + fmtT(a.want) + ' unterwegs' : ''), function () { act({ k: 'ret', a: a.id }); });
       }
       const inc = h.inc.slice().sort(function (a, b) { return b.troops - a.troops; });
-      for (let i = 0; i < inc.length && i < 3; i++) put('i' + inc[i].id, 'bad', inc[i].a.name + ' greift an · ' + fmtT(inc[i].troops) + (inc[i].sum > inc[i].troops * 1.2 ? ' (von ' + fmtT(inc[i].sum) + ')' : ''), null);
+      // incoming attacks, the largest first, each with a button to strike back at once (as OpenFront)
+      for (let i = 0; i < inc.length && i < 3; i++) {
+        const q = inc[i].a;
+        put('i' + inc[i].id, 'bad', q.name + ' greift an · ' + fmtT(inc[i].troops) + (inc[i].sum > inc[i].troops * 1.2 ? ' (von ' + fmtT(inc[i].sum) + ')' : ''), q.type === PT.BOT ? null : function () {
+          let t = -1;
+          for (const b of h.border) { const W = game.W; for (const n of [b - 1, b + 1, b - W, b + W]) if (n >= 0 && n < game.N && game.owner[n] === q.id) { t = n; break; } if (t >= 0) break; }
+          if (t >= 0) strikeAt(t);
+        });
+      }
       if (inc.length > 3) put('more', 'bad', '+' + (inc.length - 3) + ' weitere Angriffe', null);
       for (const u of h.units) {
         if (u.type !== UT.TRANSPORT) continue;
