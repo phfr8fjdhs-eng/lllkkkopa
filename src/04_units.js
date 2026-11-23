@@ -476,26 +476,35 @@
 
   // ---------- trade ----------
   G.TRADE_MAX = 300;   // merchant ships at sea at the same time
-  // Switch `hafen` (22.11.2026): ports by level.
-  //   range     how far a port trades (straight line, in OpenFront's tiles as the payout counts them),
-  //             times (1 + rangeLv x sqrt(level)); a container ship goes `contRange` times as far
-  //   ships     [cargo, hits, smallest level, chance per level above it, highest chance] for the
-  //             bulk carrier and the container ship; hits: how many times a warship must hit it
-  //             before it can be taken (one hit a second while alongside)
+  // Switch `hafen`: ports by level, three classes of merchant (23.11.2026; the payout for the way is
+  // OpenFront's, see spawnTrade). Per class:
+  //   range  how far it trades at most, in OpenFront's tiles (straight line), the same at any level:
+  //          the container ship's 1400 is the most there is
+  //   speed  share of the usual pace at sea
+  //   gold   payout for the way times this
+  //   hits   how many times a warship must hit it before it can be taken (one hit a second)
+  //   from   the smallest port level that sends it; `per` the chance per level above that, at
+  //          most `top` (the higher class is drawn first)
+  // A freighter is small, quick and earns little on its short hops; a bulk carrier goes further;
+  // the container ship is the late game: slow, hard to take, far and rich.
   //   loot      share of the cargo a captured ship still carries
   //   trainShip every that many trains that reach a port it sends an extra ship with their goods
   // A port of level L sends ships sqrt(L) times as often as one of level 1.
-  G.HAFEN = { range: 480, rangeLv: 0.15, contRange: 2, ships: [[3, 4, 5, 0.04, 0.6], [10, 15, 25, 0.03, 0.5]], loot: 0.5, trainShip: 2 };
-  Game.prototype.portRange = function (lv, kind) {
-    const H = G.HAFEN;
-    return H.range * (1 + H.rangeLv * Math.sqrt(Math.max(1, lv))) * (kind === 2 ? H.contRange : 1);
+  G.HAFEN = {
+    ships: [
+      { name: 'Frachter', range: 350, speed: 1, gold: 1, hits: 1, from: 1, per: 1, top: 1 },
+      { name: 'Massengutfrachter', range: 700, speed: 0.8, gold: 1.6, hits: 5, from: 3, per: 0.1, top: 0.5 },
+      { name: 'Containerschiff', range: 1400, speed: 0.6, gold: 2.5, hits: 12, from: 8, per: 0.06, top: 0.4 }
+    ],
+    loot: 0.5, trainShip: 2
   };
+  Game.prototype.portRange = function (lv, kind) { return G.HAFEN.ships[kind || 0].range; };
   // Which ship a port of level lv sends: 0 freighter, 1 bulk carrier, 2 container ship.
   Game.prototype.shipKind = function (lv) {
     const S = G.HAFEN.ships, r = this.rng.next();
-    for (let k = S.length - 1; k >= 0; k--) {
-      const s = S[k], p = lv >= s[2] ? Math.min(s[4], s[3] * (lv - s[2] + 1)) : 0;
-      if (r < p) return k + 1;
+    for (let k = S.length - 1; k >= 1; k--) {
+      const s = S[k], p = lv >= s.from ? Math.min(s.top, s.per * (lv - s.from + 1)) : 0;
+      if (r < p) return k;
     }
     return 0;
   };
@@ -513,7 +522,7 @@
     const dist = (Math.abs(u.x - dst.x) + Math.abs(u.y - dst.y)) / this.S;
     ship.gold = Math.floor(75000 / (1 + Math.exp(-0.03 * (dist - 300))) + 50 * dist);
     ship.kind = kind || 0; ship.hits = 1;
-    if (ship.kind) { const k = G.HAFEN.ships[ship.kind - 1]; ship.gold *= k[0]; ship.hits = k[1]; }
+    if (this.hafen) { const k = G.HAFEN.ships[ship.kind]; ship.gold = Math.floor(ship.gold * k.gold); ship.hits = k.hits; }
     if (extra) ship.gold += Math.floor(extra);
     this.addUnit(ship);
   };
@@ -540,6 +549,12 @@
       cand.push(v);
     }
     if (!cand.length) return;
+    // a larger ship goes where it pays: beyond the reach of the class below, if there is a port there
+    if (this.hafen && kind) {
+      const near = G.HAFEN.ships[kind - 1].range * 0.6 * this.S, n2 = near * near;
+      const far = cand.filter(function (v) { return (v.x - u.x) * (v.x - u.x) + (v.y - u.y) * (v.y - u.y) > n2; });
+      if (far.length) { cand.length = 0; for (const v of far) cand.push(v); }
+    }
     cand.sort(function (a, b) {
       return (Math.abs(a.x - u.x) + Math.abs(a.y - u.y)) - (Math.abs(b.x - u.x) + Math.abs(b.y - u.y));
     });
@@ -569,7 +584,8 @@
       if ((!d.active || d.owner !== p) && !u.wait) { this.tradeHome(u); if (!u.active) return; d = u.dstPort; }
     } else if (!d.active || !d.owner.alive || !this.canTrade(p, d.owner)) { this.removeUnit(u); return; }
     if (!u.path) return;
-    if (u.pi < u.path.length - 1) { for (let n = this.stride(u); n > 0 && u.pi < u.path.length - 1; n--) { u.pi++; this.setPos(u, u.path[u.pi]); } return; }
+    const sp = this.hafen ? G.HAFEN.ships[u.kind || 0].speed : 1;      // larger merchants are slower
+    if (u.pi < u.path.length - 1) { for (let n = this.stride(u, this.pace * sp); n > 0 && u.pi < u.path.length - 1; n--) { u.pi++; this.setPos(u, u.path[u.pi]); } return; }
     if (u.wait || (u.captured && (!d.active || d.owner !== p))) return;   // its new course is still being worked out
     const q = d.owner, h = this.human;
     p.gold += u.gold;
@@ -701,7 +717,9 @@
     // until the hull is whole again (before, ships were kept at the quay for minutes under fire).
     u.docked = !!dock && (dock.x - u.x) * (dock.x - u.x) + (dock.y - u.y) * (dock.y - u.y) <= 16;
     if (u.docked) { u.target = null; u.hunt = null; return; }
-    // Who to go for, as in OpenFront: troop boats first, then warships, then merchants. A merchant
+    // Who to go for: troop boats first, then warships, then merchants. A troop boat only when it is
+    // bound for us or an ally (until 23.11.2026 any boat of anybody not allied, in a radius of 130
+    // instead of 70: warships shot up every landing nearby and were far too strong). A merchant
     // only counts while it is inside the patrol area, so the ship is not lured away from its post.
     if ((T + u.id) % 5 === 0) {
       let best = null, bs = Infinity, home;
@@ -712,6 +730,7 @@
         if (ty !== UT.TRANSPORT && ty !== UT.WARSHIP && ty !== UT.TRADE) continue;
         if (v.safeUntil > T || v.docked) continue;   // just changed hands, or under repair at the quay
         if (this.friendly(v.owner, p)) continue;
+        if (ty === UT.TRANSPORT) { const q = v.tid ? this.players[v.tid] : null; if (!q || (q !== p && !this.friendly(p, q))) continue; }
         if (ty === UT.TRADE) {
           // only worth chasing with a port of one's own on this water to bring it into
           if (v.captured || !v.path || this.friendly(v.dstPort.owner, p) || map.wcomp[v.tile] !== map.wcomp[u.tile]) continue;

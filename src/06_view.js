@@ -687,19 +687,19 @@
       ctx.restore();
     }
     // ports by level (switch `hafen`): how far a port trades, while a port is being placed or its
-    // card is open; the dashed outer ring is the reach of its container ships
+    // card is open: one ring for each class of merchant the port's level already sends
     if (g.hafen && h && (this.portSel || (this.ghost && this.ghost.type === UT.PORT && this.ghost.tile >= 0))) {
       const list = this.portSel ? [this.portSel] : h.units.filter(function (u) { return u.built && u.type === UT.PORT; });
       if (!this.portSel && this.ghost) list.push({ x: this.ghost.tile % g.W, y: (this.ghost.tile / g.W) | 0, level: 1 });
       for (const u of list) {
-        const x = (u.x + 0.5) * z + ox, y = (u.y + 0.5) * z + oy, r = g.portRange(u.level, 0) * g.S * z;
-        ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832);
-        ctx.fillStyle = 'rgba(120,190,255,0.06)'; ctx.fill();
-        ctx.setLineDash([9, 6]); ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(140,200,255,0.8)'; ctx.stroke(); ctx.setLineDash([]);
-        if (u.level >= G.HAFEN.ships[1][2]) {
-          ctx.beginPath(); ctx.arc(x, y, r * G.HAFEN.contRange, 0, 6.2832);
-          ctx.setLineDash([3, 7]); ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(140,200,255,0.55)'; ctx.stroke(); ctx.setLineDash([]);
-        }
+        const x = (u.x + 0.5) * z + ox, y = (u.y + 0.5) * z + oy;
+        G.HAFEN.ships.forEach(function (k, i) {
+          if (u.level < k.from) return;
+          const r = k.range * g.S * z;
+          ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832);
+          if (!i) { ctx.fillStyle = 'rgba(120,190,255,0.06)'; ctx.fill(); }
+          ctx.setLineDash(i ? [3, 7] : [9, 6]); ctx.lineWidth = i ? 1.5 : 2; ctx.strokeStyle = 'rgba(140,200,255,' + (i ? 0.55 : 0.8) + ')'; ctx.stroke(); ctx.setLineDash([]);
+        });
       }
     }
     for (const u of g.structAt.values()) {
@@ -1017,7 +1017,7 @@
       const n = path.length - 1, dir = u.retreat ? -1 : 1;
       // `mv` is the part of the next tile already covered; while the ship is under way the
       // frame adds what the running tick will bring
-      const rate = g.pace * (u.hunt ? 2 : 1), going = u.st === g.ticks;
+      const rate = g.pace * (u.hunt ? 2 : 1) * (u.type === UT.TRADE && g.hafen ? G.HAFEN.ships[u.kind || 0].speed : 1), going = u.st === g.ticks;
       const f = within(u.pi + dir * ((u.mv || 0) + (going ? alpha * rate : 0)), 0, n);
       const w = Math.min(3.5, f, n - f);                 // the stretch shrinks to nothing at both ends
       let sx = 0, sy = 0;
@@ -1244,8 +1244,8 @@
         const s = tradeSize(zz);
         merchant(ctx, x, y, ang, s, p, u.captured, u.kind);
         // a large ship under fire: what is left of it before it can be taken
-        if (u.kind && !u.captured && u.hits < G.HAFEN.ships[u.kind - 1][1]) {
-          const full = G.HAFEN.ships[u.kind - 1][1], bw = s * 2.2;
+        if (u.kind && !u.captured && u.hits < G.HAFEN.ships[u.kind].hits) {
+          const full = G.HAFEN.ships[u.kind].hits, bw = s * 2.2;
           ctx.fillStyle = '#10161d'; ctx.fillRect(x - bw / 2 - 1, y + s * 1.4 - 1, bw + 2, 5);
           ctx.fillStyle = '#f4b740'; ctx.fillRect(x - bw / 2, y + s * 1.4, bw * u.hits / full, 3);
         }

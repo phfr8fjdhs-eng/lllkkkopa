@@ -1,6 +1,14 @@
 # Änderungsprotokoll
 Was seit dem 13.11.2026 geändert wurde und warum. Den heutigen Stand der Regeln beschreiben die anderen Dateien in `doku/`.
 
+## Handel in drei Klassen, Kriegsschiffe zurückhaltender (23.11.2026)
+**Wunsch des Besitzers:** Handelsschiff klein, wenig Gold, kurze Reichweite; dann grössere mit mehr Reichweite; Containerschiffe im späten Spiel mit grosser, aber begrenzter Reichweite, langsam, schwer zu kapern, viel Gold. Kriegsschiffe zu stark: sie sollen vor allem kapern und Transportboote abwehren, kleinerer Radius, und nur auf Boote schiessen, die einen selbst oder einen Verbündeten angreifen.
+**Geändert:**
+- `G.HAFEN.ships`: Frachter (ab Stufe 1, 350 Felder, ×1), Massengutfrachter (ab Stufe 3, 700, Tempo 0.8, ×1.6, 5 Treffer), Containerschiff (ab Stufe 8, 1400 als Obergrenze, Tempo 0.6, ×2.5, 12 Treffer). Die Grösseren fahren bevorzugt weit. Einzelheiten in `doku/testschalter.md`.
+- Nationen bauen Häfen (und Städte) aus; vorher blieben ihre Häfen auf Stufe 1.
+- Kriegsschiffe: Zielradius 70 statt 130 Felder (× Massstab); Transportboote nur, wenn sie zu einem selbst oder einem Verbündeten unterwegs sind.
+**Gemessen** (Weltkarte, nur Computer-Spieler): nach 20 Minuten 1464 Frachter (Ø 52K), 120 Massengutfrachter (Ø 164K), 2 Containerschiffe (Ø 298K). In dieser Runde hatte eine Nation um Minute 25 die Welt erobert, danach gab es keinen Handel mehr (das bekannte Schneeball-Problem).
+
 ## OpenFronts Grössen im richtigen Massstab, Transportboot neu (23.11.2026)
 **Rückmeldung des Besitzers:** Transportschiffe sehen schlecht aus, ihre Linien und Bewegung wirken verbuggt; nach dem Bau einer Fabrik gehen die Linien nicht zu den Städten.
 **Gefunden:**
