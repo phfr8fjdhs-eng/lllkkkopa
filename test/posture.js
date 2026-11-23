@@ -59,7 +59,8 @@ const ok = (c, msg) => { if (!c) { console.log('FAIL', msg); process.exitCode = 
     const share2 = east.reduce((s, c) => s + g.postReal(h, c), 0) / h.troops;
     const wshare = west.reduce((s, c) => s + g.postReal(h, c), 0) / h.troops;
     ok(share1 > share0 && share1 < share2 * 0.8, 'troops march, it takes time: share ' + share0.toFixed(3) + ' -> ' + share1.toFixed(3) + ' -> ' + share2.toFixed(3));
-    ok(share2 > share0 * 3, 'the weighted cells end up several times denser');
+    const dE = east.reduce((s, c) => s + g.postDens(h, c), 0) / east.length, dW = west.reduce((s, c) => s + g.postDens(h, c), 0) / west.length;
+    ok(dE > dW * 3, 'the weighted cells end up several times denser: ' + dE.toFixed(2) + ' against ' + dW.toFixed(2));
     ok(Math.abs(sum(g, h) - h.troops) < 1e-6 * h.troops, 'still adds up');
     // an order at the dense end has much at hand, at the thin end little
     const tileOfCell = (c) => { const cx = c.id % g.CW, cy = (c.id - cx) / g.CW; return (cy * 16 + 8) * g.W + cx * 16 + 8; };
@@ -123,9 +124,4 @@ const ok = (c, msg) => { if (!c) { console.log('FAIL', msg); process.exitCode = 
     ok(Math.abs(at(11, 8) - 0.2) < 1e-6 && Math.abs(at(11, 9) - 0.45) < 1e-6 && Math.abs(at(11, 10) - 0.75) < 1e-6 && at(11, 11) === 1, 'railway: 0.2 on the line, 0.45 one cell away, 0.75 two away, 1 beyond');
     g1.rails = keep; g1.railSeen = -1; g1.postRails();
   }
-  // where troops stand dense, part of them fall back instead of dying with the tile
-  const row = [];
-  for (const d of [0.5, 1, 2, 4, 8]) row.push(d + ': ' + (g1.postKeep(d) / d).toFixed(2));
-  console.log('loss per soldier by density  ', row.join(' | '));
-  ok(Math.abs(g1.postKeep(1) - 1) < 1e-9 && g1.postKeep(4) / 4 < 0.5, 'average density loses what stands there, dense ground less per soldier');
 })();

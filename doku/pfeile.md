@@ -32,7 +32,7 @@ Ein Keil nahm mit denselben Truppen so viel oder mehr Land als die ganze Front u
 - **Wegnehmen:** Klick auf einen geplanten Pfeil, oder Rücktaste für den letzten.
 - **Während des Angriffs:** Klick auf einen laufenden Pfeil: «Verstärken» oder «Zurückziehen».
 - **Handy:** Mit Keil oder Abschnitt plant ein Tippen auf ein Land einen Pfeil.
-- Doppelklick auf Feindesland und das Kreismenü greifen wie bisher sofort mit der ganzen Front an.
+- Ein Linksklick auf Feindesland (bis 23.11.2026 ein Doppelklick) und das Kreismenü greifen wie bisher sofort mit der ganzen Front an.
 
 Test: `node test/pfeile.js`.
 

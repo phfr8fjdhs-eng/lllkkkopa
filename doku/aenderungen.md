@@ -1,6 +1,19 @@
 # Änderungsprotokoll
 Was seit dem 13.11.2026 geändert wurde und warum. Den heutigen Stand der Regeln beschreiben die anderen Dateien in `doku/`.
 
+## Ein Kampf wie OpenFront, die Dichte nur obendrauf, Linksklick greift an (23.11.2026)
+**Wunsch des Besitzers:** Das Netz soll heissen «wo gewichte ich meine Verteidigung», nicht zu stark: Wer viel mehr Truppen hat, soll trotzdem gewinnen. Dichte bremst, aber dort fallen auch mehr. Man soll sehen, wo eine Front dünn ist. Eingraben weg. Der Angriff soll sich so sauber anfühlen wie in OpenFront, auch das Klicken.
+**Verglichen mit OpenFront:** Truppenwachstum und Obergrenze sind dieselbe Formel. Der Klick nahm die Truppen wie dort sofort ab. Anders war die Rechnung danach: ein eigener örtlicher Kampf (Grundpreis, Überzahl am Ort, Gelände nach Überzahl, Eingraben, Reserven) und Nationen, die an der Grenze bis viermal so dicht standen wie im Hinterland. Mit der Maus griff erst ein Doppelklick an.
+**Geändert:**
+- Jeder Angriff (ganze Front, Keil, Abschnitt, Richtung) rechnet mit OpenFronts Formel. Obendrauf nur die Dichte der Zelle: Zeit × Dichte, Preis × √Dichte, höchstens dreimal der Schnitt; wer dort steht, fällt mit. Hinter jedem Angriff steht das ganze Reich. Vorschau und Kampf rechnen mit denselben Funktionen (`tileLoss`, `tileTime`).
+- Eingraben und Reserven entfernt. Ebenso die Regel «höchstens 2 Angreifer pro Verteidiger» in «Feste Grenzen»: Mit der neuen Formel machte sie den Keil doppelt so teuer und langsam (Level 5 nicht mehr zu schaffen).
+- Nationen stehen an bedrohten Grenzen höchstens doppelt so dicht, an Verbündeten und Bots wie im Hinterland. So lohnen sich Bündnisse.
+- Dichtes Land ist auf der Karte dunkler, weich verlaufend; eine dünne Front bleibt hell.
+- Mit der Maus greift ein Linksklick an (ganze Front, Anteil vom Regler; ohne Grenze per Boot), ein Klick auf ein eigenes Gebäude öffnet seine Karte. Bisher schaute ein Klick nur, ein Doppelklick griff an.
+**Gemessen:** `node test/kampf.js echt`: mit 100 % gegen eine Nation, die seit 2 Minuten steht, 1062 bis 1116 Felder (OpenFront 1147, vorher 733). Neuer Teil `dicht`: 60K gegen 30K nehmen gegen gleichmässige Verteidiger 83 %, gegen alles an der Grenze 68 % in 10 statt 6 s, und dem Verteidiger bleiben 3.4K statt 5.1K. Der Keil kommt überall tiefer als die ganze Front. Testspieler (20 Minuten, Startwerte 4 bis 7, und «Feste Grenzen»): Angriffe auf Nationen 133 bis 210 Felder pro 10K Verluste (vorher 109 bis 130), überlebt alle Runden.
+**Messbank angepasst:** Eingraben und Reserven nicht mehr gemessen; «Schwung» gegen 250K statt 100K (sonst erreichte der Keil das Ziel mit und ohne Schwung); «der Abschnitt tiefer als die ganze Front» und in «Feste Grenzen» «die ganze Front nimmt mehr Land als der Keil» nur noch zur Anzeige (die Grenze der Messbank ist kaum breiter als ein Abschnitt; nach dem Durchbruch nimmt ein Keil ohne Schwung im dünnen Hinterland viel). `test/posture.js` prüft «mehrfach so dicht» über die Dichte statt über den Anteil.
+**Noch offen:** Eine Runde ist zu früh entschieden (die stärkste Nation hat nach 10 Minuten gut 40 %).
+
 ## Ganze Front wieder brauchbar: Preis nach der ganzen Stärke (23.11.2026)
 **Rückmeldung des Besitzers:** Mit der ganzen Front sterben die Truppen extrem schnell; im frühen Spiel soll die ganze Front der Normalfall sein, ohne gezielt angreifen zu müssen.
 **Nachgestellt** in einem echten frühen Spiel (Weltkarte, Nationen auf «Mittel», Optionen wie auf dem Startbildschirm, nach 4 Minuten ein Klick mit 20 % auf die erste Nation):

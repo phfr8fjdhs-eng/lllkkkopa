@@ -102,7 +102,7 @@ function run(map, sc, classic) {
     const cs = [...foe.post.cells.entries()], cx = (e) => e[0] % g.CW, east = h.x0 > foe.x0;
     cs.sort((x, y) => east ? cx(y) - cx(x) : cx(x) - cx(y));
     let H = 0;
-    cs.forEach((e, i) => { const c = e[1]; c.u = i < cs.length * 0.3 ? c.n * 0.05 : c.n * 1.4; c.e = 0; H += c.u; });
+    cs.forEach((e, i) => { const c = e[1]; c.u = i < cs.length * 0.3 ? c.n * 0.05 : c.n * 1.4; H += c.u; });
     foe.post.H = H;
   }
   const tiles0 = foe.tiles, t0 = g.ticks;
@@ -193,26 +193,6 @@ function valley(map) {
 }
 
 // ---------- defence ----------
-// The whole front against a defender whose troops have stood a long time (dug in) and one that has
-// just arrived: dug in holds more land.
-function dugIn(map, dug) {
-  // 45K sent, as ever, but from a realm of 60K: since 23.11.2026 the whole front fights with the
-  // whole realm behind it, and 150K behind 45K swept 91 % of the land however dug in it was
-  const sc = { at: 3000, dt: 1200, aT: 60000, dT: 40000 }, A = arena(map, sc, false), g = A.g, h = A.h, foe = A.foe;
-  for (const c of foe.post.cells.values()) c.e = dug ? 1 : 0;
-  const t0 = foe.tiles;
-  g.exec(h.id, { k: 'strike', t: foe.border.values().next().value, r: 0.75, w: 0 });
-  for (let k = 0; k < LIMIT && h.out.some((a) => a.active); k++) { g.tick(); g.dirtyN = 0; g.dirtyFlag.fill(0); g.events.length = 0; }
-  return 1 - foe.tiles / t0;
-}
-// A wedge against a defender whose reserves come to the cells under attack, and one whose do not.
-function reserves(map, on) {
-  const keep = G.POST.reserve;
-  G.POST.reserve = on ? keep : 1;
-  const r = runThrust(map, THRUSTS[3], 2, false);
-  G.POST.reserve = keep;
-  return r;
-}
 // A pocket: a block of the defender's land inside the attacker's, far from the sea. Its troops
 // should be all but gone after half a minute, while those of the main land stay.
 function pocket(map) {
@@ -246,7 +226,9 @@ function kessel(map, on) {
 // The same attack with the switch `schwung` on and off; a second attack from the same stretch
 // right after the first; an attack after the troops were massed at its start (the net).
 function momentum(map) {
-  const sc = { at: 12000, dt: 4000, aT: 400000, dT: 100000, share: 0.15 }, res = {};
+  // against 250K: since 23.11.2026 the attacker's whole realm stands behind a wedge, and against
+  // 100K it reached the goal with momentum or without
+  const sc = { at: 12000, dt: 4000, aT: 400000, dT: 250000, share: 0.15 }, res = {};
   for (const on of [false, true]) {
     res[on ? 'on' : 'off'] = { front: runThrust(map, sc, 0, false, { schwung: on }), wedge: runThrust(map, sc, 2, false, { schwung: on }) };
   }
@@ -304,12 +286,46 @@ function runThrustIn(g, h, foe, mode, share) {
     rs.forEach((r, m) => console.log('  ' + MODES[m].padEnd(12) + (r.why ? 'abgelehnt: ' + r.why : (r.hit >= 0 ? 'Ziel nach ' + (r.hit / 10).toFixed(0).padStart(3) + 's' : 'Ziel nicht erreicht') +
       '  Weg geschafft ' + (r.depth * 100).toFixed(0).padStart(3) + ' %  Felder ' + String(r.took).padStart(5) + '  Verluste ' + K(r.lost).padStart(7) + (m ? '  Korridor ' + r.lane + ' Felder, Weg ' + r.len + '  Vorschau ' + Math.round(r.est * 100) + ' % / echt ' + Math.round(r.real * 100) + ' %' + (process.env.DBG ? ' | am Ziel übrig ' + K(r.atHit.left) + ' (Vorschau ' + K(r.estLeft) + '), Front Ø ' + Math.round(r.atHit.fs / r.atHit.fn) + ', Ticks ' + r.atHit.fn + ', Felder bis Ziel ' + r.atHit.took + ' (Vorschau ' + r.estTiles + ')' : '') : ''))));
     if (!(rs[2].depth > rs[0].depth + 0.1)) { bad++; console.log('  FAIL: der Keil kommt nicht tiefer als die ganze Front'); }
-    if (!(rs[1].depth >= rs[0].depth)) { bad++; console.log('  FAIL: der Abschnitt kommt weniger tief als die ganze Front'); }
+    // shown only: in this arena the border is hardly wider than a section, and a section's head
+    // may move no faster than `G.THRUST.speed` while the whole front has no such limit
+    if (!(rs[1].depth >= rs[0].depth)) console.log('  (der Abschnitt kommt hier weniger tief als die ganze Front, nur zur Anzeige)');
   }
   if (!only || only === 'stoss' || only === 'tal') {
     const v = valley(map);
     console.log('Tal: Gebirgszug mit einer Lücke auf Zeile ' + v.gapY + ', der Keil quert auf Zeile ' + v.cross + ' (Weg ' + v.len + ' Felder)');
     if (!v.ok) { bad++; console.log('  FAIL: der Keil nimmt nicht das Tal'); }
+  }
+  if (!only || only === 'dicht') {
+    // The net only moves strength about (23.11.2026): twice the troops get on with the whole front
+    // even against a defender who put everything on the border facing them. Dense ground is
+    // slower to take, and more of the defender fall there.
+    const sc = { at: 3000, dt: 2000, aT: 60000, dT: 30000 };
+    const fight = (dense) => {
+      const A = arena(map, sc, false, { kampf: 'grenzland' }), g = A.g, h = A.h, foe = A.foe;
+      g.postAuto = function () {};
+      const front = new Set();
+      for (const b of foe.border) for (const q of [b - 1, b + 1, b - g.W, b + g.W]) if (g.owner[q] === h.id) front.add(g.cellOf(b));
+      let H = 0;
+      for (const [id, c] of foe.post.cells) { c.m = dense ? (front.has(id) ? 6 : 0.2) : 1; c.u = c.n * c.m; H += c.u; }
+      foe.post.H = H;
+      h.troops = sc.aT; foe.troops = sc.dT;
+      const t0 = foe.tiles;
+      let tile = -1;
+      for (const b of h.border) { for (const q of [b - 1, b + 1, b - g.W, b + g.W]) if (g.owner[q] === foe.id) { tile = q; break; } if (tile >= 0) break; }
+      const dmax = Math.max(...[...front].map((id) => g.postDens(foe, foe.post.cells.get(id))));
+      g.exec(h.id, { k: 'strike', t: tile, r: 1, w: 0 });
+      let k = 0;
+      for (; k < LIMIT && h.out.some((x) => x.active); k++) { g.tick(); g.dirtyN = 0; g.dirtyFlag.fill(0); g.events.length = 0; }
+      return { took: (t0 - foe.tiles) / t0, left: foe.troops, secs: k / 10, dmax: dmax };
+    };
+    const ev = fight(false), dn = fight(true);
+    console.log('Dichte: 60K gegen 30K, ganze Front mit allem');
+    console.log('  gleichmässig     Land ' + (ev.took * 100).toFixed(0).padStart(3) + ' %  in ' + ev.secs.toFixed(0) + ' s  Verteidiger übrig ' + K(ev.left));
+    console.log('  alles an Grenze  Land ' + (dn.took * 100).toFixed(0).padStart(3) + ' %  in ' + dn.secs.toFixed(0) + ' s  Verteidiger übrig ' + K(dn.left) + '  (Grenze ' + dn.dmax.toFixed(1) + '× so dicht)');
+    // (one click at two to one does not wipe a realm out in OpenFront either)
+    if (!(dn.took >= ev.took * 0.75)) { bad++; console.log('  FAIL: mit doppelt so vielen kommt die ganze Front gegen einen dichten Verteidiger kaum voran'); }
+    if (!(dn.left <= ev.left * 1.1)) { bad++; console.log('  FAIL: der dichte Verteidiger verliert nicht mehr'); }
+    if (!(dn.secs > ev.secs)) { bad++; console.log('  FAIL: dichter Boden bremst nicht'); }
   }
   if (!only || only === 'echt') {
     // As in play (23.11.2026): the defender is a nation that has stood two minutes at its border
@@ -345,14 +361,16 @@ function runThrustIn(g, h, foe, mode, share) {
     for (const k of ['grenzland', 'grenzen']) {
       const rs = [0, 1, 2].map((m) => runThrust(map, sc, m, false, { kampf: k }));
       rs.forEach((r, m) => console.log(row((k === 'grenzland' ? 'Grenzland' : 'Feste Grenzen') + ', ' + MODES[m], r)));
-      if (!(rs[0].took >= rs[2].took)) { bad++; console.log('  FAIL: ' + k + ': die ganze Front nimmt weniger Land als der Keil'); }
+      // «Grenzland»: momentum stops a wedge, the whole front takes more land. «Feste Grenzen» has no
+      // momentum: once through the dense border a wedge widens in the thin land behind (shown only)
+      if (!(rs[0].took >= rs[2].took)) { if (k === 'grenzland') bad++; console.log('  ' + (k === 'grenzland' ? 'FAIL' : '(nur zur Anzeige)') + ': ' + k + ': die ganze Front nimmt weniger Land als der Keil'); }
       if (!(rs[2].depth > rs[0].depth)) { bad++; console.log('  FAIL: ' + k + ': der Keil kommt nicht tiefer als die ganze Front'); }
     }
   }
   if (!only || only === 'schwung') {
     const m = momentum(map);
     const row = (tag, r) => '  ' + tag.padEnd(26) + 'Felder ' + String(r.took).padStart(5) + '  Weg geschafft ' + (r.depth * 100).toFixed(0).padStart(3) + ' %  Verluste ' + K(r.lost).padStart(7);
-    console.log('Schwung: 400K gegen 100K mit 15 %');
+    console.log('Schwung: 400K gegen 250K mit 15 %');
     console.log(row('Front ohne Schwung', m.off.front)); console.log(row('Front mit Schwung', m.on.front));
     console.log(row('Keil ohne Schwung', m.off.wedge)); console.log(row('Keil mit Schwung', m.on.wedge));
     const second = Object.assign({}, m.again, { took: m.again.took - m.first.took });
@@ -365,14 +383,6 @@ function runThrustIn(g, h, foe, mode, share) {
     if (!(m.massStart > 1.2 && m.massed.depth > m.waited.depth)) { bad++; console.log('  FAIL: Aufmarsch gibt nicht mehr Schwung'); }
   }
   if (!only || only === 'abwehr') {
-    const fresh = dugIn(map, false), dug = dugIn(map, true);
-    console.log('Eingraben: 45K (75 % von 60K) gegen 40K nehmen ' + (fresh * 100).toFixed(0) + ' % des Landes bei frisch angekommenen Verteidigern, ' + (dug * 100).toFixed(0) + ' % bei eingegrabenen');
-    if (!(dug < fresh * 0.85)) { bad++; console.log('  FAIL: Eingraben wirkt kaum'); }
-    const off = reserves(map, false), on = reserves(map, true);
-    console.log('Reserven: Keil mit 6 % von 400K gegen 200K schafft ' + (off.depth * 100).toFixed(0) + ' % des Wegs ohne, ' + (on.depth * 100).toFixed(0) + ' % mit Reserven des Verteidigers (Felder ' + off.took + ' / ' + on.took + ')');
-    // shown only: since the thrusts were slowed down (17./18.11.2026) a small wedge gets so short a
-    // way that reserves have no time to matter
-    if (!(on.took < off.took)) console.log('  (Reserven wirken hier kaum, nur zur Anzeige)');
     const k1 = kessel(map, true), k0 = kessel(map, false);
     console.log('Kessel (Schalter): eingeschlossene Felder ' + k1[0] + ', nach 10/25/35 s noch ' + k1.slice(1).join(' / ') + ' mit Kessel, ' + k0.slice(1).join(' / ') + ' ohne');
     if (!(k1[2] > k1[0] * 0.5 && k1[3] === 0 && k0[1] === 0)) { bad++; console.log('  FAIL: der Kessel hält nicht etwa 30 s, oder ohne Schalter fällt er nicht sofort'); }

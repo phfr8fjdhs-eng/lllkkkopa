@@ -23,13 +23,12 @@
   const RAIL = [0.2, 0.45, 0.75];         // a railway makes its own cell, and the cells one and two away, that much quicker to cross
   const M_MIN = 0.2, M_MAX = 6;           // range of the weight a person can give a cell
   // Defence beyond numbers:
-  //   dig      entrenchment: troops that have stood in a cell for a while defend up to `dig` better
-  //   digT     ticks until a cell is two thirds dug in; newcomers dilute it, fresh ground starts at 0
-  //   alarm    a cell under attack calls reserves for so many ticks ...
-  //   reserve  ... and while it does, it wants that many times its share
   //   cut      a pocket cut off from the coast and the main land loses that share every step of marching
   //   cutHold  and defends only that well
-  const PO = G.POST = { cell: CS, flow: FLOW, mMin: M_MIN, mMax: M_MAX, dig: 0.25, digT: 1200, alarm: 60, reserve: 3, cut: 0.05, cutHold: 0.6 };
+  // Digging in (troops that stood long defended up to +25 %) and reserves (a cell under attack
+  // called troops from behind) were taken out on 23.11.2026: both added strength nobody could see,
+  // and one could no longer judge whom one could beat. Density alone stays: where it stands.
+  const PO = G.POST = { cell: CS, flow: FLOW, mMin: M_MIN, mMax: M_MAX, cut: 0.05, cutHold: 0.6 };
 
   Game.prototype.postInit = function (p) {
     if (!this.CW) {
@@ -41,7 +40,7 @@
     (this.posted || (this.posted = [])).push(p);
   };
   // How well a cell holds, beyond its number of troops: dug in, or cut off.
-  Game.prototype.postHold = function (c) { return (1 + PO.dig * (c.e || 0)) * (c.cut ? PO.cutHold : 1); };
+  Game.prototype.postHold = function (c) { return c.cut ? PO.cutHold : 1; };
   // Whether a cell has sea coast in it (a pocket on the coast is supplied by sea). Worked out once.
   Game.prototype.cellCoastal = function (id) {
     let v = this.cellCoast[id];
@@ -147,7 +146,7 @@
   Game.prototype.postGain = function (p, t) {
     const post = p.post, id = this.cellOf(t);
     let c = post.cells.get(id);
-    if (!c) { c = { id: id, n: 0, u: 0, m: 1, want: 0, diff: 0, r: 0, d: 0, to: null, ec: 0, e: 0, alarm: -1e9, cut: false }; post.cells.set(id, c); }   // new ground starts empty and not dug in
+    if (!c) { c = { id: id, n: 0, u: 0, m: 1, want: 0, diff: 0, r: 0, d: 0, to: null, ec: 0, cut: false }; post.cells.set(id, c); }   // new ground starts empty
     c.n++;
   };
   Game.prototype.postLose = function (p, t) {
@@ -307,25 +306,9 @@
     const post = p.post, cells = post.cells, now = this.ticks;
     if (!cells.size) return;
     this.postPockets(p);
-    // A cell under attack raises the alarm for its sector (the cells around it): the sector
-    // wants several times its share for a while, so reserves come from further back instead of
-    // out of the very cell the enemy is about to enter.
-    const CW = this.CW;
-    for (const c of cells.values()) c.hot = false;
-    for (const c of cells.values()) {
-      if (!(now - c.alarm < PO.alarm)) continue;
-      const cx = c.id % CW;
-      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
-        if (cx + dx < 0 || cx + dx >= CW) continue;
-        const o = cells.get(c.id + dy * CW + dx);
-        if (o) o.hot = true;
-      }
-    }
     let H = 0, Wt = 0;
     for (const c of cells.values()) {
-      // dug in: grows toward 1 while the troops stand
-      c.e = (c.e || 0) + (1 - (c.e || 0)) * FLOW / PO.digT;
-      c.w = c.m * (c.hot ? PO.reserve : 1);
+      c.w = c.m;
       H += c.u; Wt += c.n * c.w; c.r = 0;
     }
     post.H = H;
@@ -392,9 +375,10 @@
     }
   };
   // How a nation stands: its computer decides, every few seconds, much as a person would with the
-  // net. Dense along borders with realms that could hurt it (the stronger the neighbour, the
-  // denser), a little less along allies, thin in the interior. Reserves for a cell under attack
-  // come on top of that by themselves (`alarm`).
+  // net. A little denser along borders with realms that could hurt it (the stronger the
+  // neighbour, the denser, at most twice the interior), allies and bots count as safe. Until
+  // 23.11.2026 up to four times the interior, allies at 40 %: a whole-front attack on a nation
+  // then always met a wall.
   const AUTO = 50;
   Game.prototype.postAuto = function (p) {
     const cells = p.post.cells, own = this.owner, W = this.W, N = this.N, ps = this.players, pid = p.id;
@@ -409,12 +393,12 @@
         const o = own[n];
         if (!o || o === pid) continue;
         const q = ps[o];
-        const v = (this.friendly(p, q) ? 0.4 : 1) * within(q.troops / T, 0.2, 2) * (q.type === G.PT.BOT ? 0.3 : 1);
+        const v = this.friendly(p, q) || q.type === G.PT.BOT ? 0 : within(q.troops / T, 0.2, 2);
         if (v > thr) thr = v;
       }
       if (thr > 0) { const c = cells.get(this.cellOf(b)); if (c && thr > c.thr) c.thr = thr; }
     }
-    for (const c of cells.values()) c.m = within(c.thr > 0 ? 1 + c.thr : 0.7, M_MIN, M_MAX);     // at most 3 : 0.7, a reserve stays inland
+    for (const c of cells.values()) c.m = within(1 + 0.5 * c.thr, M_MIN, M_MAX);     // at most 2 : 1
   };
 
   // ---------- the net ----------
@@ -436,8 +420,4 @@
     return true;
   };
 
-  // What the defender loses with a tile, as a multiple of the average per tile, in a cell of
-  // density d (1 = average). Where troops stand dense they do not all die with the tile: part of
-  // them fall back into the rest of the cell, so the cell grows denser as it shrinks.
-  Game.prototype.postKeep = function (d) { return d > 0 ? Math.pow(d, 0.35) : 0; };
 })(globalThis.G = globalThis.G || {});

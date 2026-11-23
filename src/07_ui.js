@@ -75,8 +75,8 @@
   const cfg = { name: 'Spieler', color: 0, map: 'erde', diff: 1, bots: -1, nations: true, instant: false, gold: false, troops: false, tap: false, music: true, sfx: true, mode: 'klassisch', thrust: 0, botsV3: true, pfeile: true, kampf: 'grenzland', bahn: true, hafen: true };
   // two switches of their own (doku/pfeile.md)
   // Two ways of fighting to compare (doku/kampfsysteme.md), and a few switches for both.
-  const KAMPF = [['grenzland', 'Grenzland', 'Netz als passive Verteidigung: dichte Stellen halten besser, eingegraben, Reserven, Kessel halten 30 s. Angriffe verlieren mit der Tiefe Schwung; Aufmarsch, Erholung und Schiene geben mehr.'],
-    ['grenzen', 'Feste Grenzen', 'Kein Netz, alle Truppen ein Topf. Schmale Angriffe setzen höchstens 2 Angreifer pro Verteidiger ein. Dazu der Richtungsangriff. Kessel fallen sofort.']];
+  const KAMPF = [['grenzland', 'Grenzland', 'Netz als passive Verteidigung: wo mehr Truppen stehen, geht ein Angriff langsamer, dort fallen aber auch mehr (dunkleres Land). Kessel halten 30 s. Keil und Abschnitt verlieren mit der Tiefe Schwung; Aufmarsch, Erholung und Schiene geben mehr.'],
+    ['grenzen', 'Feste Grenzen', 'Kein Netz, deine Truppen stehen gleichmässig. Kein Schwung. Dazu der Richtungsangriff. Kessel fallen sofort.']];
   const SWITCH = [['pfeile', 'Angriffe planen', 'An: Pfeile mit der rechten Maustaste planen, dann «Angreifen» (Enter). Aus: der Pfeil greift sofort an.'],
     ['bahn', 'Bahn: Lieferungen', 'An: Fabriken liefern per Zug in Städte, grössere Städte bringen mehr Gold, eroberte Gleise sind kurz beschädigt. Aus: Gold pro Halt wie in OpenFront.'],
     ['hafen', 'Häfen nach Stufe', 'An: höhere Häfen schicken öfter Schiffe, grössere Schiffe und reichen weiter. Aus: wie bisher.']];
@@ -541,7 +541,7 @@
       '<li><b>Spielmodus Arsenal:</b> Zusätzlich gibt es den <b>Satellitenstrahl</b> (600K Gold). Er braucht kein Silo, trifft drei Sekunden nach dem Abfeuern, kann nicht abgefangen werden und hinterlässt keine Verstrahlung. Danach lädt der Satellit 45 Sekunden nach. Und den <b>Tarnturm</b> (ab 150K, Taste X): Er versteckt sich selbst und deine Gebäude ganz in seiner Nähe, meist nur zwei oder drei. Die anderen sehen sie erst, wenn ihr Land nahe herankommt; Verbündete sehen sie immer. Bei dir erscheinen versteckte Gebäude blasser.</li>' +
       '<li><b>Ausbauen:</b> Tippe auf eines deiner Gebäude, dann öffnet sich gleich die Ausbaukarte mit drei Knöpfen: eine Stufe, fünf Stufen oder so viele, wie dein Gold reicht. Alle Gebäude gehen bis Stufe 100. Jede Stufe kostet so viel wie ein weiteres Gebäude derselben Art (Stadt: 125K, 250K, 500K, danach je 1M) und bringt bei Städten +25K Truppen-Limit. </li>' +
       '<li><b>Eroberung:</b> Wer ein Reich ganz einnimmt, bekommt dessen Gold (bei Mitspielern die Hälfte) und dazu eine Prämie nach Landgrösse: 60 Gold für jedes Feld, das das Reich zu seiner grössten Zeit hatte. Bots bringen zusätzlich 25K. Die Summe steht in der Spieler-Info.</li>' +
-      '<li><b>Maus:</b> Ein einfacher Klick schaut sich nur um (Karte ziehen). Ein Doppelklick greift an, der Rechtsklick öffnet das Kreismenü. Fährst du über ein fremdes Reich, steht oben, was es hat.</li>' +
+      '<li><b>Maus:</b> Ein Klick auf fremdes oder freies Land greift an (die ganze Front, mit dem Anteil vom Regler), ein Klick auf ein eigenes Gebäude öffnet seine Karte. Ziehen verschiebt die Karte, der Rechtsklick öffnet das Kreismenü. Fährst du über ein fremdes Reich, steht oben, was es hat. Dunkleres Land: dort stehen mehr Truppen.</li>' +
       '<li><b>Tippen (Handy):</b> Ein Tipp auf freies Land oder auf einen Bot greift sofort an. Bei Nationen und Mitspielern öffnet sich das Menü, dort musst du auf Angreifen tippen. Läuft dein Angriff auf sie schon, schickt jeder weitere Tipp auf ihr Land sofort mehr Truppen. Lange drücken öffnet das Menü überall.</li>' +
       '<li><b>Karte:</b> Ziehen verschiebt, zwei Finger oder das Mausrad zoomen.</li>' +
       '</ul><h2 class="h3">Tastenkürzel</h2><p>Die Belegung ist die von OpenFront.</p><div class="keys">' +
@@ -549,7 +549,7 @@
       '<span><kbd>G</kbd>Angreifen</span><span><kbd>B</kbd>Boot schicken</span><span><kbd>T</kbd><kbd>Y</kbd>Truppenanteil −/+ 10 %</span><span>Rechts ziehen: Stoss vom Start zum Ziel</span><span><kbd>F</kbd>Keil oder Abschnitt</span><span>Mausrad beim Ziehen: Truppenanteil</span><span>Klick auf einen Pfeil: verstärken oder zurückziehen</span>' +
       '<span><kbd>K</kbd>Allianz anfragen</span><span><kbd>L</kbd>Allianz brechen</span><span><kbd>I</kbd>Spieler-Info</span>' +
       '<span><kbd>Q</kbd><kbd>E</kbd>Zoom −/+</span><span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>Karte schieben</span><span><kbd>C</kbd>Zum eigenen Gebiet</span>' +
-      '<span><kbd>P</kbd>Pause</span><span><kbd>,</kbd><kbd>.</kbd>Tempo −/+</span><span><kbd>Strg</kbd>+ Klick: Baumenü</span><span>Doppelklick: Angreifen</span><span>Rechtsklick: Kreismenü</span><span><kbd>N</kbd>Aufstellung</span><span><kbd>Shift</kbd>+ Mausrad: Truppenanteil</span>' +
+      '<span><kbd>P</kbd>Pause</span><span><kbd>,</kbd><kbd>.</kbd>Tempo −/+</span><span><kbd>Strg</kbd>+ Klick: Baumenü</span><span>Klick: Angreifen</span><span>Rechtsklick: Kreismenü</span><span><kbd>N</kbd>Aufstellung</span><span><kbd>Shift</kbd>+ Mausrad: Truppenanteil</span>' +
       '<span><kbd>Esc</kbd>Schliessen</span></div><p>Eine Bau-Taste zeigt das Gebäude oder die Bombe zuerst am Mauszeiger: in deiner Farbe, wenn es dort geht, rot, wenn nicht. Fehlt nur das Gold, bleibt der Preis stehen und wird rot; sonst steht der Grund dabei. Bei Bomben siehst du schon beim Zielen die Flugbahn vom Silo (rot, wo gegnerische Flugabwehr sie erreicht), den Sprengradius und die Reichweite jeder Flugabwehr: die gegnerische violett, deine eigene grün. Fliegt eine Bombe auf dein Land zu, wird die Reichweite deiner eigenen Flugabwehr ebenfalls eingeblendet. Ein Klick setzt es, mit gedrückter <kbd>Shift</kbd>-Taste mehrere hintereinander. Klickst du damit auf ein eigenes Gebäude derselben Art, wird es um eine Stufe ausgebaut; dieselbe Taste, <kbd>Esc</kbd> oder ein Rechtsklick legt es wieder weg.</p><p>Zusätzlich, weil es das in OpenFront nicht gibt: <kbd>U</kbd> baut das Gebäude unter dem Mauszeiger aus, <kbd>Shift</kbd> + <kbd>1</kbd>–<kbd>6</kbd> das nächste Gebäude dieser Art, <kbd>Enter</kbd> feuert im Zielmodus des Baumenüs die Bombe ab, <kbd>M</kbd> schaltet den Ton, die Leertaste pausiert ebenfalls.</p><p>' +
       'Befehle gelten für die Stelle unter dem Mauszeiger.</p>';
   }
@@ -1668,21 +1668,6 @@
     flushNet();
   }
 
-  // Double click with the mouse: attack what is there (over land, or by boat where there is no
-  // border), or open the upgrade card of an own building.
-  function dbl(sx, sy) {
-    if (!game || game.phase !== 'play' || aim || ghost || netOn) return;
-    const tile = view.tileAt(sx, sy), h = game.human;
-    if (tile < 0 || !h.alive) return;
-    closeRadial();
-    if (game.owner[tile] === h.id) {
-      const u = game.structNear(tile, 3);
-      if (u && u.owner === h && u.built) openBuild(u.tile);
-      return;
-    }
-    if (!game.map.land[tile]) return;
-    strikeAt(tile);
-  }
   function tap(sx, sy, menu, mouse) {
     if (!game) return;
     const tile = view.tileAt(sx, sy);
@@ -1704,9 +1689,20 @@
     // a click on an own cloaking tower shows what it covers, until the next click elsewhere
     const su = game.owner[tile] === h.id ? game.structNear(tile, 3) : null;
     view.cloakTap = !!su && su.owner === h && su.built && su.type === UT.CLOAK;
-    // With a mouse a single click only looks around. A double click attacks, the right button
-    // opens the circle menu. Touch keeps its taps: there is no second button on a screen.
-    if (mouse) return;
+    // With a mouse a single left click attacks what is there, as in OpenFront: the whole front with
+    // the share of the slider, a boat where there is no border; on an own building it opens its
+    // card. The right button opens the circle menu, a right drag plans a wedge. Until 23.11.2026
+    // a single click only looked around and a double click attacked.
+    if (mouse) {
+      if (menu || game.phase !== 'play' || !h.alive) return;
+      if (game.owner[tile] === h.id) {
+        const u = game.structNear(tile, 3);
+        if (u && u.owner === h && u.built) openBuild(u.tile);
+        return;
+      }
+      if (game.map.land[tile]) strikeAt(tile);
+      return;
+    }
     const o = game.owner[tile], q = o ? game.players[o] : null;
     // an attack that is already running is fed with one tap, whoever it is against
     const running = !!q && h.out.some(function (at) { return at.active && at.tid === q.id; });
@@ -1856,11 +1852,6 @@
     // whole page instead of the map, and then nothing sits under the fingers any more
     ['gesturestart', 'gesturechange', 'gestureend'].forEach(function (n) {
       document.addEventListener(n, function (e) { e.preventDefault(); }, { passive: false });
-    });
-    cv.addEventListener('dblclick', function (e) {
-      if (downType !== 'mouse') return;
-      const r = cv.getBoundingClientRect();
-      dbl(e.clientX - r.left, e.clientY - r.top);
     });
     cv.addEventListener('pointerleave', function (e) { if (e.pointerType === 'mouse') { hoverX = -1; hoverY = -1; } });
     cv.addEventListener('contextmenu', function (e) {

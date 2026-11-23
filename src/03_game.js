@@ -24,9 +24,10 @@
   //   dens      since 23.11.2026 a tile costs OpenFront's price (within(army / attack, 0.6, 2) x troops
   //             per tile), times density^dens and the cell's hold (dug in, cut off); base, exchange,
   //             fMin, fMax, army and armyFrom no longer price a tile (base still scales momentum)
+  //   densMax   the densest a cell counts for in the whole front's fight (times the average)
   //   back      how much of the troops at home stand behind a narrow attack in its price (the whole
   //             front has all of them behind it, see tickAttack `R`; 23.11.2026)
-  G.COMBAT = { back: 0.15, base: 16, exchange: 1, fMin: 0.7, fMax: 1.5, depth: 24, army: 2, armyFrom: 1.5, dens: 0.6 };
+  G.COMBAT = { back: 1, densMax: 3, base: 16, exchange: 1, fMin: 0.7, fMax: 1.5, depth: 24, army: 2, armyFrom: 1.5, dens: 0.6 };
   // Thrusts: an attack aimed at a spot instead of the whole front.
   //   widths  lane width in tiles on the world map for mode 1 (section) and 2 (wedge); scaled by map.S
   //   max     thrusts a player can have under way at once
@@ -138,16 +139,14 @@
     this.hafen = this.opts.hafen !== false;
     // Two ways of fighting to compare (`kampf`, 22.11.2026, doku/kampfsysteme.md); without it the
     // single switches above decide, as the tests set them.
-    //   'grenzland': the net as passive defence (density, digging in, reserves, pockets that hold
-    //                out), attacks lose momentum; no cap on how many attackers a narrow attack uses
+    //   'grenzland': the net as passive defence (density: slower, and more fall there), pockets
+    //                hold out, wedges and sections lose momentum
     //   'grenzen':   no net to paint (a person's troops stand evenly; nations keep the posture they
-    //                set themselves, as the switch `netz` off had it when this was tuned); narrow
-    //                attacks capped at G.THRUST.crowd attackers per defender; direction attack;
-    //                pockets fall at once; no momentum
-    // Both fight locally (G.COMBAT) and can plan arrows (`pfeile`).
+    //                set themselves); direction attack; pockets fall at once; no momentum
+    // Both fight with OpenFront's formula and the density on top (tileLoss, since 23.11.2026) and
+    // can plan arrows (`pfeile`). `crowd` (a cap on attackers per defender) prices nothing any more.
     this.kampfArt = this.opts.kampf === 'grenzland' || this.opts.kampf === 'grenzen' ? this.opts.kampf : '';
     this.crowd = this.opts.crowd !== false;
-    this.lokal = false;
     if (this.kampfArt === 'grenzland') { this.aufstellung = true; this.netz = true; this.kessel = true; this.schwung = true; this.punkt = false; this.crowd = false; }
     else if (this.kampfArt === 'grenzen') { this.aufstellung = true; this.netz = false; this.kessel = false; this.schwung = false; this.punkt = true; this.crowd = true; }
     // the campaign teaches the basics; a wedge deep through a level would die of momentum there
@@ -805,10 +804,9 @@
   // What a thrust will likely do, for the preview. It plays the fight through on a shadow copy of
   // its lane, tick by tick and with the same rules as `addFront` and `tickAttack`: the same order
   // of tiles (nearer the goal first, gaps filled, rough ground later), the head no faster than
-  // `speed`, the budget of a tick from the length of the front, the troops shrinking with every
-  // tile and the flanks growing with the depth. What it
-  // leaves out (reserves marching in, a counter-attack, a third party taking land) only makes the
-  // real thrust do a little worse.
+  // `speed`, a tick's budget, each tile priced as there (tileLoss, tileTime), the troops shrinking
+  // with every tile and the cells thinning as their defenders fall. What it leaves out (a
+  // counter-attack, a third party taking land) only makes the real thrust do a little worse.
   //   reach: share of the way it gets (0..1), left: troops left when the goal falls (0 if it does
   //   not), secs: seconds until then, counted: tiles taken until then, tiles, len.
   Game.prototype.thrustEstimate = function (p, route, troops) {
@@ -817,9 +815,6 @@
     const tp = t ? t.post : null;
     let tT = t ? t.troops : 0, tN = t ? t.tiles : 1;      // the defender's troops and land, shrinking as the fight goes
     const dp = t ? t.dposts : null, dr2 = this.R.defense * this.R.defense, TR = G.TERRAIN;
-    const easy = !!t && t.type === PT.BOT && p.type !== PT.BOT, botMod = easy ? 0.35 : 1;
-    const landTiles = map.landTiles, lossMod = p.tiles > landTiles * 0.17 ? Math.sqrt(landTiles * 0.17 / p.tiles) : 1;
-    const speedMod = p.tiles > landTiles * 0.13 ? Math.pow(landTiles * 0.13 / p.tiles, 0.6) : 1;
     const traitor = t && t.traitorUntil > this.ticks ? 0.5 : 1;
     const dist = route.dist, lane = route.lane, start = dist.get(route.entry) || 0, width = route.width;
     const taken = new Set(), front = new Set(), heap = new G.Heap(256), cells = new Map();
@@ -856,10 +851,10 @@
     let mom = mom0;
     for (; T < 3000 && !done; T++) {
       limit = Math.max(limit - step, head - 3 * step);
-      const flank = G.THRUST.flank * 2 * count / Math.max(1, width), dAvg = tT / Math.max(1, tN);
+      const dAvg = tT / Math.max(1, tN);
       const n = front.size + 2;
-      const face = t ? Math.max(1, Math.min(tT, dAvg * Math.max(4, front.size + flank) * CB.depth)) : 1;
-      let budget = (t ? within(10 * left / face, 0.01, 0.5) * n * 3 : n * (p.type === PT.BOT ? 1.9 : 2)) * this.attackPace + carry;
+      // as tickAttack: what stays at home stands behind the thrust too (`back`)
+      let budget = (t ? 1 : n * (p.type === PT.BOT ? 1.9 : 2)) * this.attackPace + carry;
       if (budget <= 0) { carry = budget; continue; }
       while (budget > 0) {
         if (heap.n === 0) { if (!defer.length) done = true; break; }
@@ -881,17 +876,12 @@
             if (!cs) { cs = { c: this.postDens(t, pc) * dAvg * pc.n, n: pc.n }; cells.set(pc.id, cs); }
             dens = cs.n > 0 && dAvg > 0 ? cs.c / cs.n / dAvg : 1;
           }
-          // reserves: a cell under attack calls troops from further back, who arrive over the next
-          // seconds. Roughly: the ground gets up to a quarter denser over the first ten seconds.
-          const pd = pc ? dens * this.postHold(pc) * (1 + 0.25 * Math.min(1, T / 100)) : 1;
-          const r = left / Math.max(1, Math.min(tT, face * pd)), hold = within(1.15 - 0.33 * r, 0.15, 1);
-          let mag = 1 + (gl - 1) * hold, speed = 16.5 * (1 + (gs - 1) * hold);
+          let mag = 80 * gl, speed = 16.5 * gs;
           if (dp && dp.length) for (let i = 0; i < dp.length; i++) { const dx = dp[i].x - x, dy = dp[i].y - y; if (dx * dx + dy * dy <= dr2) { mag *= 3 + 2 * dp[i].level; speed *= 1 + 2 * dp[i].level; break; } }
-          // as the fight has it (tickAttack): OpenFront's price, then density and holding
-          const R = tT / Math.max(1, troops + Math.max(0, p.troops - troops) * CB.back), m0 = gl * mag / (1 + (gl - 1) * hold), dk = pc ? dens * (1 + 0.25 * Math.min(1, T / 100)) : 1, D = dAvg * dk;
-          loss = Math.max(80 * m0 * within(R, 0.6, 2) * (0.463 + 0.0039 * dAvg) * dk * (pc ? this.postHold(pc) : 1) * botMod * lossMod * traitor, CB.base * m0 * within(R, 0.6, 2) * botMod * lossMod);
-          used = within(1 / (5 * Math.max(r, 0.01)), 0.2, 1.5) * speed * speedMod * (easy ? 0.45 : 1);
-          used *= within(R, 0.82, 7.5) * within(R / 20, 1, 50) / 0.82;
+          const dk = pc ? Math.min(CB.densMax, dens) : 1, D = dAvg * dk;
+          const R = tT / Math.max(1, left + Math.max(0, p.troops - troops) * CB.back);
+          loss = this.tileLoss(mag, R, dAvg, dk, pc ? this.postHold(pc) : 1, p.type !== PT.BOT && t.type === PT.BOT, traitor);
+          used = this.tileTime(speed, R, dk, traitor, front.size);
           if (mom0 > 0) {
             const fade = this.cellRail && this.CW ? 1 - (1 - MO.railFade) * (1 - this.cellRail[this.cellOf(tile)]) / 0.8 : 1;
             mom -= MO.decay * within(loss / (2 * CB.base), 0.25, 4) / Math.max(4, width) * fade;
@@ -1102,6 +1092,18 @@
     this.endAttack(at, true);
   };
 
+  // One tile of a realm, as OpenFront has it (EngineConfig.attackLogic): the attacker loses
+  // mag x within(army / attack, 0.6, 2) x (0.463 + 0.0039 x troops per tile), a human or nation
+  // against a bot x 0.7; the tile takes within(R, 0.82, 7.5) x within(R / 20, 1, 50) / 8.55 x its
+  // cost of a tick's budget, shared over the front. `mag` and `speed` carry ground, defence posts
+  // and fallout. On top the cell's density `dk` (time x dk, price x √dk) and its hold (cut off).
+  Game.prototype.tileLoss = function (mag, R, dAvg, dk, holdF, botHit, traitor) {
+    return mag * (botHit ? 0.7 : 1) * traitor * within(R, 0.6, 2) * (0.463 + 0.0039 * dAvg) * Math.sqrt(dk) * holdF;
+  };
+  Game.prototype.tileTime = function (speed, R, dk, traitor, front) {
+    return within(R, 0.82, 7.5) * within(R / 20, 1, 50) / 8.55 * speed * (traitor < 1 ? 0.5 : 1) / Math.max(1, front + 1) * dk;
+  };
+
   Game.prototype.tickAttack = function (at) {
     const a = at.a, tid = at.tid, t = tid ? this.players[tid] : null;
     if (!a.alive) { this.endAttack(at, false); return; }
@@ -1110,32 +1112,20 @@
     if (at.troops < 1) { if (at.want > 0) return; this.endAttack(at, false); return; }
     const own = this.owner, map = this.map, mg = map.mag, W = this.W, H = this.H, aid = a.id;
     const n = at.front.size + this.rng.int(0, 5);
-    // The fight is local. An attack does not meet the whole army of the defender, only those who
-    // stand at this front: the defenders per tile, along the front, `depth` tiles deep (never more
-    // than there are). `face` is that number for troops standing evenly; a tile in a denser or
-    // thinner cell scales it.
     const CB = G.COMBAT, dAvg = t ? t.troops / Math.max(1, t.tiles) : 0;
     // everything the attacker has under way against this defender, so several small clicks count
-    // like one big one against the whole army (see `army`)
+    // like one big one against the whole army
     let sent = 0;
     if (t) for (const o of a.out) if (o.active && o.tid === tid) sent += o.troops;
-    // A thrust also meets the defenders along its flanks: two sides as long as it has got deep
-    // (tiles taken over the width of its lane). The deeper a wedge gets, the dearer it becomes.
-    const flank = at.goal >= 0 || at.spot >= 0 ? G.THRUST.flank * 2 * Math.min(G.THRUST.deep, (at.taken || 0) / Math.max(1, at.width)) : 0;
-    const face = t ? Math.max(1, Math.min(t.troops, dAvg * Math.max(4, at.front.size + flank) * CB.depth)) : 1;
-    // A narrow attack (wedge, section, direction) can only bring so many troops to bear at once:
-    // at most `G.THRUST.crowd` for every defender it faces. More waits behind as supply and moves
-    // up as the ones in front fall, but does not make the attack faster or cheaper. So a blitz
-    // through one spot is no faster than the whole front would be.
     const narrow = at.goal >= 0 || at.spot >= 0;
-    const use = t && narrow && this.crowd ? Math.min(at.troops, G.THRUST.crowd * face) : at.troops;
-    // What the front may take this tick. A tile that costs more than is left is paid off over the
-    // following ticks (`carry`), so a weak attack really is slow instead of taking a tile a tick
-    // regardless.
-    // Without a posture (`aufstellung` off) a fight against a realm runs on OpenFront's formula
-    // (EngineConfig.attackLogic): a whole tick's budget, each tile a share of it (see below).
-    const of = !!t && !this.aufstellung && !this.lokal;     // `lokal`: no posture, but the local fight all the same
-    let budget = (of ? 1 : t ? within(10 * use / face, 0.01, 0.5) * n * 3 : n * (a.type === PT.BOT ? 1.9 : 2)) * this.attackPace + (at.carry || 0);
+    // («Feste Grenzen» capped until 23.11.2026 what a narrow attack could bring to bear, two per
+    // defender facing it, so a blitz was no faster than the whole front. With the whole realm
+    // behind every attack the cap made a wedge twice as dear and slow as in «Grenzland»; how fast a
+    // thrust's head may move (`G.THRUST.speed`) keeps a blitz in check in both systems.)
+    // What the front may take this tick: against a realm a whole tick, each tile a share of it
+    // (OpenFront, tileTime); on free land a few tiles per tile of front. A tile that costs more
+    // than is left is paid off over the following ticks (`carry`).
+    let budget = (t ? 1 : n * (a.type === PT.BOT ? 1.9 : 2)) * this.attackPace + (at.carry || 0);
     // A narrow attack with momentum that has taken nothing for `stall` ticks has stuck fast: it
     // halts like one out of momentum, its troops stay as defenders. Before 23.11.2026 it could sit
     // there for minutes paying off one dear tile, with its troops tied up and nothing to see.
@@ -1147,10 +1137,7 @@
     }
     if (budget <= 0) { at.carry = budget; return; }
     const landTiles = map.landTiles;
-    const lossMod = a.tiles > landTiles * 0.17 ? Math.sqrt(landTiles * 0.17 / a.tiles) : 1;
-    const speedMod = a.tiles > landTiles * 0.13 ? Math.pow(landTiles * 0.13 / a.tiles, 0.6) : 1;
     const traitor = t && t.traitorUntil > this.ticks ? 0.5 : 1;
-    const easy = !!t && t.type === PT.BOT && a.type !== PT.BOT, botMod = easy ? 0.35 : 1;   // bots barely defend themselves
     const dp = t ? t.dposts : null, dr2 = this.R.defense * this.R.defense, fo = this.fallout;
     const cov = map.cover, ft = map.feat, TR = G.TERRAIN;
     const tp = t ? t.post : null;
@@ -1200,17 +1187,10 @@
         if (f & 2) { gl *= TR.greatLoss; gs *= TR.greatSpeed; }
         else if (f & 1) { gl *= TR.riverLoss; gs *= TR.riverSpeed; }
       }
-      // Ground only counts for as much as it is defended. Empty land is taken almost as fast in
-      // the mountains as on the plain; against a realm it weighs less the more the attacker
-      // outnumbers it, and (for a realm with a posture) the thinner the troops stand right there.
-      const pc = tp ? tp.cells.get(this.cellOf(tile)) : null, pd = pc ? this.postDens(t, pc) * this.postHold(pc) : 1;
-      if (pc) pc.alarm = this.ticks;          // reserves are called to a cell under attack
-      // r: how many attackers there are for every defender they face at this tile
-      // never more defenders than there are; a narrow attack brings at most `crowd` per defender to bear
-      let r = t ? at.troops / Math.max(1, Math.min(t.troops, face * pd)) : 0;
-      if (narrow && this.crowd && r > G.THRUST.crowd) r = G.THRUST.crowd;
-      let hold = TR.free;
-      if (t) hold = within(1.15 - 0.33 * r, 0.15, 1);
+      // Ground, defence posts and fallout weigh fully against a realm (as OpenFront); empty land is
+      // taken almost as fast in the mountains as on the plain (`TR.free`).
+      const pc = tp ? tp.cells.get(this.cellOf(tile)) : null;
+      const hold = t ? 1 : TR.free;
       let mag = 80 * (1 + (gl - 1) * hold), speed = 16.5 * (1 + (gs - 1) * hold);
       if (dp && dp.length) {
         for (let i = 0; i < dp.length; i++) {
@@ -1220,57 +1200,34 @@
       }
       if (fo[tile]) { const f = 5 - 2 * this.falloutCount / landTiles; mag *= f; speed *= f; }
       let loss, used;
-      if (of) {
-        // OpenFront, attackLogic: loss = mag x within(army / attack, 0.6, 2) x (0.463 + 0.0039 x
-        // troops per tile); the defender loses his average per tile; a tile takes a share of the
-        // tick of within(ratio, 0.82, 7.5) x within(ratio / 20, 1, 50) / 8.55 x tile cost / border.
-        // Ground, posts and fallout as above (`mag`, `speed`), but at full weight, as there.
-        const R = t.troops / Math.max(1, at.troops);   // as in OpenFront; a narrow front is slowed by its short border (`used`)
-        const m0 = 80 * gl * (mag / (80 * (1 + (gl - 1) * hold))), s0 = 16.5 * gs * (speed / (16.5 * (1 + (gs - 1) * hold)));
-        loss = m0 * (a.type !== PT.BOT && t.type === PT.BOT ? 0.7 : 1) * traitor * within(R, 0.6, 2) * (0.463 + 0.0039 * dAvg);
-        used = within(R, 0.82, 7.5) * within(R / 20, 1, 50) / 8.55 * s0 * (traitor < 1 ? 0.5 : 1) / Math.max(1, at.front.size + 1);
-        t.troops = Math.max(0, t.troops - dAvg);
-      } else if (t) {
-        // What a tile costs: OpenFront's price (attackLogic: the whole army against all that is sent
-        // against it, ground at full weight, posts and fallout) for the troops that really stand on
-        // the tile (`D`: the average times the density of its cell), and those troops fall with
-        // it. Density so moves strength about, it does not add any: a dense stretch is dearer and
-        // slower to take, a thin one cheap. Against troops standing evenly the fight is OpenFront's.
-        // On top only the cell's hold: dug in (up to +50 %) or cut off (postHold).
-        // Until 23.11.2026 a flat 16 per tile came on top, dense ground lost fewer of its own than
-        // stood there, and the factors stood in a row: against a nation dug in along its border an
-        // attacker lost almost four times what the defender lost, twice OpenFront's rate.
-        // R: the defender's army against everything the attacker has (this attack, the others on
-        // the same defender, the troops at home), for the whole front. OpenFront counts only the
-        // attack, so a click with 20 % paid the top price against any nation with more than that,
-        // however much stronger the attacker was: 196K of 980K against a nation of 475K lost six
-        // for every defender (until 23.11.2026). Now the stronger realm fights cheaper on the whole
-        // front, whatever share it sends. A narrow attack (wedge, section, direction) has only a
-        // little of that behind it (`back`): a blitz needs troops of its own, and a wedge still
-        // gets deeper than the whole front (with all of the realm it broke through everywhere).
-        const R = t.troops / Math.max(1, sent + a.troops * (narrow ? CB.back : 1)), D = dAvg * (pc ? this.postDens(t, pc) : 1), holdF = pc ? this.postHold(pc) : 1;
-        const m0 = 80 * gl * (mag / (80 * (1 + (gl - 1) * hold)));
-        loss = m0 * within(R, 0.6, 2) * (0.463 + 0.0039 * dAvg) * (D / Math.max(1e-6, dAvg)) * holdF * botMod * lossMod * traitor;
-        // never cheaper than empty land: a thinly held stretch still has to be crossed (`base`, what
-        // free land costs a person)
-        loss = Math.max(loss, CB.base * (m0 / 80) * within(R, 0.6, 2) * botMod * lossMod);
-        used = within(1 / (5 * Math.max(r, 0.01)), 0.2, 1.5) * speed * speedMod * (easy ? 0.45 : 1);
-        // ... and OpenFront's pace: an attack outnumbered by the defender's whole army crawls (up to
-        // nine times slower at eight to one), so the defender has time to answer. Left out until
-        // 23.11.2026: an attack of 100K then ran through 700 tiles of a realm of 750K in 15 s.
-        used *= within(R, 0.82, 7.5) * within(R / 20, 1, 50) / 0.82;
+      if (t) {
+        // Every attack on a realm, the whole front as well as a wedge, fights as in OpenFront
+        // (tileLoss, tileTime), with only the density of the cell on top (`dk`, 1 = the realm's
+        // average): a dense tile is slower to take and a little dearer, and all who stand on it
+        // fall with it. Density so buys time and costs the defender troops; it adds no strength.
+        // Since 23.11.2026; before, a local fight of its own with digging in, reserves, a floor
+        // price and ground weighed by the local odds: nobody could judge whom he could beat.
+        // R: the defender's army against what the attacker has behind the attack. Without a posture
+        // (tests only) the attack alone, as OpenFront. Otherwise everything the attacker has on the
+        // whole front (all attacks on this defender and the troops at home): OpenFront's way, a
+        // click with 20 % paid the top price against any nation with more than that, however much
+        // stronger one was. A narrow attack has only a little of the troops at home behind it
+        // (`back`): a blitz needs troops of its own.
+        const dk = pc ? Math.min(CB.densMax, this.postDens(t, pc)) : 1;
+        const R = t.troops / Math.max(1, this.aufstellung ? sent + a.troops * (narrow ? CB.back : 1) : at.troops);
+        loss = this.tileLoss(mag, R, dAvg, dk, pc ? this.postHold(pc) : 1, a.type !== PT.BOT && t.type === PT.BOT, traitor);
+        used = this.tileTime(speed, R, dk, traitor, at.front.size);
         if (at.mom !== undefined) {
-          // momentum: fades with every tile, the more the dearer the tile and the narrower the
-          // front, slower along a railway; with little of it every tile is dearer and slower
-          const MO = G.MOMENTUM, wide = narrow ? Math.max(4, at.width || 0) : Math.max(8, at.front.size);
+          // momentum (wedge, section, direction in «Grenzland»): fades with every tile, the more the
+          // dearer the tile and the narrower the front, slower along a railway; with little of it
+          // every tile is dearer and slower
+          const MO = G.MOMENTUM, wide = Math.max(4, at.width || 0);
           const fade = this.cellRail && this.CW ? 1 - (1 - MO.railFade) * (1 - this.cellRail[this.cellOf(tile)]) / 0.8 : 1;
           at.mom -= MO.decay * within(loss / (2 * CB.base), 0.25, 4) / wide * fade;
           const k = Math.max(at.mom, MO.slow);   // at most half as fast (until 23.11.2026 down to a quarter: a tired wedge froze)
           loss /= Math.sqrt(k); used /= Math.min(1.25, k);
         }
-        // the defender loses those who stood there; where they stand dense, part of them fall back
-        // into the rest of the cell instead (`postKeep`)
-        if (pc) this.postTake(t, pc, D);
+        if (pc) this.postTake(t, pc, dAvg * dk);
         else t.troops = Math.max(0, t.troops - dAvg);
       } else {
         loss = a.type === PT.BOT ? mag / 10 : mag / 5;

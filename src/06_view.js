@@ -203,7 +203,7 @@
     this.mctx.putImageData(this.img, 0, 0);
   };
   View.prototype.setGame = function (game) {
-    this.game = game;
+    this.game = game; this.shade = null; this.shadeAt = 0;
     for (let i = 1; i < game.players.length; i++) {
       const p = game.players[i];
       // the border: the land's colour a shade darker; the player's own border is near white, so
@@ -252,7 +252,7 @@
       const br = b & 255, bg = (b >>> 8) & 255, bb = (b >>> 16) & 255;
       if (g.map.feat[t] & 1) {
         // a river stays a river under any flag: it is a line of defence, and you have to see it
-        this.px[t] = pack((br * 120 + p.r * 136) >> 8, (bg * 120 + p.g * 136) >> 8, (bb * 120 + p.b * 136) >> 8);
+        this.px[t] = this.dense(o, t, pack((br * 120 + p.r * 136) >> 8, (bg * 120 + p.g * 136) >> 8, (bb * 120 + p.b * 136) >> 8));
       } else {
         // On the Earth the owner's colour takes on the light and dark of the ground under it:
         // forest shows as a darker stretch, desert and snow as lighter ones, ranges keep their
@@ -263,11 +263,52 @@
         const f = 226 + ((lum * 40 / 190) | 0);
         let r = (p.r * f) >> 8, gg = (p.g * f) >> 8, bl = (p.b * f) >> 8;
         r = (r * 226 + br * 30) >> 8; gg = (gg * 226 + bg * 30) >> 8; bl = (bl * 226 + bb * 30) >> 8;
-        this.px[t] = pack(r > 255 ? 255 : r, gg > 255 ? 255 : gg, bl > 255 ? 255 : bl);
+        this.px[t] = this.dense(o, t, pack(r > 255 ? 255 : r, gg > 255 ? 255 : gg, bl > 255 ? 255 : bl));
       }
     } else {
-      this.px[t] = pack(((b & 255) * 84 + p.r * 172) >> 8, (((b >>> 8) & 255) * 84 + p.g * 172) >> 8, (((b >>> 16) & 255) * 84 + p.b * 172) >> 8);
+      this.px[t] = this.dense(o, t, pack(((b & 255) * 84 + p.r * 172) >> 8, (((b >>> 8) & 255) * 84 + p.g * 172) >> 8, (((b >>> 16) & 255) * 84 + p.b * 172) >> 8));
     }
+  };
+  // Density shows on the map (23.11.2026): land is darker where its owner keeps more troops than
+  // on average (the net, src/03b_posture.js), so everybody can see from outside where a front is
+  // strong; a thin one stays light. `shade` holds a step per cell and owner (0 = average or less,
+  // 6 = three times as dense), worked out by shadeScan; between the middles of the cells it is
+  // blended, so the map shows soft bands instead of the 16 x 16 grid.
+  View.prototype.dense = function (o, t, c) {
+    const m = this.shade && this.shade.get(o);
+    if (!m || !m.size) return c;
+    const g = this.game, W = g.W, CS = G.POST.cell, CW = g.CW, x = t % W, y = (t - x) / W;
+    const fx = (x + 0.5) / CS - 0.5, fy = (y + 0.5) / CS - 0.5, cx = Math.floor(fx), cy = Math.floor(fy), ax = fx - cx, ay = fy - cy;
+    const at = (i, j) => (i < 0 || j < 0 || i >= CW ? 0 : m.get(j * CW + i) || 0);
+    const st = (at(cx, cy) * (1 - ax) + at(cx + 1, cy) * ax) * (1 - ay) + (at(cx, cy + 1) * (1 - ax) + at(cx + 1, cy + 1) * ax) * ay;
+    if (st < 0.25) return c;
+    const f = 256 - Math.round(st * 15);
+    return pack(((c & 255) * f) >> 8, (((c >>> 8) & 255) * f) >> 8, (((c >>> 16) & 255) * f) >> 8);
+  };
+  // Once a second: the step of every cell of every realm with a posture; where a step changed, the
+  // owner's tiles of that cell and the cells around it (the blend reaches into them) are painted again.
+  View.prototype.shadeScan = function (now) {
+    const g = this.game;
+    if (!g || !g.aufstellung || !g.CW || now - (this.shadeAt || 0) < 1000) return;
+    this.shadeAt = now;
+    const S = this.shade || (this.shade = new Map()), W = g.W, H = g.H, CW = g.CW, CS = G.POST.cell, own = g.owner;
+    let any = false;
+    for (let i = 1; i < g.players.length; i++) {
+      const p = g.players[i];
+      if (!p || !p.alive || !p.post || !p.post.cells.size) continue;
+      let m = S.get(i);
+      if (!m) { m = new Map(); S.set(i, m); }
+      for (const c of p.post.cells.values()) {
+        const d = c.n > 0 ? g.postDens(p, c) : 1, st = Math.round(within(Math.log2(Math.max(d, 1)), 0, Math.log2(3)) * 4);
+        if ((m.get(c.id) || 0) === st) continue;
+        if (st) m.set(c.id, st); else m.delete(c.id);
+        any = true;
+        const cx = c.id % CW, cy = (c.id - cx) / CW;
+        const x0 = Math.max(0, cx * CS - CS), y0 = Math.max(0, cy * CS - CS), x1 = Math.min(W, cx * CS + 2 * CS), y1 = Math.min(H, cy * CS + 2 * CS);
+        for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) { const t = y * W + x; if (own[t] === i) g.markDirty(t); }
+      }
+    }
+    if (any) this.flush();
   };
   // The two colours a border is drawn in: c32b for the plain stretch, c32l for the stretches a
   // defence post covers. Your own realm is rimmed near white, an ally's in green, so a glance at
@@ -450,7 +491,7 @@
 
   // ---------- drawing ----------
   View.prototype.draw = function (alpha, now) {
-    if (this.game) this.checkAllies();
+    if (this.game) { this.checkAllies(); this.shadeScan(now); }
     const ctx = this.ctx, c = this.cam, dpr = this.dpr, cw = this.cw, ch = this.ch;
     if (this.fly) {
       const f = this.fly, k = Math.min(1, (now - f.t0) / 480), e = k * (2 - k);
