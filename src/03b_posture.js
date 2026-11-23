@@ -29,7 +29,7 @@
   //   reserve  ... and while it does, it wants that many times its share
   //   cut      a pocket cut off from the coast and the main land loses that share every step of marching
   //   cutHold  and defends only that well
-  const PO = G.POST = { cell: CS, flow: FLOW, mMin: M_MIN, mMax: M_MAX, dig: 0.5, digT: 600, alarm: 60, reserve: 3, cut: 0.05, cutHold: 0.6 };
+  const PO = G.POST = { cell: CS, flow: FLOW, mMin: M_MIN, mMax: M_MAX, dig: 0.25, digT: 1200, alarm: 60, reserve: 3, cut: 0.05, cutHold: 0.6 };
 
   Game.prototype.postInit = function (p) {
     if (!this.CW) {

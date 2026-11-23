@@ -1,6 +1,14 @@
 # Änderungsprotokoll
 Was seit dem 13.11.2026 geändert wurde und warum. Den heutigen Stand der Regeln beschreiben die anderen Dateien in `doku/`.
 
+## Kampf unspielbar: Angriffe starben sofort (23.11.2026)
+**Rückmeldung des Besitzers:** mit 50K gegen eine Nation mit 30K die ganze Front angegriffen, alle Truppen sofort tot.
+**Gemessen** (Nation steht seit 2 Minuten, ganze Front): mit 20 % (10K) nach 1 s noch 2.9K übrig, 61 von 2000 Feldern; mit 100 % 818 Felder, und der Angreifer verlor fast viermal so viel wie der Verteidiger (OpenFront: gut doppelt, 1147 Felder).
+**Warum die Messbank das nicht zeigte:** Ihr Verteidiger stand frisch und gleichmässig. Im Spiel steht eine Nation seit Minuten an ihrer Grenze; dort multiplizierten sich 16 Truppen Grundpreis pro Feld, die dichte Grenze, Eingraben (+43 % nach 2 Minuten) und die Regel, dass dichter Boden weniger eigene Truppen verliert.
+**Geändert:** Ein Feld kostet OpenFronts Preis für die Truppen, die darauf stehen, und die fallen mit ihm; mindestens so viel wie freies Land. Bei gleichmässigen, frischen Verteidigern genau OpenFront (gemessen 1142 statt 1147 Felder). Eingraben höchstens +25 % und halb so schnell. Schwung doppelt so stark abnehmend (er hängt am Preis pro Feld), Mindest-Schwung nach einem Angriff 32 % statt 40 %. Warnung in der Leiste, wenn man mit wenig gegen eine grosse Armee angreift. Keine Schwung-Abnahme in Levels.
+**Jetzt** (gleiche Lage): mit 100 % Grenzland 617, Feste Grenzen 745 Felder (OpenFront 1147); mit 20 % 55 Felder (OpenFront 89). Mit wenig gegen eine grosse Armee bleibt es teuer, wie in OpenFront.
+**Messbank:** neuer Teil `node test/kampf.js echt` prüft genau diese Lage gegen die OpenFront-Formel; der Fall «Nation 5K gegen Mensch 30K, dünne Grenze, 1000 Felder» darf jetzt 8 % nehmen statt 6 % (dünner Boden fällt schneller). `test/level.js` spielt mit dem Kampfsystem wie das echte Spiel (Vorgabe Grenzland, `KAMPF=grenzen` für das andere).
+
 ## Zwei Kampfsysteme: Grenzland und Feste Grenzen (22.11.2026)
 Wunsch des Besitzers: das eigene System und das des Kollegen nebeneinander, statt alles zu mischen. Auf dem Startbildschirm «Kampfsystem» statt der Schalter Truppenkonzentration, Netz, Richtungsangriff, Kessel und Schwung. Grenzland: Netz als passive Verteidigung, Kessel 30 s, Schwung, keine Grenze von 2 Angreifern pro Verteidiger. Feste Grenzen: kein Netz, die Grenze von 2 pro Verteidiger, Richtungsangriff, Kessel fallen sofort, kein Schwung. «Angriffe planen» in beiden. Vorher waren beide Bremsen gleichzeitig an. Einzelheiten und Messwerte: `doku/kampfsysteme.md`.
 Dabei gefunden: «Feste Grenzen» ganz ohne Aufstellung (auch für Nationen) liess einen Keil mit 15 % von 400K gegen 100K 1757 Felder nehmen und das Ziel erreichen; so hatte es der Kollege nie gespielt. Jetzt wie zuletzt abgestimmt: nur das Netz zum Malen ist aus, Nationen stellen sich weiter selbst auf (Keil 460 Felder, 67 % des Wegs).

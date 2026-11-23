@@ -34,7 +34,9 @@ const SCENARIOS = [
   { name: 'schwach: 10 % von 50K gegen 30K, 3000 Felder', at: 3000, dt: 3000, aT: 50000, dT: 30000, clicks: [[0.1, 0]], want: 0, maxTook: 0.06 },
   { name: 'schwach: Nation 5K gegen Mensch 30K, 3000 Felder', at: 1000, dt: 3000, aT: 5000, dT: 30000, clicks: [[1, 0]], want: 0, maxTook: 0.06, flip: true },
   { name: 'schwach: Nation 5K gegen Mensch 30K, 1000 Felder', at: 1000, dt: 1000, aT: 5000, dT: 30000, clicks: [[1, 0]], want: 0, maxTook: 0.06, flip: true },
-  { name: 'schwach: Nation 5K gegen Mensch 30K, dünne Grenze, 1000 Felder', at: 1000, dt: 1000, aT: 5000, dT: 30000, clicks: [[1, 0]], want: 0, maxTook: 0.06, flip: true, thin: true },
+  // a border held thin falls faster: since 23.11.2026 a tile costs what really stands on it (at
+  // least what empty land costs), so up to 8 % here instead of 6 %
+  { name: 'schwach: Nation 5K gegen Mensch 30K, dünne Grenze, 1000 Felder', at: 1000, dt: 1000, aT: 5000, dT: 30000, clicks: [[1, 0]], want: 0, maxTook: 0.08, flip: true, thin: true },
   { name: 'schwach: Nation 5K gegen Mensch 30K, dünne Grenze, 3000 Felder', at: 1000, dt: 3000, aT: 5000, dT: 30000, clicks: [[1, 0]], want: 0, maxTook: 0.06, flip: true, thin: true },
   { name: 'gleich: 80K gegen 80K, ein Klick 50 %', at: 3000, dt: 3000, aT: 80000, dT: 80000, clicks: [[0.5, 0]], want: 0 },
   // since nations stand dense along a threatening border (15.11.2026), two to one against them is a
@@ -306,6 +308,32 @@ function runThrustIn(g, h, foe, mode, share) {
     const v = valley(map);
     console.log('Tal: Gebirgszug mit einer Lücke auf Zeile ' + v.gapY + ', der Keil quert auf Zeile ' + v.cross + ' (Weg ' + v.len + ' Felder)');
     if (!v.ok) { bad++; console.log('  FAIL: der Keil nimmt nicht das Tal'); }
+  }
+  if (!only || only === 'echt') {
+    // As in play (23.11.2026): the defender is a nation that has stood two minutes at its border
+    // (its posture set, dug in). Whole front with 50K against 30K, set against OpenFront's formula
+    // (no posture). Too dear a fight against an established nation made the game unplayable once.
+    const sc = { at: 3000, dt: 2000, aT: 50000, dT: 30000 };
+    const fight = (extra, r) => {
+      const A = arena(map, sc, false, extra), g = A.g, h = A.h, foe = A.foe;
+      for (let i = 0; i < 1200; i++) { g.tick(); g.dirtyN = 0; g.dirtyFlag.fill(0); g.events.length = 0; }
+      h.troops = sc.aT; foe.troops = sc.dT;
+      const t0 = foe.tiles;
+      let tile = -1;
+      for (const b of h.border) { for (const q of [b - 1, b + 1, b - g.W, b + g.W]) if (g.owner[q] === foe.id) { tile = q; break; } if (tile >= 0) break; }
+      g.exec(h.id, { k: 'strike', t: tile, r: r, w: 0 });
+      for (let k = 0; k < LIMIT && h.out.some((x) => x.active); k++) { g.tick(); g.dirtyN = 0; g.dirtyFlag.fill(0); g.events.length = 0; }
+      return { took: t0 - foe.tiles, killed: sc.dT - foe.troops };
+    };
+    console.log('Echt: 50K gegen eine Nation mit 30K, die seit 2 Minuten steht, ganze Front (von 2000 Feldern)');
+    for (const r of [0.5, 1]) {
+      const of = fight({ aufstellung: false }, r);
+      for (const k of ['grenzland', 'grenzen']) {
+        const x = fight({ kampf: k }, r);
+        console.log('  ' + (k + ' ' + r * 100 + ' %').padEnd(18) + 'Felder ' + String(x.took).padStart(5) + ' (OpenFront ' + of.took + ')  Verteidiger gefallen ' + K(x.killed) + ' (OpenFront ' + K(of.killed) + ')');
+        if (!(x.took >= of.took * 0.45 && x.killed >= of.killed * 0.6)) { bad++; console.log('  FAIL: gegen eine eingesessene Nation viel schwächer als OpenFront'); }
+      }
+    }
   }
   if (!only || only === 'systeme') {
     // the two combat systems side by side: the same troops as the whole front, a section, a wedge

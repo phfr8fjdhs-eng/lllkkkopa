@@ -32,7 +32,7 @@ let bad = 0;
 const fail = (n, what) => { bad++; console.log('FAILED level', n, what); };
 for (const L of G.LEVELS) {
   const map = G.levelMap(L);
-  const make = () => { const g = new G.Game(map, { seed: 1000 + L.n, level: L.n, difficulty: L.diff === undefined ? 1 : L.diff }); g.setup({ name: 'Ich', color: [208, 92, 84] }); return g; };
+  const make = () => { const g = new G.Game(map, { seed: 1000 + L.n, level: L.n, difficulty: L.diff === undefined ? 1 : L.diff, kampf: process.env.KAMPF || 'grenzland', pfeile: false }); g.setup({ name: 'Ich', color: [208, 92, 84] }); return g; };
   const g = make(), twin = make();
   if (L.me.x !== undefined && !(g.human.tiles > 0)) fail(L.n, 'player starts without land');
   for (const f of g.lv.foes) if (!(f.tiles > 0)) fail(L.n, f.name + ' starts without land');

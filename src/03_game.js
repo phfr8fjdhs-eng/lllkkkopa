@@ -21,7 +21,10 @@
   //             on that defender together), by the ratio beyond that, at most `army` times.
   //             OpenFront: within(defender / attack, 0.6, 2); its discount below 1 is left out,
   //             outnumbering is already rewarded at the spot.
-  G.COMBAT = { base: 16, exchange: 1, fMin: 0.7, fMax: 1.5, depth: 24, army: 2, armyFrom: 1.5 };
+  //   dens      since 23.11.2026 a tile costs OpenFront's price (within(army / attack, 0.6, 2) x troops
+  //             per tile), times density^dens and the cell's hold (dug in, cut off); base, exchange,
+  //             fMin, fMax, army and armyFrom no longer price a tile (base still scales momentum)
+  G.COMBAT = { base: 16, exchange: 1, fMin: 0.7, fMax: 1.5, depth: 24, army: 2, armyFrom: 1.5, dens: 0.6 };
   // Thrusts: an attack aimed at a spot instead of the whole front.
   //   widths  lane width in tiles on the world map for mode 1 (section) and 2 (wedge); scaled by map.S
   //   max     thrusts a player can have under way at once
@@ -46,7 +49,7 @@
   //   rail     extra momentum at most for a railway at the start; along a railway it also fades
   //            slower (to `railFade` of the decay on the line itself)
   //   min/max  range of the momentum an attack can start with
-  G.MOMENTUM = { decay: 0.006, stop: 0.25, rest: 300, mass: 0.25, rail: 0.15, railFade: 0.6, min: 0.4, max: 1.5 };
+  G.MOMENTUM = { decay: 0.012, stop: 0.25, rest: 300, mass: 0.25, rail: 0.15, railFade: 0.6, min: 0.32, max: 1.5 };
   G.THRUST = { widths: [0, 30, 12], max: 4, pull: 1.2, ring: 0.6, speed: 0.5, flank: 3, deep: 4, hold: 1.5, fan: 0.45, nose: 1, crowd: 2, dirShare: 0.6, search: 250000 };
   G.UNAME = ['Stadt', 'Verteidigungs\u00ADposten', 'Hafen', 'Raketensilo', 'Flugabwehr', 'Fabrik', 'Tarnturm', 'Kriegsschiff', 'Boot',
     'Handelsschiff', 'Zug', 'Granate', 'Abwehrrakete', 'Atombombe', 'Wasserstoff\u00ADbombe', 'MIRV', 'Sprengkopf', 'Marschflug\u00ADkörper', 'Satelliten\u00ADstrahl'];
@@ -145,6 +148,8 @@
     this.lokal = false;
     if (this.kampfArt === 'grenzland') { this.aufstellung = true; this.netz = true; this.kessel = true; this.schwung = true; this.punkt = false; this.crowd = false; }
     else if (this.kampfArt === 'grenzen') { this.aufstellung = true; this.netz = false; this.kessel = false; this.schwung = false; this.punkt = true; this.crowd = true; }
+    // the campaign teaches the basics; a wedge deep through a level would die of momentum there
+    if (this.opts.level) this.schwung = false;
     this.rng = new G.RNG(this.opts.seed);
     const N = this.N, S = this.S;
     this.owner = new Uint16Array(N);
@@ -880,7 +885,9 @@
           const r = left / Math.max(1, Math.min(tT, face * pd)), hold = within(1.15 - 0.33 * r, 0.15, 1);
           let mag = 1 + (gl - 1) * hold, speed = 16.5 * (1 + (gs - 1) * hold);
           if (dp && dp.length) for (let i = 0; i < dp.length; i++) { const dx = dp[i].x - x, dy = dp[i].y - y; if (dx * dx + dy * dy <= dr2) { mag *= 3 + 2 * dp[i].level; speed *= 1 + 2 * dp[i].level; break; } }
-          loss = (CB.base + CB.exchange * dAvg * pd * within(1 / Math.sqrt(Math.max(r, 0.01)), CB.fMin, CB.fMax)) * mag * botMod * lossMod * traitor;
+          // as the fight has it (tickAttack): OpenFront's price, then density and holding
+          const R = tT / Math.max(1, troops), m0 = gl * mag / (1 + (gl - 1) * hold), dk = pc ? dens * (1 + 0.25 * Math.min(1, T / 100)) : 1, D = dAvg * dk;
+          loss = Math.max(80 * m0 * within(R, 0.6, 2) * (0.463 + 0.0039 * dAvg) * dk * (pc ? this.postHold(pc) : 1) * botMod * lossMod * traitor, CB.base * m0 * within(R, 0.6, 2) * botMod * lossMod);
           used = within(1 / (5 * Math.max(r, 0.01)), 0.2, 1.5) * speed * speedMod * (easy ? 0.45 : 1);
           if (mom0 > 0) {
             const fade = this.cellRail && this.CW ? 1 - (1 - MO.railFade) * (1 - this.cellRail[this.cellOf(tile)]) / 0.8 : 1;
@@ -888,7 +895,7 @@
             const k = Math.max(mom, MO.stop);
             loss /= Math.sqrt(k); used /= Math.min(1.25, k);
           }
-          const gone = Math.min(tT, dAvg * (pc ? this.postKeep(dens) : 1));
+          const gone = Math.min(tT, D);
           tT -= gone; tN--;
           if (cs) { cs.c = Math.max(0, cs.c - gone); cs.n--; }
         } else {
@@ -1207,12 +1214,21 @@
         used = within(R, 0.82, 7.5) * within(R / 20, 1, 50) / 8.55 * s0 * (traitor < 1 ? 0.5 : 1) / Math.max(1, at.front.size + 1);
         t.troops = Math.max(0, t.troops - dAvg);
       } else if (t) {
-        // A tile costs what it takes to hold ground at all, plus the defenders standing on it:
-        // one for one at even strength, fewer for an attacker who outnumbers them there, more
-        // for one who is outnumbered. Ground, posts and fallout weigh on all of it (`mag`).
-        const dd = dAvg * pd;
-        const army = within(t.troops / Math.max(1, sent) / CB.armyFrom, 1, CB.army);   // outnumbered by the whole army
-        loss = (CB.base + CB.exchange * dd * within(1 / Math.sqrt(Math.max(r, 0.01)), CB.fMin, CB.fMax)) * army * (mag / 80) * botMod * lossMod * traitor;
+        // What a tile costs: OpenFront's price (attackLogic: the whole army against all that is sent
+        // against it, ground at full weight, posts and fallout) for the troops that really stand on
+        // the tile (`D`: the average times the density of its cell), and those troops fall with
+        // it. Density so moves strength about, it does not add any: a dense stretch is dearer and
+        // slower to take, a thin one cheap. Against troops standing evenly the fight is OpenFront's.
+        // On top only the cell's hold: dug in (up to +50 %) or cut off (postHold).
+        // Until 23.11.2026 a flat 16 per tile came on top, dense ground lost fewer of its own than
+        // stood there, and the factors stood in a row: against a nation dug in along its border an
+        // attacker lost almost four times what the defender lost, twice OpenFront's rate.
+        const R = t.troops / Math.max(1, sent), D = dAvg * (pc ? this.postDens(t, pc) : 1), holdF = pc ? this.postHold(pc) : 1;
+        const m0 = 80 * gl * (mag / (80 * (1 + (gl - 1) * hold)));
+        loss = m0 * within(R, 0.6, 2) * (0.463 + 0.0039 * dAvg) * (D / Math.max(1e-6, dAvg)) * holdF * botMod * lossMod * traitor;
+        // never cheaper than empty land: a thinly held stretch still has to be crossed (`base`, what
+        // free land costs a person)
+        loss = Math.max(loss, CB.base * (m0 / 80) * within(R, 0.6, 2) * botMod * lossMod);
         used = within(1 / (5 * Math.max(r, 0.01)), 0.2, 1.5) * speed * speedMod * (easy ? 0.45 : 1);
         if (at.mom !== undefined) {
           // momentum: fades with every tile, the more the dearer the tile and the narrower the
@@ -1225,7 +1241,7 @@
         }
         // the defender loses those who stood there; where they stand dense, part of them fall back
         // into the rest of the cell instead (`postKeep`)
-        if (pc) this.postTake(t, pc, dAvg * this.postKeep(this.postDens(t, pc)));
+        if (pc) this.postTake(t, pc, D);
         else t.troops = Math.max(0, t.troops - dAvg);
       } else {
         loss = a.type === PT.BOT ? mag / 10 : mag / 5;

@@ -1332,8 +1332,17 @@
       if (i && i.later >= 1) t += ' · ' + fmtT(i.now) + ' sofort, ' + fmtT(i.later) + ' unterwegs (ca. ' + Math.max(1, Math.round(i.eta)) + ' s)';
       return t;
     }
-    if (finePointer() && !(rdrag && rdrag.started)) return '';
-    return '';                      // the whole front draws on the whole realm: everything goes at once
+    // the whole front: a warning when what the slider sends is small against the other's whole
+    // army; then every tile costs up to twice as much (as in OpenFront: within(army / attack, 0.6, 2))
+    const o = game.owner[tile], q = o ? game.players[o] : null;
+    if (q && q.alive && q.type !== PT.BOT && !game.friendly(h, q)) {
+      let sent = h.troops * ratio;
+      for (const a of h.out) if (a.active && a.tid === q.id) sent += a.troops;
+      const k = q.troops / Math.max(1, sent);
+      if (k > 1.2) return 'Ganze Front · ' + fmtT(sent) + ' gegen ' + fmtT(q.troops) + ': jedes Feld kostet ' + (k >= 2 ? 'doppelt' : 'deutlich mehr') + ', schicke mehr';
+      if (k > 0.8) return 'Ganze Front · ' + fmtT(sent) + ' gegen ' + fmtT(q.troops) + ': ausgeglichen, teuer';
+    }
+    return '';
   }
   function showCommit() {
     const el = $('commit');
