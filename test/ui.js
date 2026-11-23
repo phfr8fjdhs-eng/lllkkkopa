@@ -1,6 +1,6 @@
 // Walks through the main screens in headless Chrome: start, spawn, circle menu, build menu,
 // upgrade, aiming a bomb, gold for a conquered bot. Saves screenshots into build/.
-const { chromium } = require('/opt/npm-tools/node_modules/playwright');
+const { chromium } = (function () { try { return require('playwright'); } catch (e) { return require('/opt/npm-tools/node_modules/playwright'); } })();
 const path = require('path');
 const out = (n) => path.join(__dirname, '..', 'build', n);
 (async () => {

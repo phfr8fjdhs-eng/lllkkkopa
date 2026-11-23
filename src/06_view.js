@@ -1012,15 +1012,22 @@
       // the whole way for boats that concern you; other people's leave a short trail only, so the
       // oceans are not crossed by lines
       const from = mine || atMe ? 0 : Math.max(0, end - 20);
-      if (!mine && !atMe) ctx.globalAlpha = 0.6;
+      if (!mine && !atMe) ctx.globalAlpha = 0.45;
       if (end - from >= 1) {
-        const step = Math.max(1, Math.round(2 / z));
-        ctx.beginPath();
-        for (let k = from; k < end; k += step) { const x = (p[k] % W + 0.5) * z + ox, y = (((p[k] / W) | 0) + 0.5) * z + oy; if (k > from) ctx.lineTo(x, y); else ctx.moveTo(x, y); }
-        ctx.lineTo(hx, hy);
-        const lw = Math.max(1.4, zz * 0.7);
-        ctx.lineWidth = lw + 2; ctx.strokeStyle = 'rgba(8,14,22,.55)'; ctx.stroke();
-        ctx.lineWidth = lw; ctx.strokeStyle = u.owner.css; ctx.stroke();
+        // the tiles the boat has passed, painted in its owner's colour, one tile each: a pixel
+        // line on the grid of the map, as in OpenFront (before 23.11.2026, a smooth stroke)
+        const q = Math.max(1, z), step = z < 1 ? Math.max(1, Math.round(1 / z)) : 1;
+        ctx.fillStyle = u.owner.css;
+        if (mine || atMe) ctx.globalAlpha = 0.75;
+        const cq = Math.ceil(q), sh = (z - q) / 2;
+        let lx = -1, ly = -1;
+        for (let k = from; k < end; k += step) {
+          const tx = p[k] % W, ty = (p[k] / W) | 0;
+          ctx.fillRect(Math.floor(tx * z + ox + sh), Math.floor(ty * z + oy + sh), cq, cq);
+          // a diagonal step gets a stair tile, so the line stays closed
+          if (step === 1 && lx >= 0 && tx !== lx && ty !== ly) ctx.fillRect(Math.floor(tx * z + ox + sh), Math.floor(ly * z + oy + sh), cq, cq);
+          lx = tx; ly = ty;
+        }
       }
       ctx.globalAlpha = 1;
       if ((mine || atMe) && !u.retreat) {
@@ -1083,54 +1090,74 @@
     u.vf = this.frame; u.vx = x; u.vy = y;
   };
 
-  const BOW = 1.0, GUN_FORE = 0.5, GUN_AFT = -0.5, BARREL = 0.3;     // in half-lengths of the hull
-  // Warships from above, the hull in the owner's colour with a dark edge, the steel grey.
-  //   destroyer (cls 0): slender and sharp, a low superstructure amidships, one gun forward that
-  //     turns to its target
-  //   battleship (cls 1): long and broad, a tall superstructure, three heavy turrets (two forward,
-  //     one aft) and a block of missile cells
-  function warship(ctx, x, y, ang, s, p, aim, cls) {
-    ctx.save();
-    ctx.translate(x, y); ctx.rotate(ang);
-    const big = cls === 1, w = big ? 0.3 : 0.2;
-    ctx.beginPath();
-    ctx.moveTo(-s, -w * 0.85 * s); ctx.lineTo(-0.7 * s, -w * s); ctx.lineTo(0.4 * s, -w * s); ctx.lineTo(BOW * s, 0);
-    ctx.lineTo(0.4 * s, w * s); ctx.lineTo(-0.7 * s, w * s); ctx.lineTo(-s, w * 0.85 * s); ctx.closePath();
-    ctx.lineJoin = 'round'; ctx.lineWidth = Math.max(1.5, s * 0.08); ctx.strokeStyle = '#0b1016'; ctx.stroke();
-    ctx.fillStyle = p.css; ctx.fill();
-    if (s < 6) { ctx.restore(); return; }
-    const steel = '#8f989f', dark = '#1d2329';
-    ctx.lineWidth = Math.max(0.6, s * 0.02); ctx.strokeStyle = dark;
-    const turret = function (tx, r, barrel, a) {
-      ctx.beginPath(); ctx.moveTo(tx, 0); ctx.lineTo(tx + Math.cos(a) * barrel, Math.sin(a) * barrel);
-      ctx.lineWidth = Math.max(1, r * 0.45); ctx.strokeStyle = dark; ctx.lineCap = 'butt'; ctx.stroke();
-      ctx.beginPath(); ctx.arc(tx, 0, r, 0, 6.2832); ctx.fillStyle = '#b8c0c7'; ctx.fill();
-      ctx.lineWidth = Math.max(0.6, r * 0.2); ctx.strokeStyle = dark; ctx.stroke();
+  // Ships are small pixel pictures on the grid of the map, one pixel of the picture a tile of
+  // OpenFront's, filled with the owner's colour (23.11.2026; before, fine vector drawings with
+  // thin dark edges, which looked busy on the pixel map). Each picture is made once per owner and
+  // kind (shipSprite) and then only copied, scaled and turned.
+  // The pictures, bow to the right. o hull (owner colour), d hull shade, k rim (deep shade), w white,
+  // g light grey, G dark grey, F flame, r red, 0-4 container colours, . nothing
+  const ART = {
+    rkt: ['Fwwr'],
+    boat: ['.kkkkkk...', 'kwoGoGokk.', 'kwoooooook', 'kwoGoGokk.', '.kkkkkk...'],
+    trade0: ['.kkkkkkkk..', 'kwwogggook.', 'kwwogggoook', 'kwwogggook.', '.kkkkkkkk..'],
+    trade1: ['.kkkkkkkkkkk..', 'kwwoddoddoddk.', 'kwwoddoddoddok', 'kwwoddoddoddk.', '.kkkkkkkkkkk..'],
+    trade2: ['.kkkkkkkkkkkkkkkkkk...', 'kww00112233440011ook..', 'kww33440011223344oook.', 'kww11223344001122ooook', 'kww44001122334400oook.', 'kww22334400112233ook..', '.kkkkkkkkkkkkkkkkkk...'],
+    war0: ['.kkkkkkkkkk...', 'koooowwoooook.', 'kogGowwoGggook', 'koooowwoooook.', '.kkkkkkkkkk...'],
+    war1: ['.kkkkkkkkkkkkkkk....', 'koooooowwwoooooook..', 'kogGGowwwwwoGGgoook.', 'kggGGowwwwwoGGggoook', 'kogGGowwwwwoGGgoook.', 'koooooowwwoooooook..', '.kkkkkkkkkkkkkkk....']
+  };
+  const HULLS = {};
+  for (const k in ART) HULLS[k] = [ART[k][0].length, ART[k].length];
+  const BOXCOL = ['#e0793a', '#3d7fc4', '#c94a3f', '#4f9a5a', '#d8b23a'];
+  function hullGrid(kind) { return ART[kind]; }
+  const SPRITES = new Map();
+  function shipSprite(kind, p) {
+    const key = kind + ':' + p.id + ':' + p.r + ',' + p.g + ',' + p.b;
+    let cv = SPRITES.get(key);
+    if (cv) return cv;
+    const g = hullGrid(kind), L = g[0].length, Wd = g.length;
+    cv = document.createElement('canvas'); cv.width = L; cv.height = Wd;
+    const c = cv.getContext('2d'), col = {
+      o: 'rgb(' + p.r + ',' + p.g + ',' + p.b + ')', d: 'rgb(' + Math.round(p.r * 0.6) + ',' + Math.round(p.g * 0.6) + ',' + Math.round(p.b * 0.6) + ')',
+      k: 'rgb(' + Math.round(p.r * 0.28) + ',' + Math.round(p.g * 0.28) + ',' + Math.round(p.b * 0.28) + ')',
+      w: '#f2f4f6', g: '#a7afb6', G: '#4b545c', F: '#ffb04a', r: '#e04a3a'
     };
-    const fwd = aim !== null ? aim : 0;
-    if (!big) {
-      ctx.fillStyle = steel; ctx.fillRect(-0.45 * s, -0.09 * s, 0.55 * s, 0.18 * s);
-      ctx.fillStyle = dark; ctx.fillRect(-0.2 * s, -0.05 * s, 0.1 * s, 0.1 * s);     // funnel
-      turret(GUN_FORE * s, 0.1 * s, BARREL * s, fwd);
-    } else {
-      ctx.fillStyle = steel; ctx.fillRect(-0.3 * s, -0.16 * s, 0.4 * s, 0.32 * s);
-      ctx.fillStyle = '#c9d0d6'; ctx.fillRect(-0.18 * s, -0.09 * s, 0.18 * s, 0.18 * s);  // bridge
-      ctx.fillStyle = dark; ctx.fillRect(-0.62 * s, -0.12 * s, 0.22 * s, 0.24 * s);       // missile cells
-      ctx.fillStyle = '#4b545c';
-      for (let k = 0; k < 3; k++) for (let j = 0; j < 2; j++) ctx.fillRect((-0.6 + k * 0.07) * s, (-0.1 + j * 0.11) * s, 0.05 * s, 0.09 * s);
-      turret(0.62 * s, 0.13 * s, 0.32 * s, fwd);
-      turret(0.32 * s, 0.13 * s, 0.32 * s, fwd);
-      turret(-0.82 * s, 0.11 * s, 0.26 * s, aim !== null && Math.cos(aim) < 0 ? aim : Math.PI);
+    for (let y = 0; y < Wd; y++) for (let x = 0; x < L; x++) {
+      let ch = g[y][x] || '.';
+      if (ch === 'o' && Wd > 2 && y > Wd / 2 && (g[y + 1] || '')[x] === 'k') ch = 'd';
+      if (ch === '.') continue;
+      c.fillStyle = col[ch] || BOXCOL[+ch] || col.o; c.fillRect(x, y, 1, 1);
     }
+    SPRITES.set(key, cv);
+    if (SPRITES.size > 4000) SPRITES.clear();
+    return cv;
+  }
+  // Draw a ship picture centred at (x, y), its bow along `ang`, `px` screen pixels per picture pixel.
+  function drawShip(ctx, kind, x, y, ang, px, p) {
+    const cv = shipSprite(kind, p), L = cv.width, Wd = cv.height;
+    ctx.save(); ctx.translate(x, y); ctx.rotate(ang);
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(cv, -L * px / 2, -Wd * px / 2, L * px, Wd * px);
     ctx.restore();
+  }
+  // How many screen pixels a picture pixel is at OpenFront zoom zz: one tile, never so small that
+  // the ship is lost
+  function shipPx(zz) { return Math.max(1.4, zz); }
+  // where the forward gun sits, as a share of the length from the middle (war0, war1)
+  const GUN_FORE = 0.26;
+  function warship(ctx, x, y, ang, s, p, aim, cls) { drawShip(ctx, cls === 1 ? 'war1' : 'war0', x, y, ang, s * 2 / HULLS[cls === 1 ? 'war1' : 'war0'][0], p); }
+  function merchant(ctx, x, y, ang, s, p, captured, kind) {
+    const k = 'trade' + (kind || 0);
+    drawShip(ctx, k, x, y, ang, s * 2 / HULLS.trade0[0], p);
+    if (captured) { ctx.fillStyle = '#f4b740'; ctx.fillRect(x - 2, y - 2, 4, 4); }
   }
   // How large ships are drawn (half-lengths in pixels): with the map, never smaller than a few
   // pixels. A warship about twice a merchant, a troop boat a little smaller than a merchant.
   // `zz` is the zoom in OpenFront's tiles: there a troop boat and a merchant are 5 tiles long, a
   // warship 11 (half-lengths here)
-  function warSize(zz, cls) { return within(zz * 5.5, 7, 60) * (cls === 1 ? 1.5 : 1); }
-  function tradeSize(zz) { return within(zz * 2.5, 4, 30); }
-  function boatSize(zz) { return within(zz * 2.5, 5, 30); }
+  // (the picture is HULLS[...][0] pixels long at shipPx(zz) pixels each)
+  function warSize(zz, cls) { return HULLS[cls === 1 ? 'war1' : 'war0'][0] * shipPx(zz) / 2; }
+  function tradeSize(zz) { return HULLS.trade0[0] * shipPx(zz) / 2; }
+  function boatSize(zz) { return HULLS.boat[0] * shipPx(zz) / 2; }
   // Where the muzzle of the gun that fires is on the screen, aiming at world point (tx, ty): the
   // forward turret for a target ahead, the after one for a target astern, so no shot crosses the
   // ship's own deck. The barrel points at the target.
@@ -1138,48 +1165,12 @@
     const s = warSize(z * (g.S || 1), u.cls), a = u.va || 0;
     const cx = ((u.vx !== undefined ? u.vx : u.x) + 0.5) * z + ox, cy = ((u.vy !== undefined ? u.vy : u.y) + 0.5) * z + oy;
     const wx = (tx + 0.5) * z + ox, wy = (ty + 0.5) * z + oy;
-    const ahead = (wx - cx) * Math.cos(a) + (wy - cy) * Math.sin(a) >= 0;
-    const at = ahead ? GUN_FORE : GUN_AFT, bl = ahead ? BARREL : 0.28;
-    const px = cx + Math.cos(a) * at * s, py = cy + Math.sin(a) * at * s;
-    const aa = Math.atan2(wy - py, wx - px);
-    out.x = px + Math.cos(aa) * bl * s; out.y = py + Math.sin(aa) * bl * s; out.a = aa;
+    out.x = cx + Math.cos(a) * GUN_FORE * 2 * s; out.y = cy + Math.sin(a) * GUN_FORE * 2 * s;
+    out.a = Math.atan2(wy - out.y, wx - out.x);
     return out;
   }
   const TIP = { x: 0, y: 0, a: 0 };
 
-  // A merchant, by class: a freighter (small, the bridge aft and one load), a bulk carrier (longer,
-  // three hatches) and a container ship (longest, rows of coloured boxes). The hull is the owner's
-  // colour with a dark edge, pointed at the bow and square at the stern; the bridge white. A
-  // captured one carries a small gold dot on the bridge.
-  const BOXES = ['#e0793a', '#3d7fc4', '#c94a3f', '#4f9a5a', '#d8b23a', '#8a64b5'];
-  function merchant(ctx, x, y, ang, s, p, captured, kind) {
-    s *= kind === 2 ? 1.9 : kind === 1 ? 1.35 : 1;
-    const w = kind === 2 ? 0.36 : 0.32;
-    ctx.save();
-    ctx.translate(x, y); ctx.rotate(ang);
-    ctx.beginPath();
-    ctx.moveTo(-s, -w * s); ctx.lineTo(0.55 * s, -w * s); ctx.lineTo(s, 0); ctx.lineTo(0.55 * s, w * s); ctx.lineTo(-s, w * s); ctx.closePath();
-    ctx.lineJoin = 'round'; ctx.lineWidth = Math.max(1.3, s * 0.11); ctx.strokeStyle = '#0b1016'; ctx.stroke();
-    ctx.fillStyle = p.css; ctx.fill();
-    const big = s >= 7;
-    if (kind === 2 && big) {
-      // two rows of five boxes in mixed colours
-      const bw = 0.24 * s, bh = (w * 2 - 0.16) * s / 2;
-      for (let k = 0; k < 5; k++) for (let j = 0; j < 2; j++) {
-        ctx.fillStyle = BOXES[(k * 2 + j + (p.id || 0)) % BOXES.length];
-        ctx.fillRect(-0.62 * s + k * (bw + 0.03 * s), -w * s + 0.08 * s + j * bh, bw, bh - 0.02 * s);
-      }
-    } else if (kind === 1 && big) {
-      ctx.fillStyle = 'rgba(20,26,32,.75)';
-      for (let k = 0; k < 3; k++) ctx.fillRect(-0.55 * s + k * 0.38 * s, -w * 0.6 * s, 0.28 * s, w * 1.2 * s);
-    } else {
-      ctx.fillStyle = 'rgba(235,238,242,.9)'; ctx.fillRect(-0.5 * s, -w * 0.55 * s, 0.85 * s, w * 1.1 * s);
-    }
-    // the bridge, aft
-    ctx.fillStyle = '#f4f6f8'; ctx.fillRect(-0.92 * s, -w * 0.75 * s, 0.22 * s, w * 1.5 * s);
-    if (captured) { ctx.beginPath(); ctx.arc(-0.81 * s, 0, Math.max(1.2, 0.14 * s), 0, 6.2832); ctx.fillStyle = '#f4b740'; ctx.fill(); }
-    ctx.restore();
-  }
   // How high a bomb's arc rises at its top, in tiles, and how high it is at a point of its flight.
   // Only the picture flies in an arc; the simulation moves the bomb along the ground line.
   function liftTop(n) { return Math.min(n.dist * 0.28, 70) * (n.type === UT.CRUISE ? 0.12 : 1); }
@@ -1275,17 +1266,19 @@
         }
         x = sx; y = sy;
         const dx = u.x - u.px, dy = u.y - u.py, d = Math.hypot(dx, dy) || 1;
+        const px = shipPx(zz);
         if (u.missile) {
-          // a battleship's missile: a small rocket with a fading trail
-          const len = within(zz * 2.2, 6, 16), a = Math.atan2(dy, dx);
-          ctx.lineCap = 'round';
-          ctx.beginPath(); ctx.moveTo(x - dx / d * len * 2.2, y - dy / d * len * 2.2); ctx.lineTo(x, y);
-          ctx.lineWidth = Math.max(1.4, len * 0.18); ctx.strokeStyle = 'rgba(230,235,240,.35)'; ctx.stroke();
-          rocket(ctx, x, y, a, len, '255,140,60', 1, 0.8, false);
+          // a battleship's missile: the small pixel picture, a puff trail of grey squares behind
+          for (let q = 3; q >= 1; q--) {
+            const r = px * (0.6 + 0.25 * q);
+            ctx.fillStyle = 'rgba(220,225,230,' + (0.5 - q * 0.13).toFixed(2) + ')';
+            ctx.fillRect(x - dx / d * px * 2.2 * q - r / 2, y - dy / d * px * 2.2 * q - r / 2, r, r);
+          }
+          drawShip(ctx, 'rkt', x, y, Math.atan2(dy, dx), px, p);
         } else {
-          // a destroyer's shell: a small bright speck, no more
-          const r = Math.max(1.1, zz * 0.35);
-          ctx.fillStyle = '#ffe9a8'; ctx.fillRect(x - r, y - r, 2 * r, 2 * r);
+          // a destroyer's shell: one bright pixel, a tile of the map
+          const r = Math.max(2, px);
+          ctx.fillStyle = '#ffe9a8'; ctx.fillRect(x - r / 2, y - r / 2, r, r);
         }
         continue;
       }
@@ -1314,20 +1307,8 @@
           ctx.setLineDash([3, 3]); ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(244,183,64,.9)'; ctx.stroke(); ctx.setLineDash([]);
         }
       } else if (ty === UT.TRANSPORT) {
-        // a troop boat: a landing craft from above, square and broad, the bow a ramp (darker), the
-        // well with the troops in a deep shade, a small white wheelhouse aft
-        ctx.save(); ctx.translate(x, y); ctx.rotate(ang);
-        const hw = bs * 0.42;
-        ctx.beginPath();
-        ctx.moveTo(-bs, -hw); ctx.lineTo(bs * 0.75, -hw); ctx.lineTo(bs, -hw * 0.7); ctx.lineTo(bs, hw * 0.7); ctx.lineTo(bs * 0.75, hw); ctx.lineTo(-bs, hw); ctx.closePath();
-        ctx.lineJoin = 'round'; ctx.lineWidth = Math.max(1.3, bs * 0.14); ctx.strokeStyle = '#0b1016'; ctx.stroke();
-        ctx.fillStyle = p.css; ctx.fill();
-        if (bs >= 6) {
-          ctx.fillStyle = p.cssB; ctx.fillRect(-bs * 0.45, -hw * 0.62, bs * 1.05, hw * 1.24);     // the well
-          ctx.fillStyle = 'rgba(10,14,18,.55)'; ctx.fillRect(bs * 0.66, -hw * 0.75, bs * 0.16, hw * 1.5);   // the ramp
-          ctx.fillStyle = '#f4f6f8'; ctx.fillRect(-bs * 0.86, -hw * 0.5, bs * 0.3, hw);              // wheelhouse
-        }
-        ctx.restore();
+        // a troop boat: the landing craft picture (white wheelhouse aft, the well, the ramp)
+        drawShip(ctx, 'boat', x, y, ang, shipPx(zz), p);
       } else if (ty === UT.TRAIN) {
         if (u.edge && (hid(g, u.edge.a) || hid(g, u.edge.b))) continue;
         const zz = z * (g.S || 1);
@@ -1663,13 +1644,12 @@
       } else if (f.k === 'muzzle') {
         // gun flash at the muzzle, towards the target
         let a = Math.atan2(f.ty - f.y, f.tx - f.x), mx, my;
-        const r = within(z * 2.4, 6, 13) * (1 - k * 0.5);
+        const r = within(z * (g.S || 1) * 2.5, 4, 10) * (1 - k * 0.5);
         if (f.ship && f.ship.active) { gunTip(g, f.ship, z, ox, oy, f.tx, f.ty, TIP); a = TIP.a; mx = TIP.x + Math.cos(a) * r * 0.35; my = TIP.y + Math.sin(a) * r * 0.35; }
         else { mx = x + Math.cos(a) * r * 0.9; my = y + Math.sin(a) * r * 0.9; }
-        ctx.beginPath(); ctx.arc(mx, my, r * 0.75, 0, 6.2832);
-        ctx.fillStyle = 'rgba(255,170,60,' + (0.55 * (1 - k)).toFixed(3) + ')'; ctx.fill();
-        ctx.beginPath(); ctx.arc(mx, my, r * 0.35, 0, 6.2832);
-        ctx.fillStyle = 'rgba(255,250,220,' + (1 - k).toFixed(3) + ')'; ctx.fill();
+        // two squares on the pixel grid, no soft glow: cheap and of a piece with the ships
+        ctx.fillStyle = 'rgba(255,170,60,' + (0.7 * (1 - k)).toFixed(3) + ')'; ctx.fillRect(mx - r * 0.5, my - r * 0.5, r, r);
+        ctx.fillStyle = 'rgba(255,250,220,' + (1 - k).toFixed(3) + ')'; ctx.fillRect(mx - r * 0.22, my - r * 0.22, r * 0.44, r * 0.44);
       } else if (f.k === 'pop' && f.air) {
         // a bomb shot down: a flash up where it flew, a ring and a puff of smoke drifting off
         const ay = y - f.air * z, r = within(z * 3.4, 8, 20);
@@ -1682,14 +1662,14 @@
         ctx.beginPath(); ctx.arc(x, ay - 4 * e, r * (0.4 + 0.5 * e), 0, 6.2832);
         ctx.fillStyle = 'rgba(150,155,165,' + (0.35 * (1 - k)).toFixed(3) + ')'; ctx.fill();
       } else if (f.k === 'pop' && f.hit) {
-        // a shell striking home: a burst of fire, then a ring of spray
-        const r = within(z * 3, 7, 16);
-        ctx.beginPath(); ctx.arc(x, y, r * (0.4 + 0.6 * e), 0, 6.2832);
-        ctx.fillStyle = 'rgba(255,150,50,' + (0.75 * (1 - k)).toFixed(3) + ')'; ctx.fill();
-        ctx.beginPath(); ctx.arc(x, y, r * 0.3 * (1 - k), 0, 6.2832);
-        ctx.fillStyle = 'rgba(255,250,220,' + (1 - k).toFixed(3) + ')'; ctx.fill();
-        ctx.beginPath(); ctx.arc(x, y, r * (0.6 + 1.1 * e), 0, 6.2832);
-        ctx.strokeStyle = 'rgba(255,255,255,' + (0.7 * (1 - k)).toFixed(3) + ')'; ctx.lineWidth = 1.6; ctx.stroke();
+        // a shell striking home: a square of fire that grows and fades, four splinters flying off
+        const r = within(z * (g.S || 1) * 3, 5, 14), q = r * (0.5 + 0.5 * e);
+        ctx.fillStyle = 'rgba(255,150,50,' + (0.8 * (1 - k)).toFixed(3) + ')'; ctx.fillRect(x - q / 2, y - q / 2, q, q);
+        ctx.fillStyle = 'rgba(255,250,220,' + (1 - k).toFixed(3) + ')'; ctx.fillRect(x - q / 5, y - q / 5, q / 2.5, q / 2.5);
+        const o = r * (0.4 + 0.9 * e), b = Math.max(2, r / 5);
+        ctx.fillStyle = 'rgba(255,235,200,' + (0.9 * (1 - k)).toFixed(3) + ')';
+        ctx.fillRect(x - o - b / 2, y - b / 2, b, b); ctx.fillRect(x + o - b / 2, y - b / 2, b, b);
+        ctx.fillRect(x - b / 2, y - o - b / 2, b, b); ctx.fillRect(x - b / 2, y + o - b / 2, b, b);
       } else if (f.k === 'flag') {
         ctx.beginPath(); ctx.arc(x, y, 4 + 16 * e, 0, 6.2832);
         ctx.strokeStyle = 'rgba(244,183,64,' + (1 - k).toFixed(3) + ')'; ctx.lineWidth = 3 * (1 - k) + 1; ctx.stroke();

@@ -1,6 +1,12 @@
 # Änderungsprotokoll
 Was seit dem 13.11.2026 geändert wurde und warum. Den heutigen Stand der Regeln beschreiben die anderen Dateien in `doku/`.
 
+## Schiffe als Pixelbilder, Bootsspur aus Kacheln (23.11.2026)
+- Wunsch: Schiffe sahen fein und unruhig aus, nicht wie OpenFront; Containerschiffe zu klein; die Linie des Transportboots zu glatt.
+- Alle Schiffe sind jetzt eigene kleine Pixelbilder auf dem Kachelraster (Besitzerfarbe, dunkler Rand, Schatten auf einer Seite), je Besitzer und Art einmal gezeichnet und gecacht. Das Containerschiff ist 22 Bildpunkte lang, doppelt so lang wie der Frachter.
+- Die Spur des Transportboots ist eine Reihe von Kacheln in der Besitzerfarbe, an schrägen Schritten mit einer Treppenkachel geschlossen.
+- Granaten, Raketen, Mündungsfeuer und Treffer als Quadrate statt weicher Verläufe: weniger Rechenaufwand. Im Browser geprüft: Schüsse gehen vom vorderen Geschütz aus und treffen das Ziel auf 1 bis 2 Kacheln.
+
 ## Kriegsschiffe zurückrufen und lagern, Unterhalt, tiefes Wasser (23.11.2026)
 **Wunsch des Besitzers:** Containerschiffe grösser; Schlachtschiffe auf Patrouille langsamer, weichere Drehungen; Schiffe zurückrufen können (Schiff anklicken, Hafen anklicken), im Lager halten und von dort wieder aussenden, statt sie herumfahren zu lassen; Unterhalt auf See; Schlachtschiffe nur in tiefem Wasser patrouillieren lassen.
 **Geändert:** Auswählen, Senden und Zurückrufen per Klick (`shipTap` in `src/07_ui.js`, Befehle `ship` mit `s` und `dock`), Lager je Hafen (`port.store`, `storeOf`, `stored`), Auslaufen aus dem Lager gratis (Baumenü: «Neu bauen» für ein neues), Unterhalt (`G.SHIP_CLASS.upkeep`: 20 bzw. 60 Gold pro Tick), Patrouille des Schlachtschiffs nur in tiefem Wasser (`deep`, `deepNear`, `patrolPoint`) und mit 60 % Tempo (`patrol`), weiche Drehung (Zerstörer 0.07, Schlachtschiff 0.035 pro Bild), Containerschiff 1.9-mal, Massengutfrachter 1.35-mal so lang wie ein Frachter. Fremde Transportboote zeigen nur noch eine kurze Spur, die volle Linie nur bei eigenen und bei Booten, die zu dir fahren.
