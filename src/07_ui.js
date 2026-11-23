@@ -1101,7 +1101,11 @@
         ok = c.ok; note = c.ok ? b.note : c.why; cost = c.cost;
       }
       const have = b.t === UT.WARSHIP || b.t === BS ? shipsOf(h, real(b.t).cls) : b.t < UT.ATOM ? h.cnt[b.t] : 0;
-      return '<button class="item' + (nuke ? ' nuke' : '') + (!game.opts.infiniteGold && h.gold < cost ? ' poor' : '') + '" type="button" data-t="' + b.t + '"' + (ok ? '' : ' disabled') + '><kbd>' + b.key.toUpperCase() + '</kbd>' + (have ? '<i class="own">' + have + '</i>' : '') +
+      // a warship laid up in a port sails out first; a second button builds a new one all the same
+      const lager = b.t === UT.WARSHIP || b.t === BS ? game.stored(h, real(b.t).cls) : 0;
+      if (lager && ok) note = 'Aus dem Lager (' + lager + ' im Hafen), gratis';
+      const extra = lager ? '<button class="item" type="button" data-t="' + b.t + '" data-fresh="1"><span class="ic">' + svg(b.icon, 24) + '</span><b>Neu bauen</b><small>' + esc(b.note) + '</small>' + coin(costOf(h, b.t)) + '</button>' : '';
+      return extra + '<button class="item' + (nuke ? ' nuke' : '') + (!game.opts.infiniteGold && h.gold < cost ? ' poor' : '') + '" type="button" data-t="' + b.t + '"' + (ok ? '' : ' disabled') + '><kbd>' + b.key.toUpperCase() + '</kbd>' + (have ? '<i class="own">' + have + '</i>' : '') +
         '<span class="ic">' + svg(b.icon, 24) + '</span><b>' + G.UNAME[b.t] + '</b><small>' + esc(note) + '</small>' + coin(cost) + '</button>';
     };
     html += '<h3>Gebäude</h3><div class="grid">' + BUILD.filter(function (b) { return b.t <= UT.CLOAK && offered(b.t); }).map(cell).join('') + '</div>';
@@ -1114,7 +1118,7 @@
     snd('open');
   }
   // Build at a tile, or start aiming a bomb at it. Used by the menu and by the keys.
-  function doBuild(t, tile) {
+  function doBuild(t, tile, fresh) {
     if (armory(t) && !game.opts.arsenal) { toast('Den ' + plain(t) + ' gibt es nur im Arsenal-Modus'); snd('deny'); return; }
     if (!offered(t)) { toast(plain(t) + ': in diesem Level noch gesperrt'); snd('deny'); return; }
     if (t === UT.LASER) { startAim(t, tile); return; }
@@ -1125,7 +1129,7 @@
       return;
     }
     const r = real(t);
-    act({ k: 'build', u: r.u, cls: r.cls, t: tile, say: r.u === UT.WARSHIP ? plain(t) + ' läuft aus' : plain(t) + (game.opts.instantBuild ? ' gebaut' : ' wird gebaut') });
+    act({ k: 'build', u: r.u, cls: r.cls, t: tile, fresh: fresh ? 1 : 0, say: r.u === UT.WARSHIP ? plain(t) + (fresh || !game.stored(game.human, r.cls) ? ' läuft aus' : ' läuft aus dem Lager aus') : plain(t) + (game.opts.instantBuild ? ' gebaut' : ' wird gebaut') });
   }
   function doUpgrade(tile, n) {
     const u = game.structNear(tile, 4);
@@ -1158,7 +1162,7 @@
     else {
       const t = +b.dataset.t;
       if (t >= UT.ATOM) closeBuild();
-      doBuild(t, buildTile);
+      doBuild(t, buildTile, !!b.dataset.fresh);
       if (t >= UT.ATOM) return;
     }
     closeBuild();
@@ -1254,7 +1258,7 @@
     // for a bomb: the silo it would start from (or, while all are reloading, any silo), so the flight path can be shown
     const silo = ghost.t >= UT.ATOM && ghost.t !== UT.LASER ? c.silo || game.readySilo(h, tile).silo || h.units.find(function (u) { return u.type === UT.SILO && u.built; }) || null : null;
     view.ghost = { type: ghost.t, icon: icon, tile: tile, ok: c.ok, silo: silo,
-      text: c.ok || c.why === 'Zu wenig Gold' ? plain(ghost.t) + ' · ' + G.fmt(costOf(h, ghost.t)) + (ghost.t === UT.FACTORY || (game.bahn && (ghost.t === UT.CITY || ghost.t === UT.PORT)) ? railHint(tile, ghost.t) : '') : c.why || 'Hier nicht möglich' };   // too little gold: the price stays, in red
+      text: c.ok && c.stored ? plain(ghost.t) + ' · aus dem Lager, gratis' : c.ok || c.why === 'Zu wenig Gold' ? plain(ghost.t) + ' · ' + G.fmt(costOf(h, ghost.t)) + (ghost.t === UT.FACTORY || (game.bahn && (ghost.t === UT.CITY || ghost.t === UT.PORT)) ? railHint(tile, ghost.t) : '') : c.why || 'Hier nicht möglich' };   // too little gold: the price stays, in red
   }
   // The player's own finished building of the kind being placed, if the pointer is on it.
   function ghostUpgrade(tile) {
@@ -1707,6 +1711,37 @@
     flushNet();
   }
 
+  // Warships by hand: a click on one of your own picks it (a white ring); then a click on water
+  // sends that ship there, a click on one of your own ports calls it home, where it is laid up
+  // (and costs no upkeep) until it is sent out again. Anything else lets go of it.
+  function shipNear(sx, sy) {
+    const h = game.human, z = view.cam.z;
+    let best = null, bd = Math.max(14, z * 3) * Math.max(14, z * 3);
+    for (const u of h.units) {
+      if (u.type !== UT.WARSHIP || !u.active || u.vx === undefined) continue;
+      const p = view.screenOf(u.tile), x = (u.vx + 0.5 - (u.tile % game.W) - 0.5) * z + p.x, y = (u.vy + 0.5 - ((u.tile / game.W) | 0) - 0.5) * z + p.y;
+      const d = (x - sx) * (x - sx) + (y - sy) * (y - sy);
+      if (d < bd) { bd = d; best = u; }
+    }
+    return best;
+  }
+  function shipTap(sx, sy, tile) {
+    const h = game.human, hit = shipNear(sx, sy);
+    if (hit) {
+      view.shipSel = view.shipSel === hit.id ? -1 : hit.id;
+      if (view.shipSel >= 0) toast(G.SHIP_CLASS[hit.cls || 0].name + ' ausgewählt: Wasser anklicken schickt es hin, dein Hafen ruft es zurück');
+      snd('tap');
+      return true;
+    }
+    if (!(view.shipSel >= 0)) return false;
+    const id = view.shipSel, u = h.units.find(function (v) { return v.id === id && v.active; });
+    view.shipSel = -1;
+    if (!u) return false;
+    const port = game.structNear(tile, 3);
+    if (port && port.type === UT.PORT && port.owner === h && port.built) { act({ k: 'dock', s: id, t: port.tile, say: G.SHIP_CLASS[u.cls || 0].name + ' läuft in den Hafen ein' }); return true; }
+    if (!game.map.land[tile]) { act({ k: 'ship', s: id, t: tile, say: G.SHIP_CLASS[u.cls || 0].name + ' nimmt Kurs' }); return true; }
+    return false;
+  }
   function tap(sx, sy, menu, mouse) {
     if (!game) return;
     const tile = view.tileAt(sx, sy);
@@ -1720,6 +1755,7 @@
       return;
     }
     if (aim) { aim.tile = tile; refreshAim(); snd('tap'); return; }
+    if (game.phase === 'play' && h.alive && !menu && shipTap(sx, sy, tile)) return;
     const pa = game.pfeile && !menu ? view.planAt(sx, sy) : null;
     if (pa !== null) { plans.splice(pa, 1); syncPlans(); toast('Pfeil entfernt'); snd('tap'); return; }
     const arrow = view.arrowAt(sx, sy);

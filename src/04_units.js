@@ -12,10 +12,28 @@
   //               fends off troop boats bound for you or an ally
   //   battleship  large and slow, more hull: missiles at long range, sees over islands and thin
   //               coasts, sinks other warships first, takes no merchants
+  // upkeep: gold per tick while at sea (a ship laid up in a port costs nothing); patrol: share of
+  // its speed on patrol; deep: how far from land (OpenFront's tiles) it patrols at the least.
   G.SHIP_CLASS = [
-    { name: 'Zerstörer', hp: 1000, speed: 1, range: 70, dmg: 250, rate: 20, land: 0, capture: true, cost: 1 },
-    { name: 'Schlachtschiff', hp: 2500, speed: 0.6, range: 140, dmg: 450, rate: 35, land: 3, capture: false, cost: 2.5 }
+    { name: 'Zerstörer', hp: 1000, speed: 1, range: 70, dmg: 250, rate: 20, land: 0, capture: true, cost: 1, upkeep: 20, patrol: 1, deep: 7 },
+    { name: 'Schlachtschiff', hp: 2500, speed: 0.6, range: 140, dmg: 450, rate: 35, land: 3, capture: false, cost: 2.5, upkeep: 60, patrol: 0.6, deep: 18 }
   ];
+  // A port's store of laid-up warships, by class (port.store); `fresh` asks for a new one anyway.
+  Game.prototype.storeOf = function (p, cls, w) {
+    const map = this.map, W = this.W;
+    let best = null, bd = Infinity;
+    for (const u of p.units) {
+      if (u.type !== UT.PORT || !u.built || !u.store || !(u.store[cls] > 0) || (w >= 0 && map.wcomp[u.water] !== map.wcomp[w])) continue;
+      const d = w >= 0 ? (u.x - w % W) * (u.x - w % W) + (u.y - ((w / W) | 0)) * (u.y - ((w / W) | 0)) : 0;
+      if (d < bd) { bd = d; best = u; }
+    }
+    return best;
+  };
+  Game.prototype.stored = function (p, cls) {
+    let n = 0;
+    for (const u of p.units) if (u.type === UT.PORT && u.store) n += u.store[cls] || 0;
+    return n;
+  };
   G.MAX_LEVEL = 100;
   G.SILO_RELOAD = 270;   // ticks a silo slot needs to reload after a launch (27 s, 3x OpenFront's 9 s)
   G.CITY_MAX_LEVEL = 100;
@@ -268,8 +286,8 @@
     return { silo: best, any: any };
   };
 
-  Game.prototype.buildCheck = function (p, type, tile, cls) {
-    const res = { ok: false, why: '', cost: this.cost(p, type), tile: tile, port: null, silo: null };
+  Game.prototype.buildCheck = function (p, type, tile, cls, fresh) {
+    const res = { ok: false, why: '', cost: this.cost(p, type), tile: tile, port: null, silo: null, stored: false };
     if (type === UT.WARSHIP && cls) res.cost = Math.round(res.cost * G.SHIP_CLASS[1].cost);
     const map = this.map, W = this.W;
     if (!p.alive || this.phase !== 'play') { res.why = 'Nicht möglich'; return res; }
@@ -296,6 +314,9 @@
       if (w < 0) { res.why = 'Tippe dafür auf Wasser'; return res; }
       if (!best) { res.why = 'Kein eigener Hafen an diesem Gewässer'; return res; }
       res.port = best; res.tile = w;
+      // one laid up in a port on this water sails out first, for nothing (unless a new one is wanted)
+      const st = fresh ? null : this.storeOf(p, cls || 0, w);
+      if (st) { res.port = st; res.cost = 0; res.stored = true; }
     } else if (type === UT.LASER) {
       // Arsenal mode only: fired from orbit, so it needs no silo, but the satellite has to recharge
       if (!this.opts.arsenal) { res.why = 'Nur im Arsenal-Modus'; return res; }
@@ -318,9 +339,9 @@
     return res;
   };
 
-  Game.prototype.build = function (p, type, tile, cls) {
+  Game.prototype.build = function (p, type, tile, cls, fresh) {
     cls = type === UT.WARSHIP && cls === 1 ? 1 : 0;
-    const c = this.buildCheck(p, type, tile, cls);
+    const c = this.buildCheck(p, type, tile, cls, fresh);
     if (!c.ok) return null;
     p.gold -= c.cost;
     let u;
@@ -333,7 +354,8 @@
       if (this.opts.instantBuild) this.finishBuild(u);
     } else if (type === UT.WARSHIP) {
       u = this.newUnit(type, p, c.port.water);
-      u.cls = cls; u.hp = G.SHIP_CLASS[cls].hp; u.patrol = c.tile; u.shotAt = 0; u.target = null; u.path = null; u.pi = 0; u.wait = false;
+      if (c.stored) c.port.store[cls]--;
+      u.cls = cls; u.hp = G.SHIP_CLASS[cls].hp; u.patrol = this.deepNear(c.tile, cls); u.shotAt = 0; u.target = null; u.path = null; u.pi = 0; u.wait = false;
       this.addUnit(u);
       this.sail(u, c.tile, p.type === PT.HUMAN, 'order');
     } else if (type === UT.LASER) {
@@ -715,6 +737,28 @@
     // fast when it lies at the quay (the faster, the higher the port's level).
     let dock = u.repair;
     const C = G.SHIP_CLASS[u.cls || 0], full = C.hp;
+    // upkeep while at sea; without the gold for it the ship makes for port and is laid up there
+    if (!(p.type === PT.HUMAN && this.opts.infiniteGold)) {
+      p.gold -= C.upkeep;
+      if (p.gold < 0) { p.gold = 0; if (!u.storing && this.dockWarship(p, u.id) && p === this.human) this.say('Kein Gold für den Unterhalt: ' + C.name + ' läuft in den Hafen ein', 'warn'); }
+    }
+    if (u.storing) {
+      // called home: straight to the port, no fighting on the way, laid up on arrival (whole again)
+      const sp = u.storing;
+      if (!sp.active || sp.owner !== p || !sp.built) { u.storing = null; }
+      else {
+        const d2 = (sp.x - u.x) * (sp.x - u.x) + (sp.y - u.y) * (sp.y - u.y);
+        if (d2 <= 25) {
+          sp.store = sp.store || [0, 0]; sp.store[u.cls || 0]++;
+          if (p === this.human) this.say(C.name + ' liegt im Hafen (auf Lager: ' + sp.store[u.cls || 0] + ')', 'info');
+          this.removeUnit(u);
+          return;
+        }
+        if (u.path && u.pi < u.path.length - 1) for (let n = this.stride(u, this.pace * C.speed); n > 0 && u.pi < u.path.length - 1; n--) { u.pi++; this.setPos(u, u.path[u.pi]); }
+        else if (!u.wait && this.nearQ.length <= 12) this.sail(u, sp.water, true, 'dock');
+        return;
+      }
+    }
     if (dock && (!dock.active || dock.owner !== p || u.hp >= full)) dock = u.repair = null;
     if (u.hp < full) {
       // looked at every two seconds; a ship that is badly hit and not yet bound for a port looks at once
@@ -810,7 +854,7 @@
 
     // Under way. On the chase a warship makes twice its cruising speed (as in OpenFront).
     if (u.path && u.pi < u.path.length - 1) {
-      for (let n = this.stride(u, (hunt ? 2 : 1) * this.pace * C.speed); n > 0 && u.pi < u.path.length - 1; n--) { u.pi++; this.setPos(u, u.path[u.pi]); }
+      for (let n = this.stride(u, (hunt ? 2 : 1) * this.pace * C.speed * (u.leg === 'patrol' ? C.patrol : 1)); n > 0 && u.pi < u.path.length - 1; n--) { u.pi++; this.setPos(u, u.path[u.pi]); }
     }
     if (u.wait || hunt) return;
     const left = u.path ? u.path.length - 1 - u.pi : 0;
@@ -836,10 +880,11 @@
   Game.prototype.patrolPoint = function (u) {
     const map = this.map, W = this.W, H = this.H, rng = this.rng, off = map.mag;   // for water: distance to land
     const cx = u.patrol % W, cy = (u.patrol / W) | 0, comp = map.wcomp[u.tile], pr = this.R.warPatrol * 0.5;
-    const clear = Math.max(3, Math.round(7 * this.S));
+    const clear = Math.max(3, Math.round(G.SHIP_CLASS[u.cls || 0].deep * this.S));
     if (u.beat === undefined) { u.beat = rng.next() * 2 * Math.PI; u.turn = rng.next() < 0.5 ? 1 : -1; }
     let best = -1, bs = -1;
-    for (let i = 0; i < 14; i++) {
+    const tries = u.cls ? 40 : 14;
+    for (let i = 0; i < tries; i++) {
       // the first tries follow the beat; later ones look anywhere in the area
       const ang = i < 8 ? u.beat + u.turn * (1.7 + 0.25 * i + 0.6 * rng.next()) : rng.next() * 2 * Math.PI;
       const rad = pr * (i < 8 ? 0.55 + 0.45 * rng.next() : rng.next());
@@ -850,21 +895,53 @@
       if (off[t] >= clear) { u.beat = ang; return t; }
       if (off[t] > bs) { bs = off[t]; best = t; }
     }
+    // a battleship keeps to deep water: with no deep point found it heads back to the middle of its
+    // patrol (deepNear made that deep)
+    if (u.cls && map.mag[u.patrol] >= clear) return u.patrol;
     if (best >= 0) { const bx = best % W - cx, by = ((best / W) | 0) - cy; if (bx || by) u.beat += u.turn * 2; }
     return best;
   };
-  Game.prototype.moveWarship = function (p, tile) {
+  // The open water nearest to tile w that is at least the class's depth from land (for a
+  // battleship: its patrol keeps to deep water; it can still be sent anywhere). w if there is none.
+  Game.prototype.deepNear = function (w, cls) {
+    const map = this.map, W = this.W, H = this.H, off = map.mag, need = Math.max(3, Math.round(G.SHIP_CLASS[cls || 0].deep * this.S));
+    if (!cls || off[w] >= need) return w;
+    const cx = w % W, cy = (w / W) | 0, comp = map.wcomp[w], R = Math.round(this.R.warPatrol * 1.5);
+    for (let r = 2; r <= R; r += 2) for (let k = 0; k < 24; k++) {
+      const a = k * 0.2618, x = Math.round(cx + Math.cos(a) * r), y = Math.round(cy + Math.sin(a) * r);
+      if (x < 0 || y < 0 || x >= W || y >= H) continue;
+      const t = y * W + x;
+      if (!map.land[t] && map.wcomp[t] === comp && off[t] >= need) return t;
+    }
+    return w;
+  };
+  // Call a warship home: it sails to the port (the one given, else the nearest of its owner on its
+  // water) and is laid up there in the port's store. False without a port to go to.
+  Game.prototype.dockWarship = function (p, id, portTile) {
+    const u = p.units.find(function (v) { return v.id === id && v.type === UT.WARSHIP && v.active; });
+    if (!u) return false;
+    const map = this.map;
+    let port = portTile >= 0 ? this.structNear(portTile, 4) : null;
+    if (!port || port.type !== UT.PORT || port.owner !== p || !port.built || map.wcomp[port.water] !== map.wcomp[u.tile]) port = this.portNear(p, u.tile);
+    if (!port) return false;
+    u.storing = port; u.repair = null; u.target = null; u.hunt = null; u.wait = false;
+    this.sail(u, port.water, true, 'dock');
+    return true;
+  };
+  // Send a warship to a tile: the one with id `id`, or else the nearest that can get there.
+  Game.prototype.moveWarship = function (p, tile, id) {
     const map = this.map, W = this.W;
     const w = map.land[tile] ? this.waterNear(tile, 8) : tile;
     if (w < 0) return false;
     let best = null, bd = Infinity;
     for (const u of p.units) {
       if (u.type !== UT.WARSHIP || map.wcomp[u.tile] !== map.wcomp[w]) continue;
+      if (id >= 0 && u.id !== id) continue;
       const d = (u.x - w % W) * (u.x - w % W) + (u.y - ((w / W) | 0)) * (u.y - ((w / W) | 0)) + (u.repair ? 1e9 : 0);   // a ship under repair is the last to be sent
       if (d < bd) { bd = d; best = u; }
     }
     if (!best) return false;
-    best.patrol = w; best.wait = false; best.repair = null; best.beat = undefined; best.hunt = null; best.target = null;
+    best.patrol = this.deepNear(w, best.cls); best.wait = false; best.repair = null; best.beat = undefined; best.hunt = null; best.target = null; best.storing = null;
     this.sail(best, w, true, 'order');
     return true;
   };

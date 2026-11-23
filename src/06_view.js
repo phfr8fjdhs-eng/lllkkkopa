@@ -191,7 +191,7 @@
     this.mctx.putImageData(this.img, 0, 0);
   };
   View.prototype.setGame = function (game) {
-    this.game = game; this.shade = null; this.shadeAt = 0;
+    this.game = game; this.shade = null; this.shadeAt = 0; this.shipSel = -1;
     for (let i = 1; i < game.players.length; i++) {
       const p = game.players[i];
       // the border: the land's colour a shade darker; the player's own border is near white, so
@@ -1008,16 +1008,21 @@
       if (!u.active || !u.path || u.type !== UT.TRANSPORT) continue;
       const p = u.path, end = Math.min(u.pi, p.length - 1);
       const hx = (u.vx + 0.5) * z + ox, hy = (u.vy + 0.5) * z + oy;
-      if (end >= 1) {
+      const mine = u.owner === h, atMe = !!h && u.tid === h.id;
+      // the whole way for boats that concern you; other people's leave a short trail only, so the
+      // oceans are not crossed by lines
+      const from = mine || atMe ? 0 : Math.max(0, end - 20);
+      if (!mine && !atMe) ctx.globalAlpha = 0.6;
+      if (end - from >= 1) {
         const step = Math.max(1, Math.round(2 / z));
         ctx.beginPath();
-        for (let k = 0; k < end; k += step) { const x = (p[k] % W + 0.5) * z + ox, y = (((p[k] / W) | 0) + 0.5) * z + oy; if (k) ctx.lineTo(x, y); else ctx.moveTo(x, y); }
+        for (let k = from; k < end; k += step) { const x = (p[k] % W + 0.5) * z + ox, y = (((p[k] / W) | 0) + 0.5) * z + oy; if (k > from) ctx.lineTo(x, y); else ctx.moveTo(x, y); }
         ctx.lineTo(hx, hy);
         const lw = Math.max(1.4, zz * 0.7);
         ctx.lineWidth = lw + 2; ctx.strokeStyle = 'rgba(8,14,22,.55)'; ctx.stroke();
         ctx.lineWidth = lw; ctx.strokeStyle = u.owner.css; ctx.stroke();
       }
-      const mine = u.owner === h, atMe = h && u.tid === h.id;
+      ctx.globalAlpha = 1;
       if ((mine || atMe) && !u.retreat) {
         const lt = p[p.length - 1], lx = (lt % W + 0.5) * z + ox, ly = (((lt / W) | 0) + 0.5) * z + oy, r = Math.max(6, zz * 3);
         const col = atMe ? '#ff5a4e' : '#ffffff';
@@ -1072,7 +1077,8 @@
       let d = ang - u.va;
       while (d > Math.PI) d -= 2 * Math.PI;
       while (d < -Math.PI) d += 2 * Math.PI;
-      u.va += d * 0.14;
+      // turning eases in: warships slowly (a battleship slowest), merchants a little quicker
+      u.va += d * (u.type === UT.WARSHIP ? (u.cls ? 0.035 : 0.07) : u.type === UT.TRADE ? 0.09 : 0.14);
     }
     u.vf = this.frame; u.vx = x; u.vy = y;
   };
@@ -1147,7 +1153,7 @@
   // captured one carries a small gold dot on the bridge.
   const BOXES = ['#e0793a', '#3d7fc4', '#c94a3f', '#4f9a5a', '#d8b23a', '#8a64b5'];
   function merchant(ctx, x, y, ang, s, p, captured, kind) {
-    s *= kind === 2 ? 1.45 : kind === 1 ? 1.2 : 1;
+    s *= kind === 2 ? 1.9 : kind === 1 ? 1.35 : 1;
     const w = kind === 2 ? 0.36 : 0.32;
     ctx.save();
     ctx.translate(x, y); ctx.rotate(ang);
@@ -1286,6 +1292,17 @@
       if (ty === UT.WARSHIP) {
         const s = warSize(zz, u.cls), tg = u.target && u.target.active && u.target.type !== UT.TRADE ? u.target : null, full = G.SHIP_CLASS[u.cls || 0].hp;
         warship(ctx, x, y, ang, s, p, tg ? Math.atan2(tg.y - u.y, tg.x - u.x) - ang : null, u.cls);
+        if (u.id === this.shipSel) {
+          // the ship you picked: a white ring; where it goes, a dashed line
+          ctx.beginPath(); ctx.arc(x, y, s * 1.25, 0, 6.2832);
+          ctx.lineWidth = 3.5; ctx.strokeStyle = 'rgba(8,14,22,.7)'; ctx.stroke();
+          ctx.lineWidth = 1.8; ctx.strokeStyle = '#fff'; ctx.stroke();
+        }
+        if (u.storing && u.owner === g.human) {
+          const sp = u.storing, px = (sp.x + 0.5) * z + ox, py = (sp.y + 0.5) * z + oy;
+          ctx.setLineDash([5, 5]); ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(px, py);
+          ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(255,255,255,.6)'; ctx.stroke(); ctx.setLineDash([]);
+        }
         if (u.hp < full) {
           const k = u.hp / full;
           ctx.fillStyle = '#10161d'; ctx.fillRect(x - s / 2 - 1, y + s * 0.7 - 1, s + 2, 5);

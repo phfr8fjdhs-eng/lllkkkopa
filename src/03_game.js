@@ -1662,14 +1662,15 @@
         const mode = at.width === this.thrustWidth(1) ? 1 : 2;
         return this.attack(p, at.tid, p.troops * r, -1, at.goal, mode) ? '' : (this.attackWhy || 'Zu wenig Truppen');
       }
-      case 'ship': return tileOk && this.moveWarship(p, c.t) ? '' : 'Kein Schiff kann dorthin';
+      case 'ship': return tileOk && this.moveWarship(p, c.t, c.s >= 0 ? Math.floor(c.s) : -1) ? '' : 'Kein Schiff kann dorthin';
+      case 'dock': return this.dockWarship(p, Math.floor(+c.s), tileOk ? c.t : -1) ? '' : 'Kein eigener Hafen an diesem Gewässer';
       case 'build': {
         if (!tileOk || !(c.u <= UT.WARSHIP || c.u === UT.ATOM || c.u === UT.HYDRO || c.u === UT.MIRV || c.u === UT.CRUISE || c.u === UT.LASER) || !(c.u >= 0)) return 'Nicht möglich';
         if (this.lv && !this.levelAllows(c.u)) return 'In diesem Level noch gesperrt';
         const cls = c.u === UT.WARSHIP && c.cls === 1 ? 1 : 0;    // a battleship
-        const chk = this.buildCheck(p, c.u, c.t, cls);
+        const chk = this.buildCheck(p, c.u, c.t, cls, !!c.fresh);
         if (!chk.ok) return chk.why || 'Nicht möglich';
-        return this.build(p, c.u, c.t, cls) ? '' : 'Nicht möglich';
+        return this.build(p, c.u, c.t, cls, !!c.fresh) ? '' : 'Nicht möglich';
       }
       case 'up': {
         const u = tileOk ? this.structNear(c.t, 4) : null;
