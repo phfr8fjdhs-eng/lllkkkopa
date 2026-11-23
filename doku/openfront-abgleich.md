@@ -11,6 +11,8 @@ Die Zahlen stammen aus dem OpenFront-Quellcode (`packages/engine-lib/src/configu
 
 **Kampfformel (23.11.2026):** Ein Feld kostet OpenFronts Preis (`within(Armee / Angriff, 0.6, 2) × Gelände × (0.463 + 0.0039 × Truppen pro Feld)`) mal die Dichte der Zelle, die Verteidiger auf dem Feld fallen mit ihm, mindestens der Preis von freiem Land; dazu Eingraben (bis +25 %). Gegen gleichmässig stehende, frische Verteidiger also OpenFront. Ersetzt den Preis vom 15.11.2026 (16 pro Feld plus die Verteidiger mit örtlicher Überzahl), der gegen eine eingegrabene Nation fast viermal so viel kostete wie der Verteidiger verlor.
 
+**Tempo und eingeschlossene Reiche (23.11.2026):** Das Tempo eines Angriffs folgt wie in OpenFront dem Verhältnis zur ganzen Armee des Verteidigers (unterlegen kriecht er). Ein Reich, das nur noch von einer Nation umgeben ist, fällt bei «Feste Grenzen» wie in OpenFront an diese, bei «Grenzland» nicht.
+
 **Testschalter (22.11.2026):** Kessel (eingeschlossenes Land fällt erst nach 30 s statt sofort), Schwung (Angriffe werden mit der Tiefe teurer und bleiben stehen), Bahn mit Lieferungen (statt Gold pro Halt 10K/25K/35K: 30K × √Stufe der Stadt pro Lieferung), Häfen nach Stufe (Takt √Stufe statt Stufe, Reichweite, grössere Schiffe, Kapern halbe Ladung). Alle abschaltbar; Zahlen in `doku/testschalter.md`.
 
 **Mehr Bots (15.11.2026):** Vorgabe ein Bot je 630 Landfelder statt je 950, höchstens 600 statt 400 (`defaultBots` in `src/07_ui.js`).

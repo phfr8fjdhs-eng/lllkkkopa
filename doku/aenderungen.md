@@ -1,6 +1,14 @@
 # Änderungsprotokoll
 Was seit dem 13.11.2026 geändert wurde und warum. Den heutigen Stand der Regeln beschreiben die anderen Dateien in `doku/`.
 
+## Testspieler, Tempo unterlegener Angriffe, Hauptland bei Grenzland (23.11.2026)
+**Neu: Testspieler** (`node test/spieler.js [grenzland|grenzen] [Minuten] [Startwert]`): ein Computer, der wie ein Mensch spielt (erst freies Land und Bots, Nationen nur wenn stärker und mit genug Truppen, schlägt zurück, baut Städte, Hafen, Fabriken), in einer ganzen Runde auf der Weltkarte. Er misst Land und Platz alle 10 Minuten und wie viel seiner Angriffe auf Nationen verpufft.
+**Damit gefunden:**
+- **Unterlegene Angriffe rasten durch.** Kanada griff mit gut 100K einen Spieler mit 750K an und nahm in 15 s 700 Felder und 270K Truppen. OpenFront lässt einen Angriff, der der ganzen Armee des Verteidigers unterlegen ist, kriechen (bei acht zu eins etwa neunmal langsamer); das fehlte seit der Formel vom 23.11. Jetzt übernommen (`used *= within(R, 0.82, 7.5) × within(R / 20, 1, 50) / 0.82`).
+- **Ganzes Reich übergeben, wenn es eingeschlossen ist.** Wie in OpenFront fiel ein Reich, das nur noch von einer Nation umgeben war, als Ganzes an diese, auch mit 1.2 Millionen Truppen. Bei «Grenzland» (mit Kessel) wird das Hauptland nicht mehr übergeben, es muss erobert werden; abgeschnittene Teile werden weiter zum Kessel. «Feste Grenzen» bleibt wie OpenFront.
+**Was der Testspieler noch zeigt:** Auf der Weltkarte mit Nationen auf «Mittel» und 150 Bots liegt er nach 10 Minuten bei 0.4 bis 1.6 % der Welt (die besten Nationen bei 10 bis 30 %) und scheidet in den meisten Läufen bis Minute 30 aus. Ob das Spiel zu schwer ist oder das Skript zu schwach spielt, ist noch offen; darum sind die Nationen noch nicht klüger gemacht.
+`test/posture.js` beendet vor «in Ruhe lassen» auch die Angriffe auf den Spieler (die jetzt langsameren liefen sonst weiter und riefen Reserven).
+
 ## Kampf unspielbar: Angriffe starben sofort (23.11.2026)
 **Rückmeldung des Besitzers:** mit 50K gegen eine Nation mit 30K die ganze Front angegriffen, alle Truppen sofort tot.
 **Gemessen** (Nation steht seit 2 Minuten, ganze Front): mit 20 % (10K) nach 1 s noch 2.9K übrig, 61 von 2000 Feldern; mit 100 % 818 Felder, und der Angreifer verlor fast viermal so viel wie der Verteidiger (OpenFront: gut doppelt, 1147 Felder).

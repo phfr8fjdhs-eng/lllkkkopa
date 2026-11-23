@@ -2264,6 +2264,7 @@ body.placing #cv { cursor: crosshair; }
           const R = tT / Math.max(1, troops), m0 = gl * mag / (1 + (gl - 1) * hold), dk = pc ? dens * (1 + 0.25 * Math.min(1, T / 100)) : 1, D = dAvg * dk;
           loss = Math.max(80 * m0 * within(R, 0.6, 2) * (0.463 + 0.0039 * dAvg) * dk * (pc ? this.postHold(pc) : 1) * botMod * lossMod * traitor, CB.base * m0 * within(R, 0.6, 2) * botMod * lossMod);
           used = within(1 / (5 * Math.max(r, 0.01)), 0.2, 1.5) * speed * speedMod * (easy ? 0.45 : 1);
+          used *= within(R, 0.82, 7.5) * within(R / 20, 1, 50) / 0.82;
           if (mom0 > 0) {
             const fade = this.cellRail && this.CW ? 1 - (1 - MO.railFade) * (1 - this.cellRail[this.cellOf(tile)]) / 0.8 : 1;
             mom -= MO.decay * within(loss / (2 * CB.base), 0.25, 4) / Math.max(4, width) * fade;
@@ -2605,6 +2606,10 @@ body.placing #cv { cursor: crosshair; }
         // free land costs a person)
         loss = Math.max(loss, CB.base * (m0 / 80) * within(R, 0.6, 2) * botMod * lossMod);
         used = within(1 / (5 * Math.max(r, 0.01)), 0.2, 1.5) * speed * speedMod * (easy ? 0.45 : 1);
+        // ... and OpenFront's pace: an attack outnumbered by the defender's whole army crawls (up to
+        // nine times slower at eight to one), so the defender has time to answer. Left out until
+        // 23.11.2026: an attack of 100K then ran through 700 tiles of a realm of 750K in 15 s.
+        used *= within(R, 0.82, 7.5) * within(R / 20, 1, 50) / 0.82;
         if (at.mom !== undefined) {
           // momentum: fades with every tile, the more the dearer the tile and the narrower the
           // front, slower along a railway; with little of it every tile is dearer and slower
@@ -2723,6 +2728,9 @@ body.placing #cv { cursor: crosshair; }
     for (let i = 1; i < clusters.length; i++) if (clusters[i].length > clusters[mi].length) mi = i;
     for (let i = 0; i < clusters.length; i++) {
       if (p.tiles <= 0) return;
+      // With pockets that hold out (`kessel`, Grenzland) the main body of a realm is never handed
+      // over for being enclosed: it has to be conquered. OpenFront (and Feste Grenzen) give it away.
+      if (i === mi && this.kessel && p.post) continue;
       if (!(i === mi ? this.enclosed(p, clusters[i]) : this.surrounded(p, clusters[i]))) continue;
       // a pocket of a person or a nation holds out for a while (`G.KESSEL`) before it gives up;
       // meanwhile it can break out or be relieved, and its troops starve (03b_posture.js)

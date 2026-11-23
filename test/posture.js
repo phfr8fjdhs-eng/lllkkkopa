@@ -43,6 +43,7 @@ const ok = (c, msg) => { if (!c) { console.log('FAIL', msg); process.exitCode = 
     ok(tilesOf(h) === h.tiles, 'cells count every tile');
     ok(Math.abs(sum(g, h) - h.troops) < 1e-6 * h.troops + 1e-6, 'troops in cells add up to the pool');
     for (const a of h.out.slice()) g.retreat(a);
+    for (const a of h.inc.slice()) g.endAttack(a, false);      // attacks on us still running (outnumbered ones crawl) would call reserves
     step(900);
     let lo = 9, hi = 0;
     for (const c of h.post.cells.values()) { if (c.n < 40) continue; const d = g.postDens(h, c); if (d < lo) lo = d; if (d > hi) hi = d; }
