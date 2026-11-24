@@ -1,6 +1,11 @@
 # Änderungsprotokoll
 Was seit dem 13.11.2026 geändert wurde und warum. Den heutigen Stand der Regeln beschreiben die anderen Dateien in `doku/`.
 
+## Pfeile planen, Bahn-Lieferungen und Häfen nach Stufe immer an (24.11.2026)
+- **Wunsch:** Die drei Schalter auf dem Startbildschirm sollen weg, alles immer an.
+- **Geändert:** Die Schalter «Angriffe planen», «Bahn: Lieferungen» und «Häfen nach Stufe» sind vom Startbildschirm entfernt. `playOpts` gibt immer `pfeile`, `bahn` und `hafen` an; auch Mehrspieler und Levels. Die Optionen in `G.Game` bleiben für Tests.
+- **Nicht geändert:** Spielregeln, darum `det.js` und `posture.js` gleich.
+
 ## Schnell verdichten, neue Bau-Tasten, Knopf «?» (24.11.2026)
 - **Wunsch:** Verdichten und Ausdünnen ging nur über den Knopf oben rechts, Pinsel wählen und unten links «Fertig». Es soll mit einem Zug gehen, einmal am Bildschirm und einmal mit einer Taste. Die Bauleiste soll zuerst die Zahlen haben, Spezielles rechts. Oben rechts ein Knopf mit allen Kürzeln.
 - **Geändert:** `V` halten verdichtet, Shift + `V` dünnt aus, Loslassen beendet. Knöpfe + und − rechts am Rand (ein Strich, lange drücken bleibt an), Doppeltippen und halten verdichtet. Bau-Tasten: `8` Schlachtschiff, `9` Marschflugkörper, `0` Atombombe, `H` Wasserstoffbombe, `M` MIRV, `Z` und `X` ganz rechts; Ton neu `O`. Knopf **?** (auch Taste `?`) zeigt alle übrigen Kürzel und blendet sie an den Knöpfen ein.

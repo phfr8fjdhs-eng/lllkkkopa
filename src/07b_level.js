@@ -83,7 +83,7 @@
     tipCur = -1; tipNext = 0; tipSince = 0; hideTip();
     u.begin(mapOf(n), {
       seed: 1000 + n, level: n, difficulty: L.diff === undefined ? 1 : L.diff, bots: 0, nations: false, arsenal: false,
-      kampf: c.kampf === 'grenzen' ? 'grenzen' : 'grenzland', pfeile: c.pfeile !== false
+      kampf: c.kampf === 'grenzen' ? 'grenzen' : 'grenzland', pfeile: true
     }, { name: c.name, color: u.COLORS[c.color] });
     $('lvBar').hidden = false;
     hud();

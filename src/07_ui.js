@@ -92,16 +92,13 @@
   let mp = null, turnLeft = 0, aim = null, joinCode = '', lobbyNote = '', goldTimer = 0;
   const chips = new Map(), asks = new Map();
   const cfg = { name: 'Spieler', color: 0, map: 'erde', diff: 1, bots: -1, nations: true, instant: false, gold: false, troops: false, tap: false, music: true, sfx: true, mode: 'klassisch', thrust: 0, botsV3: true, pfeile: true, kampf: 'grenzland', bahn: true, hafen: true };
-  // two switches of their own (doku/pfeile.md)
   // Two ways of fighting to compare (doku/kampfsysteme.md), and a few switches for both.
   const KAMPF = [['grenzland', 'Grenzland', 'Netz als passive Verteidigung: wo mehr Truppen stehen, geht ein Angriff langsamer, dort fallen aber auch mehr (dunkleres Land). Kessel halten 30 s. Keil und Abschnitt verlieren mit der Tiefe Schwung; Aufmarsch, Erholung und Schiene geben mehr.'],
     ['grenzen', 'Feste Grenzen', 'Kein Netz, deine Truppen stehen gleichmässig. Kein Schwung. Dazu der Richtungsangriff. Kessel fallen sofort.']];
-  const SWITCH = [['pfeile', 'Angriffe planen', 'An: Pfeile mit der rechten Maustaste planen, dann «Angreifen» (Enter). Aus: der Pfeil greift sofort an.'],
-    ['bahn', 'Bahn: Lieferungen', 'An: Fabriken liefern per Zug in Städte, grössere Städte bringen mehr Gold, eroberte Gleise sind kurz beschädigt. Aus: Gold pro Halt wie in OpenFront.'],
-    ['hafen', 'Häfen nach Stufe', 'An: höhere Häfen schicken öfter Schiffe, grössere Schiffe und reichen weiter. Aus: wie bisher.']];
   // the options of the game that the start screen decides
   function playOpts(c) {
-    return { kampf: c.kampf === 'grenzen' ? 'grenzen' : 'grenzland', pfeile: c.pfeile !== false, bahn: c.bahn !== false, hafen: c.hafen !== false };
+    // planned arrows, rail deliveries and ports by level are always on (24.11.2026), no switch any more
+    return { kampf: c.kampf === 'grenzen' ? 'grenzen' : 'grenzland', pfeile: true, bahn: true, hafen: true };
   }
   let plans = [];          // version «Pfeile»: arrows planned, not launched yet
   const MODES = [['klassisch', 'Klassisch', 'Das Spiel wie gewohnt.'], ['arsenal', 'Arsenal', 'Zusätzlich: der Satellitenstrahl. Er kommt aus dem All, braucht kein Silo und lässt sich nicht abfangen. Und der Tarnturm: Er versteckt deine Gebäude ganz in seiner Nähe, bis die anderen nahe herankommen. Auch die Nationen setzen beides ein.']];
@@ -304,11 +301,6 @@
       h += '<div class="field"><div class="lab">Kampfsystem</div><div class="seg" id="fKampf">' + KAMPF.map(function (k) {
         return '<button type="button" data-id="' + k[0] + '" aria-pressed="' + (k[0] === kNow) + '">' + k[1] + '</button>';
       }).join('') + '</div><p class="hint" id="fKampfNote">' + KAMPF.find(function (k) { return k[0] === kNow; })[2] + '</p></div>';
-      SWITCH.forEach(function (w) {
-        h += '<div class="field"><div class="lab">' + w[1] + '</div><div class="seg" id="fSw_' + w[0] + '">' +
-          '<button type="button" data-v="1" aria-pressed="' + !!cfg[w[0]] + '">An</button><button type="button" data-v="0" aria-pressed="' + !cfg[w[0]] + '">Aus</button>' +
-          '</div><p class="hint">' + w[2] + '</p></div>';
-      });
       h += '<div class="field"><div class="lab">Schwierigkeit</div><div class="seg" id="fDiff">' + G.DIFF_NAMES.map(function (n, i) {
         return '<button type="button" data-i="' + i + '" aria-pressed="' + (i === cfg.diff) + '">' + n + '</button>';
       }).join('') + '</div></div>';
@@ -356,13 +348,6 @@
       if (!b) return;
       cfg.kampf = b.dataset.id; press(this, b); saveCfg();
       $('fKampfNote').textContent = KAMPF.find(function (k) { return k[0] === cfg.kampf; })[2];
-    });
-    SWITCH.forEach(function (w) {
-      $('fSw_' + w[0]).addEventListener('click', function (e) {
-        const b = e.target.closest('button');
-        if (!b) return;
-        cfg[w[0]] = b.dataset.v === '1'; press(this, b); saveCfg();
-      });
     });
     $('fDiff').addEventListener('click', function (e) {
       const b = e.target.closest('button');
@@ -479,7 +464,7 @@
     turnLeft = 0;
     loadMap(m.map, m.mapSeed).then(function (map) {
       begin(map, {
-        seed: m.seed, difficulty: m.diff, bots: m.bots, nations: m.nations, arsenal: !!m.arsenal, res: !!m.res, kampf: m.opts ? m.opts.kampf : 'grenzland', pfeile: m.opts ? m.opts.pfeile : true, bahn: m.opts ? m.opts.bahn : true, hafen: m.opts ? m.opts.hafen : true, spawnTicks: 300, autoSpawn: true, me: me
+        seed: m.seed, difficulty: m.diff, bots: m.bots, nations: m.nations, arsenal: !!m.arsenal, res: !!m.res, kampf: m.opts ? m.opts.kampf : 'grenzland', pfeile: true, bahn: true, hafen: true, spawnTicks: 300, autoSpawn: true, me: me
       }, m.players.map(function (p) { return { name: p.name, color: COLORS[p.color % 6] }; }));
       $('bSpeed').hidden = true; $('bPause').hidden = !mp.host;
       addMsg(m.players.length > 1 ? m.players.length + ' Spieler sind dabei. Wählt eure Startpunkte.' : 'Du bist allein im Raum.', 'info');
