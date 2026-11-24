@@ -1,6 +1,11 @@
 # Änderungsprotokoll
 Was seit dem 13.11.2026 geändert wurde und warum. Den heutigen Stand der Regeln beschreiben die anderen Dateien in `doku/`.
 
+## Schlachtschiff fährt flüssig (24.11.2026)
+- **Wunsch:** Das Schlachtschiff ruckelt beim Fahren.
+- **Ursache:** Zwischen zwei Ticks schätzte das Bild die Fahrt mit vollem Tempo, die Simulation fährt das Schlachtschiff aber mit 60 % (auf Patrouille 36 %). Es lief jedes Bild voraus und sprang beim nächsten Tick bis 0.23 Felder zurück, fast bei jedem Tick.
+- **Geändert:** `stride` merkt sich das Tempo des Ticks (`u.sr`), das Bild gleitet genau damit. Gemessen: 0 statt 198 Rückwärtssprünge auf 200 Ticks. Hilft auch Massengut- und Containerschiffen und Schiffen auf der Rückfahrt.
+
 ## Aufgeräumt: weniger Meldungen, weniger Kreise, Schiffe einheitlich (24.11.2026)
 - **Wunsch:** zu viel Text unten rechts (z. B. nach dem Einnehmen einer Stadt), zu viele Reichweiten-Kreise (alle Häfen, alle Fabriken, alle Verteidigungen), Grössen der Bilder passen nicht zueinander, vor allem Schiffe.
 - **Meldungen:** Was man selbst einnimmt (Gebäude erobert, Verteidigungsposten zerstört, Gegner erobert oder eingekreist) gibt keine Meldung mehr; das Gold zeigt die Karte. Verluste und Warnungen bleiben.
