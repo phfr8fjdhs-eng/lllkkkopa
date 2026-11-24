@@ -7911,8 +7911,8 @@ void main() { outc = texture(uColor, vUV); }`;
   };
   // Density shows on the map (23.11.2026): land is darker where its owner keeps more troops than
   // on average (the net, src/03b_posture.js), so everybody can see from outside where a front is
-  // strong; a thin one stays light. `shade` holds a step per cell and owner (0 = average or less,
-  // 6 = three times as dense), worked out by shadeScan; between the middles of the cells it is
+  // strong; a thin one stays light. `shade` holds a step per cell and owner (0 = less than 1.4 times
+  // the average; 2, 4, 6 = the three calm steps up to three times as dense), worked out by shadeScan; between the middles of the cells it is
   // blended, so the map shows soft bands instead of the 16 x 16 grid.
   View.prototype.dense = function (o, t, c) {
     const m = this.shade && this.shade.get(o);
@@ -7933,7 +7933,7 @@ void main() { outc = texture(uColor, vUV); }`;
   // them) are marked for painting. Until 25.11.2026 all realms were done in one go inside draw
   // and painted at once: on the Earth a pause of up to 100 ms every second. Now the realms are
   // taken in turn, at most SHADE_MS per picture, and the painting goes with the next flush.
-  const SHADE_MS = 1.5;
+  const SHADE_MS = 1.5, SHADE_LO = 0.5, SHADE_W = (Math.log2(3) - SHADE_LO) / 3, SHADE_EASE = 0.15;
   View.prototype.shadeScan = function (now) {
     const g = this.game;
     if (!g || !g.aufstellung || !g.CW) return;
@@ -7941,7 +7941,7 @@ void main() { outc = texture(uColor, vUV); }`;
       if (now - (this.shadeAt || 0) < 1000) return;
       this.shadeAt = now; this.shadeI = 1;
     }
-    const S = this.shade || (this.shade = new Map()), W = g.W, H = g.H, CW = g.CW, CS = G.POST.cell, own = g.owner;
+    const S = this.shade || (this.shade = new Map()), A = this.shadeAvg || (this.shadeAvg = new Map()), W = g.W, H = g.H, CW = g.CW, CS = G.POST.cell, own = g.owner;
     const t0 = performance.now();
     while (this.shadeI < g.players.length) {
       const i = this.shadeI++, p = g.players[i];
@@ -7959,10 +7959,25 @@ void main() { outc = texture(uColor, vUV); }`;
         const x0 = Math.max(0, cx * CS - CS), y0 = Math.max(0, cy * CS - CS), x1 = Math.min(W, cx * CS + 2 * CS), y1 = Math.min(H, cy * CS + 2 * CS);
         for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) { const t = y * W + x; if (own[t] === i) g.markDirty(t); }
       };
+      // Calm on purpose (24.11.2026): the density is smoothed over about six seconds, there are
+      // only three steps from 1.4 times the average (shown as 2, 4 and 6 of the old scale), and a
+      // step changes only when the smoothed value is a quarter step past its edge. Before, seven
+      // raw steps jumped with every march and conquest: a nation's land (which stands evenly) was
+      // spotted dark and changed every second. Measured on «welt» (150 bots): dark cells of
+      // nations 24 % -> 8 %, changes per second 8 % -> 1 %.
+      let av = A.get(i);
+      if (!av) { av = new Map(); A.set(i, av); }
       for (const c of p.post.cells.values()) {
-        const d = c.n > 0 ? g.postDensSeen(p, c) : 1;
-        set(c.id, Math.round(within(Math.log2(Math.max(d, 1)), 0, Math.log2(3)) * 4));
+        const d = c.n > 0 ? g.postDensSeen(p, c) : 1, l = Math.log2(Math.max(d, 1)), a0 = av.get(c.id);
+        const a = a0 === undefined ? l : a0 + (l - a0) * SHADE_EASE;
+        av.set(c.id, a);
+        const old = (m.get(c.id) || 0) >> 1, raw = within((a - SHADE_LO) / SHADE_W + 1, 0, 3.999);
+        let st = old;
+        if (raw >= old + 1.25) st = Math.min(3, Math.floor(raw - 0.25));
+        else if (raw <= old - 0.25) st = Math.max(0, Math.ceil(raw + 0.25) - 1);
+        set(c.id, st * 2);
       }
+      for (const id of Array.from(av.keys())) if (!p.post.cells.has(id)) av.delete(id);
       // cells the realm has left: their step goes (until 25.11.2026 it stayed and still tinted
       // the realm's tiles next to them)
       for (const id of Array.from(m.keys())) if (!p.post.cells.has(id)) set(id, 0);
@@ -7974,6 +7989,7 @@ void main() { outc = texture(uColor, vUV); }`;
     const g = this.game, p = g.players[i];
     if (this.glm) for (const id of this.shade.get(i).keys()) this.glm.shade(id, i, 0);
     this.shade.delete(i);
+    if (this.shadeAvg) this.shadeAvg.delete(i);
     if (!p || p.x1 < p.x0) return;
     const W = g.W, own = g.owner;
     for (let y = p.y0; y <= p.y1; y++) for (let x = p.x0; x <= p.x1; x++) { const t = y * W + x; if (own[t] === i) g.markDirty(t); }
