@@ -1,5 +1,5 @@
 # Tests
-Alle Tests liegen in `test/` und laufen mit `node test/<name>.js`. Mehrere brauchen das Bildmodul `sharp` unter `/opt/npm-tools` (`mkdir -p /opt/npm-tools && cd /opt/npm-tools && npm init -y && npm i sharp`). Ohne Browser: Simulation. Mit Browser (Playwright, Chrome): Bedienung und Bilder.
+Alle Tests liegen in `test/` und laufen mit `node test/<name>.js`. Seit dem 25.11.2026 läuft das Spiel im Browser in einem Worker: Browser-Tests, die direkt ins Spiel greifen (`G.debug.game.tick()`, Gold setzen usw.), öffnen die Seite mit `?worker=0`. Ohne Grafikkarte zeichnet die Seite die Karte in 2D; `?gl=1` erzwingt WebGL. Mehrere brauchen das Bildmodul `sharp` unter `/opt/npm-tools` (`mkdir -p /opt/npm-tools && cd /opt/npm-tools && npm init -y && npm i sharp`). Ohne Browser: Simulation. Mit Browser (Playwright, Chrome): Bedienung und Bilder.
 
 `node test/rail.js` (Fabriken und Gleise im Browser), `node test/sim.js` (Simulation), `node test/all.js` (alle Karten), `node test/play.js [desktop]` (Browser-Durchlauf mit Screenshots, braucht Playwright + Chrome).
 `node test/det.js` (zwei Kopien desselben Spiels bleiben mit denselben Befehlen gleich), `node test/ui.js [desktop]` (Start, Kreismenü, Baumenü, Ausbau, Zielen, Beute), `node test/net.js` (zwei Browser spielen über einen lokalen Vermittler zusammen; braucht `npm install aedes websocket-stream` in /tmp/broker).
@@ -27,7 +27,9 @@ Alle Tests liegen in `test/` und laufen mit `node test/<name>.js`. Mehrere brauc
 | `vollbild.js` | Browser: Vollbild-Knopf, Vollbild beim Start auf dem Handy, Hinweis auf dem iPhone |
 | `handel.js` | Handelsschiffe über ein langes Spiel auf der Weltkarte: Zähler stimmt, keines auf Land oder ohne Route, gekaperte fahren zu einem Hafen des neuen Besitzers |
 | `rohstofftabelle.js` | Browser, Version «Rohstoffe»: Tabelle öffnen (Knopf und Gold), Anlage bauen und ausbauen, Fabrik ausbauen, zum Vorkommen fliegen; `desktop` als Argument für den Desktop, Bilder `build/rt_*.png` |
-| `net.js` | zwei Browser spielen über einen lokalen Vermittler zusammen |
+| `net.js` | zwei Browser spielen über einen lokalen Vermittler zusammen: der Gastgeber mit dem Spiel im Worker, der Gast ohne (`GUEST_WORKER=1` beide mit, `HOST_LOCAL=1` beide ohne); die Prüfsummen jedes 100. Ticks müssen gleich sein |
+| `worker.js [karte] [sekunden]` | Browser: das Spiel im Worker, die Seite liest den Spiegel. Spielt in Echtzeit (angreifen, bauen mit unbegrenztem Gold) und prüft danach, dass der Spiegel Feld für Feld und Wert für Wert dem Worker gleicht; `HTML=build/rohstoffe.html` für die Version «Rohstoffe» |
+| `gl.js [karte] [sekunden]` | Browser: die Karte auf der Grafikkarte. Liest die Farbe jedes Felds zurück und vergleicht sie mit `View.color`, auch in Stücke geschnitten, dazu der Rückfall auf das 2D-Bild, wenn die Grafikkarte verloren geht. Läuft auch ohne Grafikkarte (`?gl=1`) |
 | `insel.js` | Tipp auf das Festland eines Gegners greift übers Land an, Tipp auf seine Insel schickt ein Boot, auch während der Landangriff läuft |
 | `load.js` | Hilfsdatei, lädt die Karten für die anderen Tests (kein Test) |
 - `node test/pfeile.js`: Schalter: Netz aus lässt nichts malen, Netz an wie bisher, mehrere Pfeile teilen den Anteil gleichmässig, zwei Läufe gleich. Punktangriff: nimmt nur Land im Ring um die Stelle.

@@ -347,14 +347,15 @@ void main() { outc = texture(uColor, vUV); }`;
       if (this.np) {
         let pts = this.pts, m = this.np;
         if (!one) {
-          const sel = this.sel || (this.sel = new Float32Array(this.pts.length));
-          const s2 = sel.length < this.pts.length ? (this.sel = new Float32Array(this.pts.length)) : sel;
+          // only the tiles of this chunk
+          if (!this.sel || this.sel.length < this.pts.length) this.sel = new Float32Array(this.pts.length);
+          const sel = this.sel;
           m = 0;
           for (let i = 0; i < this.np; i++) {
             const x = this.pts[2 * i], y = this.pts[2 * i + 1];
-            if (x >= k.x0 && x < k.x0 + k.w && y >= k.y0 && y < k.y0 + k.h) { s2[2 * m] = x; s2[2 * m + 1] = y; m++; }
+            if (x >= k.x0 && x < k.x0 + k.w && y >= k.y0 && y < k.y0 + k.h) { sel[2 * m] = x; sel[2 * m + 1] = y; m++; }
           }
-          pts = s2;
+          pts = sel;
         }
         if (m) {
           uni(this.point);

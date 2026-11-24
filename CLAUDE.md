@@ -16,12 +16,13 @@ Echtzeit-Eroberungsspiel im Browser, Nachbau von OpenFront, als eine einzige HTM
 - Die Simulation muss auf jedem Gerät dieselben Zahlen liefern (Mehrspieler schickt nur Befehle). Darum `const Math = G.M`, Zufall nur über den RNG mit Startwert (`src/00_util.js`), kein `Math.random` oder `Date.now` in der Simulation. `node test/det.js` und `node test/posture.js` prüfen das.
 - Die Zahlen stammen aus dem OpenFront-Quellcode. Bewusste Abweichungen stehen in `doku/openfront-abgleich.md`; dort nachführen, wenn eine dazukommt.
 - Die Quellenangabe der Kartendaten auf dem Startbildschirm muss bleiben (`doku/erde.md`).
-- Die Reihenfolge der Dateien steht in `tools/build.py`; eine neue `src`-Datei dort eintragen.
+- Die Reihenfolge der Dateien steht in `tools/build.py`; eine neue `src`-Datei dort eintragen (`SIM` für die Simulation, die auch im Worker läuft, `PAGE` für die Seite).
+- Das Spiel läuft im Browser in einem Web Worker, die Seite liest eine Kopie, den Spiegel (`src/05b_sync.js`, `src/08b_host.js`). Die Anzeige verändert das Spiel nie, auch nicht nebenbei (siehe `postDensSeen`). Neue Felder der Simulation gehen von selbst hinüber. Reiner Arbeitsspeicher der Simulation (Heaps, Raster, Listen zum Wiederverwenden) kommt in `SKIP_GAME` und Co. `node test/worker.js` prüft, dass der Spiegel gleich bleibt.
 
 ## Leistung und Aufbau (Richtlinien, Kurzfassung)
 Ziel: grosse Karten, viele Spieler und Einheiten, später Mehrspieler über einen Server, und das Spiel bleibt flüssig, auch auf dem Handy. Messungen, Engpässe und Plan: `doku/leistung.md`.
 - Bei jeder neuen Funktion fragen: Was kostet sie pro Tick und pro Bild, und wie wächst das mit Feldern, Spielern und Einheiten (100, 1000, 10 000)? Was quadratisch wächst (jeder gegen jeden), braucht eine Suche über ein Raster wie `seaNear` (`src/04_units.js`).
-- Simulation und Zeichnen bleiben getrennt. Die Simulation kennt kein DOM, damit sie in einen Worker oder auf einen Server umziehen kann.
+- Simulation und Zeichnen bleiben getrennt. Die Simulation kennt kein DOM. Sie läuft im Worker und könnte so auch auf einen Server umziehen. Die Karte färbt die Grafikkarte (`src/06b_gl.js`), ohne sie das 2D-Bild. Beide folgen denselben Regeln (`View.color`), das prüft `test/gl.js`.
 - Teure Arbeit nicht öfter als nötig: nur bei Änderungen (`markDirty`, `lastChange`), über Ticks verteilt (`(T + id) % n`), nur Sichtbares zeichnen.
 - Im Hot Path keine unnötigen Objekte und Strings pro Einheit und Bild (Müllabfuhr).
 - Erst messen, dann ändern (`test/stress.js`, `test/stress_view.js`, `test/prof.js`). Melden, was echt ist, was wahrscheinlich kommt und was nur theoretisch ist. Kein Umbau ohne messbaren Nutzen, keine Mikro-Optimierung.
@@ -41,10 +42,13 @@ Ziel: grosse Karten, viele Spieler und Einheiten, später Mehrspieler über eine
 | `04_units.js` | 1050 | Gebäude und Ausbau (`G.MAX_LEVEL`, `G.BUILD_TICKS`), Tarnturm (`cloakScan`, `hiddenFrom`, `seenCount`, `G.CLOAK_COVER`), Bomben, Flugabwehr (`G.CRUISE_RANGE`), Häfen nach Stufe (`G.HAFEN`, `tickPort`, `shipKind`), Kriegsschiffe (`tickWarship`, `patrolPoint`, `shipboom`, `G.WARSHIP_CAPTURE`) |
 | `04b_rail.js` | 330 | Fabrik, Schienen, Züge: `railPath` (nur waagrecht und senkrecht), `rebuildRails`; Lieferungen `G.BAHN`, `tickDeliveries`, `railGuess` |
 | `05_ai.js` | 370 | Bots und Nationen: `AI.nukeTarget` |
+| `05b_sync.js` | 490 | Simulation im Worker: Änderungen pro Tick (`G.SyncOut`), Spiegel auf der Seite (`G.SyncIn`), Felder, die nicht hinüber gehen (`SKIP_GAME`, `SKIP_PLAYER`, `SKIP_ATTACK`), Karte kopieren (`G.mapPack`), Worker-Schleife (`G.simWorker`), Vergleich für Tests (`G.syncDump`) |
 | `06a_audio.js` | 190 | Ton und Musik aus dem Browser: `G.Audio` |
-| `06_view.js` | 1570 | Zeichnen: `View.pose`, `drawReach`, `drawRaids`, `drawFronts`, `drawNet`, `railGeo`, `worldColors`, `placeName`, `G.ICON` |
+| `06b_gl.js` | 440 | Karte auf der Grafikkarte (WebGL 2): `G.MapGL`, Shader `FS_TILE` (Regeln wie `View.color`), Stücke (`chunks`), Schattierung pro Zelle (`shade`), Rückfall ohne Grafikkarte (`MapGL.wanted`, `?gl=0`, `?gl=1`) |
+| `06_view.js` | 2480 | Zeichnen: `View.color` (Farbe eines Felds), `flush`, `shadeScan`, `View.pose`, `drawReach`, `drawRaids`, `drawFronts`, `drawNet`, `railGeo`, `worldColors`, `placeName`, `G.ICON` |
 | `07_ui.js` | 1560 | Bedienung: Tasten, Menüs, Touch, `#hotbar`, `view.ghost`, `showPeek` |
 | `08_net.js` | 310 | Mehrspieler über MQTT: `G.RELAYS` |
+| `08b_host.js` | 110 | Wo das Spiel läuft: `G.Host` (Worker oder mit `?worker=0` auf der Seite), `exec`, `order`, `step`, `ready` |
 | `07b_level.js` | 210 | Feldzug auf dem Bildschirm: `G.Feldzug` (Levelseite, Quest-Leiste `#lvBar`, Tipps `#lvTip`, Endfenster); nutzt `G.ui` aus `07_ui.js` |
 | `template.html` | | Seitengerüst (HTML und CSS) |
 
@@ -78,3 +82,4 @@ Weitere Ordner: `tools/` (Bauen und Kartenerzeugung, Python), `test/` (Tests, No
 - Feldzug (jedes Level baut sich, bleibt gleich, ist zu gewinnen): `node test/level.js`
 - Bedienung im Browser: `node test/ui.js` (braucht Playwright und Chrome)
 - Leistung: `node test/stress.js` (Simulation mit 100 bis 10 000 Schiffen), `node test/stress_view.js` (Bild, nach dem Build)
+- Worker und Spiegel: `node test/worker.js [karte] [sekunden]`, Karte auf der Grafikkarte: `node test/gl.js` (beide nach dem Build). Browser-Tests, die direkt ins Spiel greifen, öffnen die Seite mit `?worker=0`.

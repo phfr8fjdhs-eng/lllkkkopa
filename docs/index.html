@@ -6201,9 +6201,10 @@ body.placing #cv { cursor: crosshair; }
 // drawing and the controls read as they read the game itself. After every step the worker sends
 // what changed:
 //   tiles    owner and fallout of every changed tile (the list the game keeps for painting anyway)
-//   objects  the game, every player, unit, attack and rail: the fields that changed since the
-//            last message. A plain value is compared as it is; a list, map, set or nested object
-//            by a hash of its content, and sent whole when that changed.
+//   objects  the game, every player, unit and rail, and the attacks on or by the person at this
+//            device: the fields that changed since the last message. A plain value is compared
+//            as it is; a list, map, set or nested object by a hash of its content, and sent whole
+//            when that changed.
 //   queues   new messages (events) and effects (fx), handed over and emptied in the worker
 // A reference to a player, unit, attack, rail or the game itself travels as its id and is turned
 // back into the mirror's own object, so `u.owner === game.human` holds on the page as well.
@@ -6212,15 +6213,14 @@ body.placing #cv { cursor: crosshair; }
 // Nothing here changes the game: the worker reads it after a step, the page writes only the
 // mirror. Orders go the other way as messages and are carried out with game.exec, between ticks,
 // in the order they were sent, as they always were.
-//
-// Fields that do not go across, or go another way:
 (function (G) {
   'use strict';
+  // ---------- what does not go across, or goes another way ----------
   // the game: tile arrays have their own channel, lists of objects too, the rest is the worker's
   // own working memory
   const SKIP_GAME = new Set(['map', 'sea', 'rng', 'owner', 'fallout', 'stamp', 'sid', 'q', 'dirty', 'dirtyN', 'dirtyFlag',
     'players', 'units', 'attacks', 'rails', 'events', 'fx', 'pathLeg', 'pathNear', 'pathCache', 'pathQ', 'pathJob', 'nearQ', 'nearJob',
-    'postHeap', 'postList', 'pocketQ', 'railHeap', 'thrustHeap', 'deferList', 'cloakOk', 'opts', 'lv']);
+    'postHeap', 'postList', 'pocketQ', 'railHeap', 'thrustHeap', 'deferList', 'sg', 'cloakOk', 'opts', 'lv']);
   // a player: the border is sent for the person at this device only (the mirror works it out
   // for the others when asked); the posture of the others only as much as the shading needs
   const SKIP_PLAYER = new Set(['border', 'ai', 'post', 'pocketFrom', 'pocketSeen']);
@@ -6228,9 +6228,8 @@ body.placing #cv { cursor: crosshair; }
   // the Earth some 2500 of them change every tick)
   const SKIP_OTHER = new Set(Array.from(SKIP_PLAYER).concat(['out', 'inc']));
   const SKIP_ATTACK = new Set(['heap', 'front', 'taken']);
-  const SKIP_UNIT = new Set([]);
-  const SKIP_EDGE = new Set(['geo']);
-  // cell fields the shading and the tooltips read (src/03b_posture.js postDens)
+  const SKIP_UNIT = new Set([]);          // a unit goes whole
+  const SKIP_EDGE = new Set(['geo']);     // a rail: its drawn shape is the page's own
   const SLOW = 10;   // the posture of the others goes across every SLOW ticks
 
   // ---------- content hash: has a value changed since it was last sent? ----------
@@ -6281,7 +6280,6 @@ body.placing #cv { cursor: crosshair; }
     this.prev = new Map();     // object -> Map(field -> plain value or content hash)
     this.ref = new Map();      // object -> { r: reference as sent, h: its hash }
     this.lists = {};           // name -> hash of the id list last sent
-    this.sentPath = new WeakMap();
   }
   // References: every player, unit, attack and rail, and the game, by id.
   Out.prototype.tables = function () {
@@ -6428,12 +6426,10 @@ body.placing #cv { cursor: crosshair; }
     for (const u of T.units) { const c = this.diff(u, SKIP_UNIT); if (c) ud.push(u.id, c); }
     if (ud.length) msg.units = ud;
     const ad = [];
-    for (const a of T.attacks) {
+    for (const a of T.attacks) {   // all of them on or by the person at this device, with their front
       let c = this.diff(a, SKIP_ATTACK);
-      if (me && (a.a === me || a.tid === me.id)) {
-        const pv = this.prev.get(a), key = '#' + hash(a.front, 0, 0, this);
-        if (pv.get('front') !== key) { pv.set('front', key); (c || (c = {})).front = { $S: Array.from(a.front) }; }
-      }
+      const pv = this.prev.get(a), key = '#' + hash(a.front, 0, 0, this);
+      if (pv.get('front') !== key) { pv.set('front', key); (c || (c = {})).front = { $S: Array.from(a.front) }; }
       if (c) ad.push(a.id, c);
     }
     if (ad.length) msg.attacks = ad;
@@ -6463,7 +6459,15 @@ body.placing #cv { cursor: crosshair; }
     const N = map.N, m = this.m = Object.create(G.Game.prototype);
     m.map = map; m.W = map.W; m.H = map.H; m.N = N; m.S = map.S;
     m.owner = new Uint16Array(N); m.fallout = new Uint8Array(N);
-    m.dirty = new Int32Array(N); m.dirtyN = 0; m.dirtyFlag = new Uint8Array(N);
+    // the tiles to paint again: a list that grows when needed (one for every tile of the map
+    // would be 65 MB on the Earth, a tick changes some ten thousand)
+    m.dirty = new Int32Array(1 << 16); m.dirtyN = 0; m.dirtyFlag = new Uint8Array(N);
+    m.markDirty = function (t) {
+      if (this.dirtyFlag[t]) return;
+      this.dirtyFlag[t] = 1;
+      if (this.dirtyN === this.dirty.length) { const d = new Int32Array(Math.min(N, this.dirty.length * 2)); d.set(this.dirty); this.dirty = d; }
+      this.dirty[this.dirtyN++] = t;
+    };
     m.players = [null]; m.units = []; m.nukes = []; m.attacks = []; m.rails = []; m.events = []; m.fx = [];
     m.mirror = true; m.cloakOk = false;
     // working memory of the few questions that search (boatPlan, portSite): made on first use
@@ -6619,11 +6623,12 @@ body.placing #cv { cursor: crosshair; }
 
   // ---------- the worker ----------
   // Messages from the page, carried out in the order they come:
-  //   init  { map, opts, people }      a new game; answers 'state' with everything
+  //   init  { map, opts, people }      a new game; answers 'ready' with everything
   //   step  { ticks: [orders, ...] }   one tick per entry, its orders [[player id, order], ...]
   //                                    first; answers 'state' with the changes, what each order
   //                                    of this device answered (acks) and the checksums
-  //   exec  { id, c, seq }             one order at once (playing alone, also while paused)
+  //   exec  { id, c, seq }             one order at once (playing alone, also while paused);
+  //                                    answers 'ack' with its answer and the changes
   //   dump  {}                         for the tests: the whole game as the mirror should have it
   G.simWorker = function (scope) {
     let game = null, out = null, me = -1;
@@ -7223,14 +7228,15 @@ void main() { outc = texture(uColor, vUV); }`;
       if (this.np) {
         let pts = this.pts, m = this.np;
         if (!one) {
-          const sel = this.sel || (this.sel = new Float32Array(this.pts.length));
-          const s2 = sel.length < this.pts.length ? (this.sel = new Float32Array(this.pts.length)) : sel;
+          // only the tiles of this chunk
+          if (!this.sel || this.sel.length < this.pts.length) this.sel = new Float32Array(this.pts.length);
+          const sel = this.sel;
           m = 0;
           for (let i = 0; i < this.np; i++) {
             const x = this.pts[2 * i], y = this.pts[2 * i + 1];
-            if (x >= k.x0 && x < k.x0 + k.w && y >= k.y0 && y < k.y0 + k.h) { s2[2 * m] = x; s2[2 * m + 1] = y; m++; }
+            if (x >= k.x0 && x < k.x0 + k.w && y >= k.y0 && y < k.y0 + k.h) { sel[2 * m] = x; sel[2 * m + 1] = y; m++; }
           }
-          pts = s2;
+          pts = sel;
         }
         if (m) {
           uni(this.point);
