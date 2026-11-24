@@ -323,7 +323,7 @@
   };
   // The step of every cell of every realm with a posture, worked out again once a second; where a
   // step changed, the owner's tiles of that cell and the cells around it (the blend reaches into
-  // them) are marked for painting. Until 25.11.2026 all realms were done in one go inside draw
+  // them) are marked for painting. Until 24.11.2026 all realms were done in one go inside draw
   // and painted at once: on the Earth a pause of up to 100 ms every second. Now the realms are
   // taken in turn, at most SHADE_MS per picture, and the painting goes with the next flush.
   const SHADE_MS = 1.5, SHADE_LO = 0.5, SHADE_W = (Math.log2(3) - SHADE_LO) / 3, SHADE_EASE = 0.15;
@@ -370,8 +370,8 @@
         else if (raw <= old - 0.25) st = Math.max(0, Math.ceil(raw + 0.25) - 1);
         set(c.id, st * 2);
       }
-      for (const id of Array.from(av.keys())) if (!p.post.cells.has(id)) av.delete(id);
-      // cells the realm has left: their step goes (until 25.11.2026 it stayed and still tinted
+      for (const id of av.keys()) if (!p.post.cells.has(id)) av.delete(id);   // deleting while going through a Map is safe, no copy needed
+      // cells the realm has left: their step goes (until 24.11.2026 it stayed and still tinted
       // the realm's tiles next to them)
       for (const id of Array.from(m.keys())) if (!p.post.cells.has(id)) set(id, 0);
       if (performance.now() - t0 > SHADE_MS) break;
@@ -418,7 +418,7 @@
     for (const id of h.allies.keys()) if (!seen.has(id)) { seen.add(id); changed.push(id); }
     for (const id of Array.from(seen)) if (!h.allies.has(id)) { seen.delete(id); changed.push(id); }
     if (!changed.length) return;
-    // only those whose standing changed get new colours (until 25.11.2026 every realm's border
+    // only those whose standing changed get new colours (until 24.11.2026 every realm's border
     // was painted again)
     for (const id of changed) {
       const p = g.players[id];

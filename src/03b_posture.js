@@ -118,7 +118,7 @@
   };
   // The same for the display (shading, tooltips): reads only. postDens above evens out a realm
   // without units as a side effect, and the display asks at its own times, different on every
-  // device; until 25.11.2026 the shading did that through postDens, which could part the games
+  // device; until 24.11.2026 the shading did that through postDens, which could part the games
   // of two devices playing together.
   Game.prototype.postDensSeen = function (p, c) {
     const post = p.post;
@@ -158,7 +158,7 @@
   Game.prototype.postGain = function (p, t) {
     const post = p.post, id = this.cellOf(t);
     let c = post.cells.get(id);
-    if (!c) { c = { id: id, n: 0, u: 0, m: 1, want: 0, diff: 0, r: 0, d: 0, to: null, ec: 0, cut: false }; post.cells.set(id, c); }   // new ground starts empty
+    if (!c) { c = { id: id, n: 0, u: 0, m: 1, want: 0, diff: 0, r: 0, d: 0, to: null, ec: 0, cut: false }; post.cells.set(id, c); post.cv = (post.cv | 0) + 1; }   // new ground starts empty
     c.n++;
   };
   Game.prototype.postLose = function (p, t) {
@@ -166,6 +166,7 @@
     if (!c) return;
     if (--c.n > 0) return;
     post.cells.delete(id);
+    post.cv = (post.cv | 0) + 1;
     if (!(c.u > 0)) return;
     // the last of the cell is gone: whoever stood there falls back to the cells next to it
     const CW = this.CW, cx = id % CW, near = [];
@@ -289,9 +290,28 @@
   // nearest cell that holds less.
   // Which cells are cut off: a group of cells (neighbours in eight directions) that is not the
   // largest one and has no sea coast is a pocket without supply.
+  // The groups only change when a cell comes or goes (`post.cv`, counted in postGain and
+  // postLose). Until then they are kept and only which group is the largest is checked again
+  // (24.11.2026): the search over all cells ran at every flow step and was some 4 % of a tick on
+  // the Earth. Same result as before, in the same order.
   Game.prototype.postPockets = function (p) {
-    const cells = p.post.cells, CW = this.CW, q = this.pocketQ || (this.pocketQ = []);
-    for (const c of cells.values()) { c.grp = -1; c.cut = false; }
+    const post = p.post, cells = post.cells, CW = this.CW, q = this.pocketQ || (this.pocketQ = []);
+    for (const c of cells.values()) c.cut = false;
+    let groups = post.pk;
+    if (groups && post.pkV === (post.cv | 0)) {
+      if (groups.length < 2) return;
+      for (const g of groups) { let n = 0; for (const c of g.list) n += c.n; g.n = n; }
+    } else {
+      groups = this.postGroups(cells, CW, q);
+      post.pk = groups; post.pkV = post.cv | 0;
+      if (groups.length < 2) return;
+    }
+    let main = groups[0];
+    for (const g of groups) if (g.n > main.n) main = g;
+    for (const g of groups) if (g !== main && !g.coast) for (const c of g.list) c.cut = true;
+  };
+  Game.prototype.postGroups = function (cells, CW, q) {
+    for (const c of cells.values()) c.grp = -1;
     const groups = [];
     for (const c of cells.values()) {
       if (c.grp >= 0) continue;
@@ -309,10 +329,7 @@
         }
       }
     }
-    if (groups.length < 2) return;
-    let main = groups[0];
-    for (const g of groups) if (g.n > main.n) main = g;
-    for (const g of groups) if (g !== main && !g.coast) for (const c of g.list) c.cut = true;
+    return groups;
   };
   Game.prototype.postFlow = function (p) {
     const post = p.post, cells = post.cells, now = this.ticks;

@@ -155,7 +155,9 @@
     this.requests = []; this.events = []; this.fx = [];
     this.res = !!(this.opts.res && map.ctile);   // version «Rohstoffe»: countries pay for their raw materials
     this.human = null; this.humans = []; this.winner = null; this.names = new Set();
-    this.dirty = new Int32Array(N); this.dirtyN = 0; this.dirtyFlag = new Uint8Array(N);
+    // the tiles changed since the last picture: a list that grows when needed (24.11.2026; one
+    // slot for every tile was 65 MB on the Earth, a tick changes some ten thousand)
+    this.dirty = new Int32Array(Math.min(N, 1 << 16)); this.dirtyN = 0; this.dirtyFlag = new Uint8Array(N);
     this.sea = map.sea || (map.sea = new G.SeaGraph(map));   // built once per map, shared by every game on it
     this.pathLeg = new G.Pathfinder(map, 160000); this.pathCache = new Map(); this.pathQ = []; this.pathJob = null;
     this.pathNear = new G.Pathfinder(map, 260000); this.nearQ = []; this.nearJob = null;   // short hops: a window of at most 260 000 tiles
@@ -346,7 +348,10 @@
 
   // ---------- territory ----------
   Game.prototype.markDirty = function (t) {
-    if (!this.dirtyFlag[t]) { this.dirtyFlag[t] = 1; this.dirty[this.dirtyN++] = t; }
+    if (this.dirtyFlag[t]) return;
+    this.dirtyFlag[t] = 1;
+    if (this.dirtyN === this.dirty.length) { const d = new Int32Array(Math.min(this.N, this.dirty.length * 2)); d.set(this.dirty); this.dirty = d; }
+    this.dirty[this.dirtyN++] = t;
   };
   Game.prototype.fixBorder = function (t) {
     const own = this.owner, id = own[t];

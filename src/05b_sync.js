@@ -1,4 +1,4 @@
-// The simulation in its own thread (doku/leistung.md, 25.11.2026).
+// The simulation in its own thread (doku/leistung.md, 24.11.2026).
 //
 // The game runs in a Web Worker; the page keeps a read-only copy of it, the mirror, that the
 // drawing and the controls read as they read the game itself. After every step the worker sends

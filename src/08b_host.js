@@ -1,4 +1,4 @@
-// Where the game runs (doku/leistung.md, 25.11.2026). Two hosts with the same face:
+// Where the game runs (doku/leistung.md, 24.11.2026). Two hosts with the same face:
 //   in a worker  the default: the simulation has its own thread, so a long tick never holds up a
 //                picture; the page reads the mirror (src/05b_sync.js), one tick behind at most
 //   on the page  with ?worker=0 in the address, for the tests that reach into the game, and

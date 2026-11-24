@@ -1582,7 +1582,9 @@ body.placing #cv { cursor: crosshair; }
     this.requests = []; this.events = []; this.fx = [];
     this.res = !!(this.opts.res && map.ctile);   // version «Rohstoffe»: countries pay for their raw materials
     this.human = null; this.humans = []; this.winner = null; this.names = new Set();
-    this.dirty = new Int32Array(N); this.dirtyN = 0; this.dirtyFlag = new Uint8Array(N);
+    // the tiles changed since the last picture: a list that grows when needed (24.11.2026; one
+    // slot for every tile was 65 MB on the Earth, a tick changes some ten thousand)
+    this.dirty = new Int32Array(Math.min(N, 1 << 16)); this.dirtyN = 0; this.dirtyFlag = new Uint8Array(N);
     this.sea = map.sea || (map.sea = new G.SeaGraph(map));   // built once per map, shared by every game on it
     this.pathLeg = new G.Pathfinder(map, 160000); this.pathCache = new Map(); this.pathQ = []; this.pathJob = null;
     this.pathNear = new G.Pathfinder(map, 260000); this.nearQ = []; this.nearJob = null;   // short hops: a window of at most 260 000 tiles
@@ -1773,7 +1775,10 @@ body.placing #cv { cursor: crosshair; }
 
   // ---------- territory ----------
   Game.prototype.markDirty = function (t) {
-    if (!this.dirtyFlag[t]) { this.dirtyFlag[t] = 1; this.dirty[this.dirtyN++] = t; }
+    if (this.dirtyFlag[t]) return;
+    this.dirtyFlag[t] = 1;
+    if (this.dirtyN === this.dirty.length) { const d = new Int32Array(Math.min(this.N, this.dirty.length * 2)); d.set(this.dirty); this.dirty = d; }
+    this.dirty[this.dirtyN++] = t;
   };
   Game.prototype.fixBorder = function (t) {
     const own = this.owner, id = own[t];
@@ -3265,7 +3270,7 @@ body.placing #cv { cursor: crosshair; }
   };
   // The same for the display (shading, tooltips): reads only. postDens above evens out a realm
   // without units as a side effect, and the display asks at its own times, different on every
-  // device; until 25.11.2026 the shading did that through postDens, which could part the games
+  // device; until 24.11.2026 the shading did that through postDens, which could part the games
   // of two devices playing together.
   Game.prototype.postDensSeen = function (p, c) {
     const post = p.post;
@@ -3305,7 +3310,7 @@ body.placing #cv { cursor: crosshair; }
   Game.prototype.postGain = function (p, t) {
     const post = p.post, id = this.cellOf(t);
     let c = post.cells.get(id);
-    if (!c) { c = { id: id, n: 0, u: 0, m: 1, want: 0, diff: 0, r: 0, d: 0, to: null, ec: 0, cut: false }; post.cells.set(id, c); }   // new ground starts empty
+    if (!c) { c = { id: id, n: 0, u: 0, m: 1, want: 0, diff: 0, r: 0, d: 0, to: null, ec: 0, cut: false }; post.cells.set(id, c); post.cv = (post.cv | 0) + 1; }   // new ground starts empty
     c.n++;
   };
   Game.prototype.postLose = function (p, t) {
@@ -3313,6 +3318,7 @@ body.placing #cv { cursor: crosshair; }
     if (!c) return;
     if (--c.n > 0) return;
     post.cells.delete(id);
+    post.cv = (post.cv | 0) + 1;
     if (!(c.u > 0)) return;
     // the last of the cell is gone: whoever stood there falls back to the cells next to it
     const CW = this.CW, cx = id % CW, near = [];
@@ -3436,9 +3442,28 @@ body.placing #cv { cursor: crosshair; }
   // nearest cell that holds less.
   // Which cells are cut off: a group of cells (neighbours in eight directions) that is not the
   // largest one and has no sea coast is a pocket without supply.
+  // The groups only change when a cell comes or goes (`post.cv`, counted in postGain and
+  // postLose). Until then they are kept and only which group is the largest is checked again
+  // (24.11.2026): the search over all cells ran at every flow step and was some 4 % of a tick on
+  // the Earth. Same result as before, in the same order.
   Game.prototype.postPockets = function (p) {
-    const cells = p.post.cells, CW = this.CW, q = this.pocketQ || (this.pocketQ = []);
-    for (const c of cells.values()) { c.grp = -1; c.cut = false; }
+    const post = p.post, cells = post.cells, CW = this.CW, q = this.pocketQ || (this.pocketQ = []);
+    for (const c of cells.values()) c.cut = false;
+    let groups = post.pk;
+    if (groups && post.pkV === (post.cv | 0)) {
+      if (groups.length < 2) return;
+      for (const g of groups) { let n = 0; for (const c of g.list) n += c.n; g.n = n; }
+    } else {
+      groups = this.postGroups(cells, CW, q);
+      post.pk = groups; post.pkV = post.cv | 0;
+      if (groups.length < 2) return;
+    }
+    let main = groups[0];
+    for (const g of groups) if (g.n > main.n) main = g;
+    for (const g of groups) if (g !== main && !g.coast) for (const c of g.list) c.cut = true;
+  };
+  Game.prototype.postGroups = function (cells, CW, q) {
+    for (const c of cells.values()) c.grp = -1;
     const groups = [];
     for (const c of cells.values()) {
       if (c.grp >= 0) continue;
@@ -3456,10 +3481,7 @@ body.placing #cv { cursor: crosshair; }
         }
       }
     }
-    if (groups.length < 2) return;
-    let main = groups[0];
-    for (const g of groups) if (g.n > main.n) main = g;
-    for (const g of groups) if (g !== main && !g.coast) for (const c of g.list) c.cut = true;
+    return groups;
   };
   Game.prototype.postFlow = function (p) {
     const post = p.post, cells = post.cells, now = this.ticks;
@@ -6423,7 +6445,7 @@ body.placing #cv { cursor: crosshair; }
   G.AI = AI;
 })(globalThis.G = globalThis.G || {});
 
-// The simulation in its own thread (doku/leistung.md, 25.11.2026).
+// The simulation in its own thread (doku/leistung.md, 24.11.2026).
 //
 // The game runs in a Web Worker; the page keeps a read-only copy of it, the mirror, that the
 // drawing and the controls read as they read the game itself. After every step the worker sends
@@ -7107,7 +7129,7 @@ body.placing #cv { cursor: crosshair; }
   };
 })(globalThis.G = globalThis.G || {});
 
-// The map drawn by the graphics card (WebGL 2, doku/leistung.md, 25.11.2026).
+// The map drawn by the graphics card (WebGL 2, doku/leistung.md, 24.11.2026).
 //
 // Until now every changed tile was coloured in JavaScript (View.color) and copied into a picture
 // of the whole map, 16 million pixels on the Earth, that the browser then took to the graphics
@@ -7870,7 +7892,7 @@ void main() { outc = texture(uColor, vUV); }`;
   };
   // The step of every cell of every realm with a posture, worked out again once a second; where a
   // step changed, the owner's tiles of that cell and the cells around it (the blend reaches into
-  // them) are marked for painting. Until 25.11.2026 all realms were done in one go inside draw
+  // them) are marked for painting. Until 24.11.2026 all realms were done in one go inside draw
   // and painted at once: on the Earth a pause of up to 100 ms every second. Now the realms are
   // taken in turn, at most SHADE_MS per picture, and the painting goes with the next flush.
   const SHADE_MS = 1.5, SHADE_LO = 0.5, SHADE_W = (Math.log2(3) - SHADE_LO) / 3, SHADE_EASE = 0.15;
@@ -7917,8 +7939,8 @@ void main() { outc = texture(uColor, vUV); }`;
         else if (raw <= old - 0.25) st = Math.max(0, Math.ceil(raw + 0.25) - 1);
         set(c.id, st * 2);
       }
-      for (const id of Array.from(av.keys())) if (!p.post.cells.has(id)) av.delete(id);
-      // cells the realm has left: their step goes (until 25.11.2026 it stayed and still tinted
+      for (const id of av.keys()) if (!p.post.cells.has(id)) av.delete(id);   // deleting while going through a Map is safe, no copy needed
+      // cells the realm has left: their step goes (until 24.11.2026 it stayed and still tinted
       // the realm's tiles next to them)
       for (const id of Array.from(m.keys())) if (!p.post.cells.has(id)) set(id, 0);
       if (performance.now() - t0 > SHADE_MS) break;
@@ -7965,7 +7987,7 @@ void main() { outc = texture(uColor, vUV); }`;
     for (const id of h.allies.keys()) if (!seen.has(id)) { seen.add(id); changed.push(id); }
     for (const id of Array.from(seen)) if (!h.allies.has(id)) { seen.delete(id); changed.push(id); }
     if (!changed.length) return;
-    // only those whose standing changed get new colours (until 25.11.2026 every realm's border
+    // only those whose standing changed get new colours (until 24.11.2026 every realm's border
     // was painted again)
     for (const id of changed) {
       const p = g.players[id];
@@ -10383,7 +10405,7 @@ void main() { outc = texture(uColor, vUV); }`;
   G.Session = Session;
 })(globalThis.G = globalThis.G || {});
 
-// Where the game runs (doku/leistung.md, 25.11.2026). Two hosts with the same face:
+// Where the game runs (doku/leistung.md, 24.11.2026). Two hosts with the same face:
 //   in a worker  the default: the simulation has its own thread, so a long tick never holds up a
 //                picture; the page reads the mirror (src/05b_sync.js), one tick behind at most
 //   on the page  with ?worker=0 in the address, for the tests that reach into the game, and

@@ -1,6 +1,11 @@
 # Änderungsprotokoll
 Was seit dem 13.11.2026 geändert wurde und warum. Den heutigen Stand der Regeln beschreiben die anderen Dateien in `doku/`.
 
+## Leistung: Abgleich mit dem Auftrag, Dichte geprüft, Speicher (24.11.2026, Abend)
+- **Wunsch:** Den Auftrag «Leistung» mit dem heutigen Stand vergleichen und ergänzen, was fehlt; die Dichte besonders prüfen, ohne sie wegzunehmen.
+- **Gemessen:** Neue Messbank `test/phasen.js`. Auf der Erde geht ein Tick zu 77 % in die Eroberung, 14 % in die Dichte, 7 % in die Bots. Die Dichte bleibt (Urteil und Zahlen in `doku/leistung.md`).
+- **Geändert:** Taschen-Suche der Dichte nur, wenn Zellen kommen oder gehen (0.40 statt 0.77 ms pro Tick auf der Erde). Liste der geänderten Felder wächst bei Bedarf (64 MB weniger auf der Erde). Kleine Aufräumung im Dichte-Schatten (keine Kopie pro Reich und Sekunde). Datum «25.11.2026» in Doku und Kommentaren auf 24.11.2026 berichtigt.
+- **Nicht geändert:** Spielregeln. Prüfsummen gleich, `det.js` (alle Varianten), `posture.js`.
 ## Bereich «Änderungen» und ruhige Dichte (24.11.2026)
 - **Wunsch:** Jede Änderung im Spiel selbst ansehen können, wie Levels aufgelistet: antippen, und die Änderung läuft gleich vor einem ab (das Boot fährt, die Schienen sind da), mit einem kurzen Text unten, was geändert wurde, und man kann mitspielen.
 - **Geändert:** Neuer Bereich «Änderungen» auf dem Startbildschirm mit 15 Szenen von 17. bis 24.11. (`neuheiten.md`). Ab jetzt bekommt jede sichtbare Änderung eine Szene (`CLAUDE.md`, Arbeitsablauf).
@@ -16,7 +21,7 @@ Was seit dem 13.11.2026 geändert wurde und warum. Den heutigen Stand der Regeln
 - **Geändert:** `V` halten verdichtet, Shift + `V` dünnt aus, Loslassen beendet. Knöpfe + und − rechts am Rand (ein Strich, lange drücken bleibt an), Doppeltippen und halten verdichtet. Bau-Tasten: `8` Schlachtschiff, `9` Marschflugkörper, `0` Atombombe, `H` Wasserstoffbombe, `M` MIRV, `Z` und `X` ganz rechts; Ton neu `O`. Knopf **?** (auch Taste `?`) zeigt alle übrigen Kürzel und blendet sie an den Knöpfen ein.
 - **Nicht geändert:** Spielregeln und Befehle (`mesh` wie bisher), darum `det.js` und `posture.js` gleich.
 
-## Leistung: Simulation im Worker, Karte auf der Grafikkarte, keine Spitzen mehr (25.11.2026)
+## Leistung: Simulation im Worker, Karte auf der Grafikkarte, keine Spitzen mehr (24.11.2026)
 - **Wunsch:** Das Spiel laggt, OpenFront läuft auf gleich grossen Karten flüssiger. Den Code sauber machen.
 - **Ursache, gemessen:** Simulation, Nachmalen der Karte und Bild liefen im selben Thread. Ein Tick (auf der Erde 18 bis 45 ms) und das Nachmalen (bis 88 ms) hielten zehnmal pro Sekunde das Bild an. Dazu rechnete die Dichte-Schattierung einmal pro Sekunde alles neu (bis 100 ms). OpenFront rechnet seine Simulation in einem Worker.
 - **Geändert** (Einzelheiten in `leistung.md`):

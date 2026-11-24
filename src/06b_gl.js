@@ -1,4 +1,4 @@
-// The map drawn by the graphics card (WebGL 2, doku/leistung.md, 25.11.2026).
+// The map drawn by the graphics card (WebGL 2, doku/leistung.md, 24.11.2026).
 //
 // Until now every changed tile was coloured in JavaScript (View.color) and copied into a picture
 // of the whole map, 16 million pixels on the Earth, that the browser then took to the graphics

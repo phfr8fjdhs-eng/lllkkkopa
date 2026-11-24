@@ -51,7 +51,7 @@ Kessel, Schwung (Angriffe verlieren mit der Tiefe Schwung, Vorbereitung gibt meh
 - Nationen schneiden Keile ab und bereiten Angriffe vor.
 - Kriegsschiffe: Zerstörer, Schlachtschiff, Flugabwehrschiff, Flugzeugträger (sehr spät, nur im Verband); Geleitschutz mit echten Zerstörern; steigende Preise und Unterhalt.
 - Flugabwehr in zwei Arten: Kurzstrecke (Marschflugkörper, Flugzeuge, Sprengköpfe) und Raketenabwehr (Atom- und Wasserstoffbombe); abnehmender Schutz beim Stapeln.
-- ~~Simulation in einen Worker~~ (gebaut 25.11.2026, mit der Karte auf der Grafikkarte, siehe `leistung.md`), danach eine grössere Erde.
+- ~~Simulation in einen Worker~~ (gebaut 24.11.2026, mit der Karte auf der Grafikkarte, siehe `leistung.md`), danach eine grössere Erde.
 
 ## Was wir weglassen
 - Einzeleinheiten, die man von Hand über die Karte schiebt.

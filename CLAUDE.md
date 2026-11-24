@@ -26,7 +26,7 @@ Ziel: grosse Karten, viele Spieler und Einheiten, später Mehrspieler über eine
 - Simulation und Zeichnen bleiben getrennt. Die Simulation kennt kein DOM. Sie läuft im Worker und könnte so auch auf einen Server umziehen. Die Karte färbt die Grafikkarte (`src/06b_gl.js`), ohne sie das 2D-Bild. Beide folgen denselben Regeln (`View.color`), das prüft `test/gl.js`.
 - Teure Arbeit nicht öfter als nötig: nur bei Änderungen (`markDirty`, `lastChange`), über Ticks verteilt (`(T + id) % n`), nur Sichtbares zeichnen.
 - Im Hot Path keine unnötigen Objekte und Strings pro Einheit und Bild (Müllabfuhr).
-- Erst messen, dann ändern (`test/stress.js`, `test/stress_view.js`, `test/prof.js`). Melden, was echt ist, was wahrscheinlich kommt und was nur theoretisch ist. Kein Umbau ohne messbaren Nutzen, keine Mikro-Optimierung.
+- Erst messen, dann ändern (`test/phasen.js`, `test/stress.js`, `test/stress_view.js`, `test/prof.js`). Melden, was echt ist, was wahrscheinlich kommt und was nur theoretisch ist. Kein Umbau ohne messbaren Nutzen, keine Mikro-Optimierung.
 - Optimieren darf keine Spielregel ändern: `det.js` und `posture.js` müssen gleich bleiben, und bei Simulationsänderungen eine Prüfsumme vorher und nachher vergleichen (`SUM=1 node test/stress.js`).
 - Bedenken früh ansprechen, solange sie billig zu beheben sind.
 
@@ -86,5 +86,5 @@ Weitere Ordner: `tools/` (Bauen und Kartenerzeugung, Python), `test/` (Tests, No
 - Feldzug (jedes Level baut sich, bleibt gleich, ist zu gewinnen): `node test/level.js`
 - «Änderungen» (jede Szene baut sich, bleibt gleich, zeigt ihre Änderung): `node test/neu.js`
 - Bedienung im Browser: `node test/ui.js` (braucht Playwright und Chrome), schnelles Verdichten, Kürzel, Bauleiste: `node test/pinsel.js`
-- Leistung: `node test/stress.js` (Simulation mit 100 bis 10 000 Schiffen), `node test/stress_view.js` (Bild, nach dem Build)
+- Leistung: `node test/phasen.js` (wohin ein Tick geht: Eroberung, Dichte, Bots, mit Spitzen), `node test/stress.js` (Simulation mit 100 bis 10 000 Schiffen), `node test/stress_view.js` (Bild, nach dem Build)
 - Worker und Spiegel: `node test/worker.js [karte] [sekunden]`, Karte auf der Grafikkarte: `node test/gl.js` (beide nach dem Build). Browser-Tests, die direkt ins Spiel greifen, öffnen die Seite mit `?worker=0`.

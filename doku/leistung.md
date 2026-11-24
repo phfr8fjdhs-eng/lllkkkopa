@@ -1,4 +1,4 @@
-# Leistung: Messungen, Engpässe, Plan (24. und 25.11.2026)
+# Leistung: Messungen, Engpässe, Plan (24.11.2026)
 
 Die Richtlinien des Projekts zu Leistung und Aufbau (Kurzfassung in `CLAUDE.md`) und was sie für das heutige Spiel heissen. Alle Zahlen sind gemessen, nicht geschätzt. Node 22 auf einem Server, Browser = Chrome ohne Grafikkarte (headless). Auf einem Handy ist alles etwa 3- bis 5-mal langsamer. Die Zahlen sind darum zum Vergleichen da, nicht als Versprechen.
 
@@ -10,7 +10,7 @@ Grenzland zählt Truppen als Zahl pro Land, nicht als einzelne Soldaten (siehe `
 
 Kommen einmal einzelne Soldaten, Panzer oder Flugzeuge als eigene Objekte dazu, braucht es ein anderes Datenmodell (Felder statt Objekte, siehe Plan Punkt 6). Das ist eine Entscheidung zum Spiel, nicht zur Technik.
 
-## Aufbau seit dem 25.11.2026: drei Teile, jeder für sich
+## Aufbau seit dem 24.11.2026: drei Teile, jeder für sich
 ```
 Worker (eigener Thread)                Seite (Haupt-Thread)                 Grafikkarte
   G.Game: die Simulation   --- Änderungen pro Tick --->  Spiegel (G.SyncIn)  --- Zahlen der Felder --->  Farben der Felder
@@ -62,13 +62,13 @@ Nah gezoomt hilft das Weglassen unsichtbarer Schiffe viel. Auf der ganzen Karte 
 - 410 MB in Arrays (`node --max-old-space-size=4096 test/erde.js`), das Kartenbild dazu etwa 65 MB.
 - Die Zeit der Simulation verteilt sich auf den Kern des Spiels, ohne einzelne heisse Stelle: Angriffe (`tickAttack`) 15 %, Kessel (`removeClusters`) 13 %, Fronten (`addFront`) 12 %, Grenzen (`fixBorder`) 11 %, Aufstellung (`postDijkstra`, `postPockets`, `postFlow`) 15 %.
 
-## Geändert am 24.11.2026
+## Geändert am 24.11.2026, Mittag: Kriegsschiffe, Nachmalen
 1. **Zielsuche der Kriegsschiffe über ein Raster** (`seaGrid`, `seaNear` in `src/04_units.js`). Die Schiffe werden einmal pro Tick in Zellen von 32 Feldern sortiert. Ein Kriegsschiff schaut nur die Zellen in seiner Reichweite an, in derselben Reihenfolge wie vorher. Ergebnis geprüft: Prüfsumme über alle Spieler und Einheiten (Ort, Leben, Besitzer, Ziel) vorher und nachher gleich, `det.js` (alle Varianten) und `posture.js` gleich.
 2. **Karte blockweise nachmalen** (`flush` in `src/06_view.js`): nur Blöcke von 32 x 32 Feldern mit einer Änderung, nebeneinanderliegende in einem Zug. Geprüft: nach 800 Ticks stimmt jedes Pixel des Kartenbilds mit den Daten.
 3. **Schiffe ausserhalb des Bildschirms** bekommen keine weiche Lage mehr berechnet und keine Spur gemalt. Ausnahme: eigene Transportboote und solche, die zu dir fahren, weil ihre ganze Linie gezeigt wird. Die Spur eines Boots ist ein Pfad mit einer Füllung statt vieler Rechtecke. Schiffe werden mit `setTransform` statt `save`/`restore` gesetzt. Im Bild sieht man keinen Unterschied (Bildschirmfoto geprüft).
 4. **Zwei neue Messbänke:** `test/stress.js` und `test/stress_view.js`.
 
-## Geändert am 25.11.2026
+## Geändert am 24.11.2026, Nachmittag: Spitzen, Worker, Grafikkarte
 Gemessen auf der Erde (Standardkarte, 770 Reiche), 40 Sekunden in Echtzeit, Chrome ohne Grafikkarte auf einem Server. Ein Bild braucht höchstens 16.7 ms, damit es 60 Bilder pro Sekunde werden.
 
 | | vorher | 1. Spitzen verteilt | 2. mit Worker |
@@ -95,19 +95,61 @@ Gemessen auf der Erde (Standardkarte, 770 Reiche), 40 Sekunden in Echtzeit, Chro
 
 **Gefunden:** Die Schattierung rief `postDens` auf, das ein Reich ohne Einheiten nebenbei ausgleicht. Das geschah nach der Uhr, auf jedem Gerät zu einer anderen Zeit, und konnte zwei Geräte im Mehrspieler auseinanderbringen. Gemerkt hat das erst der Mehrspieler-Test mit einem Gerät mit und einem ohne Worker. Die Anzeige nutzt jetzt `postDensSeen`, das nur liest. Im Worker kann die Anzeige das Spiel ohnehin nicht mehr verändern.
 
+## Geändert am 24.11.2026, Abend: Wohin ein Tick geht, Dichte, Bots, Speicher
+Abgleich mit dem Auftrag «Leistung» (Prüfung des ganzen Spiels, Dichte als wichtigster Punkt). Neue Messbank `test/phasen.js`: Zeit pro Tick je Teil der Simulation, dazu wie viele Ticks schneller sind als ... (95 %, 99 %), damit Spitzen sichtbar werden und nicht nur der Mittelwert.
+
+**Wohin ein Tick geht** (`node --max-old-space-size=4096 test/phasen.js erde 1500 400`, Node, Server):
+| | Erde, 400 Bots | Welt, 150 Bots |
+| --- | --- | --- |
+| Tick im Mittel | 16.8 ms | 1.7 ms |
+| 95 % / 99 % der Ticks unter | 24 / 33 ms | 3.2 / 6.6 ms |
+| längster Tick | 54 ms | 11 ms |
+| Eroberung (`tickAttack`, `removeClusters`, `shrinkBox`) | 77 % | 70 % |
+| Dichte (`postTick`: Marsch, Taschen) | 14 % | 13 % |
+| Bots und Nationen (`AI.tick`) | 7 % | 10 % |
+| Einheiten, Seerouten, Bahn | 2 % | 6 % |
+
+Ein CPU-Profil (`node --cpu-prof test/erde.js 1500`) zeigt dasselbe ohne Messaufschlag: in der Eroberung `tickAttack`, `fixBorder`, `addFront`, `removeClusters` je 11 bis 16 %, in der Dichte `postDijkstra` 5 %, `postPockets` 4 %, `postFlow` 3 %. Müllabfuhr 1.4 %.
+
+**Truppendichte, Urteil: bleibt, ist kein Engpass.**
+- Gerechnet wird nicht pro Feld, sondern pro Zelle von 16 x 16 Feldern (auf der Erde etwa 63 000 Zellen statt 16 Mio. Felder). Jedes Reich kommt nur alle `FLOW` Ticks dran, versetzt (`(T + id) % FLOW`); Feldwechsel ändern nur einen Zähler der Zelle (`postGain`, `postLose`).
+- Die Anzeige rechnet einmal pro Sekunde, höchstens 1.5 ms pro Bild (`shadeScan`), und ändert nur Felder, deren Stufe wechselt. Seit dem ruhigeren Schatten (drei Stufen, geglättet) wechseln kaum noch Stufen, also wird auch kaum nachgemalt.
+- Mit 14 % kostet die Dichte gut ein Sechstel dessen, was die Eroberung kostet. Sie zu entfernen brächte auf der Erde rund 2 ms pro Tick, im Worker, ohne sichtbaren Gewinn beim Bild. Darum kein Grund, sie zu vereinfachen.
+- Verbessert: Die Suche nach abgeschnittenen Taschen (`postPockets`) lief bei jedem Marschschritt über alle Zellen. Die Gruppen ändern sich aber nur, wenn eine Zelle dazukommt oder wegfällt (Zähler `post.cv`). Jetzt werden sie bis dahin behalten: 0.40 statt 0.77 ms pro Tick auf der Erde, gleiches Ergebnis (Prüfsumme über Besitzer, Truppen, Gold und jede Zelle mit Truppen, Tasche und Gruppe auf Welt und Erde gleich, `det.js` in allen Varianten, `posture.js`, `SUM=1 stress.js` gleich).
+- Noch möglich, falls nötig: `postDijkstra` (5 %) nur neu rechnen, wenn sich Zellen, Schienen oder Mangel geändert haben. Lohnt sich heute nicht.
+
+**Bots, Urteil: billig.** 7 bis 10 % eines Ticks. Jeder Bot entscheidet nur alle 28 bis 52 Ticks, versetzt (`AI.rate`, `AI.off`). Einzelne Ticks mit 22 ms auf der Erde, wenn ein Bot einen Angriff startet oder ein Boot plant. Im Worker stört das kein Bild. Nichts geändert.
+
+**Speicher:** Die Liste der geänderten Felder (`game.dirty`) hatte einen Platz für jedes Feld, auf der Erde 65 MB, gebraucht werden pro Tick etwa 10 000. Sie wächst jetzt bei Bedarf wie die des Spiegels: Arrays der Simulation auf der Erde 346 statt 410 MB, also 64 MB weniger im Worker (und ohne Worker auf der Seite). Grössere Brocken bleiben: `stamp` und `q` (je 65 MB, Arbeitsspeicher der Suchen über die Karte) und die Karte selbst.
+
+**Was der Auftrag sonst verlangt und wie es steht:**
+| Punkt | Stand |
+| --- | --- |
+| Prüfung des ganzen Spiels, Engpässe nach Wirkung | gemacht: diese Datei, oben die Tabellen |
+| Dichte | geprüft, bleibt, Taschen-Suche schneller (oben) |
+| Zeichnen: WebGL 2, wenig Zeichenaufrufe, nur Sichtbares | Karte auf der Grafikkarte, unsichtbare Schiffe weggelassen, Schiffsbilder vorgezeichnet. Einheiten bleiben Canvas 2D, bis es über 1000 gleichzeitig sichtbare werden (Plan Punkt 4) |
+| Animationen | Schiffe gleiten mit dem Tempo der Simulation, Effekte nur im Bild. Nicht gemessen als eigener Posten; bei unter 300 Einheiten klein |
+| Simulation: Raster statt jeder gegen jeden, Arbeit verteilt | Kriegsschiffe über Raster, Seerouten Stück für Stück, Kessel und Grenzen nur bei Änderung |
+| Bots | geprüft, billig (oben) |
+| Getrennte Takte | Simulation 10 Ticks/s im Worker, Bild mit der Bildrate, Dichte-Anzeige 1/s, Bots alle 3 bis 5 s, Hafen alle 10 Ticks, Kessel alle 20 |
+| Speicher, Müllabfuhr | Müllabfuhr 1.4 %, `dirty` 64 MB kleiner (oben); Doppelung Worker/Spiegel bleibt der Preis der Trennung |
+| Lasttests 100 bis 10 000 | `stress.js` (Schiffe), `stress_view.js` (Bild), neu `phasen.js` (Teile und Spitzen) |
+| Einzelne Soldaten, Flugzeuge als eigene Objekte | gibt es im Spiel nicht (Truppen sind eine Zahl pro Zelle). Plan Punkt 6, eine Entscheidung zum Spiel |
+
 ## Plan: was als Nächstes, nach Wirkung
 Unterschieden wird: **echt** (heute messbar), **wahrscheinlich** (kommt mit dem Wachstum) und **theoretisch** (erst bei Bedarf).
 
-Stand 25.11.2026: Punkt 2 (Worker) ist gebaut, dazu das Zeichnen der Karte auf der Grafikkarte (Teil von Punkt 5, nur die Karte). Punkt 1 bleibt der nächste Schritt, jetzt mit dem neuen Aufbau.
+Stand 24.11.2026: Punkt 2 (Worker) ist gebaut, dazu das Zeichnen der Karte auf der Grafikkarte (Teil von Punkt 5, nur die Karte). Punkt 1 bleibt der nächste Schritt, jetzt mit dem neuen Aufbau.
 
 1. **Erde auf dem Handy messen (echt, zuerst).** Die Erde ist die Standardkarte: 16 bis 19 ms Simulation pro Tick, 410 MB Speicher, Kartenbild 16.25 Mio. Pixel. iPhones erlauben ein Canvas von höchstens etwa 16.7 Mio. Pixeln, die Karte liegt knapp darunter. Ein Tab mit so viel Speicher kann auf dem iPhone abstürzen. Vorschlag: auf einem echten Handy die Bildrate und den Speicher messen (Safari: Entwicklermenü, Chrome: Remote Debugging). Erst danach entscheiden, ob es eine Erde in halber Auflösung für Handys braucht.
 2. **Simulation in einen Web Worker (wahrscheinlich, gross).** Auf dem Handy brauchen die 16 bis 19 ms schätzungsweise 50 bis 90 ms des 100-ms-Takts, und zwar im selben Thread wie Bild und Bedienung. Das gibt Ruckler. Die Simulation braucht kein DOM und läuft schon in Node. Vorgehen: Besitzer-Array und Einheiten über `SharedArrayBuffer` teilen, oder pro Tick nur die geänderten Felder und Einheiten schicken. Das ist dieselbe Trennung, die ein späterer Server braucht. Aber: `SharedArrayBuffer` verlangt besondere Header, die GitHub Pages nicht setzt. Darum der Weg mit Nachrichten. Erst nach Punkt 1, falls das Handy ruckelt.
-3. **Kern der Eroberung schneller (wahrscheinlich, Risiko für den Gleichlauf).** `removeClusters` geht alle 20 Ticks über die ganze Grenze jedes Reichs, das sich geändert hat. Auf der Erde ist das 13 %. Möglich wäre, nur bei Änderungen in der Nähe einer Engstelle zu prüfen. Jede Änderung hier muss `det.js` und die Messbank `kampf.js` bestehen.
+3. **Kern der Eroberung schneller (wahrscheinlich, Risiko für den Gleichlauf).** Laut `phasen.js` 70 bis 77 % eines Ticks und damit der grösste Hebel, der noch bleibt. `removeClusters` geht alle 20 Ticks über die ganze Grenze jedes Reichs, das sich geändert hat. Auf der Erde ist das 13 %. Möglich wäre, nur bei Änderungen in der Nähe einer Engstelle zu prüfen. Jede Änderung hier muss `det.js` und die Messbank `kampf.js` bestehen.
 4. **Schiffe auf der ganzen Karte (theoretisch).** Erst ab etwa 1000 gleichzeitig sichtbaren Schiffen spürbar, heute sind es unter 300 (`G.TRADE_MAX`). Wenn nötig: Bilder in 16 Richtungen vorgedreht (spart etwa die Hälfte) oder ein WebGL-Zeichner nur für Einheiten. Die Karte bliebe Canvas 2D.
 5. **WebGL für alles (theoretisch).** Heute nicht nötig: Das Kartenbild ist ein `drawImage` pro Bild. Eine Umstellung wäre gross und brächte nur bei sehr vielen Einheiten etwas.
 6. **Einzelne Soldaten, Panzer, Flugzeuge (Entscheidung zum Spiel).** Falls sie kommen: Daten in Arrays pro Eigenschaft (x, y, Besitzer, Leben) statt eines Objekts pro Einheit, Suche über ein Raster wie bei den Kriegsschiffen, Zeichnen gebündelt (WebGL). Vor dem Bau festlegen.
 
 ## Wie man misst
+- Wohin ein Tick geht, je Teil und mit Spitzen: `node test/phasen.js [karte] [ticks] [bots]`.
 - Simulation: `node test/stress.js [karte] [N,N] [ticks]`, mit `SUM=1` zusätzlich eine Prüfsumme über Spieler und Einheiten, um vorher und nachher zu vergleichen.
 - Bild: `python3 tools/build.py`, dann `node test/stress_view.js [N,N]`. Mit `HTML=/pfad/zur/datei.html` lässt sich ein älterer Stand vergleichen.
 - Woher langsame Ticks kommen: `node test/prof.js` (Weltkarte) oder `node --cpu-prof test/erde.js 2000`.
