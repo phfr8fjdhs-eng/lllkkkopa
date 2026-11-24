@@ -54,6 +54,7 @@
   // goal    [x, y]: a ring on the map that marks the target
   const hot = function (t) { return '#hotbar [data-t="' + t + '"]'; };
   G.LEVEL_PACE = 0.67;   // pace of fronts in a level, as on the world map (S of «Welt»)
+  G.levelShape = { circ: circ, rect: rect, line: line };   // for the scenes of «Änderungen» (src/03e_neu.js)
   const LEVELS = G.LEVELS = [
     {
       n: 1, name: 'Lichtung', learn: 'Startpunkt und Ausbreiten',
@@ -279,6 +280,10 @@
   }
   function clock(s) { s = Math.max(0, Math.ceil(s)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }
   G.levelClock = clock;
+  // A level or a scene of «Änderungen» (G.NEUES, src/03e_neu.js, numbers from 101) by its number.
+  G.levelDef = function (n) {
+    return LEVELS.find(function (L) { return L.n === n; }) || (G.NEUES || []).find(function (L) { return L.n === n; });
+  };
 
   // ---------- setting a level up ----------
   // The tile of land nearest to x, y (owned by p, if given), searched in growing squares.
@@ -329,7 +334,7 @@
   };
 
   Game.prototype.levelSetup = function (human) {
-    const def = LEVELS.find(function (L) { return L.n === this.opts.level; }, this);
+    const def = G.levelDef(this.opts.level);
     const people = Array.isArray(human) ? human : [human];
     const me = this.addPlayer({ name: people[0].name, type: PT.HUMAN, color: people[0].color });
     this.humans.push(me); this.human = me; this.names.add(me.name);
@@ -456,11 +461,12 @@
       fire: function (p, type, x, y) { p.gold += g.cost(p, type); const t = type === UT.WARSHIP ? Q.tile(x, y) : g.levelTile(x, y); return t >= 0 ? g.build(p, type, t) : null; },
       push: function (p, q, share, x, y, mode) { if (p.alive && q.alive) g.attack(p, q.id, p.troops * share, -1, g.levelTile(x, y, q), mode || 0); },
       // a warship that is simply there, at sea (without a port of its own it cannot be repaired)
-      ship: function (p, x, y) {
+      ship: function (p, x, y, cls) {
         const t = Q.tile(x, y);
         if (g.map.land[t]) return null;
         const u = g.newUnit(UT.WARSHIP, p, t);
-        u.hp = 1000; u.patrol = t; u.shotAt = 0; u.target = null; u.path = null; u.pi = 0; u.wait = false;
+        u.cls = cls ? 1 : 0;
+        u.hp = G.SHIP_CLASS ? G.SHIP_CLASS[u.cls].hp : 1000; u.patrol = t; u.shotAt = 0; u.target = null; u.path = null; u.pi = 0; u.wait = false;
         g.addUnit(u);
         return u;
       },
@@ -493,6 +499,10 @@
     lv.lastTiles = me.tiles; lv.lastFall = this.falloutCount;
     const ev = def.events || [];
     while ((lv.ev || 0) < ev.length && Q.secs >= ev[lv.ev || 0][0]) { const e = ev[lv.ev || 0]; lv.ev = (lv.ev || 0) + 1; e[1](Q); }
+    // a scene of «Änderungen» repeats its script (loop: [first second, every so many seconds, function])
+    // and never ends: it is there to be watched and played with
+    if (def.loop && Q.secs >= (lv.loopAt === undefined ? def.loop[0] : lv.loopAt)) { lv.loopAt = Q.secs + def.loop[1]; lv.loops = (lv.loops || 0) + 1; def.loop[2](Q, lv.loops); }
+    if (def.show) { lv.check = { ok: false, prog: 0, line: '' }; return; }
     const r = def.quest.check(Q);
     lv.check = r;
     let end = null;

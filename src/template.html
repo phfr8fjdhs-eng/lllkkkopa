@@ -498,6 +498,20 @@ body.placing #cv { cursor: crosshair; }
 .linkb { display: block; margin: 12px auto 0; padding: 6px 10px; font: 600 14px var(--display); color: var(--muted); background: none; border: 0; cursor: pointer; }
 .linkb:hover { color: var(--ink); }
 /* campaign «Feldzug» (src/07b_level.js): quest bar, tips, level map, cards */
+/* «Änderungen» (src/07c_neu.js): the list and the bar at the bottom while a scene runs */
+.nwItem { display: block; width: 100%; margin: 0 0 7px; padding: 9px 12px; text-align: left; font: inherit; color: var(--ink); background: rgba(255, 255, 255, 0.05); border: 1px solid var(--line); border-radius: 12px; cursor: pointer; }
+.nwItem b { display: flex; align-items: center; gap: 8px; font: 600 16px/1.2 var(--display); }
+.nwItem em { font: 700 10px var(--display); letter-spacing: .1em; text-transform: uppercase; font-style: normal; color: var(--accent-ink); background: var(--accent); border-radius: 5px; padding: 2px 5px; }
+.nwItem small { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin-top: 3px; font-size: 13px; color: var(--muted); }
+@media (hover: hover) { .nwItem:hover { background: rgba(255, 255, 255, 0.09); border-color: rgba(190, 215, 240, 0.3); } }
+#nwBar { padding: 10px 12px 10px 14px; pointer-events: auto; border-color: var(--accent); }
+#nwBar .nwHead small { display: block; font: 600 11px var(--display); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+#nwBar .nwHead b { display: block; margin-top: 1px; font: 700 18px/1.15 var(--display); color: var(--accent); }
+#nwBar p { margin: 5px 0 8px; font-size: 14px; line-height: 1.35; }
+#nwBar .nwBtns { display: flex; gap: 6px; }
+#nwBar .nwBtns button { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 3px; padding: 6px 4px; border: 0; border-radius: 8px; font: 600 14px var(--display); color: var(--ink); background: rgba(255, 255, 255, 0.1); cursor: pointer; }
+#nwBar .nwBtns button:first-child svg { transform: scaleX(-1); }
+#nwBar .nwBtns button:disabled { opacity: .35; cursor: default; }
 #lvBar { position: absolute; left: 8px; top: 56px; width: min(64vw, 300px); padding: 8px 12px 10px; pointer-events: none; }
 #lvBar small { display: block; font: 600 11px var(--display); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
 #lvBar b { display: block; margin-top: 2px; font: 600 15px/1.25 var(--display); }
@@ -606,6 +620,7 @@ body.placing #cv { cursor: crosshair; }
     <div id="news" aria-live="polite"></div>
     <div id="bottom">
       <div id="feed"><div id="feedMsgs"></div><div id="feedLive"></div></div>
+      <div id="nwBar" class="panel" hidden></div>
       <div id="ctrl" class="panel">
         <div class="stats">
           <div class="stat"><span id="icTroops"></span><div><b id="sTroops">0</b><small id="sTroopsSub">Truppen</small></div></div>

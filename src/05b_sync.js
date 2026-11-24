@@ -396,7 +396,7 @@
       delete msg.lv.Q; delete msg.lv.def;
       if (!m.lv) m.lv = {};
       this.patch(m.lv, msg.lv);
-      m.lv.def = G.LEVELS.find(function (L) { return L.n === n; });
+      m.lv.def = G.levelDef(n);
       if (!this.Q) this.Q = m.levelQ();
       Object.assign(this.Q, q);
       m.lv.Q = this.Q;

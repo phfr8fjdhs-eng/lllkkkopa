@@ -312,6 +312,8 @@
       const mapName = (function () { const m = MAPS.find(function (x) { return x.id === cfg.map; }) || special(cfg.map); return m ? m.name : 'Zufallskarte'; })();
       h += '<div class="goes">' + goRow('fStart', 'sword', 'Spiel starten', esc(mapName) + ' · ' + G.DIFF_NAMES[cfg.diff] + (cfg.mode === 'arsenal' ? ' · Arsenal' : ''), true);
       if (lv) h += goRow('fCamp', 'flag', 'Levels', lv.n ? 'Level ' + lv.n + ' · ' + esc(lv.name) + ' · ' + lv.stars + ' von ' + lv.max + ' Sternen' : 'Alle Lern-Levels geschafft · ' + lv.stars + ' von ' + lv.max + ' Sternen', false);
+      const nw = !RES && G.Neuheiten ? G.Neuheiten.summary() : null;
+      if (nw) h += goRow('fNews', 'star', 'Änderungen', (nw.fresh ? nw.fresh + ' neu' : nw.count + ' Änderungen') + ' · zuletzt: ' + esc(nw.newest.title), false);
       h += goRow('fHost', 'people', 'Mit Freunden spielen', 'Raum öffnen und Link teilen', false) + '</div>';
     }
     h += '<button class="linkb" id="fHelp" type="button">So wird gespielt</button>';
@@ -364,6 +366,7 @@
       $('fStart').querySelector('small').textContent = (m ? m.name : 'Zufallskarte') + ' · ' + G.DIFF_NAMES[cfg.diff] + (cfg.mode === 'arsenal' ? ' · Arsenal' : '');
     }
     if ($('fCamp')) $('fCamp').addEventListener('click', function () { readForm(); G.Feldzug.open(); });
+    if ($('fNews')) $('fNews').addEventListener('click', function () { readForm(); G.Neuheiten.open(); });
   }
   // A way to start, as a row with an icon, a title and a line under it (the start screen and the level screen)
   function goRow(id, icon, title, sub, main) {
@@ -641,13 +644,14 @@
     return out;
   }
   function quitGame() {
-    const wasLevel = !!(game && game.lv);
+    const wasLevel = !!(game && game.lv), wasShow = wasLevel && !!game.lv.def.show;
     if (host) { host.stop(); host = null; }
     game = null; closeRadial(); $('sheet').hidden = true; if (view) view.selUnit = null; stopAim();
     $('hud').hidden = true;
     leaveRoom();
     if (cfg.map === 'zufall') delete maps.zufall;
-    G.Feldzug.hide();
+    G.Feldzug.hide(); G.Neuheiten.hide();
+    if (wasShow) { G.Neuheiten.open(); return; }
     if (wasLevel) { G.Feldzug.open(); return; }
     showStart();
     previewMap(cfg.map);
@@ -949,12 +953,13 @@
 
   function showMenu() {
     if (!mp) setPaused(true);
-    openModal('<h2>' + (mp ? 'Menü' : 'Pause') + '</h2><p>' + (game.lv ? 'Level ' + game.lv.def.n + ' · ' + esc(game.lv.def.name) : esc(game.map.name) + ' · ' + G.DIFF_NAMES[game.opts.difficulty] + (game.opts.arsenal ? ' · Arsenal' : '')) + '</p>' +
+    openModal('<h2>' + (mp ? 'Menü' : 'Pause') + '</h2><p>' + (game.lv ? (game.lv.def.show ? 'Änderung · ' + esc(game.lv.def.title) : 'Level ' + game.lv.def.n + ' · ' + esc(game.lv.def.name)) : esc(game.map.name) + ' · ' + G.DIFF_NAMES[game.opts.difficulty] + (game.opts.arsenal ? ' · Arsenal' : '')) + '</p>' +
       '<button class="btn" data-act="resume" type="button">Weiterspielen</button>' +
       '<button class="btn ghost" data-act="help" type="button">So wird gespielt</button>' +
       '<label class="check wide" for="mMusic"><input id="mMusic" type="checkbox"' + (cfg.music ? ' checked' : '') + '>Musik</label>' +
       '<label class="check" for="mSfx"><input id="mSfx" type="checkbox"' + (cfg.sfx ? ' checked' : '') + '>Töne bei Aktionen</label>' +
-      (game.lv ? '<button class="btn ghost" data-act="lvRetry" type="button">Level neu starten</button><button class="btn ghost" data-act="quit" type="button">Zu den Levels</button>'
+      (game.lv && game.lv.def.show ? '<button class="btn ghost" data-act="nwRetry" type="button">Nochmals von vorn</button><button class="btn ghost" data-act="quit" type="button">Zur Liste der Änderungen</button>'
+        : game.lv ? '<button class="btn ghost" data-act="lvRetry" type="button">Level neu starten</button><button class="btn ghost" data-act="quit" type="button">Zu den Levels</button>'
         : '<button class="btn ghost" data-act="quit" type="button">Spiel beenden</button>'), 'menu');
     $('mMusic').addEventListener('change', function () { setSound('music', this.checked); });
     $('mSfx').addEventListener('change', function () { setSound('sfx', this.checked); });
@@ -975,6 +980,7 @@
     if (what === 'help') { showHelp(false); return; }
     if (what === 'quit') { quitGame(); return; }
     if (what.indexOf('lv') === 0) { G.Feldzug.act(what); return; }
+    if (what.indexOf('nw') === 0) { G.Neuheiten.act(what); return; }
     if (what === 'confirmBreak') { act({ k: 'break', p: p.id }); closeModal(); return; }
     if (what === 'ally') { act({ k: 'ally', p: p.id, say: 'Anfrage an ' + p.name + ' gesendet' }); return; }
     if (what === 'break') {

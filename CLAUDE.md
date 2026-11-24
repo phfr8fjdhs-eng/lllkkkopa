@@ -10,7 +10,8 @@ Echtzeit-Eroberungsspiel im Browser, Nachbau von OpenFront, als eine einzige HTM
 ## Arbeitsablauf
 1. Nur `src/` ändern, nie `build/index.html` oder `docs/index.html` von Hand.
 2. `python3 tools/build.py` schreibt `build/index.html` (klassisch) und `build/rohstoffe.html` (Version «Rohstoffe»); danach nach `docs/index.html` und `docs/rohstoffe/index.html` kopieren (GitHub Pages liefert `/docs` auf `main`). Alle vier mitcommitten.
-3. Passenden Test laufen lassen, dann pushen. Es arbeiten mehrere Leute: vor dem Push den aktuellen `main` holen.
+3. Jede Änderung, die man im Spiel sieht, bekommt eine Szene in «Änderungen» (`src/03e_neu.js`, zuoberst in `G.NEUES`; Anleitung in `doku/neuheiten.md`), geprüft mit `node test/neu.js`.
+4. Passenden Test laufen lassen, dann pushen. Es arbeiten mehrere Leute: vor dem Push den aktuellen `main` holen.
 
 ## Feste Regeln
 - Die Simulation muss auf jedem Gerät dieselben Zahlen liefern (Mehrspieler schickt nur Befehle). Darum `const Math = G.M`, Zufall nur über den RNG mit Startwert (`src/00_util.js`), kein `Math.random` oder `Date.now` in der Simulation. `node test/det.js` und `node test/posture.js` prüfen das.
@@ -39,6 +40,7 @@ Ziel: grosse Karten, viele Spieler und Einheiten, später Mehrspieler über eine
 | `03c_res.js` | 270 | nur Version «Rohstoffe» (eingefroren): `G.RAW`, `G.WARE`, `G.RES_ICON`, Ländertabelle, Vorkommen (`attachCountries`, `map.deposits`), Anlagen auf Vorkommen (`G.DIG`, `G.DIG_OF`, `digCheck`, `dig`, `digGold`, `digAuto`, Zustand `game.dg`), `resTick`, `wareOf`; im klassischen Build nicht enthalten |
 | `03b_posture.js` | 330 | Aufstellung (Truppen-Netz): `postEffect`, `HAND` |
 | `03d_level.js` | 440 | Feldzug: Levels als Daten `G.LEVELS`, `G.levelMap`, `levelSetup`, `levelTick`, `levelAllows`, Zustand `game.lv` |
+| `03e_neu.js` | 140 | «Änderungen»: jede Änderung als Szene `G.NEUES` (Nummern ab 101), `G.levelDef` steht in `03d_level.js` |
 | `04_units.js` | 1050 | Gebäude und Ausbau (`G.MAX_LEVEL`, `G.BUILD_TICKS`), Tarnturm (`cloakScan`, `hiddenFrom`, `seenCount`, `G.CLOAK_COVER`), Bomben, Flugabwehr (`G.CRUISE_RANGE`), Häfen nach Stufe (`G.HAFEN`, `tickPort`, `shipKind`), Kriegsschiffe (`tickWarship`, `patrolPoint`, `shipboom`, `G.WARSHIP_CAPTURE`) |
 | `04b_rail.js` | 330 | Fabrik, Schienen, Züge: `railPath` (nur waagrecht und senkrecht), `rebuildRails`; Lieferungen `G.BAHN`, `tickDeliveries`, `railGuess` |
 | `05_ai.js` | 370 | Bots und Nationen: `AI.nukeTarget` |
@@ -50,6 +52,7 @@ Ziel: grosse Karten, viele Spieler und Einheiten, später Mehrspieler über eine
 | `08_net.js` | 310 | Mehrspieler über MQTT: `G.RELAYS` |
 | `08b_host.js` | 110 | Wo das Spiel läuft: `G.Host` (Worker oder mit `?worker=0` auf der Seite), `exec`, `order`, `step`, `ready` |
 | `07b_level.js` | 210 | Feldzug auf dem Bildschirm: `G.Feldzug` (Levelseite, Quest-Leiste `#lvBar`, Tipps `#lvTip`, Endfenster); nutzt `G.ui` aus `07_ui.js` |
+| `07c_neu.js` | 110 | «Änderungen» auf dem Bildschirm: `G.Neuheiten` (Liste, Leiste `#nwBar`, Bildausschnitt `frame`) |
 | `template.html` | | Seitengerüst (HTML und CSS) |
 
 Weitere Ordner: `tools/` (Bauen und Kartenerzeugung, Python), `test/` (Tests, Node), `build/` und `docs/` (Ausgabe).
@@ -69,6 +72,7 @@ Weitere Ordner: `tools/` (Bauen und Kartenerzeugung, Python), `test/` (Tests, No
 | Welcher Test wofür | `tests.md` |
 | Feldzug: Levels, Quests, Sterne, wie man ein Level anlegt | `feldzug.md` |
 | Was wann und warum geändert wurde | `aenderungen.md` |
+| Bereich «Änderungen»: Szenen, wie man eine neue einträgt | `neuheiten.md` |
 | Wohin das Spiel geht, Reihenfolge der nächsten Schritte | `vision.md` |
 | Leistung: Messungen, Engpässe, Plan | `leistung.md` |
 
@@ -80,6 +84,7 @@ Weitere Ordner: `tools/` (Bauen und Kartenerzeugung, Python), `test/` (Tests, No
 - Schalter (Truppenkonzentration, Netz, Richtung, Pfeile): `node test/pfeile.js`
 - Version «Rohstoffe»: `node --max-old-space-size=4096 test/res.js`
 - Feldzug (jedes Level baut sich, bleibt gleich, ist zu gewinnen): `node test/level.js`
+- «Änderungen» (jede Szene baut sich, bleibt gleich, zeigt ihre Änderung): `node test/neu.js`
 - Bedienung im Browser: `node test/ui.js` (braucht Playwright und Chrome), schnelles Verdichten, Kürzel, Bauleiste: `node test/pinsel.js`
 - Leistung: `node test/stress.js` (Simulation mit 100 bis 10 000 Schiffen), `node test/stress_view.js` (Bild, nach dem Build)
 - Worker und Spiegel: `node test/worker.js [karte] [sekunden]`, Karte auf der Grafikkarte: `node test/gl.js` (beide nach dem Build). Browser-Tests, die direkt ins Spiel greifen, öffnen die Seite mit `?worker=0`.

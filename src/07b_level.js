@@ -86,6 +86,7 @@
       kampf: c.kampf === 'grenzen' ? 'grenzen' : 'grenzland', pfeile: true
     }, { name: c.name, color: u.COLORS[c.color] });
     $('lvBar').hidden = false;
+    if (G.Neuheiten) G.Neuheiten.hide();
     hud();
   }
   // Called from the interface's own update, a few times a second.
@@ -94,6 +95,8 @@
     if (!g || !g.lv) return;
     const lv = g.lv, L = lv.def, Q = lv.Q;
     $('lb').hidden = true;
+    // a scene of «Änderungen» (src/07c_neu.js): its own bar at the bottom, the tips as here
+    if (L.show) { $('lvBar').hidden = true; G.Neuheiten.hud(g); tips(g); return; }
     const bar = $('lvBar'), spawn = g.phase === 'spawn';
     bar.hidden = spawn;
     if (!spawn) {
@@ -229,6 +232,8 @@
       const n = nextLevel();
       return { n: n, name: n ? def(n).name : '', stars: stars, max: G.LEVELS.length * 3 };
     },
-    hud: hud, end: end, act: act, hide: hide, start: start
+    hud: hud, end: end, act: act, hide: hide, start: start,
+    // a scene of «Änderungen» starts its tips from the first, like a level
+    freshTips: function () { tipCur = -1; tipNext = 0; tipSince = 0; hideTip(); }
   };
 })(globalThis.G = globalThis.G || {});

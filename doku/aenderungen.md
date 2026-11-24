@@ -1,6 +1,11 @@
 # Änderungsprotokoll
 Was seit dem 13.11.2026 geändert wurde und warum. Den heutigen Stand der Regeln beschreiben die anderen Dateien in `doku/`.
 
+## Bereich «Änderungen» und ruhige Dichte (24.11.2026)
+- **Wunsch:** Jede Änderung im Spiel selbst ansehen können, wie Levels aufgelistet: antippen, und die Änderung läuft gleich vor einem ab (das Boot fährt, die Schienen sind da), mit einem kurzen Text unten, was geändert wurde, und man kann mitspielen.
+- **Geändert:** Neuer Bereich «Änderungen» auf dem Startbildschirm mit 15 Szenen von 17. bis 24.11. (`neuheiten.md`). Ab jetzt bekommt jede sichtbare Änderung eine Szene (`CLAUDE.md`, Arbeitsablauf).
+- **Dichte-Schatten:** Die dunklen Flecken bei den Nationen sprangen jede Sekunde und wirkten wie Ruckeln. Jetzt über etwa 6 s geglättet, nur 3 Stufen ab 1.4-fach, eine Stufe wechselt erst mit Abstand (`aufstellung.md`).
+
 ## Pfeile planen, Bahn-Lieferungen und Häfen nach Stufe immer an (24.11.2026)
 - **Wunsch:** Die drei Schalter auf dem Startbildschirm sollen weg, alles immer an.
 - **Geändert:** Die Schalter «Angriffe planen», «Bahn: Lieferungen» und «Häfen nach Stufe» sind vom Startbildschirm entfernt. `playOpts` gibt immer `pfeile`, `bahn` und `hafen` an; auch Mehrspieler und Levels. Die Optionen in `G.Game` bleiben für Tests.

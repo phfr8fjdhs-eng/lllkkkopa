@@ -10,6 +10,7 @@ Alle Tests liegen in `test/` und laufen mit `node test/<name>.js`. Seit dem 25.1
 | `sim.js` | Simulation ohne Browser: Regeln, Buchhaltung, Tempo |
 | `all.js` | jede Karte kurz mit Prüfungen, dazu die erfundene Karte |
 | `det.js [arsenal]` | zwei Kopien desselben Spiels bleiben mit denselben Befehlen gleich, auch mit Stössen; mit `arsenal` auch mit Tarntürmen |
+| `neu.js` | «Änderungen»: jede Szene baut sich, alle starten mit Land und Gebäuden, zwei Kopien bleiben gleich, keine endet, und was sie zeigen soll, passiert in 90 s |
 | `level.js` | Feldzug: jedes Level baut sich, alle starten mit Land und ihren Gebäuden, zwei Kopien bleiben gleich, ein einfaches Skript gewinnt jedes Level |
 | `tarn.js` | Tarnturm: nur im Arsenal-Modus, was er versteckt (höchstens 3 Gebäude), vor wem, wann es sichtbar wird, Nationen bauen ihn |
 | `spieler.js [grenzland\|grenzen] [min] [start]` | Testspieler: ein Computer spielt wie ein Mensch eine ganze Runde auf der Weltkarte; Land, Platz, verpuffte Angriffe |
