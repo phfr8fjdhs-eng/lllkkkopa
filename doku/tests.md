@@ -20,6 +20,8 @@ Alle Tests liegen in `test/` und laufen mit `node test/<name>.js`. Mehrere brauc
 | `erde.js [ticks] [bots]` | die Erde ohne Browser, Tempo und Speicher (`node --max-old-space-size=4096`) |
 | `res.js [ticks] [bots]` | Version «Rohstoffe» auf der Erde: Länder, Zählung, Einkommen, Gleichlauf (`node --max-old-space-size=4096`) |
 | `prof.js` | zeigt, woher langsame Ticks kommen |
+| `stress.js [karte] [N,N] [ticks]` | Last der Simulation: N Schiffe zusätzlich (halb Kriegsschiffe, halb Handel), Zeit pro Tick und je Teil; `SUM=1` gibt eine Prüfsumme über Spieler und Einheiten zum Vergleich vorher/nachher |
+| `stress_view.js [N,N]` | Browser: Zeit für ein Bild mit N Schiffen, ganze Karte, mittel, nah; `HTML=datei` für einen anderen Build |
 | `ui.js`, `feat.js`, `play.js`, `rail.js`, `rich.js`, `shot.js`, `aufstellung.js` | Browser: Bedienung, neue Funktionen, Durchlauf, Gleise, Gebäude und Raketen, Bilder, Netz; Bilder landen in `build/` |
 | `pinch.js` | Browser, Handy: Zoom mit zwei Fingern bleibt am Punkt zwischen den Fingern |
 | `vollbild.js` | Browser: Vollbild-Knopf, Vollbild beim Start auf dem Handy, Hinweis auf dem iPhone |

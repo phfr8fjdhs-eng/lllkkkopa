@@ -1,6 +1,11 @@
 # Änderungsprotokoll
 Was seit dem 13.11.2026 geändert wurde und warum. Den heutigen Stand der Regeln beschreiben die anderen Dateien in `doku/`.
 
+## Leistung: Zielsuche der Kriegsschiffe, Karte blockweise nachmalen, unsichtbare Schiffe (24.11.2026)
+- **Wunsch:** Richtlinien zu Leistung und Aufbau (Kurzfassung in `CLAUDE.md`), Engpässe messen und die wichtigsten beheben.
+- **Gemessen und geändert** (Einzelheiten in `leistung.md`): Kriegsschiffe suchen ihr Ziel über ein Raster der See statt über alle Einheiten. Mit 5000 Schiffen 15 statt 106 ms pro Tick, Ergebnis Zahl für Zahl gleich. Die Karte wird in Blöcken von 32 x 32 Feldern nachgemalt statt in einem Rechteck um alle Änderungen. Auf der Erde 3 bis 5 statt 16 ms pro Tick. Schiffe ausserhalb des Bildschirms werden nicht mehr gerechnet und ihre Spur nicht gemalt.
+- **Neu:** `test/stress.js`, `test/stress_view.js`, `doku/leistung.md`.
+
 ## Schiffe als Pixelbilder, Bootsspur aus Kacheln (23.11.2026)
 - Wunsch: Schiffe sahen fein und unruhig aus, nicht wie OpenFront; Containerschiffe zu klein; die Linie des Transportboots zu glatt.
 - Alle Schiffe sind jetzt eigene kleine Pixelbilder auf dem Kachelraster (Besitzerfarbe, dunkler Rand, Schatten auf einer Seite), je Besitzer und Art einmal gezeichnet und gecacht. Das Containerschiff ist 22 Bildpunkte lang, doppelt so lang wie der Frachter.
