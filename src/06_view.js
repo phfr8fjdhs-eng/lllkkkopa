@@ -1201,8 +1201,10 @@
     if (path && path.length > 1 && path[u.pi] === u.tile) {
       const n = path.length - 1, dir = u.retreat ? -1 : 1;
       // `mv` is the part of the next tile already covered; while the ship is under way the
-      // frame adds what the running tick will bring
-      const rate = g.pace * (u.hunt ? 2 : 1) * (u.type === UT.TRADE && g.hafen ? G.HAFEN.ships[u.kind || 0].speed : 1), going = u.st === g.ticks;
+      // frame adds what the running tick will bring, at the rate the simulation used (`sr`).
+      // Until 24.11.2026 the picture guessed it without the class speed and the patrol share, so
+      // a battleship (0.6, on patrol 0.36 of the pace) ran ahead each tick and jumped back.
+      const rate = u.sr || g.pace, going = u.st === g.ticks;
       const f = within(u.pi + dir * ((u.mv || 0) + (going ? alpha * rate : 0)), 0, n);
       const w = Math.min(3.5, f, n - f);                 // the stretch shrinks to nothing at both ends
       let sx = 0, sy = 0;

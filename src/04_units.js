@@ -759,7 +759,8 @@
   // How many tiles a ship or train moves this tick. The pace is a fraction of a tile per tick
   // (see G.PACE); the rest is carried in `u.mv`, which the picture also uses to glide between tiles.
   Game.prototype.stride = function (u, rate) {
-    u.mv = (u.mv || 0) + (rate || this.pace); u.st = this.ticks;
+    // `sr`: the rate of this tick, for the picture only (it glides at the same speed between ticks)
+    u.mv = (u.mv || 0) + (rate || this.pace); u.st = this.ticks; u.sr = rate || this.pace;
     let n = 0;
     while (u.mv >= 1) { u.mv -= 1; n++; }
     return n;

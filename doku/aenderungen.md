@@ -11,6 +11,11 @@ Was seit dem 13.11.2026 geändert wurde und warum. Den heutigen Stand der Regeln
 - **Ergebnis auf der Erde:** 95 % der Bildabstände 16.7 statt 33 ms, der längste 50 statt 117 ms. Die Simulation hält das Tempo.
 - **Nebenbei behoben:** Die Anzeige konnte über `postDens` das Spiel verändern (siehe `mehrspieler.md`). Dichte-Stufen von Zellen, die ein Reich verlassen hat, blieben stehen. Ein Allianzwechsel malte die Grenzen aller Reiche neu statt nur der betroffenen. Die Meldung «Seehandel bringt …» setzte einen Zähler im Spiel zurück, jetzt zählt die Anzeige selbst (`shipTotal`).
 - **Neu:** `test/worker.js`, `test/gl.js`. `test/net.js` spielt jetzt ein Gerät mit Worker gegen eines ohne. Die Browser-Tests, die ins Spiel greifen, öffnen die Seite mit `?worker=0`.
+## Schlachtschiff fährt flüssig (24.11.2026)
+- **Wunsch:** Das Schlachtschiff ruckelt beim Fahren.
+- **Ursache:** Zwischen zwei Ticks schätzte das Bild die Fahrt mit vollem Tempo, die Simulation fährt das Schlachtschiff aber mit 60 % (auf Patrouille 36 %). Es lief jedes Bild voraus und sprang beim nächsten Tick bis 0.23 Felder zurück, fast bei jedem Tick.
+- **Geändert:** `stride` merkt sich das Tempo des Ticks (`u.sr`), das Bild gleitet genau damit. Gemessen: 0 statt 198 Rückwärtssprünge auf 200 Ticks. Hilft auch Massengut- und Containerschiffen und Schiffen auf der Rückfahrt.
+
 ## Aufgeräumt: weniger Meldungen, weniger Kreise, Schiffe einheitlich (24.11.2026)
 - **Wunsch:** zu viel Text unten rechts (z. B. nach dem Einnehmen einer Stadt), zu viele Reichweiten-Kreise (alle Häfen, alle Fabriken, alle Verteidigungen), Grössen der Bilder passen nicht zueinander, vor allem Schiffe.
 - **Meldungen:** Was man selbst einnimmt (Gebäude erobert, Verteidigungsposten zerstört, Gegner erobert oder eingekreist) gibt keine Meldung mehr; das Gold zeigt die Karte. Verluste und Warnungen bleiben.
