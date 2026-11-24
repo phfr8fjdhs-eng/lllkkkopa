@@ -105,7 +105,6 @@
     if (u.type === UT.DEFENSE) {
       this.removeUnit(u);
       if (o === this.human) this.say(G.UNAME[u.type] + ' von ' + np.name + ' zerstört', 'bad');
-      else if (np === this.human) this.say(G.UNAME[u.type] + ' von ' + o.name + ' zerstört', 'good');
       return;
     }
     const i = o.units.indexOf(u);
@@ -115,8 +114,9 @@
     if (u.type === UT.CITY) { o.cityLv -= u.level; np.cityLv += u.level; }
     else if (u.type === UT.DEFENSE) { this.refreshPosts(o); this.refreshPosts(np); this.dirtyDisc(u.tile); }
     else if (u.type === UT.PORT) this.portList = null;
+    // only losses are reported; what you take you see on the map (24.11.2026: «Stadt von … erobert»
+    // at the bottom right after every city, said nothing new)
     if (o === this.human) this.say(G.UNAME[u.type] + ' an ' + np.name + ' verloren', 'bad');
-    else if (np === this.human) this.say(G.UNAME[u.type] + ' von ' + o.name + ' erobert', 'good');
   };
   // ---------- cloaking tower (Arsenal mode) ----------
   G.CLOAK_COVER = 3;   // buildings a cloaking tower hides besides itself

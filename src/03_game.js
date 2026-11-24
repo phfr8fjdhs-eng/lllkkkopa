@@ -1285,8 +1285,7 @@
   };
   // A player reduced to a sliver of land is absorbed whole, gold included.
   Game.prototype.finishOff = function (a, t) {
-    const gold = this.loot(a, t);
-    if (a === this.human) this.say(t.name + ' erobert, ' + fmt(gold) + ' Gold erbeutet', 'good');
+    this.loot(a, t);   // the gold shows on the map (event 'loot'); no message besides (24.11.2026)
     this.forTiles(t, (x) => this.conquer(a, x));
   };
 
@@ -1422,8 +1421,7 @@
       if (y < H - 1 && own[t + W] === id && st[t + W] !== sid) { st[t + W] = sid; q[qt++] = t + W; }
     }
     if (qt === p.tiles) {
-      const gold = this.loot(taker, p);
-      if (taker === this.human) this.say(p.name + ' eingekreist und übernommen, ' + fmt(gold) + ' Gold erbeutet', 'good');
+      this.loot(taker, p);   // the gold shows on the map (event 'loot')
     }
     const list = q.slice(0, qt);
     for (let i = 0; i < list.length; i++) this.conquer(taker, list[i]);

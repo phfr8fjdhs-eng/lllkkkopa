@@ -1,6 +1,12 @@
 # Änderungsprotokoll
 Was seit dem 13.11.2026 geändert wurde und warum. Den heutigen Stand der Regeln beschreiben die anderen Dateien in `doku/`.
 
+## Aufgeräumt: weniger Meldungen, weniger Kreise, Schiffe einheitlich (24.11.2026)
+- **Wunsch:** zu viel Text unten rechts (z. B. nach dem Einnehmen einer Stadt), zu viele Reichweiten-Kreise (alle Häfen, alle Fabriken, alle Verteidigungen), Grössen der Bilder passen nicht zueinander, vor allem Schiffe.
+- **Meldungen:** Was man selbst einnimmt (Gebäude erobert, Verteidigungsposten zerstört, Gegner erobert oder eingekreist) gibt keine Meldung mehr; das Gold zeigt die Karte. Verluste und Warnungen bleiben.
+- **Kreise:** nur noch die Reichweite des angetippten Gebäudes (Karte offen) und beim Platzieren der Kreis des neuen Gebäudes plus das eigene Gebäude derselben Art mit der grössten Reichweite. Häfen nur noch ein Kreis (der äusserste). Beim Platzieren einer Stadt oder eines Hafens nur die nächste Fabrik markiert. Eigene Verteidigungsposten und Flugabwehr zeigen ihren Kreis nicht mehr dauernd; fremde Verteidigungsposten weiter während eines Kampfs mit dem Besitzer.
+- **Schiffe:** alle mit derselben Pixelgrösse (vorher 0.5 bis 0.85 je Art, das Schlachtschiff war kleiner als der Zerstörer). Längen: Boot 6, Frachter 11 und 12, Zerstörer 14, Containerschiff 16 (schlanker als vorher), Schlachtschiff 20. Beim Reinzoomen wachsen Schiffe nicht mehr über die Gebäudesymbole hinaus.
+
 ## Leistung: Zielsuche der Kriegsschiffe, Karte blockweise nachmalen, unsichtbare Schiffe (24.11.2026)
 - **Wunsch:** Richtlinien zu Leistung und Aufbau (Kurzfassung in `CLAUDE.md`), Engpässe messen und die wichtigsten beheben.
 - **Gemessen und geändert** (Einzelheiten in `leistung.md`): Kriegsschiffe suchen ihr Ziel über ein Raster der See statt über alle Einheiten. Mit 5000 Schiffen 15 statt 106 ms pro Tick, Ergebnis Zahl für Zahl gleich. Die Karte wird in Blöcken von 32 x 32 Feldern nachgemalt statt in einem Rechteck um alle Änderungen. Auf der Erde 3 bis 5 statt 16 ms pro Tick. Schiffe ausserhalb des Bildschirms werden nicht mehr gerechnet und ihre Spur nicht gemalt.

@@ -634,7 +634,7 @@
   }
   function quitGame() {
     const wasLevel = !!(game && game.lv);
-    game = null; closeRadial(); $('sheet').hidden = true; if (view) view.showCloak = false; stopAim();
+    game = null; closeRadial(); $('sheet').hidden = true; if (view) view.selUnit = null; stopAim();
     $('hud').hidden = true;
     leaveRoom();
     if (cfg.map === 'zufall') delete maps.zufall;
@@ -882,7 +882,7 @@
     else if (endShown && kind !== 'other') return;
     endShown = kind;
     snd(kind === 'win' ? 'win' : 'lose');
-    closeRadial(); $('sheet').hidden = true; if (view) view.showCloak = false;
+    closeRadial(); $('sheet').hidden = true; if (view) view.selUnit = null;
     const h = game.human, den = Math.max(1, game.map.landTiles - game.falloutCount);
     let s;
     if (kind === 'win') s = '<h2>Sieg!</h2><p>Du hältst ' + (h.tiles / den * 100).toFixed(0) + ' % des Landes. Die Karte gehört dir.</p>';
@@ -1113,8 +1113,8 @@
     $('sheetBody').innerHTML = html;
     $('purse').innerHTML = svg('gold', 15) + (game.opts.infiniteGold ? '∞' : fmt(h.gold));
     $('sheet').hidden = false; sheetAt = performance.now();
-    view.mark = tile; view.showCloak = true;
-    view.portSel = near && near.owner === h && near.type === UT.PORT ? near : null;     // its trade reach as a circle
+    view.mark = tile;
+    view.selUnit = near && near.owner === h && near.built ? near : null;     // its reach as a circle (drawReach)
     snd('open');
   }
   // Build at a tile, or start aiming a bomb at it. Used by the menu and by the keys.
@@ -1153,7 +1153,7 @@
   // The tap that opens the card must not also press a button of it: on a phone the browser sends a click
   // to whatever lies under the finger after the touch, and that is the card by then.
   let sheetAt = 0;
-  function closeBuild() { $('sheet').hidden = true; if (view) { view.mark = -1; view.showCloak = false; view.portSel = null; } }
+  function closeBuild() { $('sheet').hidden = true; if (view) { view.mark = -1; view.selUnit = null; } }
   function onBuild(e) {
     if (performance.now() - sheetAt < 350) return;
     const b = e.target.closest('[data-t],[data-up]');
@@ -1763,7 +1763,7 @@
     closeThrustCard();
     // a click on an own cloaking tower shows what it covers, until the next click elsewhere
     const su = game.owner[tile] === h.id ? game.structNear(tile, 3) : null;
-    view.cloakTap = !!su && su.owner === h && su.built && su.type === UT.CLOAK;
+    view.cloakTap = su && su.owner === h && su.built && su.type === UT.CLOAK ? su : null;
     // With a mouse a single left click attacks what is there, as in OpenFront: the whole front with
     // the share of the slider, a boat where there is no border; on an own building it opens its
     // card. The right button opens the circle menu, a right drag plans a wedge. Until 23.11.2026
