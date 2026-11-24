@@ -621,7 +621,7 @@ body.placing #cv { cursor: crosshair; }
   <div id="modal" hidden><div id="modalCard" class="card panel"></div></div>
   <div id="toast" hidden></div>
 </div>
-<script>
+<script id="sim">
 (function (G) {
   'use strict';
 
@@ -3219,6 +3219,18 @@ body.placing #cv { cursor: crosshair; }
     if (!(post.H > 0)) even(post);
     if (!(post.H > 0) || c.n <= 0 || p.tiles <= 0) return 1;
     return (c.u / c.n) / (post.H / p.tiles);
+  };
+  // The same for the display (shading, tooltips): reads only. postDens above evens out a realm
+  // without units as a side effect, and the display asks at its own times, different on every
+  // device; until 25.11.2026 the shading did that through postDens, which could part the games
+  // of two devices playing together.
+  Game.prototype.postDensSeen = function (p, c) {
+    const post = p.post;
+    if (post.H > 0) return c.n <= 0 || p.tiles <= 0 ? 1 : (c.u / c.n) / (post.H / p.tiles);
+    let H = 0;
+    for (const x of post.cells.values()) H += x.n * x.m;
+    if (!(H > 0) || c.n <= 0 || p.tiles <= 0) return 1;
+    return c.m / (H / p.tiles);
   };
   // Take up to x troops out of a cell; the rest of the realm is untouched. Returns what was taken.
   Game.prototype.postTake = function (p, c, x) {
@@ -6182,6 +6194,491 @@ body.placing #cv { cursor: crosshair; }
   G.AI = AI;
 })(globalThis.G = globalThis.G || {});
 
+// The simulation in its own thread (doku/leistung.md, 25.11.2026).
+//
+// The game runs in a Web Worker; the page keeps a read-only copy of it, the mirror, that the
+// drawing and the controls read as they read the game itself. After every step the worker sends
+// what changed:
+//   tiles    owner and fallout of every changed tile (the list the game keeps for painting anyway)
+//   objects  the game, every player, unit, attack and rail: the fields that changed since the
+//            last message. A plain value is compared as it is; a list, map, set or nested object
+//            by a hash of its content, and sent whole when that changed.
+//   queues   new messages (events) and effects (fx), handed over and emptied in the worker
+// A reference to a player, unit, attack, rail or the game itself travels as its id and is turned
+// back into the mirror's own object, so `u.owner === game.human` holds on the page as well.
+// Objects of a class (heaps, path finders, the AI) stay in the worker.
+//
+// Nothing here changes the game: the worker reads it after a step, the page writes only the
+// mirror. Orders go the other way as messages and are carried out with game.exec, between ticks,
+// in the order they were sent, as they always were.
+//
+// Fields that do not go across, or go another way:
+(function (G) {
+  'use strict';
+  // the game: tile arrays have their own channel, lists of objects too, the rest is the worker's
+  // own working memory
+  const SKIP_GAME = new Set(['map', 'sea', 'rng', 'owner', 'fallout', 'stamp', 'sid', 'q', 'dirty', 'dirtyN', 'dirtyFlag',
+    'players', 'units', 'attacks', 'rails', 'events', 'fx', 'pathLeg', 'pathNear', 'pathCache', 'pathQ', 'pathJob', 'nearQ', 'nearJob',
+    'postHeap', 'postList', 'pocketQ', 'railHeap', 'thrustHeap', 'deferList', 'cloakOk', 'opts', 'lv']);
+  // a player: the border is sent for the person at this device only (the mirror works it out
+  // for the others when asked); the posture of the others only as much as the shading needs
+  const SKIP_PLAYER = new Set(['border', 'ai', 'post', 'pocketFrom', 'pocketSeen']);
+  // an attack: the front only for attacks on or by the person at this device
+  const SKIP_ATTACK = new Set(['heap', 'front', 'taken']);
+  const SKIP_UNIT = new Set([]);
+  const SKIP_EDGE = new Set(['geo']);
+  // cell fields the shading and the tooltips read (src/03b_posture.js postDens)
+  const SLOW = 10;   // the posture of the others goes across every SLOW ticks
+
+  // ---------- content hash: has a value changed since it was last sent? ----------
+  const f64 = new Float64Array(1), i32 = new Int32Array(f64.buffer);
+  const mix = function (h, x) { h = Math.imul(h ^ x, 0x01000193); return (h ^ (h >>> 15)) | 0; };
+  const BIG = 4096;   // longer lists are compared by length and a few samples, and by who they are
+  let nextId = 1;
+  const oid = new WeakMap();
+  const idOf = function (o) { let i = oid.get(o); if (!i) { i = nextId++; oid.set(o, i); } return i; };
+  function num(h, v) {
+    if ((v | 0) === v) return mix(h, v);
+    f64[0] = v; return mix(mix(h, i32[0]), i32[1]);
+  }
+  function hash(v, h, d, out) {
+    if (v === null || v === undefined) return mix(h, v === null ? 7 : 11);
+    const t = typeof v;
+    if (t === 'number') return num(h, v);
+    if (t === 'boolean') return mix(h, v ? 13 : 17);
+    if (t === 'string') { h = mix(h, v.length); for (let i = 0; i < v.length; i++) h = mix(h, v.charCodeAt(i)); return h; }
+    if (t !== 'object') return h;
+    const r = out && out.ref.get(v);
+    if (r !== undefined) return mix(mix(h, 19), r.h);
+    if (d > 5) return mix(h, idOf(v));
+    if (ArrayBuffer.isView(v) || Array.isArray(v)) {
+      const n = v.length;
+      h = mix(h, n);
+      if (n > BIG) {
+        h = mix(h, idOf(v));
+        for (let k = 0; k < 64; k++) { const x = v[(k * 7919) % n]; h = typeof x === 'number' ? num(h, x) : hash(x, h, d + 1, out); }
+        return h;
+      }
+      if (ArrayBuffer.isView(v)) { for (let i = 0; i < n; i++) h = num(h, v[i]); return h; }
+      for (let i = 0; i < n; i++) h = hash(v[i], h, d + 1, out);
+      return h;
+    }
+    if (v instanceof Map) { h = mix(h, v.size); for (const e of v) { h = hash(e[0], h, d + 1, out); h = hash(e[1], h, d + 1, out); } return h; }
+    if (v instanceof Set) { h = mix(h, v.size + 1e6); for (const e of v) h = hash(e, h, d + 1, out); return h; }
+    const pr = Object.getPrototypeOf(v);
+    if (pr !== Object.prototype && pr !== null) return h;
+    for (const k in v) { const x = v[k]; if (typeof x === 'function') continue; h = hash(k, h, d + 1, out); h = hash(x, h, d + 1, out); }
+    return h;
+  }
+
+  // ---------- the worker's side ----------
+  function Out(game) {
+    this.g = game;
+    this.first = true;
+    this.prev = new Map();     // object -> Map(field -> plain value or content hash)
+    this.ref = new Map();      // object -> { r: reference as sent, h: its hash }
+    this.lists = {};           // name -> hash of the id list last sent
+    this.sentPath = new WeakMap();
+  }
+  // References: every player, unit, attack and rail, and the game, by id.
+  Out.prototype.tables = function () {
+    const g = this.g, ref = this.ref;
+    ref.clear();
+    const put = function (o, k, i) { if (o && !ref.has(o)) ref.set(o, { r: { $r: k, i: i }, s: '@' + k + i, h: hash(i, k.charCodeAt(0), 0, null) }); };
+    put(g, 'g', 0);
+    for (let i = 1; i < g.players.length; i++) put(g.players[i], 'p', i);
+    const units = [], attacks = [], edges = [];
+    const unit = function (u) { if (u && !ref.has(u)) { put(u, 'u', u.id); units.push(u); } };
+    for (const u of g.units) unit(u);
+    for (const u of g.nukes) unit(u);
+    for (let i = 1; i < g.players.length; i++) for (const u of g.players[i].units) unit(u);
+    const attack = function (a) { if (a && !ref.has(a)) { put(a, 'a', a.id); attacks.push(a); } };
+    for (const a of g.attacks) attack(a);
+    for (let i = 1; i < g.players.length; i++) { const p = g.players[i]; for (const a of p.out) attack(a); for (const a of p.inc) attack(a); }
+    for (const e of g.rails) if (!ref.has(e)) { put(e, 'e', e.key); edges.push(e); }
+    return { units: units, attacks: attacks, edges: edges };
+  };
+  // A value as it crosses over; NOPE for what stays in the worker (functions, objects of a class).
+  const NOPE = {};
+  Out.prototype.enc = function (v, d) {
+    if (v === null || typeof v !== 'object') return typeof v === 'function' ? NOPE : v;
+    const r = this.ref.get(v);
+    if (r !== undefined) return r.r;
+    if (d > 6) return NOPE;
+    if (ArrayBuffer.isView(v)) return v.slice();
+    if (Array.isArray(v)) { const o = new Array(v.length); for (let i = 0; i < v.length; i++) { const x = this.enc(v[i], d + 1); o[i] = x === NOPE ? null : x; } return o; }
+    if (v instanceof Map) { const o = []; for (const e of v) { const a = this.enc(e[0], d + 1), b = this.enc(e[1], d + 1); if (a !== NOPE && b !== NOPE) o.push(a, b); } return { $M: o }; }
+    if (v instanceof Set) { const o = []; for (const e of v) { const x = this.enc(e, d + 1); if (x !== NOPE) o.push(x); } return { $S: o }; }
+    const pr = Object.getPrototypeOf(v);
+    if (pr !== Object.prototype && pr !== null) return NOPE;
+    const o = {};
+    for (const k in v) { const x = this.enc(v[k], d + 1); if (x !== NOPE) o[k] = x; }
+    return o;
+  };
+  // The fields of one object that changed: { field: value }, or null.
+  Out.prototype.diff = function (o, skip) {
+    let pv = this.prev.get(o);
+    if (!pv) { pv = new Map(); this.prev.set(o, pv); }
+    let ch = null;
+    for (const k in o) {
+      if (skip.has(k)) continue;
+      const v = o[k];
+      if (typeof v === 'function') continue;
+      let key;
+      if (v === null || typeof v !== 'object') key = v;
+      else { const r = this.ref.get(v); key = r !== undefined ? r.s : '#' + hash(v, 0, 0, this); }
+      if (pv.has(k) && pv.get(k) === key) continue;
+      pv.set(k, key);
+      const e = this.enc(v, 0);
+      if (e === NOPE) continue;
+      (ch || (ch = {}))[k] = e;
+    }
+    return ch;
+  };
+  // An id list: sent when it changed.
+  Out.prototype.list = function (name, arr, idf) {
+    let h = arr.length;
+    for (let i = 0; i < arr.length; i++) h = mix(h, typeof idf(arr[i]) === 'number' ? idf(arr[i]) : idOf(arr[i]));
+    if (this.lists[name] === h) return undefined;
+    this.lists[name] = h;
+    return arr.map(idf);
+  };
+  // the posture of a realm: every cell with its numbers for the person at this device (a link
+  // to another cell goes as that cell's id), for the others only what the shading and the
+  // tooltips need (cell, tiles in it, troops in it), every SLOW ticks
+  Out.prototype.post = function (p, mine) {
+    const post = p.post, T = this.g.ticks;
+    if (!post) return undefined;
+    if (!mine && !this.first && (T + p.id) % SLOW !== 0) return undefined;
+    let h = num(num(post.cells.size, post.H), post.edits);
+    if (mine) for (const c of post.cells.values()) for (const k in c) { const v = c[k]; if (typeof v === 'number' || typeof v === 'boolean') h = hash(v, h, 0, null); }
+    else for (const c of post.cells.values()) h = num(num(num(h, c.id), c.n), c.u);
+    const pv = this.prev.get(p);
+    if (pv.get('post') === h) return undefined;
+    pv.set('post', h);
+    if (mine) {
+      const cells = [];
+      for (const c of post.cells.values()) {
+        const o = {};
+        for (const k in c) { const v = c[k]; o[k] = v && typeof v === 'object' ? (v.id !== undefined ? v.id : null) : v; }
+        cells.push(o);
+      }
+      return { $P: 2, H: post.H, edits: post.edits, autoAt: post.autoAt, cells: cells };
+    }
+    const n = post.cells.size, id = new Int32Array(n), cn = new Float64Array(n), cu = new Float64Array(n);
+    let i = 0;
+    for (const c of post.cells.values()) { id[i] = c.id; cn[i] = c.n; cu[i] = c.u; i++; }
+    return { $P: 1, H: post.H, edits: post.edits, id: id, n: cn, u: cu };
+  };
+  // A level: its definition is the same code on both sides and goes as its number; of its
+  // helper Q only the plain numbers go (the page makes its own Q with the same functions).
+  Out.prototype.level = function () {
+    const lv = this.g.lv;
+    if (!lv) return undefined;
+    const q = {}, o = {};
+    for (const k in lv.Q) { const v = lv.Q[k]; if (v === null || typeof v !== 'object' && typeof v !== 'function') q[k] = v; }
+    for (const k in lv) if (k !== 'def' && k !== 'Q') o[k] = lv[k];
+    const h = '#' + hash(o, hash(q, 0, 0, this), 0, this), pv = this.prev.get(this.g);
+    if (pv.get('lv') === h) return undefined;
+    pv.set('lv', h);
+    const e = this.enc(o, 0);
+    e.def = lv.def.n; e.Q = q;
+    return e;
+  };
+  // Everything that changed since the last call, as one message, and the buffers to hand over.
+  Out.prototype.step = function () {
+    const g = this.g, T = this.tables(), msg = { ticks: g.ticks }, xfer = [];
+    // tiles
+    if (this.first) {
+      msg.tiles = { all: true, owner: g.owner.slice(), fallout: g.fallout.slice() };
+      xfer.push(msg.tiles.owner.buffer, msg.tiles.fallout.buffer);
+      for (let i = 0; i < g.dirtyN; i++) g.dirtyFlag[g.dirty[i]] = 0;
+      g.dirtyN = 0;
+    } else if (g.dirtyN) {
+      const n = g.dirtyN, d = g.dirty, t = d.slice(0, n), o = new Uint16Array(n), f = new Uint8Array(n);
+      for (let i = 0; i < n; i++) { const k = t[i]; o[i] = g.owner[k]; f[i] = g.fallout[k]; g.dirtyFlag[k] = 0; }
+      g.dirtyN = 0;
+      msg.tiles = { t: t, owner: o, fallout: f };
+      xfer.push(t.buffer, o.buffer, f.buffer);
+    }
+    if (this.first) msg.opts = this.enc(g.opts, 0);
+    msg.game = this.diff(g, SKIP_GAME);
+    const lv = this.level();
+    if (lv !== undefined) msg.lv = lv;
+    // players
+    const me = g.human, pl = [];
+    for (let i = 1; i < g.players.length; i++) {
+      const p = g.players[i], ch = this.diff(p, SKIP_PLAYER), mine = p === me;
+      let c = ch;
+      const post = this.post(p, mine);
+      if (post !== undefined) (c || (c = {})).post = post;
+      if (mine) {
+        const pv = this.prev.get(p), key = '#' + hash(p.border, 0, 0, this);
+        if (pv.get('border') !== key) { pv.set('border', key); (c || (c = {})).border = Int32Array.from(p.border); }
+      }
+      if (c) pl.push(i, c);
+    }
+    msg.np = g.players.length;
+    if (pl.length) msg.players = pl;
+    // units, attacks, rails
+    const ud = [];
+    for (const u of T.units) { const c = this.diff(u, SKIP_UNIT); if (c) ud.push(u.id, c); }
+    if (ud.length) msg.units = ud;
+    const ad = [];
+    for (const a of T.attacks) {
+      let c = this.diff(a, SKIP_ATTACK);
+      if (me && (a.a === me || a.tid === me.id)) {
+        const pv = this.prev.get(a), key = '#' + hash(a.front, 0, 0, this);
+        if (pv.get('front') !== key) { pv.set('front', key); (c || (c = {})).front = { $S: Array.from(a.front) }; }
+      }
+      if (c) ad.push(a.id, c);
+    }
+    if (ad.length) msg.attacks = ad;
+    const ed = [];
+    for (const e of T.edges) { const c = this.diff(e, SKIP_EDGE); if (c) ed.push(e.key, c); }
+    if (ed.length) msg.edges = ed;
+    const id = function (o) { return o.id; };
+    const lu = this.list('units', g.units, id), ln = this.list('nukes', g.nukes, id), la = this.list('attacks', g.attacks, id);
+    const lr = this.list('rails', g.rails, function (e) { return e.key; });
+    if (lu) msg.unitList = lu;
+    if (ln) msg.nukeList = ln;
+    if (la) msg.attackList = la;
+    if (lr) msg.railList = lr;
+    // the objects that are gone: their memory of what was sent goes too
+    if (g.ticks % 50 === 0) for (const o of this.prev.keys()) if (!this.ref.has(o)) this.prev.delete(o);
+    // queues
+    if (g.events.length) { msg.events = this.enc(g.events, 0); g.events.length = 0; }
+    if (g.fx.length) { msg.fx = this.enc(g.fx, 0); g.fx.length = 0; }
+    this.first = false;
+    return { msg: msg, xfer: xfer };
+  };
+
+  // ---------- the page's side: the mirror ----------
+  // A game object without a simulation: the same prototype, so every question the controls ask
+  // (buildCheck, cost, structNear ...) is answered as before, from the state of the last tick.
+  function In(map) {
+    const N = map.N, m = this.m = Object.create(G.Game.prototype);
+    m.map = map; m.W = map.W; m.H = map.H; m.N = N; m.S = map.S;
+    m.owner = new Uint16Array(N); m.fallout = new Uint8Array(N);
+    m.dirty = new Int32Array(N); m.dirtyN = 0; m.dirtyFlag = new Uint8Array(N);
+    m.players = [null]; m.units = []; m.nukes = []; m.attacks = []; m.rails = []; m.events = []; m.fx = [];
+    m.mirror = true; m.cloakOk = false;
+    // working memory of the few questions that search (boatPlan, portSite): made on first use
+    let stamp = null, q = null;
+    Object.defineProperty(m, 'stamp', { get: function () { return stamp || (stamp = new Int32Array(N)); }, configurable: true });
+    Object.defineProperty(m, 'q', { get: function () { return q || (q = new Int32Array(N)); }, configurable: true });
+    m.sid = 0;
+    this.byU = new Map(); this.byA = new Map(); this.byE = new Map();
+    this.Q = null;
+  }
+  In.prototype.player = function (i) {
+    const m = this.m;
+    while (m.players.length <= i) {
+      const p = { id: m.players.length };
+      borderOnAsk(m, p);
+      m.players.push(p);
+    }
+    return m.players[i];
+  };
+  // the border of a realm that is not the own one, worked out from the tiles when asked
+  function borderOnAsk(m, p) {
+    let at = -1, set = null;
+    Object.defineProperty(p, 'border', {
+      configurable: true, enumerable: false,
+      get: function () {
+        if (set && at === m.ticks) return set;
+        at = m.ticks; set = new Set();
+        if (p.x1 < p.x0) return set;
+        const W = m.W, H = m.H, own = m.owner, id = p.id;
+        for (let y = p.y0; y <= p.y1; y++) for (let x = p.x0; x <= p.x1; x++) {
+          const t = y * W + x;
+          if (own[t] !== id) continue;
+          if ((x > 0 && own[t - 1] !== id) || (x < W - 1 && own[t + 1] !== id) || (y > 0 && own[t - W] !== id) || (y < H - 1 && own[t + W] !== id)) set.add(t);
+        }
+        return set;
+      },
+      set: function (v) { Object.defineProperty(p, 'border', { value: v, writable: true, configurable: true, enumerable: false }); }
+    });
+  }
+  In.prototype.get = function (kind, i) {
+    let map;
+    if (kind === 'u') map = this.byU; else if (kind === 'a') map = this.byA; else if (kind === 'e') map = this.byE;
+    else if (kind === 'p') return this.player(i);
+    else return this.m;
+    let o = map.get(i);
+    if (!o) { o = {}; map.set(i, o); }
+    return o;
+  };
+  In.prototype.dec = function (v) {
+    if (v === null || typeof v !== 'object' || ArrayBuffer.isView(v)) return v;
+    if (Array.isArray(v)) { const o = new Array(v.length); for (let i = 0; i < v.length; i++) o[i] = this.dec(v[i]); return o; }
+    if (v.$r !== undefined) return this.get(v.$r, v.i);
+    if (v.$M) { const o = new Map(), a = v.$M; for (let i = 0; i < a.length; i += 2) o.set(this.dec(a[i]), this.dec(a[i + 1])); return o; }
+    if (v.$S) { const o = new Set(), a = v.$S; for (let i = 0; i < a.length; i++) o.add(this.dec(a[i])); return o; }
+    const o = {};
+    for (const k in v) o[k] = this.dec(v[k]);
+    return o;
+  };
+  // fields into an object that stays the same object (the drawing keeps its notes on it)
+  In.prototype.patch = function (o, ch) {
+    for (const k in ch) {
+      const v = ch[k], cur = o[k];
+      if (v && typeof v === 'object' && !Array.isArray(v) && !ArrayBuffer.isView(v) && v.$r === undefined && !v.$M && !v.$S &&
+        cur && typeof cur === 'object' && Object.getPrototypeOf(cur) === Object.prototype) this.patch(cur, v);
+      else o[k] = this.dec(v);
+    }
+  };
+  In.prototype.post = function (p, v) {
+    if (v.$P === 2) {
+      const cells = new Map();
+      for (const c of v.cells) cells.set(c.id, c);
+      p.post = { cells: cells, H: v.H, edits: v.edits, autoAt: v.autoAt };
+      return;
+    }
+    const cells = new Map(), n = v.id.length;
+    for (let i = 0; i < n; i++) cells.set(v.id[i], { id: v.id[i], n: v.n[i], u: v.u[i], m: 1 });
+    p.post = { cells: cells, H: v.H, edits: v.edits, autoAt: 0 };
+  };
+  In.prototype.apply = function (msg) {
+    const m = this.m;
+    m.ticks = msg.ticks;
+    if (msg.opts) m.opts = this.dec(msg.opts);
+    const tl = msg.tiles;
+    if (tl && tl.all) { m.owner.set(tl.owner); m.fallout.set(tl.fallout); }
+    else if (tl) {
+      const t = tl.t, o = tl.owner, f = tl.fallout, own = m.owner, fo = m.fallout;
+      for (let i = 0; i < t.length; i++) { const k = t[i]; own[k] = o[i]; fo[k] = f[i]; m.markDirty(k); }
+    }
+    for (let i = m.players.length; i < msg.np; i++) this.player(i);
+    if (msg.players) {
+      const a = msg.players;
+      for (let i = 0; i < a.length; i += 2) {
+        const p = this.player(a[i]), ch = a[i + 1];
+        if (ch.post !== undefined) { this.post(p, ch.post); delete ch.post; }
+        if (ch.border !== undefined) { p.border = new Set(ch.border); delete ch.border; }
+        this.patch(p, ch);
+      }
+    }
+    let unitsChanged = false;
+    if (msg.units) { const a = msg.units; unitsChanged = true; for (let i = 0; i < a.length; i += 2) this.patch(this.get('u', a[i]), a[i + 1]); }
+    if (msg.attacks) { const a = msg.attacks; for (let i = 0; i < a.length; i += 2) { const o = this.get('a', a[i]); if (!o.front) o.front = new Set(); this.patch(o, a[i + 1]); } }
+    if (msg.edges) { const a = msg.edges; for (let i = 0; i < a.length; i += 2) this.patch(this.get('e', a[i]), a[i + 1]); }
+    const keep = function (map, list) { const s = new Set(list); for (const k of map.keys()) if (!s.has(k)) map.delete(k); };
+    if (msg.unitList) {
+      unitsChanged = true;
+      m.units = msg.unitList.map((i) => this.get('u', i));
+      if (msg.nukeList) m.nukes = msg.nukeList.map((i) => this.get('u', i));
+      const all = msg.unitList.slice();
+      for (const u of m.nukes) all.push(u.id);
+      for (let i = 1; i < m.players.length; i++) for (const u of m.players[i].units || []) all.push(u.id);
+      keep(this.byU, all);
+    } else if (msg.nukeList) m.nukes = msg.nukeList.map((i) => this.get('u', i));
+    if (msg.attackList) {
+      m.attacks = msg.attackList.map((i) => this.get('a', i));
+      const all = msg.attackList.slice();
+      for (let i = 1; i < m.players.length; i++) { const p = m.players[i]; for (const a of p.out || []) all.push(a.id); for (const a of p.inc || []) all.push(a.id); }
+      keep(this.byA, all);
+    }
+    if (msg.railList) { m.rails = msg.railList.map((k) => this.get('e', k)); keep(this.byE, msg.railList); }
+    if (msg.game) this.patch(m, msg.game);
+    if (msg.lv) {
+      const q = msg.lv.Q, n = msg.lv.def;
+      delete msg.lv.Q; delete msg.lv.def;
+      if (!m.lv) m.lv = {};
+      this.patch(m.lv, msg.lv);
+      m.lv.def = G.LEVELS.find(function (L) { return L.n === n; });
+      if (!this.Q) this.Q = m.levelQ();
+      Object.assign(this.Q, q);
+      m.lv.Q = this.Q;
+    }
+    if (unitsChanged) m.cloakOk = false;
+    if (msg.events) for (const e of this.dec(msg.events)) m.events.push(e);
+    if (msg.fx) for (const f of this.dec(msg.fx)) m.fx.push(f);
+  };
+
+  // ---------- the map: built on the page (it needs the browser to read the pictures), copied over ----------
+  G.mapPack = function (map) {
+    const o = {};
+    for (const k in map) {
+      const v = map[k];
+      if (typeof v === 'function' || k === 'sea') continue;
+      if (v && typeof v === 'object' && !ArrayBuffer.isView(v) && !Array.isArray(v)) {
+        const pr = Object.getPrototypeOf(v);
+        if (pr !== Object.prototype && pr !== null && !(v instanceof Map) && !(v instanceof Set)) continue;
+      }
+      o[k] = v;
+    }
+    return o;
+  };
+  G.mapUnpack = function (o) { return G.addClimate(o, o.rowLat); };
+
+  G.SyncOut = Out; G.SyncIn = In;
+
+  // ---------- the worker ----------
+  // Messages from the page, carried out in the order they come:
+  //   init  { map, opts, people }      a new game; answers 'state' with everything
+  //   step  { ticks: [orders, ...] }   one tick per entry, its orders [[player id, order], ...]
+  //                                    first; answers 'state' with the changes, what each order
+  //                                    of this device answered (acks) and the checksums
+  //   exec  { id, c, seq }             one order at once (playing alone, also while paused)
+  //   dump  {}                         for the tests: the whole game as the mirror should have it
+  G.simWorker = function (scope) {
+    let game = null, out = null, me = -1;
+    const send = function (k, extra) {
+      const r = out.step(), msg = r.msg;
+      msg.k = k;
+      if (extra) for (const x in extra) msg[x] = extra[x];
+      scope.postMessage(msg, r.xfer);
+    };
+    scope.onmessage = function (ev) {
+      const d = ev.data;
+      try {
+        if (d.k === 'init') {
+          const map = G.mapUnpack(d.map);
+          game = new G.Game(map, d.opts);
+          game.setup(d.people);
+          out = new Out(game);
+          me = game.human ? game.human.id : -1;
+          send('ready');
+        } else if (d.k === 'step') {
+          const acks = [], sums = [];
+          for (const list of d.ticks) {
+            for (const o of list) { const why = game.exec(o[0], o[1]); if (o[0] === me) acks.push(o[2] === undefined ? -1 : o[2], why || ''); }
+            game.tick();
+            if (d.sum && game.ticks % 100 === 0) sums.push(game.ticks, game.checksum());
+          }
+          send('state', { acks: acks, sums: sums, n: d.ticks.length });
+        } else if (d.k === 'exec') {
+          const why = game.exec(d.id, d.c);
+          send('ack', { acks: [d.seq, why || ''] });
+        } else if (d.k === 'dump') {
+          scope.postMessage({ k: 'dump', dump: G.syncDump(game) });
+        }
+      } catch (e) {
+        scope.postMessage({ k: 'error', message: String(e && e.stack || e) });
+      }
+    };
+  };
+  // A comparable picture of a game (worker or mirror) for the tests: what crosses over.
+  G.syncDump = function (g) {
+    const o = new Out(g);
+    o.tables();
+    const pick = function (x, skip) { const r = {}; for (const k in x) if (!skip.has(k) && o.enc(x[k], 0) !== NOPE) r[k] = '#' + hash(x[k], 0, 0, o); return r; };
+    const ps = [];
+    for (let i = 1; i < g.players.length; i++) ps.push(pick(g.players[i], SKIP_PLAYER));
+    let own = 0;
+    for (let i = 0; i < g.N; i++) own = mix(own, g.owner[i] * 256 + g.fallout[i]);
+    return {
+      ticks: g.ticks, owner: own, game: pick(g, new Set(Array.from(SKIP_GAME).concat(['mirror']))), players: ps,
+      units: g.units.map(function (u) { return pick(u, SKIP_UNIT); }), attacks: g.attacks.map(function (a) { return pick(a, SKIP_ATTACK); }),
+      rails: g.rails.map(function (e) { return pick(e, SKIP_EDGE); })
+    };
+  };
+  if (typeof WorkerGlobalScope !== 'undefined' && typeof self !== 'undefined' && self instanceof WorkerGlobalScope) G.simWorker(self);
+})(globalThis.G = globalThis.G || {});
+
+</script>
+<script>
 (function (G) {
   'use strict';
   // All sound is made in the browser: a slow generated soundtrack and short tones for actions.
@@ -6678,7 +7175,7 @@ body.placing #cv { cursor: crosshair; }
       let m = S.get(i);
       if (!m) { m = new Map(); S.set(i, m); }
       for (const c of p.post.cells.values()) {
-        const d = c.n > 0 ? g.postDens(p, c) : 1, st = Math.round(within(Math.log2(Math.max(d, 1)), 0, Math.log2(3)) * 4);
+        const d = c.n > 0 ? g.postDensSeen(p, c) : 1, st = Math.round(within(Math.log2(Math.max(d, 1)), 0, Math.log2(3)) * 4);
         if ((m.get(c.id) || 0) === st) continue;
         if (st) m.set(c.id, st); else m.delete(c.id);
         const cx = c.id % CW, cy = (c.id - cx) / CW;
@@ -9101,6 +9598,116 @@ body.placing #cv { cursor: crosshair; }
   G.Session = Session;
 })(globalThis.G = globalThis.G || {});
 
+// Where the game runs (doku/leistung.md, 25.11.2026). Two hosts with the same face:
+//   in a worker  the default: the simulation has its own thread, so a long tick never holds up a
+//                picture; the page reads the mirror (src/05b_sync.js), one tick behind at most
+//   on the page  with ?worker=0 in the address, for the tests that reach into the game, and
+//                whenever a worker cannot be made
+// The interface talks only to the host:
+//   host.ready(cb)              cb() once the game is there (on the page: at once)
+//   host.game                   the game to read: the mirror, or the game itself
+//   host.exec(id, c, cb)        one order now (playing alone; also while paused); cb(why)
+//   host.order(id, c, cb)       an order for the next step: returns the entry for host.step
+//   host.step(ticks, sum)       one tick per entry of `ticks`, each entry the orders to carry out
+//                               before it; then onState(n, sums) with the checksums of every
+//                               100th tick when `sum`
+//   host.busy                   a step is under way (the worker is still at it)
+//   host.stop()                 end the game
+(function (G) {
+  'use strict';
+  function wantWorker() {
+    try { if (new URLSearchParams(location.search).get('worker') === '0') return false; } catch (e) { /* no address */ }
+    return typeof Worker === 'function' && typeof Blob === 'function' && !!document.getElementById('sim');
+  }
+  G.Host = function (map, opts, people, onError) {
+    if (wantWorker()) {
+      try { return new WorkerHost(map, opts, people, onError); } catch (e) { /* no worker here: play on the page */ }
+    }
+    return new LocalHost(map, opts, people);
+  };
+
+  // what the person at this device ordered, waiting for the answer
+  function Orders() { this.seq = 0; this.cb = new Map(); }
+  Orders.prototype.add = function (cb) { const s = ++this.seq; if (cb) this.cb.set(s, cb); return s; };
+  Orders.prototype.answer = function (acks) {
+    for (let i = 0; i < acks.length; i += 2) {
+      const cb = this.cb.get(acks[i]);
+      if (cb) { this.cb.delete(acks[i]); cb(acks[i + 1]); }
+    }
+  };
+
+  // ---------- on the page ----------
+  function LocalHost(map, opts, people) {
+    this.local = true; this.busy = false; this.onState = null;
+    this.game = new G.Game(map, opts);
+    this.game.setup(people);
+    this.orders = new Orders();
+  }
+  LocalHost.prototype.ready = function (cb) { cb(); };
+  LocalHost.prototype.exec = function (id, c, cb) { const why = this.game.exec(id, c); if (cb) cb(why || ''); };
+  LocalHost.prototype.order = function (id, c, cb) { return [id, c, this.orders.add(cb)]; };
+  LocalHost.prototype.step = function (ticks, sum) {
+    const g = this.game, me = g.human ? g.human.id : -1, acks = [], sums = [];
+    for (const list of ticks) {
+      for (const o of list) { const why = g.exec(o[0], o[1]); if (o[0] === me && o[2] !== undefined) acks.push(o[2], why || ''); }
+      g.tick();
+      if (sum && g.ticks % 100 === 0) sums.push(g.ticks, g.checksum());
+    }
+    this.orders.answer(acks);
+    if (this.onState) this.onState(ticks.length, sums);
+  };
+  LocalHost.prototype.stop = function () { this.game = null; };
+
+  // ---------- in a worker ----------
+  // The worker runs the same code as the page: the script block «sim» of this page (the build
+  // puts the simulation there), started from a Blob, so the game stays one file.
+  function WorkerHost(map, opts, people, onError) {
+    this.local = false; this.busy = true; this.onState = null; this.onError = onError || null;
+    this.game = null; this.waiting = []; this.orders = new Orders(); this.dumpCb = null;
+    this.sync = new G.SyncIn(map);
+    const src = document.getElementById('sim').textContent;
+    this.url = URL.createObjectURL(new Blob([src], { type: 'text/javascript' }));
+    this.w = new Worker(this.url);
+    const self = this;
+    this.w.onmessage = function (ev) { self.got(ev.data); };
+    this.w.onerror = function (ev) { ev.preventDefault(); self.fail(ev.message || 'Fehler im Spiel'); };
+    this.w.postMessage({ k: 'init', map: G.mapPack(map), opts: opts, people: people });
+  }
+  WorkerHost.prototype.got = function (d) {
+    if (!this.w) return;
+    if (d.k === 'error') { this.fail(d.message); return; }
+    if (d.k === 'dump') { const cb = this.dumpCb; this.dumpCb = null; if (cb) cb(d.dump); return; }
+    this.sync.apply(d);
+    if (d.k === 'ready') {
+      this.game = this.sync.m; this.busy = false;
+      const w = this.waiting; this.waiting = [];
+      for (const cb of w) cb();
+      return;
+    }
+    if (d.acks) this.orders.answer(d.acks);
+    if (d.k === 'state') { this.busy = false; if (this.onState) this.onState(d.n, d.sums); }
+  };
+  WorkerHost.prototype.fail = function (msg) {
+    if (typeof console !== 'undefined') console.error('Spiel im Worker:', msg);
+    const cb = this.onError;
+    this.stop();
+    if (cb) cb(msg);
+  };
+  WorkerHost.prototype.ready = function (cb) { if (this.game) cb(); else this.waiting.push(cb); };
+  WorkerHost.prototype.exec = function (id, c, cb) { this.w.postMessage({ k: 'exec', id: id, c: c, seq: this.orders.add(cb) }); };
+  WorkerHost.prototype.order = function (id, c, cb) { return [id, c, this.orders.add(cb)]; };
+  WorkerHost.prototype.step = function (ticks, sum) {
+    this.busy = true;
+    this.w.postMessage({ k: 'step', ticks: ticks, sum: !!sum });
+  };
+  // for the tests: the worker's game as the mirror should show it (G.syncDump)
+  WorkerHost.prototype.dump = function (cb) { this.dumpCb = cb; this.w.postMessage({ k: 'dump' }); };
+  WorkerHost.prototype.stop = function () {
+    if (this.w) { this.w.terminate(); this.w = null; URL.revokeObjectURL(this.url); }
+    this.game = null; this.waiting = []; this.onState = null; this.onError = null;
+  };
+})(globalThis.G = globalThis.G || {});
+
 (function (G) {
   'use strict';
   const UT = G.UT, PT = G.PT, fmt = G.fmt, fmtT = G.fmtTroops, ICON = G.ICON, within = G.within;
@@ -9175,10 +9782,12 @@ body.placing #cv { cursor: crosshair; }
     return lv === 1 ? 'Schickt Züge los' : 'Züge fahren ' + ((1 + lv) / 2).toLocaleString('de-CH') + '-mal so oft';
   }
 
-  let MAPS = [], maps = {}, game = null, view = null;
+  let MAPS = [], maps = {}, game = null, view = null, pending = [];
+  // where the game runs (src/08b_host.js): `game` is what host.game shows, the game itself or its mirror
+  let host = null, stateAt = 0;
   let paused = false, speed = 1, acc = 0, last = 0, ratio = 0.2;
   // Aufstellung: the editing mode of the net (see 03b_posture.js)
-  let trainSeen = 0, incAt = -99;
+  let trainSeen = 0, shipSeen = 0, incAt = -99;
   const incLog = [];          // [tick, gold from trains so far, gold from ships so far], one entry every five seconds
   let netOn = false, netLess = false, stroke = null, netTimer = 0, lastTile = -1, commitAt = -99;
   const netQueue = new Map();
@@ -9684,9 +10293,20 @@ body.placing #cv { cursor: crosshair; }
       $('fStart').disabled = false; $('fStart').querySelector('small').textContent = 'Nochmals versuchen';
     });
   }
+  // A new game: made by the host (in the worker it takes a moment), then shown.
   function begin(map, opts, people) {
-    game = new G.Game(map, opts);
-    game.setup(people);
+    if (host) host.stop();
+    game = null;
+    const h = host = G.Host(map, opts, people, function (why) {
+      if (host !== h) return;
+      toast('Das Spiel ist abgebrochen: ' + String(why).split('\n')[0]);
+      quitGame();
+    });
+    h.onState = afterSteps;
+    h.ready(function () { if (host === h) shown(map, opts); });
+  }
+  function shown(map, opts) {
+    game = host.game;
     view.setMap(map); view.setGame(game); view.fit(false);
     landC = 0; view.resSel = 0; view.resSigns = true; renderLand();
     if (!RES && opts.res) setTimeout(function () { addMsg('Dieser Raum spielt die Version «Rohstoffe». Öffne den Einladungslink, sonst läuft dein Spiel auseinander.', 'bad'); }, 50);
@@ -9696,24 +10316,26 @@ body.placing #cv { cursor: crosshair; }
     $('modal').hidden = true; modalKind = '';
     $('hud').hidden = false; $('spawnBar').hidden = false; $('ctrl').hidden = true; $('lb').hidden = true; $('aimBar').hidden = true;
     netOn = false; stroke = null; netQueue.clear(); lastTile = -1; commitAt = -99; view.net.on = false; view.net.edit.clear(); view.net.w = 0; view.net.at = -1e9;
-    $('peek').hidden = true; trainSeen = 0; incAt = -99; incLog.length = 0; $('incLine').hidden = true; $('incLine').dataset.html = '';
+    $('peek').hidden = true; trainSeen = 0; shipSeen = 0; incAt = -99; incLog.length = 0; $('incLine').hidden = true; $('incLine').dataset.html = '';
     $('bNet').hidden = true; $('bNet').setAttribute('aria-pressed', 'false'); $('netBar').hidden = true; $('commit').textContent = '';
     $('bRes').hidden = true;
     plans.length = 0; syncPlans();
     $('mPunkt').hidden = !game.punkt; setThrust(cfg.thrust);
     $('feedMsgs').innerHTML = ''; $('feedLive').innerHTML = ''; $('news').innerHTML = ''; chips.clear(); asks.clear();
     $('lbRows').innerHTML = ''; $('clock').textContent = '0:00';
-    speed = 1; $('bSpeed').textContent = '1×'; acc = 0; endShown = false; lbAt = liveAt = -99; tradeAt = 0; aim = null;
+    speed = 1; $('bSpeed').textContent = '1×'; acc = 0; stateAt = performance.now(); endShown = false; lbAt = liveAt = -99; tradeAt = 0; aim = null;
     setPaused(false);
     view.placeNames();
     hudTick();
   }
-  // Every order of the player goes through here: carried out at once when playing alone,
-  // sent to the host when playing together.
+  // Every order of the player goes through here: carried out at once when playing alone (in the
+  // worker: as soon as it gets there, its answer comes back), sent to the host of the room when
+  // playing together.
   function act(c) {
     if (!game) return;
-    if (mp) mp.send(c);
-    else done(c, game.exec(game.human.id, c));
+    if (mp) { mp.send(c); return; }
+    const h = host;
+    host.exec(game.human.id, c, function (why) { if (host === h && game) done(c, why); });
   }
   function done(c, why) {
     if (c.k === 'mesh' || c.k === 'even') return;
@@ -9728,15 +10350,18 @@ body.placing #cv { cursor: crosshair; }
     else if (c.say) toast(c.say);
     if (modalKind === 'info') renderInfo();
   }
-  function applyTurn(list) {
-    const me = game.human ? game.human.id : 0;
+  // The orders of one turn of the room, as entries for host.step; the own ones get their answer.
+  function turnOrders(list) {
+    const me = game.human ? game.human.id : 0, h = host, out = [];
     for (let i = 0; i < list.length; i++) {
-      const id = list[i][0] | 0, c = list[i][1], why = game.exec(id, c);
-      if (id === me) done(c, why);
+      const id = list[i][0] | 0, c = list[i][1];
+      out.push(id === me ? host.order(id, c, function (why) { if (host === h && game) done(c, why); }) : [id, c]);
     }
+    return out;
   }
   function quitGame() {
     const wasLevel = !!(game && game.lv);
+    if (host) { host.stop(); host = null; }
     game = null; closeRadial(); $('sheet').hidden = true; if (view) view.showCloak = false; stopAim();
     $('hud').hidden = true;
     leaveRoom();
@@ -9969,7 +10594,8 @@ body.placing #cv { cursor: crosshair; }
     if (T - tradeAt >= 150) {
       tradeAt = T;
       // sea trade and railways are reported apart, so one can see what a port and what a factory earns
-      if (h.tradeGold > 0) { addMsg('Seehandel bringt ' + fmt(h.tradeGold) + ' Gold', 'good'); h.tradeGold = 0; }
+      const sg = (h.shipTotal || 0) - shipSeen;
+      if (sg > 0) { addMsg('Seehandel bringt ' + fmt(sg) + ' Gold', 'good'); shipSeen = h.shipTotal || 0; }
       const tg = (h.trainTotal || 0) - trainSeen;
       if (tg > 0) { addMsg('Züge bringen ' + fmt(tg) + ' Gold', 'good'); trainSeen = h.trainTotal || 0; }
     }
@@ -10516,7 +11142,7 @@ body.placing #cv { cursor: crosshair; }
     // the spot under the pointer: what the ground does to an attack, and how dense the troops stand
     // there (the net, drawn darker on the map)
     let here = 'Hier: ' + groundName(tile);
-    const cell = q.post && game.CW ? q.post.cells.get(game.cellOf(tile)) : null, dk = cell && cell.n > 0 ? game.postDens(q, cell) : 1;
+    const cell = q.post && game.CW ? q.post.cells.get(game.cellOf(tile)) : null, dk = cell && cell.n > 0 ? game.postDensSeen(q, cell) : 1;
     if (dk >= 1.15) here += ' · Truppen ' + (Math.round(Math.min(dk, G.COMBAT.densMax) * 10) / 10).toLocaleString('de-CH') + '× so dicht: langsamer, dort fallen auch mehr';
     s += '<div class="pkHere">' + esc(here) + '</div>';
     if (el.dataset.html !== s) { el.innerHTML = s; el.dataset.html = s; }
@@ -11257,29 +11883,33 @@ body.placing #cv { cursor: crosshair; }
     requestAnimationFrame(frame);
     const dt = Math.min(200, now - last);
     last = now;
-    let alpha = 1;
     if (game && (mp ? mp.started : !paused)) {
       const behind = mp ? mp.buf.size : 0;
       acc += dt * (mp ? (behind > 6 ? 8 : behind > 2 ? 2 : 1) : speed);
-      let n = 0;
-      while (acc >= 100 && n < 8 && game) {
-        if (mp) {
-          // playing together: only as far as the host's turns allow
-          if (turnLeft === 0) {
-            const turn = mp.take();
-            if (!turn) { acc = 100; break; }
-            applyTurn(turn);
-            turnLeft = G.TURN;
-          }
-          turnLeft--;
+      // a step goes out when the last one is back: a slow simulation slows the game, it never
+      // holds up a picture
+      if (acc >= 100 && !host.busy) {
+        const ticks = [];
+        while (acc >= 100 && ticks.length < 8) {
+          if (mp) {
+            // playing together: only as far as the host's turns allow
+            if (turnLeft === 0) {
+              const turn = mp.take();
+              if (!turn) { acc = 100; break; }
+              pending = turnOrders(turn);
+              turnLeft = G.TURN;
+            }
+            turnLeft--;
+            ticks.push(pending); pending = [];
+          } else ticks.push([]);
+          acc -= 100;
         }
-        game.tick(); acc -= 100; n++;
-        if (mp && game.ticks % 100 === 0) mp.sum(game.ticks, game.checksum());
-      }
-      if (acc >= 100 && !(mp && n === 0)) acc = 0;
-      if (n) { view.placeNames(); pump(); if (game) hudTick(); }
-      alpha = Math.min(1, acc / 100);
+        if (acc >= 100 && !(mp && !ticks.length)) acc = 0;
+        if (ticks.length) host.step(ticks, !!mp);
+      } else if (acc > 800) acc = 800;
     }
+    let alpha = 1;
+    if (game && !paused) alpha = Math.min(1, (now - stateAt) * (mp ? 1 : speed) / 100);
     refreshGhost();
     if (game) updatePlan(now);
     const held = G.heldKeys;
@@ -11294,6 +11924,13 @@ body.placing #cv { cursor: crosshair; }
     view.draw(alpha, now);
   }
   const FLUSH_MS = 4;
+  // After the host has run a step: what the interface shows of it.
+  function afterSteps(n, sums) {
+    stateAt = performance.now();
+    if (!game) return;
+    if (mp) for (let i = 0; i < sums.length; i += 2) mp.sum(sums[i], sums[i + 1]);
+    view.placeNames(); pump(); if (game) hudTick();
+  }
   // Sounds for things that happen on the map.
   G.onFx = function (f, seen) {
     if (f.k === 'boom') { if (f.beam) { if (seen) snd('laser', 0.2); } else if (f.big) snd('hydro', 0.3); else if (seen || !f.head) snd(f.head ? 'head' : 'boom', 0.12); }
@@ -11337,7 +11974,7 @@ body.placing #cv { cursor: crosshair; }
       toast: toast, addMsg: addMsg, goRow: goRow, setPaused: setPaused, svg: svg, esc: esc, snd: snd, cfg: cfg, COLORS: COLORS,
       get game() { return game; }, get view() { return view; }, get modalKind() { return modalKind; }
     };
-    G.debug = { get game() { return game; }, get view() { return view; }, get mp() { return mp; }, tap: tap, cfg: cfg, act: act };
+    G.debug = { get game() { return game; }, get view() { return view; }, get mp() { return mp; }, get host() { return host; }, tap: tap, cfg: cfg, act: act };
   };
 })(globalThis.G = globalThis.G || {});
 

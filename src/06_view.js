@@ -303,7 +303,7 @@
       let m = S.get(i);
       if (!m) { m = new Map(); S.set(i, m); }
       for (const c of p.post.cells.values()) {
-        const d = c.n > 0 ? g.postDens(p, c) : 1, st = Math.round(within(Math.log2(Math.max(d, 1)), 0, Math.log2(3)) * 4);
+        const d = c.n > 0 ? g.postDensSeen(p, c) : 1, st = Math.round(within(Math.log2(Math.max(d, 1)), 0, Math.log2(3)) * 4);
         if ((m.get(c.id) || 0) === st) continue;
         if (st) m.set(c.id, st); else m.delete(c.id);
         const cx = c.id % CW, cy = (c.id - cx) / CW;

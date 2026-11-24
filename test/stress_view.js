@@ -10,7 +10,7 @@ const sizes = (process.argv[2] || '0,100,1000,5000,10000').split(',').map(Number
   const browser = await chromium.launch({ executablePath: '/usr/bin/google-chrome', args: ['--no-sandbox'] });
   const page = await (await browser.newContext({ viewport: { width: 1280, height: 760 } })).newPage();
   page.on('pageerror', (e) => console.log('PAGEERROR', e.message));
-  await page.goto('file://' + (process.env.HTML || path.join(__dirname, '..', 'build', 'index.html')) + '?karte=welt');
+  await page.goto('file://' + (process.env.HTML || path.join(__dirname, '..', 'build', 'index.html')) + '?karte=welt&worker=0');
   await page.waitForTimeout(800);
   await page.click('#fStart');
   await page.waitForFunction(() => G.debug.game && G.debug.game.players.length > 5, null, { timeout: 20000 });
