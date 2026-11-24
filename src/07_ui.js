@@ -2174,7 +2174,7 @@
         if (mp && game.ticks % 100 === 0) mp.sum(game.ticks, game.checksum());
       }
       if (acc >= 100 && !(mp && n === 0)) acc = 0;
-      if (n) { view.flush(); view.placeNames(); pump(); if (game) hudTick(); }
+      if (n) { view.placeNames(); pump(); if (game) hudTick(); }
       alpha = Math.min(1, acc / 100);
     }
     refreshGhost();
@@ -2185,8 +2185,12 @@
       view.pan(((held.has('a') || held.has('arrowleft') ? 1 : 0) - (held.has('d') || held.has('arrowright') ? 1 : 0)) * d,
         ((held.has('w') || held.has('arrowup') ? 1 : 0) - (held.has('s') || held.has('arrowdown') ? 1 : 0)) * d);
     }
+    // the map picture catches up with the changed tiles: at most FLUSH_MS of painting per picture,
+    // so a tick with a lot of change is spread over the next pictures instead of holding one up
+    if (game) view.flush(FLUSH_MS);
     view.draw(alpha, now);
   }
+  const FLUSH_MS = 4;
   // Sounds for things that happen on the map.
   G.onFx = function (f, seen) {
     if (f.k === 'boom') { if (f.beam) { if (seen) snd('laser', 0.2); } else if (f.big) snd('hydro', 0.3); else if (seen || !f.head) snd(f.head ? 'head' : 'boom', 0.12); }

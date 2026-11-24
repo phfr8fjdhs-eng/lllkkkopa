@@ -273,36 +273,53 @@
     if (!m || !m.size) return c;
     const g = this.game, W = g.W, CS = G.POST.cell, CW = g.CW, x = t % W, y = (t - x) / W;
     const fx = (x + 0.5) / CS - 0.5, fy = (y + 0.5) / CS - 0.5, cx = Math.floor(fx), cy = Math.floor(fy), ax = fx - cx, ay = fy - cy;
-    const at = (i, j) => (i < 0 || j < 0 || i >= CW ? 0 : m.get(j * CW + i) || 0);
-    const st = (at(cx, cy) * (1 - ax) + at(cx + 1, cy) * ax) * (1 - ay) + (at(cx, cy + 1) * (1 - ax) + at(cx + 1, cy + 1) * ax) * ay;
+    // the four cell middles around the tile (no closure: this runs for every painted tile)
+    const okX0 = cx >= 0 && cx < CW, okX1 = cx + 1 < CW, okY0 = cy >= 0, row0 = cy * CW, row1 = row0 + CW;
+    const s00 = okX0 && okY0 ? m.get(row0 + cx) || 0 : 0, s10 = okX1 && okY0 ? m.get(row0 + cx + 1) || 0 : 0;
+    const s01 = okX0 ? m.get(row1 + cx) || 0 : 0, s11 = okX1 ? m.get(row1 + cx + 1) || 0 : 0;
+    const st = (s00 * (1 - ax) + s10 * ax) * (1 - ay) + (s01 * (1 - ax) + s11 * ax) * ay;
     if (st < 0.25) return c;
     const f = 256 - Math.round(st * 19);
     return pack(((c & 255) * f) >> 8, (((c >>> 8) & 255) * f) >> 8, (((c >>> 16) & 255) * f) >> 8);
   };
-  // Once a second: the step of every cell of every realm with a posture; where a step changed, the
-  // owner's tiles of that cell and the cells around it (the blend reaches into them) are painted again.
+  // The step of every cell of every realm with a posture, worked out again once a second; where a
+  // step changed, the owner's tiles of that cell and the cells around it (the blend reaches into
+  // them) are marked for painting. Until 25.11.2026 all realms were done in one go inside draw
+  // and painted at once: on the Earth a pause of up to 100 ms every second. Now the realms are
+  // taken in turn, at most SHADE_MS per picture, and the painting goes with the next flush.
+  const SHADE_MS = 1.5;
   View.prototype.shadeScan = function (now) {
     const g = this.game;
-    if (!g || !g.aufstellung || !g.CW || now - (this.shadeAt || 0) < 1000) return;
-    this.shadeAt = now;
+    if (!g || !g.aufstellung || !g.CW) return;
+    if (this.shadeI === undefined || this.shadeI >= g.players.length) {
+      if (now - (this.shadeAt || 0) < 1000) return;
+      this.shadeAt = now; this.shadeI = 1;
+    }
     const S = this.shade || (this.shade = new Map()), W = g.W, H = g.H, CW = g.CW, CS = G.POST.cell, own = g.owner;
-    let any = false;
-    for (let i = 1; i < g.players.length; i++) {
-      const p = g.players[i];
-      if (!p || !p.alive || !p.post || !p.post.cells.size) continue;
+    const t0 = performance.now();
+    while (this.shadeI < g.players.length) {
+      const i = this.shadeI++, p = g.players[i];
+      if (!p || !p.alive || !p.post || !p.post.cells.size) { if (S.has(i)) this.shadeDrop(i); continue; }
       let m = S.get(i);
       if (!m) { m = new Map(); S.set(i, m); }
       for (const c of p.post.cells.values()) {
         const d = c.n > 0 ? g.postDens(p, c) : 1, st = Math.round(within(Math.log2(Math.max(d, 1)), 0, Math.log2(3)) * 4);
         if ((m.get(c.id) || 0) === st) continue;
         if (st) m.set(c.id, st); else m.delete(c.id);
-        any = true;
         const cx = c.id % CW, cy = (c.id - cx) / CW;
         const x0 = Math.max(0, cx * CS - CS), y0 = Math.max(0, cy * CS - CS), x1 = Math.min(W, cx * CS + 2 * CS), y1 = Math.min(H, cy * CS + 2 * CS);
         for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) { const t = y * W + x; if (own[t] === i) g.markDirty(t); }
       }
+      if (performance.now() - t0 > SHADE_MS) break;
     }
-    if (any) this.flush();
+  };
+  // a realm without a posture any more: its shade goes, and its tiles are painted plain again
+  View.prototype.shadeDrop = function (i) {
+    const g = this.game, p = g.players[i];
+    this.shade.delete(i);
+    if (!p || p.x1 < p.x0) return;
+    const W = g.W, own = g.owner;
+    for (let y = p.y0; y <= p.y1; y++) for (let x = p.x0; x <= p.x1; x++) { const t = y * W + x; if (own[t] === i) g.markDirty(t); }
   };
   // The two colours a border is drawn in: c32b for the plain stretch, c32l for the stretches a
   // defence post covers. Your own realm is rimmed near white, an ally's in green, so a glance at
@@ -347,22 +364,28 @@
   // rectangle around all changes was copied: with fronts all over the Earth that was nearly the
   // whole picture (16 million pixels) every tick, about 16 ms, for a few thousand changed tiles.
   const BSH = 5, BLK = 1 << BSH;   // 32 tiles (measured on the Earth: 32 clearly beats 64; 16 only a little better, with four times the calls)
-  View.prototype.flush = function () {
+  // budget: at most that many milliseconds of painting (checked every 512 tiles); what is left
+  // stays marked and comes with the next call. Without a budget everything is painted.
+  View.prototype.flush = function (budget) {
     const g = this.game, n = g.dirtyN;
     if (!n) return;
     const d = g.dirty, f = g.dirtyFlag, W = g.W, H = g.H, bw = (W + BLK - 1) >> BSH, bh = (H + BLK - 1) >> BSH;
     let mk = this.blk;
     if (!mk || mk.length !== bw * bh) mk = this.blk = new Uint8Array(bw * bh);
-    let b0 = bh, b1 = -1;
-    for (let i = 0; i < n; i++) {
-      const t = d[i], x = t % W, y = (t - x) / W, by = y >> BSH;
+    let b0 = bh, b1 = -1, i = 0;
+    const t0 = budget ? performance.now() : 0;
+    while (i < n) {
+      const t = d[i++], x = t % W, y = (t - x) / W, by = y >> BSH;
       f[t] = 0;
       this.paint(t);
       mk[by * bw + (x >> BSH)] = 1;
       if (by < b0) b0 = by;
       if (by > b1) b1 = by;
+      if (budget && (i & 511) === 0 && performance.now() - t0 > budget) break;
     }
-    g.dirtyN = 0;
+    // what is left moves to the front of the list
+    if (i < n) d.copyWithin(0, i, n);
+    g.dirtyN = n - i;
     for (let by = b0; by <= b1; by++) {
       const row = by * bw, y = by * BLK, h = Math.min(BLK, H - y);
       for (let bx = 0; bx < bw; bx++) {
