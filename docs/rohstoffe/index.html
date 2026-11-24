@@ -41,7 +41,6 @@ button { font: inherit; color: inherit; cursor: pointer; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 #app { position: absolute; inset: 0; overflow: hidden; }
 #cv { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: crosshair; }
-#cvMap { position: absolute; inset: 0; width: 100%; height: 100%; display: block; pointer-events: none; }
 .panel {
   background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
   -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
@@ -622,7 +621,7 @@ body.placing #cv { cursor: crosshair; }
   <div id="modal" hidden><div id="modalCard" class="card panel"></div></div>
   <div id="toast" hidden></div>
 </div>
-<script id="sim">
+<script>
 globalThis.G = { VARIANT: 'rohstoffe' };
 (function (G) {
   'use strict';
@@ -3507,18 +3506,6 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     if (!(post.H > 0)) even(post);
     if (!(post.H > 0) || c.n <= 0 || p.tiles <= 0) return 1;
     return (c.u / c.n) / (post.H / p.tiles);
-  };
-  // The same for the display (shading, tooltips): reads only. postDens above evens out a realm
-  // without units as a side effect, and the display asks at its own times, different on every
-  // device; until 25.11.2026 the shading did that through postDens, which could part the games
-  // of two devices playing together.
-  Game.prototype.postDensSeen = function (p, c) {
-    const post = p.post;
-    if (post.H > 0) return c.n <= 0 || p.tiles <= 0 ? 1 : (c.u / c.n) / (post.H / p.tiles);
-    let H = 0;
-    for (const x of post.cells.values()) H += x.n * x.m;
-    if (!(H > 0) || c.n <= 0 || p.tiles <= 0) return 1;
-    return c.m / (H / p.tiles);
   };
   // Take up to x troops out of a cell; the rest of the realm is untouched. Returns what was taken.
   Game.prototype.postTake = function (p, c, x) {
@@ -6483,499 +6470,6 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   G.AI = AI;
 })(globalThis.G = globalThis.G || {});
 
-// The simulation in its own thread (doku/leistung.md, 25.11.2026).
-//
-// The game runs in a Web Worker; the page keeps a read-only copy of it, the mirror, that the
-// drawing and the controls read as they read the game itself. After every step the worker sends
-// what changed:
-//   tiles    owner and fallout of every changed tile (the list the game keeps for painting anyway)
-//   objects  the game, every player, unit and rail, and the attacks on or by the person at this
-//            device: the fields that changed since the last message. A plain value is compared
-//            as it is; a list, map, set or nested object by a hash of its content, and sent whole
-//            when that changed.
-//   queues   new messages (events) and effects (fx), handed over and emptied in the worker
-// A reference to a player, unit, attack, rail or the game itself travels as its id and is turned
-// back into the mirror's own object, so `u.owner === game.human` holds on the page as well.
-// Objects of a class (heaps, path finders, the AI) stay in the worker.
-//
-// Nothing here changes the game: the worker reads it after a step, the page writes only the
-// mirror. Orders go the other way as messages and are carried out with game.exec, between ticks,
-// in the order they were sent, as they always were.
-(function (G) {
-  'use strict';
-  // ---------- what does not go across, or goes another way ----------
-  // the game: tile arrays have their own channel, lists of objects too, the rest is the worker's
-  // own working memory
-  const SKIP_GAME = new Set(['map', 'sea', 'rng', 'owner', 'fallout', 'stamp', 'sid', 'q', 'dirty', 'dirtyN', 'dirtyFlag',
-    'players', 'units', 'attacks', 'rails', 'events', 'fx', 'pathLeg', 'pathNear', 'pathCache', 'pathQ', 'pathJob', 'nearQ', 'nearJob',
-    'postHeap', 'postList', 'pocketQ', 'railHeap', 'thrustHeap', 'deferList', 'sg', 'cloakOk', 'opts', 'lv']);
-  // a player: the border is sent for the person at this device only (the mirror works it out
-  // for the others when asked); the posture of the others only as much as the shading needs
-  const SKIP_PLAYER = new Set(['border', 'ai', 'post', 'pocketFrom', 'pocketSeen']);
-  // attacks: only those on or by the person at this device (the page shows no others, and on
-  // the Earth some 2500 of them change every tick)
-  const SKIP_OTHER = new Set(Array.from(SKIP_PLAYER).concat(['out', 'inc']));
-  const SKIP_ATTACK = new Set(['heap', 'front', 'taken']);
-  const SKIP_UNIT = new Set([]);          // a unit goes whole
-  const SKIP_EDGE = new Set(['geo']);     // a rail: its drawn shape is the page's own
-  const SLOW = 10;   // the posture of the others goes across every SLOW ticks
-
-  // ---------- content hash: has a value changed since it was last sent? ----------
-  const f64 = new Float64Array(1), i32 = new Int32Array(f64.buffer);
-  const mix = function (h, x) { h = Math.imul(h ^ x, 0x01000193); return (h ^ (h >>> 15)) | 0; };
-  const BIG = 4096;   // longer lists are compared by length and a few samples, and by who they are
-  let nextId = 1;
-  const oid = new WeakMap();
-  const idOf = function (o) { let i = oid.get(o); if (!i) { i = nextId++; oid.set(o, i); } return i; };
-  function num(h, v) {
-    if ((v | 0) === v) return mix(h, v);
-    f64[0] = v; return mix(mix(h, i32[0]), i32[1]);
-  }
-  function hash(v, h, d, out) {
-    if (v === null || v === undefined) return mix(h, v === null ? 7 : 11);
-    const t = typeof v;
-    if (t === 'number') return num(h, v);
-    if (t === 'boolean') return mix(h, v ? 13 : 17);
-    if (t === 'string') { h = mix(h, v.length); for (let i = 0; i < v.length; i++) h = mix(h, v.charCodeAt(i)); return h; }
-    if (t !== 'object') return h;
-    const r = out && out.ref.get(v);
-    if (r !== undefined) return mix(mix(h, 19), r.h);
-    if (d > 5) return mix(h, idOf(v));
-    if (ArrayBuffer.isView(v) || Array.isArray(v)) {
-      const n = v.length;
-      h = mix(h, n);
-      if (n > BIG) {
-        h = mix(h, idOf(v));
-        for (let k = 0; k < 64; k++) { const x = v[(k * 7919) % n]; h = typeof x === 'number' ? num(h, x) : hash(x, h, d + 1, out); }
-        return h;
-      }
-      if (ArrayBuffer.isView(v)) { for (let i = 0; i < n; i++) h = num(h, v[i]); return h; }
-      for (let i = 0; i < n; i++) h = hash(v[i], h, d + 1, out);
-      return h;
-    }
-    if (v instanceof Map) { h = mix(h, v.size); for (const e of v) { h = hash(e[0], h, d + 1, out); h = hash(e[1], h, d + 1, out); } return h; }
-    if (v instanceof Set) { h = mix(h, v.size + 1e6); for (const e of v) h = hash(e, h, d + 1, out); return h; }
-    const pr = Object.getPrototypeOf(v);
-    if (pr !== Object.prototype && pr !== null) return h;
-    for (const k in v) { const x = v[k]; if (typeof x === 'function') continue; h = hash(k, h, d + 1, out); h = hash(x, h, d + 1, out); }
-    return h;
-  }
-
-  // ---------- the worker's side ----------
-  function Out(game) {
-    this.g = game;
-    this.first = true;
-    this.prev = new Map();     // object -> Map(field -> plain value or content hash)
-    this.ref = new Map();      // object -> { r: reference as sent, h: its hash }
-    this.lists = {};           // name -> hash of the id list last sent
-  }
-  // References: every player, unit, attack and rail, and the game, by id.
-  Out.prototype.tables = function () {
-    const g = this.g, ref = this.ref;
-    ref.clear();
-    const put = function (o, k, i) { if (o && !ref.has(o)) ref.set(o, { r: { $r: k, i: i }, s: '@' + k + i, h: hash(i, k.charCodeAt(0), 0, null) }); };
-    put(g, 'g', 0);
-    for (let i = 1; i < g.players.length; i++) put(g.players[i], 'p', i);
-    const units = [], attacks = [], edges = [];
-    const unit = function (u) { if (u && !ref.has(u)) { put(u, 'u', u.id); units.push(u); } };
-    for (const u of g.units) unit(u);
-    for (const u of g.nukes) unit(u);
-    for (let i = 1; i < g.players.length; i++) for (const u of g.players[i].units) unit(u);
-    const attack = function (a) { if (a && !ref.has(a)) { put(a, 'a', a.id); attacks.push(a); } };
-    const me = g.human;
-    if (me) { for (const a of me.out) attack(a); for (const a of me.inc) attack(a); }
-    for (const e of g.rails) if (!ref.has(e)) { put(e, 'e', e.key); edges.push(e); }
-    return { units: units, attacks: attacks, edges: edges };
-  };
-  // A value as it crosses over; NOPE for what stays in the worker (functions, objects of a class).
-  const NOPE = {};
-  Out.prototype.enc = function (v, d) {
-    if (v === null || typeof v !== 'object') return typeof v === 'function' ? NOPE : v;
-    const r = this.ref.get(v);
-    if (r !== undefined) return r.r;
-    if (d > 6) return NOPE;
-    if (ArrayBuffer.isView(v)) return v.slice();
-    if (Array.isArray(v)) { const o = new Array(v.length); for (let i = 0; i < v.length; i++) { const x = this.enc(v[i], d + 1); o[i] = x === NOPE ? null : x; } return o; }
-    if (v instanceof Map) { const o = []; for (const e of v) { const a = this.enc(e[0], d + 1), b = this.enc(e[1], d + 1); if (a !== NOPE && b !== NOPE) o.push(a, b); } return { $M: o }; }
-    if (v instanceof Set) { const o = []; for (const e of v) { const x = this.enc(e, d + 1); if (x !== NOPE) o.push(x); } return { $S: o }; }
-    const pr = Object.getPrototypeOf(v);
-    if (pr !== Object.prototype && pr !== null) return NOPE;
-    const o = {};
-    for (const k in v) { const x = this.enc(v[k], d + 1); if (x !== NOPE) o[k] = x; }
-    return o;
-  };
-  // The fields of one object that changed: { field: value }, or null.
-  Out.prototype.diff = function (o, skip) {
-    let pv = this.prev.get(o);
-    if (!pv) { pv = new Map(); this.prev.set(o, pv); }
-    let ch = null;
-    for (const k in o) {
-      if (skip.has(k)) continue;
-      const v = o[k];
-      if (typeof v === 'function') continue;
-      let key;
-      if (v === null || typeof v !== 'object') key = v;
-      else { const r = this.ref.get(v); key = r !== undefined ? r.s : '#' + hash(v, 0, 0, this); }
-      if (pv.has(k) && pv.get(k) === key) continue;
-      pv.set(k, key);
-      const e = this.enc(v, 0);
-      if (e === NOPE) continue;
-      (ch || (ch = {}))[k] = e;
-    }
-    return ch;
-  };
-  // An id list: sent when it changed.
-  Out.prototype.list = function (name, arr, idf) {
-    let h = arr.length;
-    for (let i = 0; i < arr.length; i++) h = mix(h, typeof idf(arr[i]) === 'number' ? idf(arr[i]) : idOf(arr[i]));
-    if (this.lists[name] === h) return undefined;
-    this.lists[name] = h;
-    return arr.map(idf);
-  };
-  // the posture of a realm: every cell with its numbers for the person at this device (a link
-  // to another cell goes as that cell's id), for the others only what the shading and the
-  // tooltips need (cell, tiles in it, troops in it), every SLOW ticks
-  Out.prototype.post = function (p, mine) {
-    const post = p.post, T = this.g.ticks;
-    if (!post) return undefined;
-    if (!mine && !this.first && (T + p.id) % SLOW !== 0) return undefined;
-    let h = num(num(post.cells.size, post.H), post.edits);
-    if (mine) for (const c of post.cells.values()) for (const k in c) { const v = c[k]; if (typeof v === 'number' || typeof v === 'boolean') h = hash(v, h, 0, null); }
-    else for (const c of post.cells.values()) h = num(num(num(h, c.id), c.n), c.u);
-    const pv = this.prev.get(p);
-    if (pv.get('post') === h) return undefined;
-    pv.set('post', h);
-    if (mine) {
-      const cells = [];
-      for (const c of post.cells.values()) {
-        const o = {};
-        for (const k in c) { const v = c[k]; o[k] = v && typeof v === 'object' ? (v.id !== undefined ? v.id : null) : v; }
-        cells.push(o);
-      }
-      return { $P: 2, H: post.H, edits: post.edits, autoAt: post.autoAt, cells: cells };
-    }
-    const n = post.cells.size, id = new Int32Array(n), cn = new Float64Array(n), cu = new Float64Array(n);
-    let i = 0;
-    for (const c of post.cells.values()) { id[i] = c.id; cn[i] = c.n; cu[i] = c.u; i++; }
-    return { $P: 1, H: post.H, edits: post.edits, id: id, n: cn, u: cu };
-  };
-  // A level: its definition is the same code on both sides and goes as its number; of its
-  // helper Q only the plain numbers go (the page makes its own Q with the same functions).
-  Out.prototype.level = function () {
-    const lv = this.g.lv;
-    if (!lv) return undefined;
-    const q = {}, o = {};
-    for (const k in lv.Q) { const v = lv.Q[k]; if (v === null || typeof v !== 'object' && typeof v !== 'function') q[k] = v; }
-    for (const k in lv) if (k !== 'def' && k !== 'Q') o[k] = lv[k];
-    const h = '#' + hash(o, hash(q, 0, 0, this), 0, this), pv = this.prev.get(this.g);
-    if (pv.get('lv') === h) return undefined;
-    pv.set('lv', h);
-    const e = this.enc(o, 0);
-    e.def = lv.def.n; e.Q = q;
-    return e;
-  };
-  // Everything that changed since the last call, as one message, and the buffers to hand over.
-  Out.prototype.step = function () {
-    const g = this.g, T = this.tables(), msg = { ticks: g.ticks }, xfer = [];
-    // tiles
-    if (this.first) {
-      msg.tiles = { all: true, owner: g.owner.slice(), fallout: g.fallout.slice() };
-      xfer.push(msg.tiles.owner.buffer, msg.tiles.fallout.buffer);
-      for (let i = 0; i < g.dirtyN; i++) g.dirtyFlag[g.dirty[i]] = 0;
-      g.dirtyN = 0;
-    } else if (g.dirtyN) {
-      const n = g.dirtyN, d = g.dirty, t = d.slice(0, n), o = new Uint16Array(n), f = new Uint8Array(n);
-      for (let i = 0; i < n; i++) { const k = t[i]; o[i] = g.owner[k]; f[i] = g.fallout[k]; g.dirtyFlag[k] = 0; }
-      g.dirtyN = 0;
-      msg.tiles = { t: t, owner: o, fallout: f };
-      xfer.push(t.buffer, o.buffer, f.buffer);
-    }
-    if (this.first) msg.opts = this.enc(g.opts, 0);
-    msg.game = this.diff(g, SKIP_GAME);
-    const lv = this.level();
-    if (lv !== undefined) msg.lv = lv;
-    // players
-    const me = g.human, pl = [];
-    for (let i = 1; i < g.players.length; i++) {
-      const mine = g.players[i] === me, p = g.players[i], ch = this.diff(p, mine ? SKIP_PLAYER : SKIP_OTHER);
-      let c = ch;
-      const post = this.post(p, mine);
-      if (post !== undefined) (c || (c = {})).post = post;
-      if (mine) {
-        const pv = this.prev.get(p), key = '#' + hash(p.border, 0, 0, this);
-        if (pv.get('border') !== key) { pv.set('border', key); (c || (c = {})).border = Int32Array.from(p.border); }
-      }
-      if (c) pl.push(i, c);
-    }
-    msg.np = g.players.length;
-    if (pl.length) msg.players = pl;
-    // units, attacks, rails
-    const ud = [];
-    for (const u of T.units) { const c = this.diff(u, SKIP_UNIT); if (c) ud.push(u.id, c); }
-    if (ud.length) msg.units = ud;
-    const ad = [];
-    for (const a of T.attacks) {   // all of them on or by the person at this device, with their front
-      let c = this.diff(a, SKIP_ATTACK);
-      const pv = this.prev.get(a), key = '#' + hash(a.front, 0, 0, this);
-      if (pv.get('front') !== key) { pv.set('front', key); (c || (c = {})).front = { $S: Array.from(a.front) }; }
-      if (c) ad.push(a.id, c);
-    }
-    if (ad.length) msg.attacks = ad;
-    const ed = [];
-    for (const e of T.edges) { const c = this.diff(e, SKIP_EDGE); if (c) ed.push(e.key, c); }
-    if (ed.length) msg.edges = ed;
-    const id = function (o) { return o.id; };
-    const lu = this.list('units', g.units, id), ln = this.list('nukes', g.nukes, id), la = this.list('attacks', T.attacks, id);
-    const lr = this.list('rails', g.rails, function (e) { return e.key; });
-    if (lu) msg.unitList = lu;
-    if (ln) msg.nukeList = ln;
-    if (la) msg.attackList = la;
-    if (lr) msg.railList = lr;
-    // the objects that are gone: their memory of what was sent goes too
-    if (g.ticks % 50 === 0) for (const o of this.prev.keys()) if (!this.ref.has(o)) this.prev.delete(o);
-    // queues
-    if (g.events.length) { msg.events = this.enc(g.events, 0); g.events.length = 0; }
-    if (g.fx.length) { msg.fx = this.enc(g.fx, 0); g.fx.length = 0; }
-    this.first = false;
-    return { msg: msg, xfer: xfer };
-  };
-
-  // ---------- the page's side: the mirror ----------
-  // A game object without a simulation: the same prototype, so every question the controls ask
-  // (buildCheck, cost, structNear ...) is answered as before, from the state of the last tick.
-  function In(map) {
-    const N = map.N, m = this.m = Object.create(G.Game.prototype);
-    m.map = map; m.W = map.W; m.H = map.H; m.N = N; m.S = map.S;
-    m.owner = new Uint16Array(N); m.fallout = new Uint8Array(N);
-    // the tiles to paint again: a list that grows when needed (one for every tile of the map
-    // would be 65 MB on the Earth, a tick changes some ten thousand)
-    m.dirty = new Int32Array(1 << 16); m.dirtyN = 0; m.dirtyFlag = new Uint8Array(N);
-    m.markDirty = function (t) {
-      if (this.dirtyFlag[t]) return;
-      this.dirtyFlag[t] = 1;
-      if (this.dirtyN === this.dirty.length) { const d = new Int32Array(Math.min(N, this.dirty.length * 2)); d.set(this.dirty); this.dirty = d; }
-      this.dirty[this.dirtyN++] = t;
-    };
-    m.players = [null]; m.units = []; m.nukes = []; m.attacks = []; m.rails = []; m.events = []; m.fx = [];
-    m.mirror = true; m.cloakOk = false;
-    // working memory of the few questions that search (boatPlan, portSite): made on first use
-    let stamp = null, q = null;
-    Object.defineProperty(m, 'stamp', { get: function () { return stamp || (stamp = new Int32Array(N)); }, configurable: true });
-    Object.defineProperty(m, 'q', { get: function () { return q || (q = new Int32Array(N)); }, configurable: true });
-    m.sid = 0;
-    this.byU = new Map(); this.byA = new Map(); this.byE = new Map();
-    this.Q = null;
-  }
-  In.prototype.player = function (i) {
-    const m = this.m;
-    while (m.players.length <= i) {
-      const p = { id: m.players.length, out: [], inc: [] };
-      borderOnAsk(m, p);
-      m.players.push(p);
-    }
-    return m.players[i];
-  };
-  // the border of a realm that is not the own one, worked out from the tiles when asked
-  function borderOnAsk(m, p) {
-    let at = -1, set = null;
-    Object.defineProperty(p, 'border', {
-      configurable: true, enumerable: false,
-      get: function () {
-        if (set && at === m.ticks) return set;
-        at = m.ticks; set = new Set();
-        if (p.x1 < p.x0) return set;
-        const W = m.W, H = m.H, own = m.owner, id = p.id;
-        for (let y = p.y0; y <= p.y1; y++) for (let x = p.x0; x <= p.x1; x++) {
-          const t = y * W + x;
-          if (own[t] !== id) continue;
-          if ((x > 0 && own[t - 1] !== id) || (x < W - 1 && own[t + 1] !== id) || (y > 0 && own[t - W] !== id) || (y < H - 1 && own[t + W] !== id)) set.add(t);
-        }
-        return set;
-      },
-      set: function (v) { Object.defineProperty(p, 'border', { value: v, writable: true, configurable: true, enumerable: false }); }
-    });
-  }
-  In.prototype.get = function (kind, i) {
-    let map;
-    if (kind === 'u') map = this.byU; else if (kind === 'a') map = this.byA; else if (kind === 'e') map = this.byE;
-    else if (kind === 'p') return this.player(i);
-    else return this.m;
-    let o = map.get(i);
-    if (!o) { o = {}; map.set(i, o); }
-    return o;
-  };
-  In.prototype.dec = function (v) {
-    if (v === null || typeof v !== 'object' || ArrayBuffer.isView(v)) return v;
-    if (Array.isArray(v)) { const o = new Array(v.length); for (let i = 0; i < v.length; i++) o[i] = this.dec(v[i]); return o; }
-    if (v.$r !== undefined) return this.get(v.$r, v.i);
-    if (v.$M) { const o = new Map(), a = v.$M; for (let i = 0; i < a.length; i += 2) o.set(this.dec(a[i]), this.dec(a[i + 1])); return o; }
-    if (v.$S) { const o = new Set(), a = v.$S; for (let i = 0; i < a.length; i++) o.add(this.dec(a[i])); return o; }
-    const o = {};
-    for (const k in v) o[k] = this.dec(v[k]);
-    return o;
-  };
-  // fields into an object that stays the same object (the drawing keeps its notes on it)
-  In.prototype.patch = function (o, ch) {
-    for (const k in ch) {
-      const v = ch[k], cur = o[k];
-      if (v && typeof v === 'object' && !Array.isArray(v) && !ArrayBuffer.isView(v) && v.$r === undefined && !v.$M && !v.$S &&
-        cur && typeof cur === 'object' && Object.getPrototypeOf(cur) === Object.prototype) this.patch(cur, v);
-      else o[k] = this.dec(v);
-    }
-  };
-  In.prototype.post = function (p, v) {
-    if (v.$P === 2) {
-      const cells = new Map();
-      for (const c of v.cells) cells.set(c.id, c);
-      p.post = { cells: cells, H: v.H, edits: v.edits, autoAt: v.autoAt };
-      return;
-    }
-    const cells = new Map(), n = v.id.length;
-    for (let i = 0; i < n; i++) cells.set(v.id[i], { id: v.id[i], n: v.n[i], u: v.u[i], m: 1 });
-    p.post = { cells: cells, H: v.H, edits: v.edits, autoAt: 0 };
-  };
-  In.prototype.apply = function (msg) {
-    const m = this.m;
-    m.ticks = msg.ticks;
-    if (msg.opts) m.opts = this.dec(msg.opts);
-    const tl = msg.tiles;
-    if (tl && tl.all) { m.owner.set(tl.owner); m.fallout.set(tl.fallout); }
-    else if (tl) {
-      const t = tl.t, o = tl.owner, f = tl.fallout, own = m.owner, fo = m.fallout;
-      for (let i = 0; i < t.length; i++) { const k = t[i]; own[k] = o[i]; fo[k] = f[i]; m.markDirty(k); }
-    }
-    for (let i = m.players.length; i < msg.np; i++) this.player(i);
-    if (msg.players) {
-      const a = msg.players;
-      for (let i = 0; i < a.length; i += 2) {
-        const p = this.player(a[i]), ch = a[i + 1];
-        if (ch.post !== undefined) { this.post(p, ch.post); delete ch.post; }
-        if (ch.border !== undefined) { p.border = new Set(ch.border); delete ch.border; }
-        this.patch(p, ch);
-      }
-    }
-    let unitsChanged = false;
-    if (msg.units) { const a = msg.units; unitsChanged = true; for (let i = 0; i < a.length; i += 2) this.patch(this.get('u', a[i]), a[i + 1]); }
-    if (msg.attacks) { const a = msg.attacks; for (let i = 0; i < a.length; i += 2) { const o = this.get('a', a[i]); if (!o.front) o.front = new Set(); this.patch(o, a[i + 1]); } }
-    if (msg.edges) { const a = msg.edges; for (let i = 0; i < a.length; i += 2) this.patch(this.get('e', a[i]), a[i + 1]); }
-    const keep = function (map, list) { const s = new Set(list); for (const k of map.keys()) if (!s.has(k)) map.delete(k); };
-    if (msg.unitList) {
-      unitsChanged = true;
-      m.units = msg.unitList.map((i) => this.get('u', i));
-      if (msg.nukeList) m.nukes = msg.nukeList.map((i) => this.get('u', i));
-      const all = msg.unitList.slice();
-      for (const u of m.nukes) all.push(u.id);
-      for (let i = 1; i < m.players.length; i++) for (const u of m.players[i].units || []) all.push(u.id);
-      keep(this.byU, all);
-    } else if (msg.nukeList) m.nukes = msg.nukeList.map((i) => this.get('u', i));
-    if (msg.attackList) {
-      m.attacks = msg.attackList.map((i) => this.get('a', i));
-      const all = msg.attackList.slice();
-      for (let i = 1; i < m.players.length; i++) { const p = m.players[i]; for (const a of p.out || []) all.push(a.id); for (const a of p.inc || []) all.push(a.id); }
-      keep(this.byA, all);
-    }
-    if (msg.railList) { m.rails = msg.railList.map((k) => this.get('e', k)); keep(this.byE, msg.railList); }
-    if (msg.game) this.patch(m, msg.game);
-    if (msg.lv) {
-      const q = msg.lv.Q, n = msg.lv.def;
-      delete msg.lv.Q; delete msg.lv.def;
-      if (!m.lv) m.lv = {};
-      this.patch(m.lv, msg.lv);
-      m.lv.def = G.LEVELS.find(function (L) { return L.n === n; });
-      if (!this.Q) this.Q = m.levelQ();
-      Object.assign(this.Q, q);
-      m.lv.Q = this.Q;
-    }
-    if (unitsChanged) m.cloakOk = false;
-    if (msg.events) for (const e of this.dec(msg.events)) m.events.push(e);
-    if (msg.fx) for (const f of this.dec(msg.fx)) m.fx.push(f);
-  };
-
-  // ---------- the map: built on the page (it needs the browser to read the pictures), copied over ----------
-  G.mapPack = function (map) {
-    const o = {};
-    for (const k in map) {
-      const v = map[k];
-      if (typeof v === 'function' || k === 'sea') continue;
-      if (v && typeof v === 'object' && !ArrayBuffer.isView(v) && !Array.isArray(v)) {
-        const pr = Object.getPrototypeOf(v);
-        if (pr !== Object.prototype && pr !== null && !(v instanceof Map) && !(v instanceof Set)) continue;
-      }
-      o[k] = v;
-    }
-    return o;
-  };
-  G.mapUnpack = function (o) { return G.addClimate(o, o.rowLat); };
-
-  G.SyncOut = Out; G.SyncIn = In;
-
-  // ---------- the worker ----------
-  // Messages from the page, carried out in the order they come:
-  //   init  { map, opts, people }      a new game; answers 'ready' with everything
-  //   step  { ticks: [orders, ...] }   one tick per entry, its orders [[player id, order], ...]
-  //                                    first; answers 'state' with the changes, what each order
-  //                                    of this device answered (acks) and the checksums
-  //   exec  { id, c, seq }             one order at once (playing alone, also while paused);
-  //                                    answers 'ack' with its answer and the changes
-  //   dump  {}                         for the tests: the whole game as the mirror should have it
-  G.simWorker = function (scope) {
-    let game = null, out = null, me = -1;
-    const send = function (k, extra) {
-      const r = out.step(), msg = r.msg;
-      msg.k = k;
-      if (extra) for (const x in extra) msg[x] = extra[x];
-      scope.postMessage(msg, r.xfer);
-    };
-    scope.onmessage = function (ev) {
-      const d = ev.data;
-      try {
-        if (d.k === 'init') {
-          const map = G.mapUnpack(d.map);
-          game = new G.Game(map, d.opts);
-          game.setup(d.people);
-          out = new Out(game);
-          me = game.human ? game.human.id : -1;
-          send('ready');
-        } else if (d.k === 'step') {
-          const acks = [], sums = [];
-          for (const list of d.ticks) {
-            for (const o of list) { const why = game.exec(o[0], o[1]); if (o[0] === me) acks.push(o[2] === undefined ? -1 : o[2], why || ''); }
-            game.tick();
-            if (d.sum && game.ticks % 100 === 0) sums.push(game.ticks, game.checksum());
-          }
-          send('state', { acks: acks, sums: sums, n: d.ticks.length });
-        } else if (d.k === 'exec') {
-          const why = game.exec(d.id, d.c);
-          send('ack', { acks: [d.seq, why || ''] });
-        } else if (d.k === 'dump') {
-          scope.postMessage({ k: 'dump', dump: G.syncDump(game) });
-        }
-      } catch (e) {
-        scope.postMessage({ k: 'error', message: String(e && e.stack || e) });
-      }
-    };
-  };
-  // A comparable picture of a game (worker or mirror) for the tests: what crosses over.
-  G.syncDump = function (g) {
-    const o = new Out(g);
-    o.tables();
-    const pick = function (x, skip) { const r = {}; for (const k in x) if (!skip.has(k) && o.enc(x[k], 0) !== NOPE) r[k] = '#' + hash(x[k], 0, 0, o); return r; };
-    const ps = [];
-    for (let i = 1; i < g.players.length; i++) ps.push(pick(g.players[i], g.players[i] === g.human ? SKIP_PLAYER : SKIP_OTHER));
-    const me = g.human, atk = me ? me.out.concat(me.inc.filter(function (a) { return me.out.indexOf(a) < 0; })) : [];
-    let own = 0;
-    for (let i = 0; i < g.N; i++) own = mix(own, g.owner[i] * 256 + g.fallout[i]);
-    return {
-      ticks: g.ticks, owner: own, game: pick(g, new Set(Array.from(SKIP_GAME).concat(['mirror']))), players: ps,
-      units: g.units.map(function (u) { return pick(u, SKIP_UNIT); }), attacks: atk.map(function (a) { return pick(a, SKIP_ATTACK); }),
-      rails: g.rails.map(function (e) { return pick(e, SKIP_EDGE); })
-    };
-  };
-  if (typeof WorkerGlobalScope !== 'undefined' && typeof self !== 'undefined' && self instanceof WorkerGlobalScope) G.simWorker(self);
-})(globalThis.G = globalThis.G || {});
-
-</script>
-<script>
 (function (G) {
   'use strict';
   // All sound is made in the browser: a slow generated soundtrack and short tones for actions.
@@ -7167,444 +6661,6 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   };
 })(globalThis.G = globalThis.G || {});
 
-// The map drawn by the graphics card (WebGL 2, doku/leistung.md, 25.11.2026).
-//
-// Until now every changed tile was coloured in JavaScript (View.color) and copied into a picture
-// of the whole map, 16 million pixels on the Earth, that the browser then took to the graphics
-// card again. Here the card gets the numbers and works out the colours itself:
-//   own    per tile: owner (bits 0-12), defended by an own defence post (bit 13), fallout (bit 14)
-//   base   per tile: the colour of the ground, alpha = a river (only the Earth has them)
-//   pal    per player: border, defended border, colour, colour at 85 % saturation
-//   cell   per cell of the posture (16 x 16 tiles): up to four owners with their density step,
-//          each as owner << 8 | step
-// A first pass colours the changed tiles into a colour picture of the map: each changed tile as
-// one point (one draw for all of them), and whole blocks of 32 x 32 tiles where the shading or
-// the colours of a player changed. A second pass shows that picture with the camera, every frame.
-// Only with a graphics card: where the browser would draw WebGL in software (no card, or one it
-// does not trust), the 2D picture is faster, and that is used instead (?gl=1 forces WebGL).
-// The rules are those of View.color; test/gl.js reads the picture back and compares every tile.
-//
-// Maps larger than the card's largest texture are cut into pieces (chunks), each with a rim of
-// one tile from its neighbours, so a border between two pieces is found as anywhere else.
-(function (G) {
-  'use strict';
-  const BSH = 5, BLK = 1 << BSH;          // blocks of 32 x 32 tiles, as View.flush
-  const OWN = 0x1fff, DEF = 0x2000, FALL = 0x4000;
-  const PALW = 1024;                      // palette: 1024 players per row, four rows per kind
-
-  const VS_TILE = `#version 300 es
-in vec2 aPos;
-void main() { gl_Position = vec4(aPos, 0.0, 1.0); }`;
-  // one changed tile: aPos is the tile, uOrg and uSize the chunk
-  const VS_POINT = `#version 300 es
-in vec2 aPos;
-uniform vec2 uOrgF, uSize;
-void main() { gl_Position = vec4((aPos - uOrgF + 0.5) / uSize * 2.0 - 1.0, 0.0, 1.0); gl_PointSize = 1.0; }`;
-  // the colour of one tile, as View.color
-  const FS_TILE = `#version 300 es
-precision highp float; precision highp int;
-uniform highp usampler2D uOwn;
-uniform sampler2D uBase;
-uniform sampler2D uPal;
-uniform highp usampler2D uCell;
-uniform ivec2 uOrg, uMap, uCells;
-uniform int uFeat, uCS, uRows;
-out vec4 outc;
-uint ownAt(ivec2 l) { return texelFetch(uOwn, l + 1, 0).r; }
-ivec3 pal(int kind, uint o) { int i = int(o); return ivec3(texelFetch(uPal, ivec2(i % ${PALW}, kind * uRows + i / ${PALW}), 0).rgb * 255.0 + 0.5); }
-float stepAt(int cx, int cy, uint o) {
-  if (cx < 0 || cy < 0 || cx >= uCells.x || cy >= uCells.y) return 0.0;
-  uvec4 c = texelFetch(uCell, ivec2(cx, cy), 0);
-  if ((c.r >> 8u) == o) return float(c.r & 255u);
-  if ((c.g >> 8u) == o) return float(c.g & 255u);
-  if ((c.b >> 8u) == o) return float(c.b & 255u);
-  if ((c.a >> 8u) == o) return float(c.a & 255u);
-  return 0.0;
-}
-ivec3 dense(uint o, ivec2 g, ivec3 c) {
-  float cs = float(uCS), fx = (float(g.x) + 0.5) / cs - 0.5, fy = (float(g.y) + 0.5) / cs - 0.5;
-  int cx = int(floor(fx)), cy = int(floor(fy));
-  float ax = fx - float(cx), ay = fy - float(cy);
-  float st = (stepAt(cx, cy, o) * (1.0 - ax) + stepAt(cx + 1, cy, o) * ax) * (1.0 - ay) + (stepAt(cx, cy + 1, o) * (1.0 - ax) + stepAt(cx + 1, cy + 1, o) * ax) * ay;
-  if (st < 0.25) return c;
-  int f = 256 - int(floor(st * 19.0 + 0.5));
-  return (c * f) >> 8;
-}
-void main() {
-  ivec2 l = ivec2(gl_FragCoord.xy), g = l + uOrg;
-  uint w = ownAt(l), o = w & ${OWN}u;
-  vec4 bt = texelFetch(uBase, l, 0);
-  ivec3 b = ivec3(bt.rgb * 255.0 + 0.5), c;
-  if (o == 0u) {
-    c = (w & ${FALL}u) == 0u ? b : (b * 120 + ivec3(104, 214, 78) * 136) >> 8;
-  } else {
-    bool edge = (g.x > 0 && (ownAt(l + ivec2(-1, 0)) & ${OWN}u) != o) || (g.x < uMap.x - 1 && (ownAt(l + ivec2(1, 0)) & ${OWN}u) != o) ||
-      (g.y > 0 && (ownAt(l + ivec2(0, -1)) & ${OWN}u) != o) || (g.y < uMap.y - 1 && (ownAt(l + ivec2(0, 1)) & ${OWN}u) != o);
-    if (edge) c = pal((w & ${DEF}u) != 0u && ((g.x + g.y) & 1) == 1 ? 1 : 0, o);
-    else if (uFeat == 1) {
-      ivec3 pc = pal(2, o);
-      if (bt.a > 0.5) c = dense(o, g, (b * 120 + pc * 136) >> 8);
-      else {
-        int lum = (b.r * 77 + b.g * 150 + b.b * 29) >> 8, f = 226 + lum * 40 / 190;
-        ivec3 r = (((pc * f) >> 8) * 226 + b * 30) >> 8;
-        c = dense(o, g, min(r, ivec3(255)));
-      }
-    } else c = dense(o, g, (b * 105 + pal(3, o) * 151) >> 8);
-  }
-  outc = vec4(vec3(c) / 255.0, 1.0);
-}`;
-  // the colour picture on the screen
-  const VS_MAP = `#version 300 es
-in vec2 aPos;
-uniform vec4 uRect;   // x0, y0, x1, y1 of the chunk in tiles
-uniform vec4 uCam;    // z, ox, oy in device pixels, and 0
-uniform vec2 uView;   // canvas size in device pixels
-out vec2 vUV;
-void main() {
-  vec2 t = mix(uRect.xy, uRect.zw, aPos);
-  vec2 p = t * uCam.x + uCam.yz;
-  vUV = aPos;
-  gl_Position = vec4(p.x / uView.x * 2.0 - 1.0, 1.0 - p.y / uView.y * 2.0, 0.0, 1.0);
-}`;
-  const FS_MAP = `#version 300 es
-precision mediump float;
-uniform sampler2D uColor;
-in vec2 vUV;
-out vec4 outc;
-void main() { outc = texture(uColor, vUV); }`;
-
-  function shader(gl, type, src) {
-    const s = gl.createShader(type);
-    gl.shaderSource(s, src); gl.compileShader(s);
-    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error('shader: ' + gl.getShaderInfoLog(s));
-    return s;
-  }
-  function program(gl, vs, fs) {
-    const p = gl.createProgram();
-    gl.attachShader(p, shader(gl, gl.VERTEX_SHADER, vs)); gl.attachShader(p, shader(gl, gl.FRAGMENT_SHADER, fs));
-    gl.bindAttribLocation(p, 0, 'aPos');
-    gl.linkProgram(p);
-    if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error('program: ' + gl.getProgramInfoLog(p));
-    const u = {}, n = gl.getProgramParameter(p, gl.ACTIVE_UNIFORMS);
-    for (let i = 0; i < n; i++) { const a = gl.getActiveUniform(p, i); u[a.name] = gl.getUniformLocation(p, a.name); }
-    return { p: p, u: u };
-  }
-  function tex(gl, filter) {
-    const t = gl.createTexture();
-    gl.bindTexture(gl.TEXTURE_2D, t);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, filter || gl.NEAREST);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, filter || gl.NEAREST);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    return t;
-  }
-  function unpack(gl, row, x, y) {
-    gl.pixelStorei(gl.UNPACK_ROW_LENGTH, row); gl.pixelStorei(gl.UNPACK_SKIP_PIXELS, x); gl.pixelStorei(gl.UNPACK_SKIP_ROWS, y);
-  }
-
-  // canvas: the <canvas> to draw into; map, base (the ground colours, View.base); chunk: the
-  // largest piece (tests use a small one to try the cutting). Throws if WebGL 2 is not there.
-  function MapGL(canvas, map, base, chunk) {
-    const gl = canvas.getContext('webgl2', { alpha: false, antialias: false, depth: false, stencil: false, premultipliedAlpha: false, preserveDrawingBuffer: false, failIfMajorPerformanceCaveat: !MapGL.forced() });
-    if (!gl) throw new Error('no WebGL 2 on a graphics card');
-    this.gl = gl; this.cv = canvas; this.map = map; this.game = null;
-    gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1); gl.pixelStorei(gl.PACK_ALIGNMENT, 1);
-    const W = map.W, H = map.H, N = map.N;
-    const max = Math.min(gl.getParameter(gl.MAX_TEXTURE_SIZE), 8192);
-    const C = this.C = Math.max(64, Math.min(chunk || max, max) - 2);
-    this.tile = program(gl, VS_TILE, FS_TILE);
-    this.point = program(gl, VS_POINT, FS_TILE);
-    this.show = program(gl, VS_MAP, FS_MAP);
-    this.word = new Uint16Array(N);                 // the own texture's numbers, for the whole map
-    this.bw = (W + BLK - 1) >> BSH; this.bh = (H + BLK - 1) >> BSH;
-    this.blk = new Uint8Array(this.bw * this.bh); this.anyBlk = false;   // blocks to colour whole
-    this.up = new Uint8Array(this.bw * this.bh);                           // blocks whose numbers changed
-    this.pts = new Float32Array(2 * 4096); this.np = 0;                    // changed tiles, x and y
-    this.quad = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.quad);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([0, 0, 1, 0, 0, 1, 1, 1]), gl.STATIC_DRAW);
-    this.rects = gl.createBuffer(); this.rectData = new Float32Array(12 * 256);
-    this.vao = gl.createVertexArray();
-    // the ground colours with the rivers in alpha
-    const rgba = new Uint8Array(N * 4), b32 = new Uint32Array(rgba.buffer), feat = map.feat;
-    for (let i = 0; i < N; i++) b32[i] = feat && (feat[i] & 1) ? base[i] | 0xff000000 : base[i] & 0x00ffffff;
-    this.chunks = [];
-    for (let y0 = 0; y0 < H; y0 += C) for (let x0 = 0; x0 < W; x0 += C) {
-      const cw = Math.min(C, W - x0), ch = Math.min(C, H - y0), k = { x0: x0, y0: y0, w: cw, h: ch };
-      k.own = tex(gl);
-      gl.texImage2D(gl.TEXTURE_2D, 0, gl.R16UI, cw + 2, ch + 2, 0, gl.RED_INTEGER, gl.UNSIGNED_SHORT, null);
-      k.base = tex(gl);
-      unpack(gl, W, x0, y0);
-      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, cw, ch, 0, gl.RGBA, gl.UNSIGNED_BYTE, rgba);
-      k.color = tex(gl, gl.LINEAR);
-      unpack(gl, 0, 0, 0);
-      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, cw, ch, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
-      k.fbo = gl.createFramebuffer();
-      gl.bindFramebuffer(gl.FRAMEBUFFER, k.fbo);
-      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, k.color, 0);
-      if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) throw new Error('framebuffer');
-      this.chunks.push(k);
-    }
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-    unpack(gl, 0, 0, 0);
-    this.pal = tex(gl); this.palRows = 0; this.palN = 0;
-    this.cell = tex(gl); this.cells = null; this.CW = 0; this.CH = 0; this.cellDirty = false;
-    this.lost = false;
-    const self = this;
-    canvas.addEventListener('webglcontextlost', function (e) { e.preventDefault(); self.lost = true; if (self.onLost) self.onLost(); }, false);
-    this.setGame(null);   // the bare map, until a game is on it
-    if (gl.getError() !== gl.NO_ERROR) throw new Error('WebGL error while setting up');
-  }
-
-  // A new game on the map: every tile from the game, the palette, no shading yet.
-  MapGL.prototype.setGame = function (g) {
-    this.game = g;
-    const map = this.map, N = map.N, w = this.word;
-    if (g) for (let t = 0; t < N; t++) w[t] = this.wordOf(g, t);
-    else w.fill(0);
-    const CS = G.POST.cell;
-    this.CW = (g && g.CW) || Math.ceil(map.W / CS); this.CH = Math.ceil(map.H / CS);
-    this.cells = new Uint32Array(this.CW * this.CH * 4);
-    const gl = this.gl;
-    gl.bindTexture(gl.TEXTURE_2D, this.cell);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32UI, this.CW, this.CH, 0, gl.RGBA_INTEGER, gl.UNSIGNED_INT, this.cells);
-    this.palette();
-    for (const k of this.chunks) this.upload(k, k.x0 - 1, k.y0 - 1, k.w + 2, k.h + 2);
-    this.blk.fill(1); this.anyBlk = true;
-    this.render();
-  };
-  MapGL.prototype.wordOf = function (g, t) {
-    const o = g.owner[t];
-    if (!o) return g.fallout[t] ? FALL : 0;
-    const p = g.players[o];
-    if (p.dposts && p.dposts.length) {
-      const W = g.W, x = t % W, y = (t - x) / W, r2 = g.R.defense * g.R.defense;
-      for (let i = 0; i < p.dposts.length; i++) {
-        const dx = p.dposts[i].x - x, dy = p.dposts[i].y - y;
-        if (dx * dx + dy * dy <= r2) return o | DEF;
-      }
-    }
-    return o;
-  };
-  // the players' colours (View.setGame and View.borderColors have worked them out)
-  MapGL.prototype.palette = function () {
-    const g = this.game, n = g ? g.players.length : 1, rows = Math.ceil(n / PALW), d = new Uint8Array(PALW * rows * 4 * 4);
-    const put = function (kind, i, r, gg, b) { const k = ((kind * rows + ((i / PALW) | 0)) * PALW + i % PALW) * 4; d[k] = r; d[k + 1] = gg; d[k + 2] = b; d[k + 3] = 255; };
-    for (let i = 1; i < n; i++) {
-      const p = g.players[i];
-      if (!p || p.c32b === undefined) continue;
-      put(0, i, p.c32b & 255, (p.c32b >>> 8) & 255, (p.c32b >>> 16) & 255);
-      put(1, i, p.c32l & 255, (p.c32l >>> 8) & 255, (p.c32l >>> 16) & 255);
-      put(2, i, p.r, p.g, p.b);
-      put(3, i, p.rs, p.gs, p.bs);
-    }
-    const gl = this.gl;
-    gl.bindTexture(gl.TEXTURE_2D, this.pal);
-    unpack(gl, 0, 0, 0);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, PALW, rows * 4, 0, gl.RGBA, gl.UNSIGNED_BYTE, d);
-    this.palRows = rows; this.palN = n;
-  };
-  // the colours changed (an alliance made or broken): the whole map again
-  MapGL.prototype.recolour = function () { this.palette(); this.blk.fill(1); this.anyBlk = true; };
-  // one tile changed hands (or its border, or its fallout): View.flush calls this for each
-  MapGL.prototype.mark = function (t) {
-    const g = this.game, W = g.W, x = t % W, y = (t - x) / W;
-    this.word[t] = this.wordOf(g, t);
-    this.up[(y >> BSH) * this.bw + (x >> BSH)] = 1;
-    if (this.np * 2 + 2 > this.pts.length) { const e = new Float32Array(this.pts.length * 2); e.set(this.pts); this.pts = e; }
-    this.pts[this.np * 2] = x; this.pts[this.np * 2 + 1] = y; this.np++;
-  };
-  // the density step of a cell for one owner (View.shadeScan): up to four owners per cell
-  MapGL.prototype.shade = function (cell, o, st) {
-    const c = this.cells, k = cell * 4;
-    let at = -1, free = -1;
-    for (let i = k; i < k + 4; i++) { if (c[i] >>> 8 === o) at = i; else if (free < 0 && !(c[i] & 255)) free = i; }
-    if (at >= 0) { if ((c[at] & 255) === st) return; c[at] = st ? (o << 8 | st) >>> 0 : 0; }
-    else if (!st) return;
-    else if (free >= 0) c[free] = (o << 8 | st) >>> 0;
-    else return;   // a fifth owner in one cell: it goes without shading there until room is free
-    this.cellDirty = true;
-    // the blend reaches half a cell into the neighbours
-    const CS = G.POST.cell, cx = cell % this.CW, cy = (cell - cx) / this.CW;
-    const x0 = Math.max(0, (cx - 1) * CS) >> BSH, x1 = Math.min(this.map.W - 1, (cx + 2) * CS - 1) >> BSH;
-    const y0 = Math.max(0, (cy - 1) * CS) >> BSH, y1 = Math.min(this.map.H - 1, (cy + 2) * CS - 1) >> BSH;
-    for (let by = y0; by <= y1; by++) for (let bx = x0; bx <= x1; bx++) this.blk[by * this.bw + bx] = 1;
-    this.anyBlk = true;
-  };
-  // tiles of the map (x, y, w, h, may reach past it) into the own texture of a chunk, with its rim
-  MapGL.prototype.upload = function (k, x, y, w, h) {
-    const W = this.map.W, H = this.map.H;
-    let x0 = Math.max(x, k.x0 - 1, 0), y0 = Math.max(y, k.y0 - 1, 0);
-    const x1 = Math.min(x + w, k.x0 + k.w + 1, W), y1 = Math.min(y + h, k.y0 + k.h + 1, H);
-    if (x1 <= x0 || y1 <= y0) return;
-    const gl = this.gl;
-    gl.bindTexture(gl.TEXTURE_2D, k.own);
-    unpack(gl, W, x0, y0);
-    gl.texSubImage2D(gl.TEXTURE_2D, 0, x0 - (k.x0 - 1), y0 - (k.y0 - 1), x1 - x0, y1 - y0, gl.RED_INTEGER, gl.UNSIGNED_SHORT, this.word);
-  };
-  // The changed blocks: their numbers to the card, their colours worked out anew.
-  MapGL.prototype.render = function () {
-    if (this.lost || (!this.anyBlk && !this.np)) return;
-    const gl = this.gl, bw = this.bw, bh = this.bh, W = this.map.W, H = this.map.H;
-    if (this.game && this.game.players.length > this.palN) this.palette();
-    if (this.cellDirty) {
-      gl.bindTexture(gl.TEXTURE_2D, this.cell);
-      unpack(gl, 0, 0, 0);
-      gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, this.CW, this.CH, gl.RGBA_INTEGER, gl.UNSIGNED_INT, this.cells);
-      this.cellDirty = false;
-    }
-    // runs of marked blocks in a row, as rectangles in tiles
-    const runsOf = function (mk) {
-      const runs = [];
-      for (let by = 0; by < bh; by++) {
-        const row = by * bw;
-        for (let bx = 0; bx < bw; bx++) {
-          if (!mk[row + bx]) continue;
-          let ex = bx;
-          while (ex + 1 < bw && mk[row + ex + 1]) ex++;
-          for (let i = bx; i <= ex; i++) mk[row + i] = 0;
-          runs.push(bx * BLK, by * BLK, Math.min(W, (ex + 1) * BLK), Math.min(H, (by + 1) * BLK));
-          bx = ex;
-        }
-      }
-      return runs;
-    };
-    // the numbers of the changed blocks to the card, one tile wider all round (a border looks at
-    // its neighbours, and a chunk keeps a rim of its neighbours' tiles)
-    const up = runsOf(this.up);
-    for (const k of this.chunks) for (let i = 0; i < up.length; i += 4) this.upload(k, up[i] - 1, up[i + 1] - 1, up[i + 2] - up[i] + 2, up[i + 3] - up[i + 1] + 2);
-    unpack(gl, 0, 0, 0);
-    const runs = this.anyBlk ? runsOf(this.blk) : [];
-    this.anyBlk = false;
-    gl.bindVertexArray(this.vao);
-    gl.disable(gl.BLEND);
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.rects);
-    gl.enableVertexAttribArray(0);
-    gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
-    const uni = (P) => {
-      gl.useProgram(P.p);
-      gl.uniform2i(P.u.uMap, W, H); gl.uniform2i(P.u.uCells, this.CW, this.CH);
-      gl.uniform1i(P.u.uFeat, this.map.feat ? 1 : 0); gl.uniform1i(P.u.uCS, G.POST.cell); gl.uniform1i(P.u.uRows, this.palRows);
-      gl.uniform1i(P.u.uOwn, 0); gl.uniform1i(P.u.uBase, 1); gl.uniform1i(P.u.uPal, 2); gl.uniform1i(P.u.uCell, 3);
-    };
-    gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, this.pal);
-    gl.activeTexture(gl.TEXTURE3); gl.bindTexture(gl.TEXTURE_2D, this.cell);
-    const one = this.chunks.length === 1;
-    for (const k of this.chunks) {
-      gl.bindFramebuffer(gl.FRAMEBUFFER, k.fbo);
-      gl.viewport(0, 0, k.w, k.h);
-      gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, k.own);
-      gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, k.base);
-      // whole blocks
-      let n = 0, d = this.rectData;
-      for (let i = 0; i < runs.length; i += 4) {
-        const x0 = Math.max(runs[i], k.x0), y0 = Math.max(runs[i + 1], k.y0), x1 = Math.min(runs[i + 2], k.x0 + k.w), y1 = Math.min(runs[i + 3], k.y0 + k.h);
-        if (x1 <= x0 || y1 <= y0) continue;
-        if ((n + 1) * 12 > d.length) { const e = new Float32Array(d.length * 2); e.set(d); d = this.rectData = e; }
-        const ax = (x0 - k.x0) / k.w * 2 - 1, bx = (x1 - k.x0) / k.w * 2 - 1, ay = (y0 - k.y0) / k.h * 2 - 1, by = (y1 - k.y0) / k.h * 2 - 1, o = n * 12;
-        d[o] = ax; d[o + 1] = ay; d[o + 2] = bx; d[o + 3] = ay; d[o + 4] = ax; d[o + 5] = by;
-        d[o + 6] = ax; d[o + 7] = by; d[o + 8] = bx; d[o + 9] = ay; d[o + 10] = bx; d[o + 11] = by;
-        n++;
-      }
-      if (n) {
-        uni(this.tile);
-        gl.uniform2i(this.tile.u.uOrg, k.x0, k.y0);
-        gl.bufferData(gl.ARRAY_BUFFER, d.subarray(0, n * 12), gl.STREAM_DRAW);
-        gl.drawArrays(gl.TRIANGLES, 0, n * 6);
-      }
-      // single tiles
-      if (this.np) {
-        let pts = this.pts, m = this.np;
-        if (!one) {
-          // only the tiles of this chunk
-          if (!this.sel || this.sel.length < this.pts.length) this.sel = new Float32Array(this.pts.length);
-          const sel = this.sel;
-          m = 0;
-          for (let i = 0; i < this.np; i++) {
-            const x = this.pts[2 * i], y = this.pts[2 * i + 1];
-            if (x >= k.x0 && x < k.x0 + k.w && y >= k.y0 && y < k.y0 + k.h) { sel[2 * m] = x; sel[2 * m + 1] = y; m++; }
-          }
-          pts = sel;
-        }
-        if (m) {
-          uni(this.point);
-          gl.uniform2i(this.point.u.uOrg, k.x0, k.y0);
-          gl.uniform2f(this.point.u.uOrgF, k.x0, k.y0); gl.uniform2f(this.point.u.uSize, k.w, k.h);
-          gl.bufferData(gl.ARRAY_BUFFER, pts.subarray(0, m * 2), gl.STREAM_DRAW);
-          gl.drawArrays(gl.POINTS, 0, m);
-        }
-      }
-    }
-    this.np = 0;
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-  };
-  // The map on the screen: sea, then the colour picture of every chunk in view. z, ox, oy as in
-  // View.draw (CSS pixels); smooth when zoomed out, sharp tiles when zoomed in (as the 2D picture).
-  MapGL.prototype.draw = function (z, ox, oy, dpr, sea) {
-    if (this.lost) return;
-    const gl = this.gl, cv = this.cv, P = this.show;
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-    gl.viewport(0, 0, cv.width, cv.height);
-    gl.clearColor(sea[0] / 255, sea[1] / 255, sea[2] / 255, 1);
-    gl.clear(gl.COLOR_BUFFER_BIT);
-    gl.useProgram(P.p);
-    gl.bindVertexArray(this.vao);
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.quad);
-    gl.enableVertexAttribArray(0);
-    gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
-    gl.uniform4f(P.u.uCam, z * dpr, ox * dpr, oy * dpr, 0);
-    gl.uniform2f(P.u.uView, cv.width, cv.height);
-    gl.uniform1i(P.u.uColor, 0);
-    gl.activeTexture(gl.TEXTURE0);
-    const filt = z < 1.5 ? gl.LINEAR : gl.NEAREST, cw = cv.width / dpr, ch = cv.height / dpr;
-    for (const k of this.chunks) {
-      const sx0 = k.x0 * z + ox, sy0 = k.y0 * z + oy, sx1 = (k.x0 + k.w) * z + ox, sy1 = (k.y0 + k.h) * z + oy;
-      if (sx1 < 0 || sy1 < 0 || sx0 > cw || sy0 > ch) continue;
-      gl.bindTexture(gl.TEXTURE_2D, k.color);
-      if (k.filt !== filt) { gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, filt); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, filt); k.filt = filt; }
-      gl.uniform4f(P.u.uRect, k.x0, k.y0, k.x0 + k.w, k.y0 + k.h);
-      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-    }
-  };
-  // for the tests: the colour of every tile, as View.color packs it (r | g << 8 | b << 16 | 255 << 24)
-  MapGL.prototype.readAll = function () {
-    const gl = this.gl, W = this.map.W, out = new Uint32Array(this.map.N);
-    for (const k of this.chunks) {
-      const d = new Uint8Array(k.w * k.h * 4), d32 = new Uint32Array(d.buffer);
-      gl.bindFramebuffer(gl.FRAMEBUFFER, k.fbo);
-      gl.readPixels(0, 0, k.w, k.h, gl.RGBA, gl.UNSIGNED_BYTE, d);
-      for (let y = 0; y < k.h; y++) for (let x = 0; x < k.w; x++) out[(k.y0 + y) * W + k.x0 + x] = d32[y * k.w + x];
-    }
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-    return out;
-  };
-  MapGL.prototype.free = function () {
-    const gl = this.gl;
-    if (this.lost) return;
-    for (const k of this.chunks) { gl.deleteTexture(k.own); gl.deleteTexture(k.base); gl.deleteTexture(k.color); gl.deleteFramebuffer(k.fbo); }
-    gl.deleteTexture(this.pal); gl.deleteTexture(this.cell);
-    this.chunks = [];
-  };
-  // ?gl=0: never, ?gl=1: even in software (the tests on a machine without a graphics card)
-  const asked = function () { try { return new URLSearchParams(location.search).get('gl'); } catch (e) { return null; } };
-  MapGL.forced = function () { return asked() === '1'; };
-  // WebGL 2 on a graphics card at hand?
-  MapGL.wanted = function () {
-    if (asked() === '0') return false;
-    try {
-      const c = document.createElement('canvas'), gl = c.getContext('webgl2', { failIfMajorPerformanceCaveat: !MapGL.forced() });
-      if (!gl) return false;
-      // some browsers still hand out a software one: the name of the renderer says so
-      const info = gl.getExtension('WEBGL_debug_renderer_info');
-      const name = info ? String(gl.getParameter(info.UNMASKED_RENDERER_WEBGL)) : '';
-      const lose = gl.getExtension('WEBGL_lose_context');
-      if (lose) lose.loseContext();
-      return MapGL.forced() || !/swiftshader|llvmpipe|softpipe|software|basic render/i.test(name);
-    } catch (e) { return false; }
-  };
-  G.MapGL = MapGL;
-})(globalThis.G = globalThis.G || {});
-
 (function (G) {
   'use strict';
   const UT = G.UT, PT = G.PT, within = G.within;
@@ -7761,19 +6817,9 @@ void main() { outc = texture(uColor, vUV); }`;
   function flagOf(iso) { return ''; }
   G.flagOf = flagOf;
 
-  const SEA_RGB = [0x45, 0x6f, 0x95];
-  // canvas: the <canvas> of the game. With WebGL 2 (src/06b_gl.js) the map is drawn on a second
-  // canvas just under it, and this one, see-through, carries everything drawn over the map.
   function View(canvas) {
     this.cv = canvas;
-    this.glOn = !!(G.MapGL && G.MapGL.wanted());
-    if (this.glOn) {
-      const c = this.glc = document.createElement('canvas');
-      c.id = 'cvMap'; c.setAttribute('aria-hidden', 'true');
-      canvas.parentNode.insertBefore(c, canvas);
-    }
-    this.glm = null;
-    this.ctx = canvas.getContext('2d', { alpha: this.glOn });
+    this.ctx = canvas.getContext('2d', { alpha: false });
     this.cam = { x: 0, y: 0, z: 1 };
     this.fly = null; this.map = null; this.game = null;
     this.fxList = []; this.mark = -1; this.aim = null;
@@ -7789,47 +6835,23 @@ void main() { outc = texture(uColor, vUV); }`;
     this.cw = Math.max(1, r.width); this.ch = Math.max(1, r.height);
     this.cv.width = Math.round(this.cw * this.dpr);
     this.cv.height = Math.round(this.ch * this.dpr);
-    if (this.glc) { this.glc.width = this.cv.width; this.glc.height = this.cv.height; }
     this.clampCam();
   };
 
   View.prototype.setMap = function (map) {
     this.map = map; this.game = null; this.fxList.length = 0; this.mark = -1; this.aim = null;
+    const mc = this.mc = document.createElement('canvas');
+    mc.width = map.W; mc.height = map.H;
+    this.mctx = mc.getContext('2d');
+    this.img = this.mctx.createImageData(map.W, map.H);
+    this.px = new Uint32Array(this.img.data.buffer);
     if (map.cover) this.base = worldColors(map);
     else {
       this.base = new Uint32Array(map.N);
       for (let i = 0; i < map.N; i++) this.base[i] = terrainColor(map, i);
     }
-    if (this.glm) { this.glm.free(); this.glm = null; }
-    this.mc = this.mctx = this.img = this.px = null;
-    if (this.glOn) {
-      try {
-        this.glm = new G.MapGL(this.glc, map, this.base, G.debugChunk);
-        const self = this;
-        this.glm.onLost = function () { self.glLost(); };
-      } catch (e) {
-        if (typeof console !== 'undefined') console.warn('Karte ohne WebGL:', e.message);
-        this.glm = null; this.glOn = false;
-      }
-    }
-    if (!this.glm) this.picture();
-  };
-  // The map as a 2D picture (without WebGL, or after the graphics card was lost).
-  View.prototype.picture = function () {
-    const map = this.map, mc = this.mc = document.createElement('canvas');
-    mc.width = map.W; mc.height = map.H;
-    this.mctx = mc.getContext('2d');
-    this.img = this.mctx.createImageData(map.W, map.H);
-    this.px = new Uint32Array(this.img.data.buffer);
     this.px.set(this.base);
-    if (this.game) for (let t = 0; t < this.game.N; t++) if (this.game.owner[t] || this.game.fallout[t]) this.paint(t);
     this.mctx.putImageData(this.img, 0, 0);
-  };
-  View.prototype.glLost = function () {
-    this.glm = null; this.glOn = false;
-    if (this.glc) this.glc.hidden = true;
-    this.shade = null; this.shadeAt = 0; this.shadeI = undefined;
-    if (this.map) this.picture();
   };
   View.prototype.setGame = function (game) {
     this.game = game; this.shade = null; this.shadeAt = 0; this.shipSel = -1;
@@ -7854,24 +6876,19 @@ void main() { outc = texture(uColor, vUV); }`;
       p.cssI = 'rgb(' + Math.round(p.r * 0.65) + ',' + Math.round(p.g * 0.65) + ',' + Math.round(p.b * 0.65) + ')';
       p.cssR = 'rgb(' + Math.round(p.r * 0.1) + ',' + Math.round(p.g * 0.1) + ',' + Math.round(p.b * 0.1) + ')';
     }
-    if (this.glm) this.glm.setGame(game);
-    else {
-      this.px.set(this.base);
-      for (let t = 0; t < game.N; t++) if (game.owner[t] || game.fallout[t]) this.paint(t);
-      this.mctx.putImageData(this.img, 0, 0);
-    }
+    this.px.set(this.base);
+    for (let t = 0; t < game.N; t++) if (game.owner[t] || game.fallout[t]) this.paint(t);
+    this.mctx.putImageData(this.img, 0, 0);
     game.dirtyN = 0; game.dirtyFlag.fill(0);
   };
 
-  // Colour of one tile: terrain, tinted by its owner, with a darker rim at the border. The map
-  // drawn by the graphics card (src/06b_gl.js) works out the same colours in its shader, from
-  // the same numbers; test/gl.js compares the two.
-  View.prototype.paint = function (t) { this.px[t] = this.color(t); };
-  View.prototype.color = function (t) {
+  // Colour of one tile: terrain, tinted by its owner, with a darker rim at the border.
+  View.prototype.paint = function (t) {
     const g = this.game, own = g.owner, o = own[t], b = this.base[t];
     if (!o) {
-      if (!g.fallout[t]) return b;
-      return pack(((b & 255) * 120 + 104 * 136) >> 8, (((b >>> 8) & 255) * 120 + 214 * 136) >> 8, (((b >>> 16) & 255) * 120 + 78 * 136) >> 8);
+      if (!g.fallout[t]) { this.px[t] = b; return; }
+      this.px[t] = pack(((b & 255) * 120 + 104 * 136) >> 8, (((b >>> 8) & 255) * 120 + 214 * 136) >> 8, (((b >>> 16) & 255) * 120 + 78 * 136) >> 8);
+      return;
     }
     const p = g.players[o], W = g.W, x = t % W, y = (t - x) / W;
     const edge = (x > 0 && own[t - 1] !== o) || (x < W - 1 && own[t + 1] !== o) ||
@@ -7885,12 +6902,12 @@ void main() { outc = texture(uColor, vUV); }`;
           if (dx * dx + dy * dy <= r2) { c = p.c32l; break; }
         }
       }
-      return c;
+      this.px[t] = c;
     } else if (g.map.feat) {
       const br = b & 255, bg = (b >>> 8) & 255, bb = (b >>> 16) & 255;
       if (g.map.feat[t] & 1) {
         // a river stays a river under any flag: it is a line of defence, and you have to see it
-        return this.dense(o, t, pack((br * 120 + p.r * 136) >> 8, (bg * 120 + p.g * 136) >> 8, (bb * 120 + p.b * 136) >> 8));
+        this.px[t] = this.dense(o, t, pack((br * 120 + p.r * 136) >> 8, (bg * 120 + p.g * 136) >> 8, (bb * 120 + p.b * 136) >> 8));
       } else {
         // On the Earth the owner's colour takes on the light and dark of the ground under it:
         // forest shows as a darker stretch, desert and snow as lighter ones, ranges keep their
@@ -7901,12 +6918,12 @@ void main() { outc = texture(uColor, vUV); }`;
         const f = 226 + ((lum * 40 / 190) | 0);
         let r = (p.r * f) >> 8, gg = (p.g * f) >> 8, bl = (p.b * f) >> 8;
         r = (r * 226 + br * 30) >> 8; gg = (gg * 226 + bg * 30) >> 8; bl = (bl * 226 + bb * 30) >> 8;
-        return this.dense(o, t, pack(r > 255 ? 255 : r, gg > 255 ? 255 : gg, bl > 255 ? 255 : bl));
+        this.px[t] = this.dense(o, t, pack(r > 255 ? 255 : r, gg > 255 ? 255 : gg, bl > 255 ? 255 : bl));
       }
     } else {
       // as OpenFront: the owner's colour at 85 % saturation laid over the ground at 59 % (until
       // 23.11.2026 67 %, full colour, and highland and mountains lightened on top)
-      return this.dense(o, t, pack(((b & 255) * 105 + p.rs * 151) >> 8, (((b >>> 8) & 255) * 105 + p.gs * 151) >> 8, (((b >>> 16) & 255) * 105 + p.bs * 151) >> 8));
+      this.px[t] = this.dense(o, t, pack(((b & 255) * 105 + p.rs * 151) >> 8, (((b >>> 8) & 255) * 105 + p.gs * 151) >> 8, (((b >>> 16) & 255) * 105 + p.bs * 151) >> 8));
     }
   };
   // Density shows on the map (23.11.2026): land is darker where its owner keeps more troops than
@@ -7919,64 +6936,36 @@ void main() { outc = texture(uColor, vUV); }`;
     if (!m || !m.size) return c;
     const g = this.game, W = g.W, CS = G.POST.cell, CW = g.CW, x = t % W, y = (t - x) / W;
     const fx = (x + 0.5) / CS - 0.5, fy = (y + 0.5) / CS - 0.5, cx = Math.floor(fx), cy = Math.floor(fy), ax = fx - cx, ay = fy - cy;
-    // the four cell middles around the tile (no closure: this runs for every painted tile)
-    const okX0 = cx >= 0 && cx < CW, okX1 = cx + 1 < CW, okY0 = cy >= 0, row0 = cy * CW, row1 = row0 + CW;
-    const s00 = okX0 && okY0 ? m.get(row0 + cx) || 0 : 0, s10 = okX1 && okY0 ? m.get(row0 + cx + 1) || 0 : 0;
-    const s01 = okX0 ? m.get(row1 + cx) || 0 : 0, s11 = okX1 ? m.get(row1 + cx + 1) || 0 : 0;
-    const st = (s00 * (1 - ax) + s10 * ax) * (1 - ay) + (s01 * (1 - ax) + s11 * ax) * ay;
+    const at = (i, j) => (i < 0 || j < 0 || i >= CW ? 0 : m.get(j * CW + i) || 0);
+    const st = (at(cx, cy) * (1 - ax) + at(cx + 1, cy) * ax) * (1 - ay) + (at(cx, cy + 1) * (1 - ax) + at(cx + 1, cy + 1) * ax) * ay;
     if (st < 0.25) return c;
     const f = 256 - Math.round(st * 19);
     return pack(((c & 255) * f) >> 8, (((c >>> 8) & 255) * f) >> 8, (((c >>> 16) & 255) * f) >> 8);
   };
-  // The step of every cell of every realm with a posture, worked out again once a second; where a
-  // step changed, the owner's tiles of that cell and the cells around it (the blend reaches into
-  // them) are marked for painting. Until 25.11.2026 all realms were done in one go inside draw
-  // and painted at once: on the Earth a pause of up to 100 ms every second. Now the realms are
-  // taken in turn, at most SHADE_MS per picture, and the painting goes with the next flush.
-  const SHADE_MS = 1.5;
+  // Once a second: the step of every cell of every realm with a posture; where a step changed, the
+  // owner's tiles of that cell and the cells around it (the blend reaches into them) are painted again.
   View.prototype.shadeScan = function (now) {
     const g = this.game;
-    if (!g || !g.aufstellung || !g.CW) return;
-    if (this.shadeI === undefined || this.shadeI >= g.players.length) {
-      if (now - (this.shadeAt || 0) < 1000) return;
-      this.shadeAt = now; this.shadeI = 1;
-    }
+    if (!g || !g.aufstellung || !g.CW || now - (this.shadeAt || 0) < 1000) return;
+    this.shadeAt = now;
     const S = this.shade || (this.shade = new Map()), W = g.W, H = g.H, CW = g.CW, CS = G.POST.cell, own = g.owner;
-    const t0 = performance.now();
-    while (this.shadeI < g.players.length) {
-      const i = this.shadeI++, p = g.players[i];
-      if (!p || !p.alive || !p.post || !p.post.cells.size) { if (S.has(i)) this.shadeDrop(i); continue; }
+    let any = false;
+    for (let i = 1; i < g.players.length; i++) {
+      const p = g.players[i];
+      if (!p || !p.alive || !p.post || !p.post.cells.size) continue;
       let m = S.get(i);
       if (!m) { m = new Map(); S.set(i, m); }
-      const set = (id, st) => {
-        // the graphics card blends it itself; told every time, as a cell it had no room for
-        // (a third owner) gets its turn once room is free again
-        if (this.glm) this.glm.shade(id, i, st);
-        if ((m.get(id) || 0) === st) return;
-        if (st) m.set(id, st); else m.delete(id);
-        if (this.glm) return;
-        const cx = id % CW, cy = (id - cx) / CW;
+      for (const c of p.post.cells.values()) {
+        const d = c.n > 0 ? g.postDens(p, c) : 1, st = Math.round(within(Math.log2(Math.max(d, 1)), 0, Math.log2(3)) * 4);
+        if ((m.get(c.id) || 0) === st) continue;
+        if (st) m.set(c.id, st); else m.delete(c.id);
+        any = true;
+        const cx = c.id % CW, cy = (c.id - cx) / CW;
         const x0 = Math.max(0, cx * CS - CS), y0 = Math.max(0, cy * CS - CS), x1 = Math.min(W, cx * CS + 2 * CS), y1 = Math.min(H, cy * CS + 2 * CS);
         for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) { const t = y * W + x; if (own[t] === i) g.markDirty(t); }
-      };
-      for (const c of p.post.cells.values()) {
-        const d = c.n > 0 ? g.postDensSeen(p, c) : 1;
-        set(c.id, Math.round(within(Math.log2(Math.max(d, 1)), 0, Math.log2(3)) * 4));
       }
-      // cells the realm has left: their step goes (until 25.11.2026 it stayed and still tinted
-      // the realm's tiles next to them)
-      for (const id of Array.from(m.keys())) if (!p.post.cells.has(id)) set(id, 0);
-      if (performance.now() - t0 > SHADE_MS) break;
     }
-  };
-  // a realm without a posture any more: its shade goes, and its tiles are painted plain again
-  View.prototype.shadeDrop = function (i) {
-    const g = this.game, p = g.players[i];
-    if (this.glm) for (const id of this.shade.get(i).keys()) this.glm.shade(id, i, 0);
-    this.shade.delete(i);
-    if (!p || p.x1 < p.x0) return;
-    const W = g.W, own = g.owner;
-    for (let y = p.y0; y <= p.y1; y++) for (let x = p.x0; x <= p.x1; x++) { const t = y * W + x; if (own[t] === i) g.markDirty(t); }
+    if (any) this.flush();
   };
   // The two colours a border is drawn in: c32b for the plain stretch, c32l for the stretches a
   // defence post covers. Your own realm is rimmed near white, an ally's in green, so a glance at
@@ -8005,55 +6994,38 @@ void main() { outc = texture(uColor, vUV); }`;
   View.prototype.checkAllies = function () {
     const g = this.game, h = g && g.human;
     if (!h) return;
-    const seen = this.allySeen || (this.allySeen = new Set()), changed = [];
-    for (const id of h.allies.keys()) if (!seen.has(id)) { seen.add(id); changed.push(id); }
-    for (const id of Array.from(seen)) if (!h.allies.has(id)) { seen.delete(id); changed.push(id); }
-    if (!changed.length) return;
-    // only those whose standing changed get new colours (until 25.11.2026 every realm's border
-    // was painted again)
-    for (const id of changed) {
-      const p = g.players[id];
-      if (!p) continue;
+    const seen = this.allySeen || (this.allySeen = new Set());
+    let change = false;
+    for (const id of h.allies.keys()) if (!seen.has(id)) { seen.add(id); change = true; }
+    for (const id of Array.from(seen)) if (!h.allies.has(id)) { seen.delete(id); change = true; }
+    if (!change) return;
+    for (let i = 1; i < g.players.length; i++) {
+      const p = g.players[i];
       this.borderColors(p);
-      if (!this.glm && p.alive) for (const t of p.border) g.markDirty(t);
+      if (p !== h && p.alive) for (const t of p.border) g.markDirty(t);
     }
-    if (this.glm) this.glm.recolour();
   };
   // The changed tiles are copied to the map picture in blocks of BLK x BLK tiles, only the blocks
   // that hold a change (runs of neighbouring blocks in a row in one go). Until 24.11.2026 one
   // rectangle around all changes was copied: with fronts all over the Earth that was nearly the
   // whole picture (16 million pixels) every tick, about 16 ms, for a few thousand changed tiles.
   const BSH = 5, BLK = 1 << BSH;   // 32 tiles (measured on the Earth: 32 clearly beats 64; 16 only a little better, with four times the calls)
-  // budget: at most that many milliseconds of painting (checked every 512 tiles); what is left
-  // stays marked and comes with the next call. Without a budget everything is painted.
-  View.prototype.flush = function (budget) {
+  View.prototype.flush = function () {
     const g = this.game, n = g.dirtyN;
-    if (this.glm) {
-      // the graphics card: only the numbers of the changed tiles, the colours are its work
-      const d = g.dirty, f = g.dirtyFlag, glm = this.glm;
-      for (let i = 0; i < n; i++) { const t = d[i]; f[t] = 0; glm.mark(t); }
-      g.dirtyN = 0;
-      glm.render();
-      return;
-    }
     if (!n) return;
     const d = g.dirty, f = g.dirtyFlag, W = g.W, H = g.H, bw = (W + BLK - 1) >> BSH, bh = (H + BLK - 1) >> BSH;
     let mk = this.blk;
     if (!mk || mk.length !== bw * bh) mk = this.blk = new Uint8Array(bw * bh);
-    let b0 = bh, b1 = -1, i = 0;
-    const t0 = budget ? performance.now() : 0;
-    while (i < n) {
-      const t = d[i++], x = t % W, y = (t - x) / W, by = y >> BSH;
+    let b0 = bh, b1 = -1;
+    for (let i = 0; i < n; i++) {
+      const t = d[i], x = t % W, y = (t - x) / W, by = y >> BSH;
       f[t] = 0;
       this.paint(t);
       mk[by * bw + (x >> BSH)] = 1;
       if (by < b0) b0 = by;
       if (by > b1) b1 = by;
-      if (budget && (i & 511) === 0 && performance.now() - t0 > budget) break;
     }
-    // what is left moves to the front of the list
-    if (i < n) d.copyWithin(0, i, n);
-    g.dirtyN = n - i;
+    g.dirtyN = 0;
     for (let by = b0; by <= b1; by++) {
       const row = by * bw, y = by * BLK, h = Math.min(BLK, H - y);
       for (let bx = 0; bx < bw; bx++) {
@@ -8203,20 +7175,13 @@ void main() { outc = texture(uColor, vUV); }`;
       this.clampCam();
     }
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    const z = c.z, ox = cw / 2 - c.x * z, oy = ch / 2 - c.y * z;
-    if (this.glm) {
-      ctx.clearRect(0, 0, this.cv.width, this.cv.height);
-      if (this.map) { if (this.game) this.glm.render(); this.glm.draw(z, ox, oy, dpr, SEA_RGB); }
-    } else {
-      ctx.fillStyle = SEA;
-      ctx.fillRect(0, 0, this.cv.width, this.cv.height);
-    }
+    ctx.fillStyle = SEA;
+    ctx.fillRect(0, 0, this.cv.width, this.cv.height);
     if (!this.map) return;
-    if (!this.glm) {
-      ctx.setTransform(z * dpr, 0, 0, z * dpr, ox * dpr, oy * dpr);
-      ctx.imageSmoothingEnabled = z < 1.5;
-      ctx.drawImage(this.mc, 0, 0);
-    }
+    const z = c.z, ox = cw / 2 - c.x * z, oy = ch / 2 - c.y * z;
+    ctx.setTransform(z * dpr, 0, 0, z * dpr, ox * dpr, oy * dpr);
+    ctx.imageSmoothingEnabled = z < 1.5;
+    ctx.drawImage(this.mc, 0, 0);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     const g = this.game;
     if (!g) return;
@@ -10427,116 +9392,6 @@ void main() { outc = texture(uColor, vUV); }`;
   G.Session = Session;
 })(globalThis.G = globalThis.G || {});
 
-// Where the game runs (doku/leistung.md, 25.11.2026). Two hosts with the same face:
-//   in a worker  the default: the simulation has its own thread, so a long tick never holds up a
-//                picture; the page reads the mirror (src/05b_sync.js), one tick behind at most
-//   on the page  with ?worker=0 in the address, for the tests that reach into the game, and
-//                whenever a worker cannot be made
-// The interface talks only to the host:
-//   host.ready(cb)              cb() once the game is there (on the page: at once)
-//   host.game                   the game to read: the mirror, or the game itself
-//   host.exec(id, c, cb)        one order now (playing alone; also while paused); cb(why)
-//   host.order(id, c, cb)       an order for the next step: returns the entry for host.step
-//   host.step(ticks, sum)       one tick per entry of `ticks`, each entry the orders to carry out
-//                               before it; then onState(n, sums) with the checksums of every
-//                               100th tick when `sum`
-//   host.busy                   a step is under way (the worker is still at it)
-//   host.stop()                 end the game
-(function (G) {
-  'use strict';
-  function wantWorker() {
-    try { if (new URLSearchParams(location.search).get('worker') === '0') return false; } catch (e) { /* no address */ }
-    return typeof Worker === 'function' && typeof Blob === 'function' && !!document.getElementById('sim');
-  }
-  G.Host = function (map, opts, people, onError) {
-    if (wantWorker()) {
-      try { return new WorkerHost(map, opts, people, onError); } catch (e) { /* no worker here: play on the page */ }
-    }
-    return new LocalHost(map, opts, people);
-  };
-
-  // what the person at this device ordered, waiting for the answer
-  function Orders() { this.seq = 0; this.cb = new Map(); }
-  Orders.prototype.add = function (cb) { const s = ++this.seq; if (cb) this.cb.set(s, cb); return s; };
-  Orders.prototype.answer = function (acks) {
-    for (let i = 0; i < acks.length; i += 2) {
-      const cb = this.cb.get(acks[i]);
-      if (cb) { this.cb.delete(acks[i]); cb(acks[i + 1]); }
-    }
-  };
-
-  // ---------- on the page ----------
-  function LocalHost(map, opts, people) {
-    this.local = true; this.busy = false; this.onState = null;
-    this.game = new G.Game(map, opts);
-    this.game.setup(people);
-    this.orders = new Orders();
-  }
-  LocalHost.prototype.ready = function (cb) { cb(); };
-  LocalHost.prototype.exec = function (id, c, cb) { const why = this.game.exec(id, c); if (cb) cb(why || ''); };
-  LocalHost.prototype.order = function (id, c, cb) { return [id, c, this.orders.add(cb)]; };
-  LocalHost.prototype.step = function (ticks, sum) {
-    const g = this.game, me = g.human ? g.human.id : -1, acks = [], sums = [];
-    for (const list of ticks) {
-      for (const o of list) { const why = g.exec(o[0], o[1]); if (o[0] === me && o[2] !== undefined) acks.push(o[2], why || ''); }
-      g.tick();
-      if (sum && g.ticks % 100 === 0) sums.push(g.ticks, g.checksum());
-    }
-    this.orders.answer(acks);
-    if (this.onState) this.onState(ticks.length, sums);
-  };
-  LocalHost.prototype.stop = function () { this.game = null; };
-
-  // ---------- in a worker ----------
-  // The worker runs the same code as the page: the script block «sim» of this page (the build
-  // puts the simulation there), started from a Blob, so the game stays one file.
-  function WorkerHost(map, opts, people, onError) {
-    this.local = false; this.busy = true; this.onState = null; this.onError = onError || null;
-    this.game = null; this.waiting = []; this.orders = new Orders(); this.dumpCb = null;
-    this.sync = new G.SyncIn(map);
-    const src = document.getElementById('sim').textContent;
-    this.url = URL.createObjectURL(new Blob([src], { type: 'text/javascript' }));
-    this.w = new Worker(this.url);
-    const self = this;
-    this.w.onmessage = function (ev) { self.got(ev.data); };
-    this.w.onerror = function (ev) { ev.preventDefault(); self.fail(ev.message || 'Fehler im Spiel'); };
-    this.w.postMessage({ k: 'init', map: G.mapPack(map), opts: opts, people: people });
-  }
-  WorkerHost.prototype.got = function (d) {
-    if (!this.w) return;
-    if (d.k === 'error') { this.fail(d.message); return; }
-    if (d.k === 'dump') { const cb = this.dumpCb; this.dumpCb = null; if (cb) cb(d.dump); return; }
-    this.sync.apply(d);
-    if (d.k === 'ready') {
-      this.game = this.sync.m; this.busy = false;
-      const w = this.waiting; this.waiting = [];
-      for (const cb of w) cb();
-      return;
-    }
-    if (d.acks) this.orders.answer(d.acks);
-    if (d.k === 'state') { this.busy = false; if (this.onState) this.onState(d.n, d.sums); }
-  };
-  WorkerHost.prototype.fail = function (msg) {
-    if (typeof console !== 'undefined') console.error('Spiel im Worker:', msg);
-    const cb = this.onError;
-    this.stop();
-    if (cb) cb(msg);
-  };
-  WorkerHost.prototype.ready = function (cb) { if (this.game) cb(); else this.waiting.push(cb); };
-  WorkerHost.prototype.exec = function (id, c, cb) { this.w.postMessage({ k: 'exec', id: id, c: c, seq: this.orders.add(cb) }); };
-  WorkerHost.prototype.order = function (id, c, cb) { return [id, c, this.orders.add(cb)]; };
-  WorkerHost.prototype.step = function (ticks, sum) {
-    this.busy = true;
-    this.w.postMessage({ k: 'step', ticks: ticks, sum: !!sum });
-  };
-  // for the tests: the worker's game as the mirror should show it (G.syncDump)
-  WorkerHost.prototype.dump = function (cb) { this.dumpCb = cb; this.w.postMessage({ k: 'dump' }); };
-  WorkerHost.prototype.stop = function () {
-    if (this.w) { this.w.terminate(); this.w = null; URL.revokeObjectURL(this.url); }
-    this.game = null; this.waiting = []; this.onState = null; this.onError = null;
-  };
-})(globalThis.G = globalThis.G || {});
-
 (function (G) {
   'use strict';
   const UT = G.UT, PT = G.PT, fmt = G.fmt, fmtT = G.fmtTroops, ICON = G.ICON, within = G.within;
@@ -10611,12 +9466,10 @@ void main() { outc = texture(uColor, vUV); }`;
     return lv === 1 ? 'Schickt Züge los' : 'Züge fahren ' + ((1 + lv) / 2).toLocaleString('de-CH') + '-mal so oft';
   }
 
-  let MAPS = [], maps = {}, game = null, view = null, pending = [];
-  // where the game runs (src/08b_host.js): `game` is what host.game shows, the game itself or its mirror
-  let host = null, stateAt = 0;
+  let MAPS = [], maps = {}, game = null, view = null;
   let paused = false, speed = 1, acc = 0, last = 0, ratio = 0.2;
   // Aufstellung: the editing mode of the net (see 03b_posture.js)
-  let trainSeen = 0, shipSeen = 0, incAt = -99;
+  let trainSeen = 0, incAt = -99;
   const incLog = [];          // [tick, gold from trains so far, gold from ships so far], one entry every five seconds
   let netOn = false, netLess = false, stroke = null, netTimer = 0, lastTile = -1, commitAt = -99;
   const netQueue = new Map();
@@ -11122,20 +9975,9 @@ void main() { outc = texture(uColor, vUV); }`;
       $('fStart').disabled = false; $('fStart').querySelector('small').textContent = 'Nochmals versuchen';
     });
   }
-  // A new game: made by the host (in the worker it takes a moment), then shown.
   function begin(map, opts, people) {
-    if (host) host.stop();
-    game = null;
-    const h = host = G.Host(map, opts, people, function (why) {
-      if (host !== h) return;
-      toast('Das Spiel ist abgebrochen: ' + String(why).split('\n')[0]);
-      quitGame();
-    });
-    h.onState = afterSteps;
-    h.ready(function () { if (host === h) shown(map, opts); });
-  }
-  function shown(map, opts) {
-    game = host.game;
+    game = new G.Game(map, opts);
+    game.setup(people);
     view.setMap(map); view.setGame(game); view.fit(false);
     landC = 0; view.resSel = 0; view.resSigns = true; renderLand();
     if (!RES && opts.res) setTimeout(function () { addMsg('Dieser Raum spielt die Version «Rohstoffe». Öffne den Einladungslink, sonst läuft dein Spiel auseinander.', 'bad'); }, 50);
@@ -11145,26 +9987,24 @@ void main() { outc = texture(uColor, vUV); }`;
     $('modal').hidden = true; modalKind = '';
     $('hud').hidden = false; $('spawnBar').hidden = false; $('ctrl').hidden = true; $('lb').hidden = true; $('aimBar').hidden = true;
     netOn = false; stroke = null; netQueue.clear(); lastTile = -1; commitAt = -99; view.net.on = false; view.net.edit.clear(); view.net.w = 0; view.net.at = -1e9;
-    $('peek').hidden = true; trainSeen = 0; shipSeen = 0; incAt = -99; incLog.length = 0; $('incLine').hidden = true; $('incLine').dataset.html = '';
+    $('peek').hidden = true; trainSeen = 0; incAt = -99; incLog.length = 0; $('incLine').hidden = true; $('incLine').dataset.html = '';
     $('bNet').hidden = true; $('bNet').setAttribute('aria-pressed', 'false'); $('netBar').hidden = true; $('commit').textContent = '';
     $('bRes').hidden = true;
     plans.length = 0; syncPlans();
     $('mPunkt').hidden = !game.punkt; setThrust(cfg.thrust);
     $('feedMsgs').innerHTML = ''; $('feedLive').innerHTML = ''; $('news').innerHTML = ''; chips.clear(); asks.clear();
     $('lbRows').innerHTML = ''; $('clock').textContent = '0:00';
-    speed = 1; $('bSpeed').textContent = '1×'; acc = 0; stateAt = performance.now(); endShown = false; lbAt = liveAt = -99; tradeAt = 0; aim = null;
+    speed = 1; $('bSpeed').textContent = '1×'; acc = 0; endShown = false; lbAt = liveAt = -99; tradeAt = 0; aim = null;
     setPaused(false);
     view.placeNames();
     hudTick();
   }
-  // Every order of the player goes through here: carried out at once when playing alone (in the
-  // worker: as soon as it gets there, its answer comes back), sent to the host of the room when
-  // playing together.
+  // Every order of the player goes through here: carried out at once when playing alone,
+  // sent to the host when playing together.
   function act(c) {
     if (!game) return;
-    if (mp) { mp.send(c); return; }
-    const h = host;
-    host.exec(game.human.id, c, function (why) { if (host === h && game) done(c, why); });
+    if (mp) mp.send(c);
+    else done(c, game.exec(game.human.id, c));
   }
   function done(c, why) {
     if (c.k === 'mesh' || c.k === 'even') return;
@@ -11179,18 +10019,15 @@ void main() { outc = texture(uColor, vUV); }`;
     else if (c.say) toast(c.say);
     if (modalKind === 'info') renderInfo();
   }
-  // The orders of one turn of the room, as entries for host.step; the own ones get their answer.
-  function turnOrders(list) {
-    const me = game.human ? game.human.id : 0, h = host, out = [];
+  function applyTurn(list) {
+    const me = game.human ? game.human.id : 0;
     for (let i = 0; i < list.length; i++) {
-      const id = list[i][0] | 0, c = list[i][1];
-      out.push(id === me ? host.order(id, c, function (why) { if (host === h && game) done(c, why); }) : [id, c]);
+      const id = list[i][0] | 0, c = list[i][1], why = game.exec(id, c);
+      if (id === me) done(c, why);
     }
-    return out;
   }
   function quitGame() {
     const wasLevel = !!(game && game.lv);
-    if (host) { host.stop(); host = null; }
     game = null; closeRadial(); $('sheet').hidden = true; if (view) view.selUnit = null; stopAim();
     $('hud').hidden = true;
     leaveRoom();
@@ -11423,8 +10260,7 @@ void main() { outc = texture(uColor, vUV); }`;
     if (T - tradeAt >= 150) {
       tradeAt = T;
       // sea trade and railways are reported apart, so one can see what a port and what a factory earns
-      const sg = (h.shipTotal || 0) - shipSeen;
-      if (sg > 0) { addMsg('Seehandel bringt ' + fmt(sg) + ' Gold', 'good'); shipSeen = h.shipTotal || 0; }
+      if (h.tradeGold > 0) { addMsg('Seehandel bringt ' + fmt(h.tradeGold) + ' Gold', 'good'); h.tradeGold = 0; }
       const tg = (h.trainTotal || 0) - trainSeen;
       if (tg > 0) { addMsg('Züge bringen ' + fmt(tg) + ' Gold', 'good'); trainSeen = h.trainTotal || 0; }
     }
@@ -11971,7 +10807,7 @@ void main() { outc = texture(uColor, vUV); }`;
     // the spot under the pointer: what the ground does to an attack, and how dense the troops stand
     // there (the net, drawn darker on the map)
     let here = 'Hier: ' + groundName(tile);
-    const cell = q.post && game.CW ? q.post.cells.get(game.cellOf(tile)) : null, dk = cell && cell.n > 0 ? game.postDensSeen(q, cell) : 1;
+    const cell = q.post && game.CW ? q.post.cells.get(game.cellOf(tile)) : null, dk = cell && cell.n > 0 ? game.postDens(q, cell) : 1;
     if (dk >= 1.15) here += ' · Truppen ' + (Math.round(Math.min(dk, G.COMBAT.densMax) * 10) / 10).toLocaleString('de-CH') + '× so dicht: langsamer, dort fallen auch mehr';
     s += '<div class="pkHere">' + esc(here) + '</div>';
     if (el.dataset.html !== s) { el.innerHTML = s; el.dataset.html = s; }
@@ -12712,33 +11548,29 @@ void main() { outc = texture(uColor, vUV); }`;
     requestAnimationFrame(frame);
     const dt = Math.min(200, now - last);
     last = now;
+    let alpha = 1;
     if (game && (mp ? mp.started : !paused)) {
       const behind = mp ? mp.buf.size : 0;
       acc += dt * (mp ? (behind > 6 ? 8 : behind > 2 ? 2 : 1) : speed);
-      // a step goes out when the last one is back: a slow simulation slows the game, it never
-      // holds up a picture
-      if (acc >= 100 && !host.busy) {
-        const ticks = [];
-        while (acc >= 100 && ticks.length < 8) {
-          if (mp) {
-            // playing together: only as far as the host's turns allow
-            if (turnLeft === 0) {
-              const turn = mp.take();
-              if (!turn) { acc = 100; break; }
-              pending = turnOrders(turn);
-              turnLeft = G.TURN;
-            }
-            turnLeft--;
-            ticks.push(pending); pending = [];
-          } else ticks.push([]);
-          acc -= 100;
+      let n = 0;
+      while (acc >= 100 && n < 8 && game) {
+        if (mp) {
+          // playing together: only as far as the host's turns allow
+          if (turnLeft === 0) {
+            const turn = mp.take();
+            if (!turn) { acc = 100; break; }
+            applyTurn(turn);
+            turnLeft = G.TURN;
+          }
+          turnLeft--;
         }
-        if (acc >= 100 && !(mp && !ticks.length)) acc = 0;
-        if (ticks.length) host.step(ticks, !!mp);
-      } else if (acc > 800) acc = 800;
+        game.tick(); acc -= 100; n++;
+        if (mp && game.ticks % 100 === 0) mp.sum(game.ticks, game.checksum());
+      }
+      if (acc >= 100 && !(mp && n === 0)) acc = 0;
+      if (n) { view.flush(); view.placeNames(); pump(); if (game) hudTick(); }
+      alpha = Math.min(1, acc / 100);
     }
-    let alpha = 1;
-    if (game && !paused) alpha = Math.min(1, (now - stateAt) * (mp ? 1 : speed) / 100);
     refreshGhost();
     if (game) updatePlan(now);
     const held = G.heldKeys;
@@ -12747,18 +11579,7 @@ void main() { outc = texture(uColor, vUV); }`;
       view.pan(((held.has('a') || held.has('arrowleft') ? 1 : 0) - (held.has('d') || held.has('arrowright') ? 1 : 0)) * d,
         ((held.has('w') || held.has('arrowup') ? 1 : 0) - (held.has('s') || held.has('arrowdown') ? 1 : 0)) * d);
     }
-    // the map picture catches up with the changed tiles: at most FLUSH_MS of painting per picture,
-    // so a tick with a lot of change is spread over the next pictures instead of holding one up
-    if (game) view.flush(FLUSH_MS);
     view.draw(alpha, now);
-  }
-  const FLUSH_MS = 4;
-  // After the host has run a step: what the interface shows of it.
-  function afterSteps(n, sums) {
-    stateAt = performance.now();
-    if (!game) return;
-    if (mp) for (let i = 0; i < sums.length; i += 2) mp.sum(sums[i], sums[i + 1]);
-    view.placeNames(); pump(); if (game) hudTick();
   }
   // Sounds for things that happen on the map.
   G.onFx = function (f, seen) {
@@ -12803,7 +11624,7 @@ void main() { outc = texture(uColor, vUV); }`;
       toast: toast, addMsg: addMsg, goRow: goRow, setPaused: setPaused, svg: svg, esc: esc, snd: snd, cfg: cfg, COLORS: COLORS,
       get game() { return game; }, get view() { return view; }, get modalKind() { return modalKind; }
     };
-    G.debug = { get game() { return game; }, get view() { return view; }, get mp() { return mp; }, get host() { return host; }, tap: tap, cfg: cfg, act: act };
+    G.debug = { get game() { return game; }, get view() { return view; }, get mp() { return mp; }, tap: tap, cfg: cfg, act: act };
   };
 })(globalThis.G = globalThis.G || {});
 
