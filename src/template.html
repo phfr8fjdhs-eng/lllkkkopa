@@ -337,6 +337,29 @@ button.ldRow:hover { background: rgba(255, 255, 255, 0.07); }
 .pkHas .none { font-weight: 500; }
 #commit { min-height: 16px; margin-top: 6px; font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
 #commit b { color: var(--ink); font-weight: 600; }
+/* quick brush (24.11.2026): + and - at the right edge, within reach of the thumb */
+#brushBtns { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; gap: 4px; padding: 4px; }
+#brushBtns[hidden] { display: none; }
+.br { width: 42px; height: 42px; display: grid; place-items: center; padding: 0; color: var(--ink); background: rgba(255, 255, 255, 0.06); border: 1px solid var(--line); border-radius: 10px; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+.br b { font: 700 24px/1 var(--display); }
+#brMore { color: #ffb199; border-color: rgba(255, 170, 140, 0.45); }
+#brLess { color: #a9d2ff; border-color: rgba(150, 200, 255, 0.45); }
+#brMore[aria-pressed=true] { color: #ffb199; background: rgba(255, 140, 110, 0.22); border-color: rgba(255, 170, 140, 0.8); }
+#brLess[aria-pressed=true] { color: #a9d2ff; background: rgba(120, 180, 255, 0.2); border-color: rgba(150, 200, 255, 0.8); }
+.br.sticky { box-shadow: 0 0 0 2px currentColor inset; }
+/* the shortcuts at a glance: the panel under «?», and a small key on every button that has one */
+#bKeys b { font: 700 19px/1 var(--display); }
+.tb[aria-pressed=true]#bKeys { color: var(--accent); background: rgba(255, 255, 255, 0.12); }
+#keysPanel { position: absolute; right: 8px; top: 56px; z-index: 6; width: min(92vw, 350px); max-height: calc(100% - 140px); overflow-y: auto; padding: 10px 12px 12px; }
+#keysPanel[hidden] { display: none; }
+#keysPanel h4 { margin: 8px 0 4px; font: 600 13px var(--display); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+#keysPanel h4:first-child { margin-top: 0; }
+#keysPanel .kr { display: flex; align-items: baseline; gap: 8px; padding: 2px 0; font-size: 13.5px; }
+#keysPanel .kr span:first-child { flex: none; width: 104px; text-align: right; white-space: nowrap; }
+#keysPanel kbd, body.showKeys [data-key]::after { display: inline-block; min-width: 18px; padding: 1px 5px; font: 600 12px/1.3 var(--display); text-align: center; color: var(--ink); background: rgba(255, 255, 255, 0.1); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 5px; }
+#keysPanel kbd + kbd { margin-left: 3px; }
+body.showKeys [data-key] { position: relative; }
+body.showKeys [data-key]::after { content: attr(data-key); position: absolute; right: -5px; bottom: -6px; z-index: 2; background: var(--panel-solid); border-color: var(--accent); pointer-events: none; }
 #netBar { pointer-events: auto; padding: 10px 12px 12px; border-color: rgba(255, 150, 120, 0.55); }
 .netTop b { display: block; font: 700 17px var(--display); }
 .netTop small { color: var(--muted); font-size: 12.5px; }
@@ -555,14 +578,20 @@ body.placing #cv { cursor: crosshair; }
     </div>
     <div id="tools" class="panel">
       <span id="clock">0:00</span>
-      <button id="bPause" class="tb" type="button" aria-label="Pause"></button>
-      <button id="bSpeed" class="tb" type="button" aria-label="Tempo">1×</button>
-      <button id="bNet" class="tb" type="button" aria-label="Aufstellung bearbeiten" aria-pressed="false" hidden></button>
+      <button id="bPause" data-key="P" class="tb" type="button" aria-label="Pause"></button>
+      <button id="bSpeed" data-key=", ." class="tb" type="button" aria-label="Tempo">1×</button>
+      <button id="bNet" data-key="N" class="tb" type="button" aria-label="Aufstellung bearbeiten" aria-pressed="false" hidden></button>
       <button id="bRes" class="tb" type="button" aria-label="Rohstoffe und Fabriken" hidden></button>
-      <button id="bHome" class="tb" type="button" aria-label="Zu meinem Gebiet"></button>
-      <button id="bSound" class="tb" type="button" aria-label="Ton aus" aria-pressed="true"></button>
+      <button id="bHome" data-key="C" class="tb" type="button" aria-label="Zu meinem Gebiet"></button>
+      <button id="bSound" data-key="O" class="tb" type="button" aria-label="Ton aus" aria-pressed="true"></button>
       <button id="bFull" class="tb" type="button" aria-label="Vollbild" aria-pressed="false"></button>
+      <button id="bKeys" data-key="?" class="tb" type="button" aria-label="Tastenkürzel" aria-pressed="false"><b>?</b></button>
       <button id="bMenu" class="tb" type="button" aria-label="Menü"></button>
+    </div>
+    <div id="keysPanel" class="panel" hidden></div>
+    <div id="brushBtns" class="panel" role="group" aria-label="Aufstellung schnell" hidden>
+      <button id="brMore" class="br" type="button" aria-label="Verdichten (einmal ziehen, lange drücken: bleibt an)" title="Truppen verdichten: einmal über dein Land ziehen (V halten)" aria-pressed="false" data-key="V"></button>
+      <button id="brLess" class="br" type="button" aria-label="Ausdünnen (einmal ziehen, lange drücken: bleibt an)" title="Truppen ausdünnen: einmal über dein Land ziehen (Shift + V halten)" aria-pressed="false" data-key="⇧V"></button>
     </div>
     <div id="peek" class="panel" hidden></div>
     <div id="land" class="panel" hidden></div>
@@ -585,9 +614,9 @@ body.placing #cv { cursor: crosshair; }
         <div class="popRow"><span>Armee</span><span id="popTxt"></span></div>
         <div id="popBar" title="Truppen daheim (blau) und im Angriff (orange), gemessen am Höchststand"><i id="popHome"></i><i id="popOut"></i></div><div id="popMark" hidden></div>
         <div id="incLine" hidden></div>
-        <label class="ratio" for="ratio"><span>Angriff<b id="ratioPct">20%</b></span><input id="ratio" type="range" min="1" max="100" value="20"><span id="ratioTroops">0</span></label>
-        <div id="modes" class="modes" role="group" aria-label="Angriffsart" title="Taste F wechselt"><span class="mlab">Rechts ziehen</span><button type="button" data-w="0" class="touchOnly">Ganze Front</button><button type="button" data-w="2">Keil</button><button type="button" data-w="1">Abschnitt</button><button type="button" data-w="3" id="mPunkt" hidden>Richtung</button></div>
-        <button id="bGo" class="btn" type="button" hidden>Angreifen</button>
+        <label class="ratio" for="ratio" data-key="T Y"><span>Angriff<b id="ratioPct">20%</b></span><input id="ratio" type="range" min="1" max="100" value="20"><span id="ratioTroops">0</span></label>
+        <div id="modes" data-key="F" class="modes" role="group" aria-label="Angriffsart" title="Taste F wechselt"><span class="mlab">Rechts ziehen</span><button type="button" data-w="0" class="touchOnly">Ganze Front</button><button type="button" data-w="2">Keil</button><button type="button" data-w="1">Abschnitt</button><button type="button" data-w="3" id="mPunkt" hidden>Richtung</button></div>
+        <button id="bGo" data-key="Enter" class="btn" type="button" hidden>Angreifen</button>
         <div id="commit" aria-live="off"></div>
       </div>
       <div id="netBar" class="panel" hidden>

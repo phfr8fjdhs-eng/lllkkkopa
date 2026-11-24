@@ -80,6 +80,6 @@ Weitere Ordner: `tools/` (Bauen und Kartenerzeugung, Python), `test/` (Tests, No
 - Schalter (Truppenkonzentration, Netz, Richtung, Pfeile): `node test/pfeile.js`
 - Version «Rohstoffe»: `node --max-old-space-size=4096 test/res.js`
 - Feldzug (jedes Level baut sich, bleibt gleich, ist zu gewinnen): `node test/level.js`
-- Bedienung im Browser: `node test/ui.js` (braucht Playwright und Chrome)
+- Bedienung im Browser: `node test/ui.js` (braucht Playwright und Chrome), schnelles Verdichten, Kürzel, Bauleiste: `node test/pinsel.js`
 - Leistung: `node test/stress.js` (Simulation mit 100 bis 10 000 Schiffen), `node test/stress_view.js` (Bild, nach dem Build)
 - Worker und Spiegel: `node test/worker.js [karte] [sekunden]`, Karte auf der Grafikkarte: `node test/gl.js` (beide nach dem Build). Browser-Tests, die direkt ins Spiel greifen, öffnen die Seite mit `?worker=0`.

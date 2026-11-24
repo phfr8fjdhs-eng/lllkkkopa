@@ -33,3 +33,4 @@ Alle Tests liegen in `test/` und laufen mit `node test/<name>.js`. Seit dem 25.1
 | `insel.js` | Tipp auf das Festland eines Gegners greift übers Land an, Tipp auf seine Insel schickt ein Boot, auch während der Landangriff läuft |
 | `load.js` | Hilfsdatei, lädt die Karten für die anderen Tests (kein Test) |
 - `node test/pfeile.js`: Schalter: Netz aus lässt nichts malen, Netz an wie bisher, mehrere Pfeile teilen den Anteil gleichmässig, zwei Läufe gleich. Punktangriff: nimmt nur Land im Ring um die Stelle.
+- `node test/pinsel.js`: schnelles Verdichten/Ausdünnen (Taste V, Knöpfe + und −, Doppelklick halten), Knopf «?» mit allen Kürzeln, Reihenfolge der Bauleiste (braucht den Build, Playwright und Chrome).

@@ -182,7 +182,7 @@ const out = (n) => path.join(__dirname, '..', 'build', n);
   // hydrogen bomb on a neighbour: key 9 shows it with its blast (as in OpenFront), a click fires
   const tgt = await page.evaluate(() => { const g = G.debug.game, v = G.debug.view, h = g.human; const foe = g.players.filter((p) => p && p.alive && p !== h).sort((a, b) => b.tiles - a.tiles)[0]; v.cam.x = foe.nameX; v.cam.y = foe.nameY; v.cam.z = 2.5; return v.screenOf(Math.round(foe.nameY) * g.W + Math.round(foe.nameX)); });
   await page.mouse.move(tgt.x, tgt.y);
-  await page.keyboard.press('9');
+  await page.keyboard.press('h');
   await page.waitForTimeout(300);
   await page.mouse.move(tgt.x + 1, tgt.y + 1);
   await page.waitForTimeout(400);
@@ -207,8 +207,8 @@ const out = (n) => path.join(__dirname, '..', 'build', n);
   await page.waitForTimeout(350);
   await page.screenshot({ path: out('feat_d_6hydro.png') });
   console.log(JSON.stringify(await page.evaluate((c0) => { const g = G.debug.game, h = g.human; return { defBefore: c0[1], defAfter: h.cnt[1], ratio: document.getElementById('ratioPct').textContent, fallout: g.falloutCount, audio: G.Audio.ctx && G.Audio.ctx.state, music: G.Audio.on.music }; }, c0)));
-  await page.keyboard.press('m');
-  console.log('after M', JSON.stringify(await page.evaluate(() => ({ on: G.Audio.on, cfg: G.debug.cfg.music }))));
+  await page.keyboard.press('o');
+  console.log('after O', JSON.stringify(await page.evaluate(() => ({ on: G.Audio.on, cfg: G.debug.cfg.music }))));
   // key 1, then a click on an existing city: it is upgraded instead of a new one being built
   const onCity = await page.evaluate(() => {
     const g = G.debug.game, h = g.human, v = G.debug.view, u = h.units.find((x) => x.type === G.UT.CITY && x.built);

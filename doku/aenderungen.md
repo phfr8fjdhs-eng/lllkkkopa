@@ -1,6 +1,11 @@
 # Änderungsprotokoll
 Was seit dem 13.11.2026 geändert wurde und warum. Den heutigen Stand der Regeln beschreiben die anderen Dateien in `doku/`.
 
+## Schnell verdichten, neue Bau-Tasten, Knopf «?» (24.11.2026)
+- **Wunsch:** Verdichten und Ausdünnen ging nur über den Knopf oben rechts, Pinsel wählen und unten links «Fertig». Es soll mit einem Zug gehen, einmal am Bildschirm und einmal mit einer Taste. Die Bauleiste soll zuerst die Zahlen haben, Spezielles rechts. Oben rechts ein Knopf mit allen Kürzeln.
+- **Geändert:** `V` halten verdichtet, Shift + `V` dünnt aus, Loslassen beendet. Knöpfe + und − rechts am Rand (ein Strich, lange drücken bleibt an), Doppeltippen und halten verdichtet. Bau-Tasten: `8` Schlachtschiff, `9` Marschflugkörper, `0` Atombombe, `H` Wasserstoffbombe, `M` MIRV, `Z` und `X` ganz rechts; Ton neu `O`. Knopf **?** (auch Taste `?`) zeigt alle übrigen Kürzel und blendet sie an den Knöpfen ein.
+- **Nicht geändert:** Spielregeln und Befehle (`mesh` wie bisher), darum `det.js` und `posture.js` gleich.
+
 ## Leistung: Simulation im Worker, Karte auf der Grafikkarte, keine Spitzen mehr (25.11.2026)
 - **Wunsch:** Das Spiel laggt, OpenFront läuft auf gleich grossen Karten flüssiger. Den Code sauber machen.
 - **Ursache, gemessen:** Simulation, Nachmalen der Karte und Bild liefen im selben Thread. Ein Tick (auf der Erde 18 bis 45 ms) und das Nachmalen (bis 88 ms) hielten zehnmal pro Sekunde das Bild an. Dazu rechnete die Dichte-Schattierung einmal pro Sekunde alles neu (bis 100 ms). OpenFront rechnet seine Simulation in einem Worker.
@@ -11,6 +16,7 @@ Was seit dem 13.11.2026 geändert wurde und warum. Den heutigen Stand der Regeln
 - **Ergebnis auf der Erde:** 95 % der Bildabstände 16.7 statt 33 ms, der längste 50 statt 117 ms. Die Simulation hält das Tempo.
 - **Nebenbei behoben:** Die Anzeige konnte über `postDens` das Spiel verändern (siehe `mehrspieler.md`). Dichte-Stufen von Zellen, die ein Reich verlassen hat, blieben stehen. Ein Allianzwechsel malte die Grenzen aller Reiche neu statt nur der betroffenen. Die Meldung «Seehandel bringt …» setzte einen Zähler im Spiel zurück, jetzt zählt die Anzeige selbst (`shipTotal`).
 - **Neu:** `test/worker.js`, `test/gl.js`. `test/net.js` spielt jetzt ein Gerät mit Worker gegen eines ohne. Die Browser-Tests, die ins Spiel greifen, öffnen die Seite mit `?worker=0`.
+
 ## Schlachtschiff fährt flüssig (24.11.2026)
 - **Wunsch:** Das Schlachtschiff ruckelt beim Fahren.
 - **Ursache:** Zwischen zwei Ticks schätzte das Bild die Fahrt mit vollem Tempo, die Simulation fährt das Schlachtschiff aber mit 60 % (auf Patrouille 36 %). Es lief jedes Bild voraus und sprang beim nächsten Tick bis 0.23 Felder zurück, fast bei jedem Tick.
