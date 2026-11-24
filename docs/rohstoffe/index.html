@@ -2669,8 +2669,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   };
   // A player reduced to a sliver of land is absorbed whole, gold included.
   Game.prototype.finishOff = function (a, t) {
-    const gold = this.loot(a, t);
-    if (a === this.human) this.say(t.name + ' erobert, ' + fmt(gold) + ' Gold erbeutet', 'good');
+    this.loot(a, t);   // the gold shows on the map (event 'loot'); no message besides (24.11.2026)
     this.forTiles(t, (x) => this.conquer(a, x));
   };
 
@@ -2806,8 +2805,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
       if (y < H - 1 && own[t + W] === id && st[t + W] !== sid) { st[t + W] = sid; q[qt++] = t + W; }
     }
     if (qt === p.tiles) {
-      const gold = this.loot(taker, p);
-      if (taker === this.human) this.say(p.name + ' eingekreist und übernommen, ' + fmt(gold) + ' Gold erbeutet', 'good');
+      this.loot(taker, p);   // the gold shows on the map (event 'loot')
     }
     const list = q.slice(0, qt);
     for (let i = 0; i < list.length; i++) this.conquer(taker, list[i]);
@@ -4427,7 +4425,6 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     if (u.type === UT.DEFENSE) {
       this.removeUnit(u);
       if (o === this.human) this.say(G.UNAME[u.type] + ' von ' + np.name + ' zerstört', 'bad');
-      else if (np === this.human) this.say(G.UNAME[u.type] + ' von ' + o.name + ' zerstört', 'good');
       return;
     }
     const i = o.units.indexOf(u);
@@ -4437,8 +4434,9 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     if (u.type === UT.CITY) { o.cityLv -= u.level; np.cityLv += u.level; }
     else if (u.type === UT.DEFENSE) { this.refreshPosts(o); this.refreshPosts(np); this.dirtyDisc(u.tile); }
     else if (u.type === UT.PORT) this.portList = null;
+    // only losses are reported; what you take you see on the map (24.11.2026: «Stadt von … erobert»
+    // at the bottom right after every city, said nothing new)
     if (o === this.human) this.say(G.UNAME[u.type] + ' an ' + np.name + ' verloren', 'bad');
-    else if (np === this.human) this.say(G.UNAME[u.type] + ' von ' + o.name + ' erobert', 'good');
   };
   // ---------- cloaking tower (Arsenal mode) ----------
   G.CLOAK_COVER = 3;   // buildings a cloaking tower hides besides itself
@@ -8363,21 +8361,50 @@ void main() { outc = texture(uColor, vUV); }`;
     ctx.restore();
   };
 
+  // Reach rings, kept few (24.11.2026; before every own defence post and air defence always, and
+  // every own port and cloaking tower while the build card was open): only the building you have
+  // picked (`selUnit`, its card is open; a tapped cloaking tower), and while placing a building
+  // the one of that kind with the widest reach, for comparison. The ring of the building being
+  // placed itself is drawn by drawGhost. Foreign defence posts still show while fighting their owner.
   View.prototype.drawReach = function (ctx, g, z, ox, oy) {
     const h = g.human, cw = this.cw, ch = this.ch;
-    // own cloaking towers: what they cover, only while building (build card open or a building
-    // under the pointer) or after a click on one (`cloakTap`); the buildings they hide get a dashed ring
-    if (h && (this.showCloak || this.cloakTap || (this.ghost && this.ghost.tile >= 0))) {
-      g.cloakScan && g.cloakScan();
-      ctx.save();
+    if (!h) return;
+    const gh = this.ghost && this.ghost.tile >= 0 && this.ghost.type <= UT.CLOAK ? this.ghost : null;
+    const reachOf = function (u) {
+      if (u.type === UT.DEFENSE) return g.R.defense;
+      if (u.type === UT.SAM) return g.samRange(u);
+      if (u.type === UT.CLOAK) return g.R.cloak;
+      if (u.type === UT.FACTORY) return g.R.rail;
+      if (u.type === UT.PORT && g.hafen) { let r = 0; G.HAFEN.ships.forEach(function (k) { if (u.level >= k.from) r = Math.max(r, k.range * g.S); }); return r; }
+      return 0;
+    };
+    const show = [];
+    let sel = this.selUnit && this.selUnit.active !== false && this.selUnit.owner === h ? this.selUnit : null;
+    if (!sel && this.cloakTap) sel = this.cloakTap;
+    if (sel && reachOf(sel)) show.push(sel);
+    if (gh) {
+      let best = null, br = 0;
       for (const u of h.units) {
-        if (!u.built || u.type !== UT.CLOAK) continue;
-        const x = (u.x + 0.5) * z + ox, y = (u.y + 0.5) * z + oy, r = g.R.cloak * z;
-        if (r < 4 || x < -r || y < -r || x > cw + r || y > ch + r) continue;
-        ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832);
-        ctx.fillStyle = 'rgba(120,230,200,0.10)'; ctx.fill();
-        ctx.setLineDash([8, 6]); ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(120,230,200,0.85)'; ctx.stroke(); ctx.setLineDash([]);
+        if (!u.built || u.type !== gh.type || u === sel) continue;
+        const r = reachOf(u);
+        if (r > br) { br = r; best = u; }
       }
+      if (best) show.push(best);
+    }
+    ctx.save();
+    for (const u of show) {
+      const x = (u.x + 0.5) * z + ox, y = (u.y + 0.5) * z + oy, r = reachOf(u) * z;
+      if (r < 4 || x < -r || y < -r || x > cw + r || y > ch + r) continue;
+      const col = u.type === UT.SAM ? '197,139,255' : u.type === UT.CLOAK ? '120,230,200' : u.type === UT.PORT ? '140,200,255' : u.type === UT.FACTORY ? '255,214,120' : '255,255,255';
+      const main = u === sel;
+      ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832);
+      if (main) { ctx.fillStyle = 'rgba(' + col + ',0.08)'; ctx.fill(); }
+      ctx.setLineDash(main ? [8, 6] : [4, 6]); ctx.lineWidth = main ? 2 : 1.4;
+      ctx.strokeStyle = 'rgba(' + col + ',' + (main ? 0.85 : 0.45) + ')'; ctx.stroke(); ctx.setLineDash([]);
+    }
+    // the buildings a picked or placed cloaking tower hides get a dashed ring
+    if ((sel && sel.type === UT.CLOAK) || (gh && gh.type === UT.CLOAK)) {
+      g.cloakScan && g.cloakScan();
       const s = Math.max(10, z * 3.2);
       for (const u of h.units) {
         if (!u.built || !u.cloak || u.type === UT.CLOAK) continue;
@@ -8386,40 +8413,19 @@ void main() { outc = texture(uColor, vUV); }`;
         ctx.beginPath(); ctx.arc(x, y, s, 0, 6.2832);
         ctx.setLineDash([4, 3]); ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(120,230,200,0.95)'; ctx.stroke(); ctx.setLineDash([]);
       }
-      ctx.restore();
     }
-    // ports by level (switch `hafen`): how far a port trades, while a port is being placed or its
-    // card is open: one ring for each class of merchant the port's level already sends
-    if (g.hafen && h && (this.portSel || (this.ghost && this.ghost.type === UT.PORT && this.ghost.tile >= 0))) {
-      const list = this.portSel ? [this.portSel] : h.units.filter(function (u) { return u.built && u.type === UT.PORT; });
-      if (!this.portSel && this.ghost) list.push({ x: this.ghost.tile % g.W, y: (this.ghost.tile / g.W) | 0, level: 1 });
-      for (const u of list) {
-        const x = (u.x + 0.5) * z + ox, y = (u.y + 0.5) * z + oy;
-        G.HAFEN.ships.forEach(function (k, i) {
-          if (u.level < k.from) return;
-          const r = k.range * g.S * z;
-          ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832);
-          if (!i) { ctx.fillStyle = 'rgba(120,190,255,0.06)'; ctx.fill(); }
-          ctx.setLineDash(i ? [3, 7] : [9, 6]); ctx.lineWidth = i ? 1.5 : 2; ctx.strokeStyle = 'rgba(140,200,255,' + (i ? 0.55 : 0.8) + ')'; ctx.stroke(); ctx.setLineDash([]);
-        });
-      }
-    }
+    // a foreign defence post only shows its reach while there is fighting with its owner
     for (const u of g.structAt.values()) {
-      if (!u.built || (u.type !== UT.DEFENSE && u.type !== UT.SAM) || hid(g, u)) continue;
-      const own = h && (u.owner === h || h.allies.has(u.owner.id));
-      const rad = u.type === UT.DEFENSE ? g.R.defense : g.samRange(u);
-      const x = (u.x + 0.5) * z + ox, y = (u.y + 0.5) * z + oy, r = rad * z;
+      if (!u.built || u.type !== UT.DEFENSE || u.owner === h || h.allies.has(u.owner.id) || hid(g, u)) continue;
+      const x = (u.x + 0.5) * z + ox, y = (u.y + 0.5) * z + oy, r = g.R.defense * z;
       if (r < 6 || x < -r || y < -r || x > cw + r || y > ch + r) continue;
-      if (u.type === UT.SAM && !own) continue;   // enemy air defence only shows while a bomb is being aimed
-      // a foreign defence post only shows its reach while there is fighting with its owner
-      if (!own && !(h && (h.out.some(function (a) { return a.active && a.tid === u.owner.id; }) || h.inc.some(function (a) { return a.active && a.a === u.owner; })))) continue;
-      const p = u.owner, col = u.type === UT.DEFENSE ? p.r + ',' + p.g + ',' + p.b : '197,139,255';
+      if (!(h.out.some(function (a) { return a.active && a.tid === u.owner.id; }) || h.inc.some(function (a) { return a.active && a.a === u.owner; }))) continue;
+      const p = u.owner;
       ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832);
-      ctx.fillStyle = 'rgba(' + col + ',' + (own ? 0.10 : 0.05) + ')'; ctx.fill();
-      ctx.setLineDash([7, 6]); ctx.lineWidth = own ? 2 : 1.4;
-      ctx.strokeStyle = u.type === UT.DEFENSE ? 'rgba(255,255,255,' + (own ? 0.6 : 0.4) + ')' : 'rgba(197,139,255,0.7)';
-      ctx.stroke(); ctx.setLineDash([]);
+      ctx.fillStyle = 'rgba(' + p.r + ',' + p.g + ',' + p.b + ',0.05)'; ctx.fill();
+      ctx.setLineDash([7, 6]); ctx.lineWidth = 1.4; ctx.strokeStyle = 'rgba(255,255,255,0.4)'; ctx.stroke(); ctx.setLineDash([]);
     }
+    ctx.restore();
   };
 
   // What a build key is about to place, shown under the mouse pointer: in the player's colour when it
@@ -8493,7 +8499,7 @@ void main() { outc = texture(uColor, vUV); }`;
       if (!bad && g.bahn !== undefined && G.isStation(t)) this.railPreview(ctx, g, z, ox, oy, gh);
       // what the building would cover: a defence post its stretch of border, an air defence its sky,
       // a cloaking tower the few buildings around it that it hides
-      const reach = t === UT.DEFENSE ? R.defense : t === UT.SAM ? g.samRange({ level: 1 }) : t === UT.CLOAK ? R.cloak : 0;
+      const reach = t === UT.DEFENSE ? R.defense : t === UT.SAM ? g.samRange({ level: 1 }) : t === UT.CLOAK ? R.cloak : t === UT.PORT && g.hafen ? G.HAFEN.ships[0].range * g.S : 0;
       if (reach && !bad) {
         ctx.beginPath(); ctx.arc(x, y, reach * z, 0, 6.2832);
         ctx.fillStyle = 'rgba(255,255,255,.07)'; ctx.fill();
@@ -8508,15 +8514,27 @@ void main() { outc = texture(uColor, vUV); }`;
           ctx.fillStyle = 'rgba(255,214,120,.06)'; ctx.fill();
           ctx.setLineDash([8, 6]); ctx.lineWidth = 1.6; ctx.strokeStyle = 'rgba(255,214,120,.85)'; ctx.stroke(); ctx.setLineDash([]);
         }
-        // with deliveries (`bahn`) a city or port that joins the network is linked in green
+        // a city or port: only the nearest factory in reach it would join is marked (24.11.2026;
+        // before every factory in reach with a line). A factory: its stations only when the rail
+        // preview above does not already draw the tracks to them.
         ctx.lineWidth = 2; ctx.strokeStyle = g.bahn && t !== UT.FACTORY ? 'rgba(99,211,145,.95)' : 'rgba(255,214,120,.9)';
-        if (!bad) for (const u of h.units) {
-          if (!u.built || !(t === UT.FACTORY ? G.isStation(u.type) : u.type === UT.FACTORY)) continue;
-          const dx = u.x - gx, dy = u.y - gy;
-          if (dx * dx + dy * dy > rr) continue;
+        const link = function (u) {
           const ux = (u.x + 0.5) * z + ox, uy = (u.y + 0.5) * z + oy;
           ctx.setLineDash([3, 4]); ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(ux, uy); ctx.stroke(); ctx.setLineDash([]);
           ctx.beginPath(); ctx.arc(ux, uy, s / 2 + 2, 0, 6.2832); ctx.stroke();
+        };
+        if (!bad && t !== UT.FACTORY) {
+          let best = null, bd = rr + 1;
+          for (const u of h.units) {
+            if (!u.built || u.type !== UT.FACTORY) continue;
+            const dx = u.x - gx, dy = u.y - gy, d = dx * dx + dy * dy;
+            if (d <= rr && d < bd) { bd = d; best = u; }
+          }
+          if (best) link(best);
+        } else if (!bad && g.bahn === undefined) for (const u of h.units) {
+          if (!u.built || !G.isStation(u.type)) continue;
+          const dx = u.x - gx, dy = u.y - gy;
+          if (dx * dx + dy * dy <= rr) link(u);
         }
       }
       // the room this building keeps free around itself
@@ -8825,15 +8843,18 @@ void main() { outc = texture(uColor, vUV); }`;
     rkt: ['Fwwr'],
     boat: ['.dddd.', 'dwoood', 'dwoood', '.dddd.'],
     trade0: ['.kkkkkkkk..', 'kwwogggook.', 'kwwogggoook', 'kwwogggook.', '.kkkkkkkk..'],
-    trade1: ['.kkkkkkkkkkk..', 'kwwoddoddoddk.', 'kwwoddoddoddok', 'kwwoddoddoddk.', '.kkkkkkkkkkk..'],
-    trade2: ['.kkkkkkkkkkkkkkkkk..', 'kww00112233440011ok.', 'kww33440011223344ook', 'kww11223344001122ook', 'kww44001122334400ok.', '.kkkkkkkkkkkkkkkkk..'],
+    trade1: ['.kkkkkkkkk..', 'kwwoddoddok.', 'kwwoddoddook', 'kwwoddoddok.', '.kkkkkkkkk..'],
+    trade2: ['.kkkkkkkkkkkkk..', 'kww0011223344ok.', 'kww3344001122ook', 'kww1122334400ok.', '.kkkkkkkkkkkkk..'],
     war0: ['.kkkkkkkkkk...', 'koooowwoooook.', 'kogGowwoGggook', 'koooowwoooook.', '.kkkkkkkkkk...'],
     war1: ['.kkkkkkkkkkkkkkk....', 'koooooowwwoooooook..', 'kogGGowwwwwoGGgoook.', 'kggGGowwwwwoGGggoook', 'kogGGowwwwwoGGgoook.', 'koooooowwwoooooook..', '.kkkkkkkkkkkkkkk....']
   };
   const HULLS = {};
-  // how large each picture is drawn, against one picture pixel per OpenFront tile (the battleship
-  // and the destroyer a little smaller than their grid, so that they are chunky, not huge)
-  const SCALE = { rkt: 1, boat: 0.85, trade0: 0.85, trade1: 0.75, trade2: 0.85, war0: 0.75, war1: 0.5 };
+  // how large each picture is drawn, against one picture pixel per OpenFront tile. Every ship the
+  // same pixel size (24.11.2026; before 0.5 to 0.85 per kind, so the battleship came out smaller
+  // than the destroyer, its pixels finer, and the large merchant the largest ship of all). The
+  // order by length now: troop boat 6, merchants 11 / 12, destroyer 14, container ship 16 (long, but as slim
+  // as the others), battleship 20.
+  const SCALE = { rkt: 1, boat: 0.8, trade0: 0.8, trade1: 0.8, trade2: 0.8, war0: 0.8, war1: 0.8 };
   for (const k in ART) HULLS[k] = [ART[k][0].length * SCALE[k], ART[k].length * SCALE[k]];
   const BOXCOL = ['#e0793a', '#3d7fc4', '#c94a3f', '#4f9a5a', '#d8b23a'];
   function hullGrid(kind) { return ART[kind]; }
@@ -8879,8 +8900,9 @@ void main() { outc = texture(uColor, vUV); }`;
     ctx.restore();
   }
   // How many screen pixels a picture pixel is at OpenFront zoom zz: one tile, never so small that
-  // the ship is lost
-  function shipPx(zz) { return Math.max(1.4, zz); }
+  // the ship is lost, and never so large that a destroyer outgrows a building sign (24.11.2026:
+  // zoomed in, ships grew with the map while the signs stay put, a large merchant twice a city)
+  function shipPx(zz) { return Math.max(1.4, Math.min(zz, ICON_PX * 0.9 * iconScaleAt(zz) / 11)); }
   // where the forward gun sits, as a share of the length from the middle (war0, war1)
   const GUN_FORE = 0.26;
   function warship(ctx, x, y, ang, s, p, aim, cls) { drawShip(ctx, cls === 1 ? 'war1' : 'war0', x, y, ang, s * 2 / HULLS[cls === 1 ? 'war1' : 'war0'][0], p); }
@@ -11166,7 +11188,7 @@ void main() { outc = texture(uColor, vUV); }`;
   function quitGame() {
     const wasLevel = !!(game && game.lv);
     if (host) { host.stop(); host = null; }
-    game = null; closeRadial(); $('sheet').hidden = true; if (view) view.showCloak = false; stopAim();
+    game = null; closeRadial(); $('sheet').hidden = true; if (view) view.selUnit = null; stopAim();
     $('hud').hidden = true;
     leaveRoom();
     if (cfg.map === 'zufall') delete maps.zufall;
@@ -11415,7 +11437,7 @@ void main() { outc = texture(uColor, vUV); }`;
     else if (endShown && kind !== 'other') return;
     endShown = kind;
     snd(kind === 'win' ? 'win' : 'lose');
-    closeRadial(); $('sheet').hidden = true; if (view) view.showCloak = false;
+    closeRadial(); $('sheet').hidden = true; if (view) view.selUnit = null;
     const h = game.human, den = Math.max(1, game.map.landTiles - game.falloutCount);
     let s;
     if (kind === 'win') s = '<h2>Sieg!</h2><p>Du hältst ' + (h.tiles / den * 100).toFixed(0) + ' % des Landes. Die Karte gehört dir.</p>';
@@ -11646,8 +11668,8 @@ void main() { outc = texture(uColor, vUV); }`;
     $('sheetBody').innerHTML = html;
     $('purse').innerHTML = svg('gold', 15) + (game.opts.infiniteGold ? '∞' : fmt(h.gold));
     $('sheet').hidden = false; sheetAt = performance.now();
-    view.mark = tile; view.showCloak = true;
-    view.portSel = near && near.owner === h && near.type === UT.PORT ? near : null;     // its trade reach as a circle
+    view.mark = tile;
+    view.selUnit = near && near.owner === h && near.built ? near : null;     // its reach as a circle (drawReach)
     snd('open');
   }
   // Build at a tile, or start aiming a bomb at it. Used by the menu and by the keys.
@@ -11686,7 +11708,7 @@ void main() { outc = texture(uColor, vUV); }`;
   // The tap that opens the card must not also press a button of it: on a phone the browser sends a click
   // to whatever lies under the finger after the touch, and that is the card by then.
   let sheetAt = 0;
-  function closeBuild() { $('sheet').hidden = true; if (view) { view.mark = -1; view.showCloak = false; view.portSel = null; } }
+  function closeBuild() { $('sheet').hidden = true; if (view) { view.mark = -1; view.selUnit = null; } }
   function onBuild(e) {
     if (performance.now() - sheetAt < 350) return;
     const b = e.target.closest('[data-t],[data-up]');
@@ -12296,7 +12318,7 @@ void main() { outc = texture(uColor, vUV); }`;
     closeThrustCard();
     // a click on an own cloaking tower shows what it covers, until the next click elsewhere
     const su = game.owner[tile] === h.id ? game.structNear(tile, 3) : null;
-    view.cloakTap = !!su && su.owner === h && su.built && su.type === UT.CLOAK;
+    view.cloakTap = su && su.owner === h && su.built && su.type === UT.CLOAK ? su : null;
     // With a mouse a single left click attacks what is there, as in OpenFront: the whole front with
     // the share of the slider, a boat where there is no border; on an own building it opens its
     // card. The right button opens the circle menu, a right drag plans a wedge. Until 23.11.2026

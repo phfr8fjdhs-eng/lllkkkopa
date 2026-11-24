@@ -11,6 +11,11 @@ Was seit dem 13.11.2026 geändert wurde und warum. Den heutigen Stand der Regeln
 - **Ergebnis auf der Erde:** 95 % der Bildabstände 16.7 statt 33 ms, der längste 50 statt 117 ms. Die Simulation hält das Tempo.
 - **Nebenbei behoben:** Die Anzeige konnte über `postDens` das Spiel verändern (siehe `mehrspieler.md`). Dichte-Stufen von Zellen, die ein Reich verlassen hat, blieben stehen. Ein Allianzwechsel malte die Grenzen aller Reiche neu statt nur der betroffenen. Die Meldung «Seehandel bringt …» setzte einen Zähler im Spiel zurück, jetzt zählt die Anzeige selbst (`shipTotal`).
 - **Neu:** `test/worker.js`, `test/gl.js`. `test/net.js` spielt jetzt ein Gerät mit Worker gegen eines ohne. Die Browser-Tests, die ins Spiel greifen, öffnen die Seite mit `?worker=0`.
+## Aufgeräumt: weniger Meldungen, weniger Kreise, Schiffe einheitlich (24.11.2026)
+- **Wunsch:** zu viel Text unten rechts (z. B. nach dem Einnehmen einer Stadt), zu viele Reichweiten-Kreise (alle Häfen, alle Fabriken, alle Verteidigungen), Grössen der Bilder passen nicht zueinander, vor allem Schiffe.
+- **Meldungen:** Was man selbst einnimmt (Gebäude erobert, Verteidigungsposten zerstört, Gegner erobert oder eingekreist) gibt keine Meldung mehr; das Gold zeigt die Karte. Verluste und Warnungen bleiben.
+- **Kreise:** nur noch die Reichweite des angetippten Gebäudes (Karte offen) und beim Platzieren der Kreis des neuen Gebäudes plus das eigene Gebäude derselben Art mit der grössten Reichweite. Häfen nur noch ein Kreis (der äusserste). Beim Platzieren einer Stadt oder eines Hafens nur die nächste Fabrik markiert. Eigene Verteidigungsposten und Flugabwehr zeigen ihren Kreis nicht mehr dauernd; fremde Verteidigungsposten weiter während eines Kampfs mit dem Besitzer.
+- **Schiffe:** alle mit derselben Pixelgrösse (vorher 0.5 bis 0.85 je Art, das Schlachtschiff war kleiner als der Zerstörer). Längen: Boot 6, Frachter 11 und 12, Zerstörer 14, Containerschiff 16 (schlanker als vorher), Schlachtschiff 20. Beim Reinzoomen wachsen Schiffe nicht mehr über die Gebäudesymbole hinaus.
 
 ## Leistung: Zielsuche der Kriegsschiffe, Karte blockweise nachmalen, unsichtbare Schiffe (24.11.2026)
 - **Wunsch:** Richtlinien zu Leistung und Aufbau (Kurzfassung in `CLAUDE.md`), Engpässe messen und die wichtigsten beheben.
