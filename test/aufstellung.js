@@ -12,7 +12,7 @@ const out = (n) => path.join(__dirname, '..', 'build', n);
   page.on('pageerror', (e) => errors.push('PAGEERROR ' + e.message + '\n' + (e.stack || '')));
   page.on('console', (m) => { if (m.type() === 'error' && !/ERR_TUNNEL|Failed to load resource/.test(m.text())) errors.push('CONSOLE ' + m.text()); });
   const must = (ok, what) => { if (!ok) { errors.push('FAILED: ' + what); console.log('FAILED', what); } else console.log('ok', what); };
-  await page.goto('file://' + out('index.html') + '?karte=' + (process.argv[3] || 'welt'));
+  await page.goto('file://' + out('index.html') + '?karte=' + (process.argv[3] || 'welt') + '&worker=0');
   await page.waitForTimeout(1000);
   await page.click('#fStart');
   await page.waitForFunction(() => G.debug.game && G.debug.game.players.length > 5, null, { timeout: 60000 });

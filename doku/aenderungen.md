@@ -1,6 +1,16 @@
 # Änderungsprotokoll
 Was seit dem 13.11.2026 geändert wurde und warum. Den heutigen Stand der Regeln beschreiben die anderen Dateien in `doku/`.
 
+## Leistung: Simulation im Worker, Karte auf der Grafikkarte, keine Spitzen mehr (25.11.2026)
+- **Wunsch:** Das Spiel laggt, OpenFront läuft auf gleich grossen Karten flüssiger. Den Code sauber machen.
+- **Ursache, gemessen:** Simulation, Nachmalen der Karte und Bild liefen im selben Thread. Ein Tick (auf der Erde 18 bis 45 ms) und das Nachmalen (bis 88 ms) hielten zehnmal pro Sekunde das Bild an. Dazu rechnete die Dichte-Schattierung einmal pro Sekunde alles neu (bis 100 ms). OpenFront rechnet seine Simulation in einem Worker.
+- **Geändert** (Einzelheiten in `leistung.md`):
+  1. Dichte-Schattierung über die Bilder verteilt, Kartenmalen mit einem Zeitbudget pro Bild.
+  2. Die Simulation läuft in einem Web Worker. Die Seite liest einen Spiegel mit demselben Prototyp (`src/05b_sync.js`, `src/08b_host.js`). `?worker=0` lässt sie auf der Seite.
+  3. Die Karte färbt die Grafikkarte (WebGL 2, `src/06b_gl.js`). Ohne Grafikkarte bleibt das 2D-Bild.
+- **Ergebnis auf der Erde:** 95 % der Bildabstände 16.7 statt 33 ms, der längste 50 statt 117 ms. Die Simulation hält das Tempo.
+- **Nebenbei behoben:** Die Anzeige konnte über `postDens` das Spiel verändern (siehe `mehrspieler.md`). Dichte-Stufen von Zellen, die ein Reich verlassen hat, blieben stehen. Ein Allianzwechsel malte die Grenzen aller Reiche neu statt nur der betroffenen. Die Meldung «Seehandel bringt …» setzte einen Zähler im Spiel zurück, jetzt zählt die Anzeige selbst (`shipTotal`).
+- **Neu:** `test/worker.js`, `test/gl.js`. `test/net.js` spielt jetzt ein Gerät mit Worker gegen eines ohne. Die Browser-Tests, die ins Spiel greifen, öffnen die Seite mit `?worker=0`.
 ## Schlachtschiff fährt flüssig (24.11.2026)
 - **Wunsch:** Das Schlachtschiff ruckelt beim Fahren.
 - **Ursache:** Zwischen zwei Ticks schätzte das Bild die Fahrt mit vollem Tempo, die Simulation fährt das Schlachtschiff aber mit 60 % (auf Patrouille 36 %). Es lief jedes Bild voraus und sprang beim nächsten Tick bis 0.23 Felder zurück, fast bei jedem Tick.

@@ -116,6 +116,18 @@
     if (!(post.H > 0) || c.n <= 0 || p.tiles <= 0) return 1;
     return (c.u / c.n) / (post.H / p.tiles);
   };
+  // The same for the display (shading, tooltips): reads only. postDens above evens out a realm
+  // without units as a side effect, and the display asks at its own times, different on every
+  // device; until 25.11.2026 the shading did that through postDens, which could part the games
+  // of two devices playing together.
+  Game.prototype.postDensSeen = function (p, c) {
+    const post = p.post;
+    if (post.H > 0) return c.n <= 0 || p.tiles <= 0 ? 1 : (c.u / c.n) / (post.H / p.tiles);
+    let H = 0;
+    for (const x of post.cells.values()) H += x.n * x.m;
+    if (!(H > 0) || c.n <= 0 || p.tiles <= 0) return 1;
+    return c.m / (H / p.tiles);
+  };
   // Take up to x troops out of a cell; the rest of the realm is untouched. Returns what was taken.
   Game.prototype.postTake = function (p, c, x) {
     const post = p.post, T = p.troops;

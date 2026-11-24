@@ -24,7 +24,7 @@ const page = 'file://' + path.join(__dirname, '..', 'build', 'index.html');
   };
   const must = (ok, what) => { if (!ok) { errors.push('FAILED: ' + what); console.log('FAILED', what); } else console.log('ok', what); };
 
-  const host = await open(page + '?relay=' + encodeURIComponent(relay), 'host');
+  const host = await open(page + '?relay=' + encodeURIComponent(relay) + (process.env.HOST_LOCAL ? '&worker=0' : ''), 'host');
   await host.fill('#fName', 'Anna');
   await host.evaluate(() => { document.getElementById('fBots').value = 60; document.getElementById('fBots').dispatchEvent(new Event('input')); });
   await host.click('#fHost');
@@ -33,7 +33,9 @@ const page = 'file://' + path.join(__dirname, '..', 'build', 'index.html');
   console.log('invite link', link.replace(/^file:.*index.html/, '…/index.html'));
   await host.screenshot({ path: path.join(__dirname, '..', 'build', 'net_1lobby.png') });
 
-  const guest = await open(link, 'guest');
+  // the host plays with the game in a worker (the default), the guest with the game on the page:
+  // both ways must compute the same game
+  const guest = await open(link + (process.env.GUEST_WORKER ? '' : '&worker=0'), 'guest');
   await guest.screenshot({ path: path.join(__dirname, '..', 'build', 'net_2invited.png') });
   await guest.fill('#fName', 'Ben');
   await guest.click('.sw[data-i="1"]');
@@ -45,10 +47,11 @@ const page = 'file://' + path.join(__dirname, '..', 'build', 'index.html');
   await host.click('#lStart');
   for (const p of [host, guest]) {
     await p.waitForFunction(() => G.debug.game && G.debug.game.humans.length === 2, null, { timeout: 20000 });
+    // every 100th tick each device hands its checksum to the room (mp.sum); kept here as well
     await p.evaluate(() => {
       window.sums = {};
-      const g = G.debug.game, tick = g.tick;
-      g.tick = function () { tick.call(g); if (g.ticks % 25 === 0) window.sums[g.ticks] = g.checksum(); };
+      const mp = G.debug.mp, sum = mp.sum;
+      mp.sum = function (t, s) { window.sums[t] = s; return sum.apply(mp, arguments); };
     });
   }
   must(await guest.evaluate(() => G.debug.game.human.name) === 'Ben' && await host.evaluate(() => G.debug.game.human.name) === 'Anna', 'each device controls its own player');
@@ -75,11 +78,14 @@ const page = 'file://' + path.join(__dirname, '..', 'build', 'index.html');
       await guest.evaluate(() => G.debug.mp.link.ws.close());
     }
   }
-  await host.waitForTimeout(3000);
+  // play on until each device has handed over at least four checksums (every 100th tick)
+  await host.waitForFunction(() => Object.keys(window.sums).length >= 4, null, { timeout: 90000 });
+  await guest.waitForFunction(() => Object.keys(window.sums).length >= 4, null, { timeout: 30000 });
   const a = await host.evaluate(() => ({ sums: window.sums, bad: G.debug.mp.bad, tiles: G.debug.game.humans.map((h) => h.tiles), T: G.debug.game.ticks }));
   const b = await guest.evaluate(() => ({ sums: window.sums, bad: G.debug.mp.bad, tiles: G.debug.game.humans.map((h) => h.tiles), T: G.debug.game.ticks }));
   let same = 0, diff = 0;
   for (const k in a.sums) if (k in b.sums) { if (a.sums[k] === b.sums[k]) same++; else diff++; }
+  if (process.env.SUMS) console.log(JSON.stringify(a.sums), JSON.stringify(b.sums));
   console.log('host tick', a.T, 'guest tick', b.T, 'tiles', a.tiles, b.tiles, 'checks equal', same, 'different', diff);
   must(same >= 4 && diff === 0 && !a.bad && !b.bad, 'both devices compute the same game');
   must(a.tiles[0] > 60 && a.tiles[1] > 60, 'orders of both players were carried out');

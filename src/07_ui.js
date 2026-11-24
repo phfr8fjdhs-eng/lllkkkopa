@@ -72,10 +72,12 @@
     return lv === 1 ? 'Schickt Züge los' : 'Züge fahren ' + ((1 + lv) / 2).toLocaleString('de-CH') + '-mal so oft';
   }
 
-  let MAPS = [], maps = {}, game = null, view = null;
+  let MAPS = [], maps = {}, game = null, view = null, pending = [];
+  // where the game runs (src/08b_host.js): `game` is what host.game shows, the game itself or its mirror
+  let host = null, stateAt = 0;
   let paused = false, speed = 1, acc = 0, last = 0, ratio = 0.2;
   // Aufstellung: the editing mode of the net (see 03b_posture.js)
-  let trainSeen = 0, incAt = -99;
+  let trainSeen = 0, shipSeen = 0, incAt = -99;
   const incLog = [];          // [tick, gold from trains so far, gold from ships so far], one entry every five seconds
   let netOn = false, netLess = false, stroke = null, netTimer = 0, lastTile = -1, commitAt = -99;
   const netQueue = new Map();
@@ -581,9 +583,20 @@
       $('fStart').disabled = false; $('fStart').querySelector('small').textContent = 'Nochmals versuchen';
     });
   }
+  // A new game: made by the host (in the worker it takes a moment), then shown.
   function begin(map, opts, people) {
-    game = new G.Game(map, opts);
-    game.setup(people);
+    if (host) host.stop();
+    game = null;
+    const h = host = G.Host(map, opts, people, function (why) {
+      if (host !== h) return;
+      toast('Das Spiel ist abgebrochen: ' + String(why).split('\n')[0]);
+      quitGame();
+    });
+    h.onState = afterSteps;
+    h.ready(function () { if (host === h) shown(map, opts); });
+  }
+  function shown(map, opts) {
+    game = host.game;
     view.setMap(map); view.setGame(game); view.fit(false);
     landC = 0; view.resSel = 0; view.resSigns = true; renderLand();
     if (!RES && opts.res) setTimeout(function () { addMsg('Dieser Raum spielt die Version «Rohstoffe». Öffne den Einladungslink, sonst läuft dein Spiel auseinander.', 'bad'); }, 50);
@@ -593,24 +606,26 @@
     $('modal').hidden = true; modalKind = '';
     $('hud').hidden = false; $('spawnBar').hidden = false; $('ctrl').hidden = true; $('lb').hidden = true; $('aimBar').hidden = true;
     netOn = false; stroke = null; netQueue.clear(); lastTile = -1; commitAt = -99; view.net.on = false; view.net.edit.clear(); view.net.w = 0; view.net.at = -1e9;
-    $('peek').hidden = true; trainSeen = 0; incAt = -99; incLog.length = 0; $('incLine').hidden = true; $('incLine').dataset.html = '';
+    $('peek').hidden = true; trainSeen = 0; shipSeen = 0; incAt = -99; incLog.length = 0; $('incLine').hidden = true; $('incLine').dataset.html = '';
     $('bNet').hidden = true; $('bNet').setAttribute('aria-pressed', 'false'); $('netBar').hidden = true; $('commit').textContent = '';
     $('bRes').hidden = true;
     plans.length = 0; syncPlans();
     $('mPunkt').hidden = !game.punkt; setThrust(cfg.thrust);
     $('feedMsgs').innerHTML = ''; $('feedLive').innerHTML = ''; $('news').innerHTML = ''; chips.clear(); asks.clear();
     $('lbRows').innerHTML = ''; $('clock').textContent = '0:00';
-    speed = 1; $('bSpeed').textContent = '1×'; acc = 0; endShown = false; lbAt = liveAt = -99; tradeAt = 0; aim = null;
+    speed = 1; $('bSpeed').textContent = '1×'; acc = 0; stateAt = performance.now(); endShown = false; lbAt = liveAt = -99; tradeAt = 0; aim = null;
     setPaused(false);
     view.placeNames();
     hudTick();
   }
-  // Every order of the player goes through here: carried out at once when playing alone,
-  // sent to the host when playing together.
+  // Every order of the player goes through here: carried out at once when playing alone (in the
+  // worker: as soon as it gets there, its answer comes back), sent to the host of the room when
+  // playing together.
   function act(c) {
     if (!game) return;
-    if (mp) mp.send(c);
-    else done(c, game.exec(game.human.id, c));
+    if (mp) { mp.send(c); return; }
+    const h = host;
+    host.exec(game.human.id, c, function (why) { if (host === h && game) done(c, why); });
   }
   function done(c, why) {
     if (c.k === 'mesh' || c.k === 'even') return;
@@ -625,15 +640,18 @@
     else if (c.say) toast(c.say);
     if (modalKind === 'info') renderInfo();
   }
-  function applyTurn(list) {
-    const me = game.human ? game.human.id : 0;
+  // The orders of one turn of the room, as entries for host.step; the own ones get their answer.
+  function turnOrders(list) {
+    const me = game.human ? game.human.id : 0, h = host, out = [];
     for (let i = 0; i < list.length; i++) {
-      const id = list[i][0] | 0, c = list[i][1], why = game.exec(id, c);
-      if (id === me) done(c, why);
+      const id = list[i][0] | 0, c = list[i][1];
+      out.push(id === me ? host.order(id, c, function (why) { if (host === h && game) done(c, why); }) : [id, c]);
     }
+    return out;
   }
   function quitGame() {
     const wasLevel = !!(game && game.lv);
+    if (host) { host.stop(); host = null; }
     game = null; closeRadial(); $('sheet').hidden = true; if (view) view.selUnit = null; stopAim();
     $('hud').hidden = true;
     leaveRoom();
@@ -866,7 +884,8 @@
     if (T - tradeAt >= 150) {
       tradeAt = T;
       // sea trade and railways are reported apart, so one can see what a port and what a factory earns
-      if (h.tradeGold > 0) { addMsg('Seehandel bringt ' + fmt(h.tradeGold) + ' Gold', 'good'); h.tradeGold = 0; }
+      const sg = (h.shipTotal || 0) - shipSeen;
+      if (sg > 0) { addMsg('Seehandel bringt ' + fmt(sg) + ' Gold', 'good'); shipSeen = h.shipTotal || 0; }
       const tg = (h.trainTotal || 0) - trainSeen;
       if (tg > 0) { addMsg('Züge bringen ' + fmt(tg) + ' Gold', 'good'); trainSeen = h.trainTotal || 0; }
     }
@@ -1413,7 +1432,7 @@
     // the spot under the pointer: what the ground does to an attack, and how dense the troops stand
     // there (the net, drawn darker on the map)
     let here = 'Hier: ' + groundName(tile);
-    const cell = q.post && game.CW ? q.post.cells.get(game.cellOf(tile)) : null, dk = cell && cell.n > 0 ? game.postDens(q, cell) : 1;
+    const cell = q.post && game.CW ? q.post.cells.get(game.cellOf(tile)) : null, dk = cell && cell.n > 0 ? game.postDensSeen(q, cell) : 1;
     if (dk >= 1.15) here += ' · Truppen ' + (Math.round(Math.min(dk, G.COMBAT.densMax) * 10) / 10).toLocaleString('de-CH') + '× so dicht: langsamer, dort fallen auch mehr';
     s += '<div class="pkHere">' + esc(here) + '</div>';
     if (el.dataset.html !== s) { el.innerHTML = s; el.dataset.html = s; }
@@ -2154,29 +2173,33 @@
     requestAnimationFrame(frame);
     const dt = Math.min(200, now - last);
     last = now;
-    let alpha = 1;
     if (game && (mp ? mp.started : !paused)) {
       const behind = mp ? mp.buf.size : 0;
       acc += dt * (mp ? (behind > 6 ? 8 : behind > 2 ? 2 : 1) : speed);
-      let n = 0;
-      while (acc >= 100 && n < 8 && game) {
-        if (mp) {
-          // playing together: only as far as the host's turns allow
-          if (turnLeft === 0) {
-            const turn = mp.take();
-            if (!turn) { acc = 100; break; }
-            applyTurn(turn);
-            turnLeft = G.TURN;
-          }
-          turnLeft--;
+      // a step goes out when the last one is back: a slow simulation slows the game, it never
+      // holds up a picture
+      if (acc >= 100 && !host.busy) {
+        const ticks = [];
+        while (acc >= 100 && ticks.length < 8) {
+          if (mp) {
+            // playing together: only as far as the host's turns allow
+            if (turnLeft === 0) {
+              const turn = mp.take();
+              if (!turn) { acc = 100; break; }
+              pending = turnOrders(turn);
+              turnLeft = G.TURN;
+            }
+            turnLeft--;
+            ticks.push(pending); pending = [];
+          } else ticks.push([]);
+          acc -= 100;
         }
-        game.tick(); acc -= 100; n++;
-        if (mp && game.ticks % 100 === 0) mp.sum(game.ticks, game.checksum());
-      }
-      if (acc >= 100 && !(mp && n === 0)) acc = 0;
-      if (n) { view.flush(); view.placeNames(); pump(); if (game) hudTick(); }
-      alpha = Math.min(1, acc / 100);
+        if (acc >= 100 && !(mp && !ticks.length)) acc = 0;
+        if (ticks.length) host.step(ticks, !!mp);
+      } else if (acc > 800) acc = 800;
     }
+    let alpha = 1;
+    if (game && !paused) alpha = Math.min(1, (now - stateAt) * (mp ? 1 : speed) / 100);
     refreshGhost();
     if (game) updatePlan(now);
     const held = G.heldKeys;
@@ -2185,7 +2208,18 @@
       view.pan(((held.has('a') || held.has('arrowleft') ? 1 : 0) - (held.has('d') || held.has('arrowright') ? 1 : 0)) * d,
         ((held.has('w') || held.has('arrowup') ? 1 : 0) - (held.has('s') || held.has('arrowdown') ? 1 : 0)) * d);
     }
+    // the map picture catches up with the changed tiles: at most FLUSH_MS of painting per picture,
+    // so a tick with a lot of change is spread over the next pictures instead of holding one up
+    if (game) view.flush(FLUSH_MS);
     view.draw(alpha, now);
+  }
+  const FLUSH_MS = 4;
+  // After the host has run a step: what the interface shows of it.
+  function afterSteps(n, sums) {
+    stateAt = performance.now();
+    if (!game) return;
+    if (mp) for (let i = 0; i < sums.length; i += 2) mp.sum(sums[i], sums[i + 1]);
+    view.placeNames(); pump(); if (game) hudTick();
   }
   // Sounds for things that happen on the map.
   G.onFx = function (f, seen) {
@@ -2230,6 +2264,6 @@
       toast: toast, addMsg: addMsg, goRow: goRow, setPaused: setPaused, svg: svg, esc: esc, snd: snd, cfg: cfg, COLORS: COLORS,
       get game() { return game; }, get view() { return view; }, get modalKind() { return modalKind; }
     };
-    G.debug = { get game() { return game; }, get view() { return view; }, get mp() { return mp; }, tap: tap, cfg: cfg, act: act };
+    G.debug = { get game() { return game; }, get view() { return view; }, get mp() { return mp; }, get host() { return host; }, tap: tap, cfg: cfg, act: act };
   };
 })(globalThis.G = globalThis.G || {});

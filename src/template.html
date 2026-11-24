@@ -41,6 +41,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 #app { position: absolute; inset: 0; overflow: hidden; }
 #cv { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: crosshair; }
+#cvMap { position: absolute; inset: 0; width: 100%; height: 100%; display: block; pointer-events: none; }
 .panel {
   background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
   -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
@@ -621,6 +622,9 @@ body.placing #cv { cursor: crosshair; }
   <div id="modal" hidden><div id="modalCard" class="card panel"></div></div>
   <div id="toast" hidden></div>
 </div>
+<script id="sim">
+/*__SIM__*/
+</script>
 <script>
 /*__JS__*/
 G.boot(/*__MAPS__*/);
