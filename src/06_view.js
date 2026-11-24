@@ -154,9 +154,19 @@
   function flagOf(iso) { return ''; }
   G.flagOf = flagOf;
 
+  const SEA_RGB = [0x45, 0x6f, 0x95];
+  // canvas: the <canvas> of the game. With WebGL 2 (src/06b_gl.js) the map is drawn on a second
+  // canvas just under it, and this one, see-through, carries everything drawn over the map.
   function View(canvas) {
     this.cv = canvas;
-    this.ctx = canvas.getContext('2d', { alpha: false });
+    this.glOn = !!(G.MapGL && G.MapGL.wanted());
+    if (this.glOn) {
+      const c = this.glc = document.createElement('canvas');
+      c.id = 'cvMap'; c.setAttribute('aria-hidden', 'true');
+      canvas.parentNode.insertBefore(c, canvas);
+    }
+    this.glm = null;
+    this.ctx = canvas.getContext('2d', { alpha: this.glOn });
     this.cam = { x: 0, y: 0, z: 1 };
     this.fly = null; this.map = null; this.game = null;
     this.fxList = []; this.mark = -1; this.aim = null;
@@ -172,23 +182,47 @@
     this.cw = Math.max(1, r.width); this.ch = Math.max(1, r.height);
     this.cv.width = Math.round(this.cw * this.dpr);
     this.cv.height = Math.round(this.ch * this.dpr);
+    if (this.glc) { this.glc.width = this.cv.width; this.glc.height = this.cv.height; }
     this.clampCam();
   };
 
   View.prototype.setMap = function (map) {
     this.map = map; this.game = null; this.fxList.length = 0; this.mark = -1; this.aim = null;
-    const mc = this.mc = document.createElement('canvas');
-    mc.width = map.W; mc.height = map.H;
-    this.mctx = mc.getContext('2d');
-    this.img = this.mctx.createImageData(map.W, map.H);
-    this.px = new Uint32Array(this.img.data.buffer);
     if (map.cover) this.base = worldColors(map);
     else {
       this.base = new Uint32Array(map.N);
       for (let i = 0; i < map.N; i++) this.base[i] = terrainColor(map, i);
     }
+    if (this.glm) { this.glm.free(); this.glm = null; }
+    this.mc = this.mctx = this.img = this.px = null;
+    if (this.glOn) {
+      try {
+        this.glm = new G.MapGL(this.glc, map, this.base, G.debugChunk);
+        const self = this;
+        this.glm.onLost = function () { self.glLost(); };
+      } catch (e) {
+        if (typeof console !== 'undefined') console.warn('Karte ohne WebGL:', e.message);
+        this.glm = null; this.glOn = false;
+      }
+    }
+    if (!this.glm) this.picture();
+  };
+  // The map as a 2D picture (without WebGL, or after the graphics card was lost).
+  View.prototype.picture = function () {
+    const map = this.map, mc = this.mc = document.createElement('canvas');
+    mc.width = map.W; mc.height = map.H;
+    this.mctx = mc.getContext('2d');
+    this.img = this.mctx.createImageData(map.W, map.H);
+    this.px = new Uint32Array(this.img.data.buffer);
     this.px.set(this.base);
+    if (this.game) for (let t = 0; t < this.game.N; t++) if (this.game.owner[t] || this.game.fallout[t]) this.paint(t);
     this.mctx.putImageData(this.img, 0, 0);
+  };
+  View.prototype.glLost = function () {
+    this.glm = null; this.glOn = false;
+    if (this.glc) this.glc.hidden = true;
+    this.shade = null; this.shadeAt = 0; this.shadeI = undefined;
+    if (this.map) this.picture();
   };
   View.prototype.setGame = function (game) {
     this.game = game; this.shade = null; this.shadeAt = 0; this.shipSel = -1;
@@ -213,19 +247,24 @@
       p.cssI = 'rgb(' + Math.round(p.r * 0.65) + ',' + Math.round(p.g * 0.65) + ',' + Math.round(p.b * 0.65) + ')';
       p.cssR = 'rgb(' + Math.round(p.r * 0.1) + ',' + Math.round(p.g * 0.1) + ',' + Math.round(p.b * 0.1) + ')';
     }
-    this.px.set(this.base);
-    for (let t = 0; t < game.N; t++) if (game.owner[t] || game.fallout[t]) this.paint(t);
-    this.mctx.putImageData(this.img, 0, 0);
+    if (this.glm) this.glm.setGame(game);
+    else {
+      this.px.set(this.base);
+      for (let t = 0; t < game.N; t++) if (game.owner[t] || game.fallout[t]) this.paint(t);
+      this.mctx.putImageData(this.img, 0, 0);
+    }
     game.dirtyN = 0; game.dirtyFlag.fill(0);
   };
 
-  // Colour of one tile: terrain, tinted by its owner, with a darker rim at the border.
-  View.prototype.paint = function (t) {
+  // Colour of one tile: terrain, tinted by its owner, with a darker rim at the border. The map
+  // drawn by the graphics card (src/06b_gl.js) works out the same colours in its shader, from
+  // the same numbers; test/gl.js compares the two.
+  View.prototype.paint = function (t) { this.px[t] = this.color(t); };
+  View.prototype.color = function (t) {
     const g = this.game, own = g.owner, o = own[t], b = this.base[t];
     if (!o) {
-      if (!g.fallout[t]) { this.px[t] = b; return; }
-      this.px[t] = pack(((b & 255) * 120 + 104 * 136) >> 8, (((b >>> 8) & 255) * 120 + 214 * 136) >> 8, (((b >>> 16) & 255) * 120 + 78 * 136) >> 8);
-      return;
+      if (!g.fallout[t]) return b;
+      return pack(((b & 255) * 120 + 104 * 136) >> 8, (((b >>> 8) & 255) * 120 + 214 * 136) >> 8, (((b >>> 16) & 255) * 120 + 78 * 136) >> 8);
     }
     const p = g.players[o], W = g.W, x = t % W, y = (t - x) / W;
     const edge = (x > 0 && own[t - 1] !== o) || (x < W - 1 && own[t + 1] !== o) ||
@@ -239,12 +278,12 @@
           if (dx * dx + dy * dy <= r2) { c = p.c32l; break; }
         }
       }
-      this.px[t] = c;
+      return c;
     } else if (g.map.feat) {
       const br = b & 255, bg = (b >>> 8) & 255, bb = (b >>> 16) & 255;
       if (g.map.feat[t] & 1) {
         // a river stays a river under any flag: it is a line of defence, and you have to see it
-        this.px[t] = this.dense(o, t, pack((br * 120 + p.r * 136) >> 8, (bg * 120 + p.g * 136) >> 8, (bb * 120 + p.b * 136) >> 8));
+        return this.dense(o, t, pack((br * 120 + p.r * 136) >> 8, (bg * 120 + p.g * 136) >> 8, (bb * 120 + p.b * 136) >> 8));
       } else {
         // On the Earth the owner's colour takes on the light and dark of the ground under it:
         // forest shows as a darker stretch, desert and snow as lighter ones, ranges keep their
@@ -255,12 +294,12 @@
         const f = 226 + ((lum * 40 / 190) | 0);
         let r = (p.r * f) >> 8, gg = (p.g * f) >> 8, bl = (p.b * f) >> 8;
         r = (r * 226 + br * 30) >> 8; gg = (gg * 226 + bg * 30) >> 8; bl = (bl * 226 + bb * 30) >> 8;
-        this.px[t] = this.dense(o, t, pack(r > 255 ? 255 : r, gg > 255 ? 255 : gg, bl > 255 ? 255 : bl));
+        return this.dense(o, t, pack(r > 255 ? 255 : r, gg > 255 ? 255 : gg, bl > 255 ? 255 : bl));
       }
     } else {
       // as OpenFront: the owner's colour at 85 % saturation laid over the ground at 59 % (until
       // 23.11.2026 67 %, full colour, and highland and mountains lightened on top)
-      this.px[t] = this.dense(o, t, pack(((b & 255) * 105 + p.rs * 151) >> 8, (((b >>> 8) & 255) * 105 + p.gs * 151) >> 8, (((b >>> 16) & 255) * 105 + p.bs * 151) >> 8));
+      return this.dense(o, t, pack(((b & 255) * 105 + p.rs * 151) >> 8, (((b >>> 8) & 255) * 105 + p.gs * 151) >> 8, (((b >>> 16) & 255) * 105 + p.bs * 151) >> 8));
     }
   };
   // Density shows on the map (23.11.2026): land is darker where its owner keeps more troops than
@@ -302,20 +341,31 @@
       if (!p || !p.alive || !p.post || !p.post.cells.size) { if (S.has(i)) this.shadeDrop(i); continue; }
       let m = S.get(i);
       if (!m) { m = new Map(); S.set(i, m); }
-      for (const c of p.post.cells.values()) {
-        const d = c.n > 0 ? g.postDensSeen(p, c) : 1, st = Math.round(within(Math.log2(Math.max(d, 1)), 0, Math.log2(3)) * 4);
-        if ((m.get(c.id) || 0) === st) continue;
-        if (st) m.set(c.id, st); else m.delete(c.id);
-        const cx = c.id % CW, cy = (c.id - cx) / CW;
+      const set = (id, st) => {
+        // the graphics card blends it itself; told every time, as a cell it had no room for
+        // (a third owner) gets its turn once room is free again
+        if (this.glm) this.glm.shade(id, i, st);
+        if ((m.get(id) || 0) === st) return;
+        if (st) m.set(id, st); else m.delete(id);
+        if (this.glm) return;
+        const cx = id % CW, cy = (id - cx) / CW;
         const x0 = Math.max(0, cx * CS - CS), y0 = Math.max(0, cy * CS - CS), x1 = Math.min(W, cx * CS + 2 * CS), y1 = Math.min(H, cy * CS + 2 * CS);
         for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) { const t = y * W + x; if (own[t] === i) g.markDirty(t); }
+      };
+      for (const c of p.post.cells.values()) {
+        const d = c.n > 0 ? g.postDensSeen(p, c) : 1;
+        set(c.id, Math.round(within(Math.log2(Math.max(d, 1)), 0, Math.log2(3)) * 4));
       }
+      // cells the realm has left: their step goes (until 25.11.2026 it stayed and still tinted
+      // the realm's tiles next to them)
+      for (const id of Array.from(m.keys())) if (!p.post.cells.has(id)) set(id, 0);
       if (performance.now() - t0 > SHADE_MS) break;
     }
   };
   // a realm without a posture any more: its shade goes, and its tiles are painted plain again
   View.prototype.shadeDrop = function (i) {
     const g = this.game, p = g.players[i];
+    if (this.glm) for (const id of this.shade.get(i).keys()) this.glm.shade(id, i, 0);
     this.shade.delete(i);
     if (!p || p.x1 < p.x0) return;
     const W = g.W, own = g.owner;
@@ -348,16 +398,19 @@
   View.prototype.checkAllies = function () {
     const g = this.game, h = g && g.human;
     if (!h) return;
-    const seen = this.allySeen || (this.allySeen = new Set());
-    let change = false;
-    for (const id of h.allies.keys()) if (!seen.has(id)) { seen.add(id); change = true; }
-    for (const id of Array.from(seen)) if (!h.allies.has(id)) { seen.delete(id); change = true; }
-    if (!change) return;
-    for (let i = 1; i < g.players.length; i++) {
-      const p = g.players[i];
+    const seen = this.allySeen || (this.allySeen = new Set()), changed = [];
+    for (const id of h.allies.keys()) if (!seen.has(id)) { seen.add(id); changed.push(id); }
+    for (const id of Array.from(seen)) if (!h.allies.has(id)) { seen.delete(id); changed.push(id); }
+    if (!changed.length) return;
+    // only those whose standing changed get new colours (until 25.11.2026 every realm's border
+    // was painted again)
+    for (const id of changed) {
+      const p = g.players[id];
+      if (!p) continue;
       this.borderColors(p);
-      if (p !== h && p.alive) for (const t of p.border) g.markDirty(t);
+      if (!this.glm && p.alive) for (const t of p.border) g.markDirty(t);
     }
+    if (this.glm) this.glm.recolour();
   };
   // The changed tiles are copied to the map picture in blocks of BLK x BLK tiles, only the blocks
   // that hold a change (runs of neighbouring blocks in a row in one go). Until 24.11.2026 one
@@ -368,6 +421,14 @@
   // stays marked and comes with the next call. Without a budget everything is painted.
   View.prototype.flush = function (budget) {
     const g = this.game, n = g.dirtyN;
+    if (this.glm) {
+      // the graphics card: only the numbers of the changed tiles, the colours are its work
+      const d = g.dirty, f = g.dirtyFlag, glm = this.glm;
+      for (let i = 0; i < n; i++) { const t = d[i]; f[t] = 0; glm.mark(t); }
+      g.dirtyN = 0;
+      glm.render();
+      return;
+    }
     if (!n) return;
     const d = g.dirty, f = g.dirtyFlag, W = g.W, H = g.H, bw = (W + BLK - 1) >> BSH, bh = (H + BLK - 1) >> BSH;
     let mk = this.blk;
@@ -535,13 +596,20 @@
       this.clampCam();
     }
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.fillStyle = SEA;
-    ctx.fillRect(0, 0, this.cv.width, this.cv.height);
-    if (!this.map) return;
     const z = c.z, ox = cw / 2 - c.x * z, oy = ch / 2 - c.y * z;
-    ctx.setTransform(z * dpr, 0, 0, z * dpr, ox * dpr, oy * dpr);
-    ctx.imageSmoothingEnabled = z < 1.5;
-    ctx.drawImage(this.mc, 0, 0);
+    if (this.glm) {
+      ctx.clearRect(0, 0, this.cv.width, this.cv.height);
+      if (this.map) { if (this.game) this.glm.render(); this.glm.draw(z, ox, oy, dpr, SEA_RGB); }
+    } else {
+      ctx.fillStyle = SEA;
+      ctx.fillRect(0, 0, this.cv.width, this.cv.height);
+    }
+    if (!this.map) return;
+    if (!this.glm) {
+      ctx.setTransform(z * dpr, 0, 0, z * dpr, ox * dpr, oy * dpr);
+      ctx.imageSmoothingEnabled = z < 1.5;
+      ctx.drawImage(this.mc, 0, 0);
+    }
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     const g = this.game;
     if (!g) return;

@@ -27,7 +27,9 @@
   // a player: the border is sent for the person at this device only (the mirror works it out
   // for the others when asked); the posture of the others only as much as the shading needs
   const SKIP_PLAYER = new Set(['border', 'ai', 'post', 'pocketFrom', 'pocketSeen']);
-  // an attack: the front only for attacks on or by the person at this device
+  // attacks: only those on or by the person at this device (the page shows no others, and on
+  // the Earth some 2500 of them change every tick)
+  const SKIP_OTHER = new Set(Array.from(SKIP_PLAYER).concat(['out', 'inc']));
   const SKIP_ATTACK = new Set(['heap', 'front', 'taken']);
   const SKIP_UNIT = new Set([]);
   const SKIP_EDGE = new Set(['geo']);
@@ -97,8 +99,8 @@
     for (const u of g.nukes) unit(u);
     for (let i = 1; i < g.players.length; i++) for (const u of g.players[i].units) unit(u);
     const attack = function (a) { if (a && !ref.has(a)) { put(a, 'a', a.id); attacks.push(a); } };
-    for (const a of g.attacks) attack(a);
-    for (let i = 1; i < g.players.length; i++) { const p = g.players[i]; for (const a of p.out) attack(a); for (const a of p.inc) attack(a); }
+    const me = g.human;
+    if (me) { for (const a of me.out) attack(a); for (const a of me.inc) attack(a); }
     for (const e of g.rails) if (!ref.has(e)) { put(e, 'e', e.key); edges.push(e); }
     return { units: units, attacks: attacks, edges: edges };
   };
@@ -212,7 +214,7 @@
     // players
     const me = g.human, pl = [];
     for (let i = 1; i < g.players.length; i++) {
-      const p = g.players[i], ch = this.diff(p, SKIP_PLAYER), mine = p === me;
+      const mine = g.players[i] === me, p = g.players[i], ch = this.diff(p, mine ? SKIP_PLAYER : SKIP_OTHER);
       let c = ch;
       const post = this.post(p, mine);
       if (post !== undefined) (c || (c = {})).post = post;
@@ -242,7 +244,7 @@
     for (const e of T.edges) { const c = this.diff(e, SKIP_EDGE); if (c) ed.push(e.key, c); }
     if (ed.length) msg.edges = ed;
     const id = function (o) { return o.id; };
-    const lu = this.list('units', g.units, id), ln = this.list('nukes', g.nukes, id), la = this.list('attacks', g.attacks, id);
+    const lu = this.list('units', g.units, id), ln = this.list('nukes', g.nukes, id), la = this.list('attacks', T.attacks, id);
     const lr = this.list('rails', g.rails, function (e) { return e.key; });
     if (lu) msg.unitList = lu;
     if (ln) msg.nukeList = ln;
@@ -278,7 +280,7 @@
   In.prototype.player = function (i) {
     const m = this.m;
     while (m.players.length <= i) {
-      const p = { id: m.players.length };
+      const p = { id: m.players.length, out: [], inc: [] };
       borderOnAsk(m, p);
       m.players.push(p);
     }
@@ -469,12 +471,13 @@
     o.tables();
     const pick = function (x, skip) { const r = {}; for (const k in x) if (!skip.has(k) && o.enc(x[k], 0) !== NOPE) r[k] = '#' + hash(x[k], 0, 0, o); return r; };
     const ps = [];
-    for (let i = 1; i < g.players.length; i++) ps.push(pick(g.players[i], SKIP_PLAYER));
+    for (let i = 1; i < g.players.length; i++) ps.push(pick(g.players[i], g.players[i] === g.human ? SKIP_PLAYER : SKIP_OTHER));
+    const me = g.human, atk = me ? me.out.concat(me.inc.filter(function (a) { return me.out.indexOf(a) < 0; })) : [];
     let own = 0;
     for (let i = 0; i < g.N; i++) own = mix(own, g.owner[i] * 256 + g.fallout[i]);
     return {
       ticks: g.ticks, owner: own, game: pick(g, new Set(Array.from(SKIP_GAME).concat(['mirror']))), players: ps,
-      units: g.units.map(function (u) { return pick(u, SKIP_UNIT); }), attacks: g.attacks.map(function (a) { return pick(a, SKIP_ATTACK); }),
+      units: g.units.map(function (u) { return pick(u, SKIP_UNIT); }), attacks: atk.map(function (a) { return pick(a, SKIP_ATTACK); }),
       rails: g.rails.map(function (e) { return pick(e, SKIP_EDGE); })
     };
   };

@@ -11,7 +11,7 @@ root = pathlib.Path(__file__).resolve().parent.parent
 # and starts the same text again as the worker the game runs in (src/08b_host.js). The rest is
 # the page: drawing, sound, network, controls.
 SIM = ["00_util.js", "01_map.js", "02_path.js", "03_game.js", "03b_posture.js", "03d_level.js", "04_units.js", "04b_rail.js", "05_ai.js", "05b_sync.js"]
-PAGE = ["06a_audio.js", "06_view.js", "08_net.js", "08b_host.js", "07_ui.js", "07b_level.js"]
+PAGE = ["06a_audio.js", "06b_gl.js", "06_view.js", "08_net.js", "08b_host.js", "07_ui.js", "07b_level.js"]
 FILES = SIM + PAGE
 def page(name, files, head="", title=None, ctry=None):
     sim = head + "\n".join((root / "src" / f).read_text() for f in files if f not in PAGE)
