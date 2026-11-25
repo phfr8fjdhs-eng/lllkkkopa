@@ -31,7 +31,7 @@
   G.NEUES = [
     {
       n: 117, date: '25.11.2026', title: 'Alle Flugabwehr-Reichweiten',
-      text: 'Zeigst du mit der Maus auf eine Flugabwehr, tippst sie an oder wählst sie zum Bauen, siehst du die Reichweite aller deiner Flugabwehren, so erkennst du Lücken. Bei Fabriken genauso, aber getrennt. Ganz herausgezoomt bleiben die Kreise weg.',
+      text: 'Zeigst du mit der Maus auf eine Flugabwehr, tippst sie an oder wählst sie zum Bauen, siehst du die Reichweite aller deiner Flugabwehren, so erkennst du Lücken. Bei Fabriken genauso, aber getrennt. Schliesst du die Karte mit dem Kreuz, bleiben die Kreise stehen. Ganz herausgezoomt bleiben sie weg.',
       map: { w: 300, h: 200, seed: 916, shapes: [circ(150, 100, 95), rect(40, 30, 260, 170)] },
       me: { x: 150, y: 100, box: [0, 0, 300, 200], troops: 60000, gold: 3000000,
         build: [[UT.SAM, 95, 75], [UT.SAM, 150, 130], [UT.SAM, 210, 70], [UT.FACTORY, 150, 70], [UT.CITY, 120, 95], [UT.CITY, 185, 100]] },

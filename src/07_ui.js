@@ -591,7 +591,7 @@
   }
   function shown(map, opts) {
     game = host.game;
-    view.setMap(map); view.setGame(game); view.fit(false);
+    view.setMap(map); view.setGame(game); view.fit(false); view.reachKind = -1; view.hoverUnit = null;
     landC = 0; view.resSel = 0; view.resSigns = true; renderLand();
     if (!RES && opts.res) setTimeout(function () { addMsg('Dieser Raum spielt die Version «Rohstoffe». Öffne den Einladungslink, sonst läuft dein Spiel auseinander.', 'bad'); }, 50);
     $('statGold').classList.toggle('res', game.res);
@@ -1848,6 +1848,7 @@
     const tile = view.tileAt(sx, sy);
     if (tile < 0) return;
     const h = game.human;
+    view.reachKind = -1;
     if (ghost && game.phase === 'play' && h.alive) { placeGhost(tile); return; }
     if (game.res && !aim) setLand(tile);   // version «Rohstoffe»: every click shows the card of the country
     if (game.phase === 'spawn') {
@@ -2086,6 +2087,7 @@
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       const k = e.key.toLowerCase();
       if (k === 'escape') {
+        if (view && view.reachKind >= 0) view.reachKind = -1;
         if (!$('keysPanel').hidden) showKeys(false);
         else if (ghost) setGhost(null);
         else if (netOn) setNet(false);
@@ -2163,7 +2165,13 @@
     $('rS').addEventListener('click', function () { radialAct('S'); });
     $('rW').addEventListener('click', function () { radialAct('W'); });
     $('sheetBody').addEventListener('click', onBuild);
-    $('sheetClose').addEventListener('click', closeBuild);
+    // Closing the card of an air defence or factory with the cross keeps the rings of all of that
+    // kind on the map (25.11.2026), until the next tap on the map or Escape.
+    $('sheetClose').addEventListener('click', function () {
+      const u = view && view.selUnit;
+      closeBuild();
+      if (view && u && u.owner === (game && game.human) && (u.type === UT.SAM || u.type === UT.FACTORY)) view.reachKind = u.type;
+    });
     $('sheet').addEventListener('click', function (e) { if (e.target === this && performance.now() - sheetAt >= 350) closeBuild(); });
     $('modal').addEventListener('click', function (e) {
       if (e.target === this && (modalKind === 'info' || modalKind === 'menu' || modalKind === 'help' || modalKind === 'confirm' || modalKind === 'res')) { closeModal(); return; }

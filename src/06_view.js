@@ -807,6 +807,7 @@
     if (sel && (sel.type === UT.SAM || sel.type === UT.FACTORY)) all = sel.type;
     else if (gh && (gh.type === UT.SAM || gh.type === UT.FACTORY)) all = gh.type;
     else if (hov && (hov.type === UT.SAM || hov.type === UT.FACTORY)) all = hov.type;
+    else if (this.reachKind === UT.SAM || this.reachKind === UT.FACTORY) all = this.reachKind;   // kept after closing the card
     if (all >= 0 && zoomOk) {
       for (const u of h.units) if (u.built && u.type === all && u !== sel) show.push(u);
     } else if (gh) {

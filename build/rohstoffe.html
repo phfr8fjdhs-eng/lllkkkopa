@@ -4427,7 +4427,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   G.NEUES = [
     {
       n: 117, date: '25.11.2026', title: 'Alle Flugabwehr-Reichweiten',
-      text: 'Zeigst du mit der Maus auf eine Flugabwehr, tippst sie an oder wählst sie zum Bauen, siehst du die Reichweite aller deiner Flugabwehren, so erkennst du Lücken. Bei Fabriken genauso, aber getrennt. Ganz herausgezoomt bleiben die Kreise weg.',
+      text: 'Zeigst du mit der Maus auf eine Flugabwehr, tippst sie an oder wählst sie zum Bauen, siehst du die Reichweite aller deiner Flugabwehren, so erkennst du Lücken. Bei Fabriken genauso, aber getrennt. Schliesst du die Karte mit dem Kreuz, bleiben die Kreise stehen. Ganz herausgezoomt bleiben sie weg.',
       map: { w: 300, h: 200, seed: 916, shapes: [circ(150, 100, 95), rect(40, 30, 260, 170)] },
       me: { x: 150, y: 100, box: [0, 0, 300, 200], troops: 60000, gold: 3000000,
         build: [[UT.SAM, 95, 75], [UT.SAM, 150, 130], [UT.SAM, 210, 70], [UT.FACTORY, 150, 70], [UT.CITY, 120, 95], [UT.CITY, 185, 100]] },
@@ -8684,6 +8684,7 @@ void main() { outc = texture(uColor, vUV); }`;
     if (sel && (sel.type === UT.SAM || sel.type === UT.FACTORY)) all = sel.type;
     else if (gh && (gh.type === UT.SAM || gh.type === UT.FACTORY)) all = gh.type;
     else if (hov && (hov.type === UT.SAM || hov.type === UT.FACTORY)) all = hov.type;
+    else if (this.reachKind === UT.SAM || this.reachKind === UT.FACTORY) all = this.reachKind;   // kept after closing the card
     if (all >= 0 && zoomOk) {
       for (const u of h.units) if (u.built && u.type === all && u !== sel) show.push(u);
     } else if (gh) {
@@ -11433,7 +11434,7 @@ void main() { outc = texture(uColor, vUV); }`;
   }
   function shown(map, opts) {
     game = host.game;
-    view.setMap(map); view.setGame(game); view.fit(false);
+    view.setMap(map); view.setGame(game); view.fit(false); view.reachKind = -1; view.hoverUnit = null;
     landC = 0; view.resSel = 0; view.resSigns = true; renderLand();
     if (!RES && opts.res) setTimeout(function () { addMsg('Dieser Raum spielt die Version «Rohstoffe». Öffne den Einladungslink, sonst läuft dein Spiel auseinander.', 'bad'); }, 50);
     $('statGold').classList.toggle('res', game.res);
@@ -12690,6 +12691,7 @@ void main() { outc = texture(uColor, vUV); }`;
     const tile = view.tileAt(sx, sy);
     if (tile < 0) return;
     const h = game.human;
+    view.reachKind = -1;
     if (ghost && game.phase === 'play' && h.alive) { placeGhost(tile); return; }
     if (game.res && !aim) setLand(tile);   // version «Rohstoffe»: every click shows the card of the country
     if (game.phase === 'spawn') {
@@ -12928,6 +12930,7 @@ void main() { outc = texture(uColor, vUV); }`;
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       const k = e.key.toLowerCase();
       if (k === 'escape') {
+        if (view && view.reachKind >= 0) view.reachKind = -1;
         if (!$('keysPanel').hidden) showKeys(false);
         else if (ghost) setGhost(null);
         else if (netOn) setNet(false);
@@ -13005,7 +13008,13 @@ void main() { outc = texture(uColor, vUV); }`;
     $('rS').addEventListener('click', function () { radialAct('S'); });
     $('rW').addEventListener('click', function () { radialAct('W'); });
     $('sheetBody').addEventListener('click', onBuild);
-    $('sheetClose').addEventListener('click', closeBuild);
+    // Closing the card of an air defence or factory with the cross keeps the rings of all of that
+    // kind on the map (25.11.2026), until the next tap on the map or Escape.
+    $('sheetClose').addEventListener('click', function () {
+      const u = view && view.selUnit;
+      closeBuild();
+      if (view && u && u.owner === (game && game.human) && (u.type === UT.SAM || u.type === UT.FACTORY)) view.reachKind = u.type;
+    });
     $('sheet').addEventListener('click', function (e) { if (e.target === this && performance.now() - sheetAt >= 350) closeBuild(); });
     $('modal').addEventListener('click', function (e) {
       if (e.target === this && (modalKind === 'info' || modalKind === 'menu' || modalKind === 'help' || modalKind === 'confirm' || modalKind === 'res')) { closeModal(); return; }

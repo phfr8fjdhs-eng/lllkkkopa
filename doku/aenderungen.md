@@ -13,7 +13,7 @@ Was seit dem 13.11.2026 geändert wurde und warum. Den heutigen Stand der Regeln
 - **Nicht geändert:** Spielregeln. Prüfsummen gleich, `det.js` (alle Varianten), `posture.js`.
 ## Reichweiten aller Flugabwehren und Fabriken (25.11.2026)
 - **Wunsch:** Fährt man mit der Maus über eine Flugabwehr, sollen die Kreise aller eigenen Flugabwehren erscheinen, ebenso beim Antippen und beim Wählen zum Bauen. Fabriken genauso, aber getrennt. Ganz herausgezoomt nicht, weit herausgezoomt schon.
-- **Geändert:** `View.drawReach` zeigt bei Flugabwehr und Fabrik alle der gleichen Art, ab dem 1.4-Fachen der Gesamtansicht (`REACH_ALL_ZOOM`). Die Maus sucht nur unter den eigenen Gebäuden und nur, wenn sie sich bewegt (`hoverUnit`). Neue Szene 117 in «Änderungen».
+- **Geändert:** `View.drawReach` zeigt bei Flugabwehr und Fabrik alle der gleichen Art, ab dem 1.4-Fachen der Gesamtansicht (`REACH_ALL_ZOOM`). Die Maus sucht nur unter den eigenen Gebäuden und nur, wenn sie sich bewegt (`hoverUnit`). Neue Szene 117 in «Änderungen». Schliesst man die Karte einer Flugabwehr oder Fabrik mit dem Kreuz, bleiben die Kreise stehen, bis zum nächsten Tipp auf die Karte.
 
 ## Bereich «Änderungen» und ruhige Dichte (24.11.2026)
 - **Wunsch:** Jede Änderung im Spiel selbst ansehen können, wie Levels aufgelistet: antippen, und die Änderung läuft gleich vor einem ab (das Boot fährt, die Schienen sind da), mit einem kurzen Text unten, was geändert wurde, und man kann mitspielen.
