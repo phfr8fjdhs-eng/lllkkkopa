@@ -30,6 +30,14 @@
 
   G.NEUES = [
     {
+      n: 119, date: '25.11.2026', title: 'Hohe Stufen von weitem',
+      text: 'Die Stufe über einem Gebäude erscheint umso früher, je höher sie ist. Hier siehst du von weitem nur die 30 und die 10. Zoom hinein: Erst dann kommen die 5 und die 3 dazu.',
+      map: { w: 900, h: 600, seed: 919, rough: 8, shapes: [circ(450, 300, 270), rect(140, 110, 760, 490)] },
+      me: { x: 450, y: 300, box: [0, 0, 900, 600], troops: 60000, gold: 1000000,
+        build: [[UT.CITY, 300, 200, 30], [UT.CITY, 600, 220, 10], [UT.CITY, 330, 400, 5], [UT.CITY, 580, 410, 3], [UT.FACTORY, 450, 300, 2]] },
+      foes: [], allow: ALL, quest: none
+    },
+    {
       n: 118, date: '25.11.2026', title: 'Silo zeigt das Nachladen',
       text: 'Hat dein Raketensilo eine Bombe abgefeuert, zeigt ein Ring, wie weit es nachgeladen hat, und darunter die Sekunden bis zum nächsten Schuss. Ein Silo auf Stufe 2 hat zwei Teile im Ring, einen pro Schuss. Anders als beim Bauen (dünner goldener Bogen) ist der Ring dunkel mit rotem Fortschritt.',
       map: { w: 320, h: 200, seed: 918, shapes: [circ(80, 100, 60), circ(235, 100, 72)] },

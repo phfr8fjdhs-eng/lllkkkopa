@@ -11,6 +11,10 @@ Was seit dem 13.11.2026 geändert wurde und warum. Den heutigen Stand der Regeln
 - **Gemessen:** Neue Messbank `test/phasen.js`. Auf der Erde geht ein Tick zu 77 % in die Eroberung, 14 % in die Dichte, 7 % in die Bots. Die Dichte bleibt (Urteil und Zahlen in `doku/leistung.md`).
 - **Geändert:** Taschen-Suche der Dichte nur, wenn Zellen kommen oder gehen (0.40 statt 0.77 ms pro Tick auf der Erde). Liste der geänderten Felder wächst bei Bedarf (64 MB weniger auf der Erde). Kleine Aufräumung im Dichte-Schatten (keine Kopie pro Reich und Sekunde). Datum «25.11.2026» in Doku und Kommentaren auf 24.11.2026 berichtigt.
 - **Nicht geändert:** Spielregeln. Prüfsummen gleich, `det.js` (alle Varianten), `posture.js`.
+## Hohe Stufen von weitem (25.11.2026)
+- **Wunsch:** Je höher die Stufe eines Gebäudes, desto weniger muss man hineinzoomen, um sie zu sehen; Stufe 30 schon viel früher.
+- **Geändert:** Die Zahl erscheint ab Zoom 1.2 · √(2 / Stufe) statt für alle erst ab 1.2 (`levelSeenAt` in `06_view.js`). Szene 119.
+
 ## Silo zeigt das Nachladen (25.11.2026)
 - **Wunsch:** Nach einem Abschuss soll beim Raketensilo stehen, wie lange es noch bis zum Nachladen dauert, ähnlich wie beim Bauen, aber unterscheidbar.
 - **Geändert:** Dunkler Ring mit einem Teil pro Schuss, rot füllend, Sekunden darunter; nur beim eigenen Silo und nur solange es nachlädt (`reloadRing`). Szene 118.

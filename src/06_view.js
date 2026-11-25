@@ -1120,8 +1120,13 @@
     return side;
   }
   // The level in large white digits with a dark edge, sitting on top of the sign.
-  function levelTag(ctx, n, x, y, s) {
-    const fs = Math.round(Math.max(9, s * 0.3)), ty = y - s * 0.45 - fs * 0.35;
+  // From which zoom (OpenFront's tiles, zz) the level of a building shows: 1.2 for level 2 as in
+  // OpenFront (the full signs start there), then earlier with the square root of the level:
+  // level 5 from 0.76, level 10 from 0.54, level 30 from 0.31, level 100 from 0.17.
+  function levelSeenAt(n) { return 1.2 * Math.sqrt(2 / n); }
+  G.levelSeenAt = levelSeenAt;
+  function levelTag(ctx, n, x, y, s, fsMin) {
+    const fs = Math.round(Math.max(fsMin || 9, s * 0.3)), ty = y - s * 0.45 - fs * 0.35;
     ctx.font = '800 ' + fs + 'px ' + FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.lineJoin = 'round';
     ctx.lineWidth = Math.max(3, fs * 0.32); ctx.strokeStyle = '#0b1016'; ctx.strokeText(String(n), x, ty);
@@ -1147,7 +1152,12 @@
       if (veil) ctx.globalAlpha = 0.55;
       const side = structIcon(ctx, u.type, x, y, k, u.owner, u.built, !far);
       if (veil) ctx.globalAlpha = 1;
-      if (far) continue;
+      if (far) {
+        // zoomed out (25.11.2026): the level of a building shows the sooner the higher it is, so
+        // the strong places stand out from afar (level 30 from about a quarter of this zoom)
+        if (u.built && u.level > 2 && zz >= levelSeenAt(u.level)) levelTag(ctx, u.level, x, y, side, 12);
+        continue;
+      }
       // with deliveries (`bahn`): an own station on the railway network wears a small green dot
       if (g.bahn && zz >= 3 && u.built && u.owner === h && G.isStation(u.type) && g.railAdj.has(u.id)) {
         const dx = x + side * 0.36, dy = y + side * 0.34, dr = Math.max(2.5, side * 0.09);

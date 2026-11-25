@@ -11,6 +11,7 @@ Ein eigener Bereich neben dem normalen Spiel und den Levels. Auf dem Startbildsc
 ## Die Szenen (Stand 25.11.2026)
 | Nr. | Datum | Name | Was passiert |
 | --- | --- | --- | --- |
+| 119 | 25.11. | Hohe Stufen von weitem | Grosse Karte (900 × 600), damit man weit herauszoomen kann; Städte auf Stufe 3, 5, 10 und 30 |
 | 118 | 25.11. | Silo zeigt das Nachladen | Ein Silo auf Stufe 2 feuert alle 14 s eine Atombombe; Ring und Sekunden laufen |
 | 117 | 25.11. | Alle Reichweiten auf einen Blick | Drei Flugabwehren, eine Fabrik, zwei Häfen; die Kreise aller Flugabwehren sind gleich zu sehen (`look` tut, als zeige die Maus darauf) |
 | 116 | 25.11. | Neue Zeichen für Atom- und Wasserstoffbombe | Tipp zeigt auf die Bomben in der Bauleiste |
