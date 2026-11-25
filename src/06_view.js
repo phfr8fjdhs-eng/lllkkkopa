@@ -16,7 +16,9 @@
     warship: 'M1 14.5h22l-3.2 5H4.6zM7.5 14.5v-3h2V8h3.5V5.5h1.6V8h1.4v3.5H18v3zM2.5 12.6h4.2v1.4H2.5zM19 12.2h3v1.3h-3z',
     boat: 'M3 14h18l-3 6H6zM11 3h1.6v10H11zM13.4 4l5.6 8h-5.6z',
     atom: 'M12 2l2 3h-4zM9.5 5h5v2.5c2.6 1 4.5 3.6 4.5 6.6c0 3.9-3.1 7-7 7s-7-3.1-7-7c0-3 1.9-5.6 4.5-6.6z',
-    hydro: 'M12 1l2.4 6.2l6.2-2.6l-2.6 6.2L24 12l-6 1.2l2.6 6.2l-6.2-2.6L12 23l-2.4-6.2l-6.2 2.6l2.6-6.2L0 12l6-1.2L3.4 4.6l6.2 2.6z',
+    // hydrogen bomb (25.11.2026): the atom bomb's shape, but massive, after the Tsar Bomba: a body
+    // almost as wide as the field, a box tail with two openings, two rings round the belly
+    hydro: 'M6.2 0.8h11.6v4.6H6.2zM8 2.3v1.6h3.1V2.3zM12.9 2.3v1.6H16V2.3zM10.2 5.4h3.6l1.1 2.6c3.5 1 5.7 3.9 5.7 7.3c0 4.3-3.9 7.8-8.6 7.8s-8.6-3.5-8.6-7.8c0-3.4 2.2-6.3 5.7-7.3zM4.6 12.3h14.8v1H4.6zM4.4 15.7h15.2v1H4.4z',
     mirv: 'M4 20l2.5-13L9 20zM9.5 20L12 4l2.5 16zM15 20l2.5-13L20 20z',
     cloak: 'M12 2.5c4.4 0 7.5 3.4 7.5 8V21.5l-2.5-1.8l-2.5 1.8L12 19.7l-2.5 1.8L7 19.7l-2.5 1.8V10.5c0-4.6 3.1-8 7.5-8z',
     sword: 'M21 3l-1.5 6L10 18.5L5.5 14L15 4.5zM3.5 13L5 11.5l7.5 7.5l-1.5 1.5zM5.2 16.6l2.2 2.2l-2.9 2.9l-2.2-2.2z',

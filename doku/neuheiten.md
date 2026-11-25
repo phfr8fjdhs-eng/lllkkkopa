@@ -8,9 +8,10 @@ Ein eigener Bereich neben dem normalen Spiel und den Levels. Auf dem Startbildsc
 - Man kann jederzeit selbst mitspielen: Alles ist zum Bauen freigegeben, und man hat genug Gold. Eine Szene hat keine Quest und endet nie.
 - Im Menü: «Nochmals von vorn» und «Zur Liste der Änderungen».
 
-## Die Szenen (Stand 24.11.2026)
+## Die Szenen (Stand 25.11.2026)
 | Nr. | Datum | Name | Was passiert |
 | --- | --- | --- | --- |
+| 116 | 25.11. | Neues Zeichen für die Wasserstoffbombe | Tipp zeigt auf die Wasserstoffbombe in der Bauleiste |
 | 115 | 24.11. | Knopf «?» mit allen Kürzeln | Tipp zeigt auf den Knopf «?» |
 | 114 | 24.11. | Schnell verdichten | Die Front wird alle 8 s dichter und wieder dünner, Tipp zeigt auf den Knopf + |
 | 101 | 24.11. | Ruhige Dichte | Die eigene Front ist dicht gestellt und dunkel, die Nation greift alle 25 s leicht an; die Schattierung bleibt ruhig |

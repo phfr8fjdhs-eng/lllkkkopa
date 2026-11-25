@@ -30,6 +30,14 @@
 
   G.NEUES = [
     {
+      n: 116, date: '25.11.2026', title: 'Neues Zeichen für die Wasserstoffbombe',
+      text: 'Die Wasserstoffbombe sieht jetzt aus wie eine grosse, schwere Atombombe, nach dem Vorbild der Zar-Bombe. Vorher war sie ein Stern.',
+      map: { w: 300, h: 200, seed: 916, shapes: [circ(150, 100, 95), rect(40, 30, 260, 170)] },
+      me: { x: 150, y: 100, box: [0, 0, 300, 200], troops: 60000, gold: 2000000 },
+      foes: [], allow: ALL, quest: none,
+      tips: [{ text: 'Das neue Zeichen der Wasserstoffbombe.', el: hot(UT.HYDRO) }]
+    },
+    {
       n: 115, date: '24.11.2026', title: 'Knopf «?» mit allen Kürzeln',
       text: 'Oben rechts zeigt der Knopf «?» alle Tasten auf einen Blick. Die Bau-Tasten sind neu verteilt und stehen auch auf der Bauleiste.',
       map: { w: 300, h: 200, seed: 915, shapes: [circ(150, 100, 95), rect(40, 30, 260, 170)] },
