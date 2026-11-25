@@ -41,12 +41,12 @@
       tips: [{ text: 'Zeig mit der Maus auf eine Fabrik oder einen Hafen.', pins: function (Q) { return Q.units(Q.me, UT.FACTORY, 1).concat(Q.units(Q.me, UT.PORT, 2)); } }]
     },
     {
-      n: 116, date: '25.11.2026', title: 'Neues Zeichen für die Wasserstoffbombe',
-      text: 'Die Wasserstoffbombe sieht jetzt aus wie eine grosse, schwere Atombombe, nach dem Vorbild der Zar-Bombe. Vorher war sie ein Stern.',
+      n: 116, date: '25.11.2026', title: 'Neue Zeichen für Atom- und Wasserstoffbombe',
+      text: 'Die Atombombe sieht jetzt aus wie Little Boy: dicker Zylinder, runde Nase, Kastenleitwerk. Die Wasserstoffbombe ist gleich, nur massiver und mit zwei Ringen.',
       map: { w: 300, h: 200, seed: 916, shapes: [circ(150, 100, 95), rect(40, 30, 260, 170)] },
       me: { x: 150, y: 100, box: [0, 0, 300, 200], troops: 60000, gold: 2000000 },
       foes: [], allow: ALL, quest: none,
-      tips: [{ text: 'Das neue Zeichen der Wasserstoffbombe.', el: hot(UT.HYDRO) }]
+      tips: [{ text: 'Die neuen Zeichen der Bomben.', el: hot(UT.HYDRO) }]
     },
     {
       n: 115, date: '24.11.2026', title: 'Knopf «?» mit allen Kürzeln',

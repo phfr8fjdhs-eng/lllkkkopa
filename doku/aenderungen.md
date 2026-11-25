@@ -1,10 +1,10 @@
 # Änderungsprotokoll
 Was seit dem 13.11.2026 geändert wurde und warum. Den heutigen Stand der Regeln beschreiben die anderen Dateien in `doku/`.
 
-## Neues Zeichen für die Wasserstoffbombe (25.11.2026)
-- **Wunsch:** Die Wasserstoffbombe sah als Stern komisch aus. Sie soll ein bisschen wie die Atombombe aussehen, aber massiver, runder und krass.
-- **Geändert:** Neues Zeichen nach dem Vorbild der Zar-Bombe: gleiche Form wie die Atombombe (Leitwerk oben, runder Körper unten), aber der Körper fast so breit wie das ganze Feld, oben ein Kastenleitwerk mit zwei Öffnungen, zwei Ringe um den Bauch. Gilt überall, wo das Zeichen vorkommt (Bauleiste, Baumenü, Zielen). Szene 116 in «Änderungen».
-- **Nicht geändert:** Spielregeln.
+## Neue Zeichen für Atom- und Wasserstoffbombe (25.11.2026)
+- **Wunsch:** Die Atombombe sah schlecht aus (runde Kugel), die Wasserstoffbombe als Stern komisch. Vorbild für die Atombombe: Little Boy (Hiroshima). Die Wasserstoffbombe soll gleich aussehen, nur massiver.
+- **Geändert:** Atombombe nach Little Boy (3 m lang, 71 cm dick): gedrungener Zylinder mit stumpfer, runder Nase und Kastenleitwerk, schräg im Fallen. Wasserstoffbombe in derselben Form, aber dicker und mit zwei Ringen um den Körper. Ein erster Entwurf am selben Tag (Zar-Bombe, Kastenleitwerk über rundem Bauch) ist damit ersetzt. Gilt überall, wo die Zeichen vorkommen (Bauleiste, Baumenü, Zielen). Szene 116 in «Änderungen».
+- **Nicht geändert:** Spielregeln, das Bild der fliegenden Bombe auf der Karte.
 
 ## Leistung: Abgleich mit dem Auftrag, Dichte geprüft, Speicher (24.11.2026, Abend)
 - **Wunsch:** Den Auftrag «Leistung» mit dem heutigen Stand vergleichen und ergänzen, was fehlt; die Dichte besonders prüfen, ohne sie wegzunehmen.
