@@ -10,7 +10,7 @@ const count = (g, type, p) => g.units.filter((u) => u.active && u.type === type 
 // what has to be seen in each scene, asked every second; seen once is enough
 const SEEN = {
   116: (g) => g.human.tiles > 0,
-  117: (g) => count(g, UT.SAM, g.human) === 3 && count(g, UT.FACTORY, g.human) === 1,
+  117: (g) => count(g, UT.SAM, g.human) === 3 && count(g, UT.FACTORY, g.human) === 1 && count(g, UT.PORT, g.human) === 2,
   115: (g) => g.human.tiles > 0,
   114: (g) => { let d = 0; for (const c of g.human.post.cells.values()) if (c.m > 1) d++; return d > 3; },
   101: (g) => { let d = 0; for (const c of g.human.post.cells.values()) if (c.m > 1) d++; return d > 3; },

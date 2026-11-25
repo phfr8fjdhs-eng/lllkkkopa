@@ -1151,7 +1151,7 @@
     const u = game.structNear(tile, 4);
     act({ k: 'up', t: tile, n: n || 1, say: (u ? plain(u.type) : 'Gebäude') + ' ausgebaut' });
   }
-  // The mouse over an own air defence or factory (25.11.2026): the view then rings every one of
+  // The mouse over an own air defence, factory or port (25.11.2026): the view then rings every one of
   // that kind (View.drawReach). Only the own buildings are searched, and only when the mouse moves.
   function hoverUnit() {
     if (!view) return;
@@ -1162,7 +1162,7 @@
         const W = game.W, x = t % W, y = (t / W) | 0, r = Math.max(2, 16 / view.cam.z);
         let bd = r * r;
         for (const u of h.units) {
-          if (!u.built || (u.type !== UT.SAM && u.type !== UT.FACTORY)) continue;
+          if (!u.built || !G.REACH_ALL(u.type)) continue;
           const d = (u.x - x) * (u.x - x) + (u.y - y) * (u.y - y);
           if (d <= bd) { bd = d; best = u; }
         }
@@ -2170,7 +2170,7 @@
     $('sheetClose').addEventListener('click', function () {
       const u = view && view.selUnit;
       closeBuild();
-      if (view && u && u.owner === (game && game.human) && (u.type === UT.SAM || u.type === UT.FACTORY)) view.reachKind = u.type;
+      if (view && u && u.owner === (game && game.human) && G.REACH_ALL(u.type)) view.reachKind = u.type;
     });
     $('sheet').addEventListener('click', function (e) { if (e.target === this && performance.now() - sheetAt >= 350) closeBuild(); });
     $('modal').addEventListener('click', function (e) {

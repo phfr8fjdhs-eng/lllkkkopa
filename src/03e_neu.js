@@ -30,15 +30,15 @@
 
   G.NEUES = [
     {
-      n: 117, date: '25.11.2026', title: 'Alle Flugabwehr-Reichweiten',
-      text: 'Zeigst du mit der Maus auf eine Flugabwehr, tippst sie an oder wählst sie zum Bauen, siehst du die Reichweite aller deiner Flugabwehren, so erkennst du Lücken. Bei Fabriken genauso, aber getrennt. Schliesst du die Karte mit dem Kreuz, bleiben die Kreise stehen. Ganz herausgezoomt bleiben sie weg.',
+      n: 117, date: '25.11.2026', title: 'Alle Reichweiten auf einen Blick',
+      text: 'Zeigst du mit der Maus auf eine Flugabwehr, tippst sie an oder wählst sie zum Bauen, siehst du die Reichweite aller deiner Flugabwehren, so erkennst du Lücken. Bei Fabriken und Häfen (wie weit ihre Handelsschiffe fahren) genauso, jede Art für sich. Schliesst du die Karte mit dem Kreuz, bleiben die Kreise stehen. Ganz herausgezoomt bleiben sie weg.',
       map: { w: 300, h: 200, seed: 916, shapes: [circ(150, 100, 95), rect(40, 30, 260, 170)] },
       me: { x: 150, y: 100, box: [0, 0, 300, 200], troops: 60000, gold: 3000000,
-        build: [[UT.SAM, 95, 75], [UT.SAM, 150, 130], [UT.SAM, 210, 70], [UT.FACTORY, 150, 70], [UT.CITY, 120, 95], [UT.CITY, 185, 100]] },
+        build: [[UT.SAM, 95, 75], [UT.SAM, 150, 130], [UT.SAM, 210, 70], [UT.FACTORY, 150, 70], [UT.CITY, 120, 95], [UT.CITY, 185, 100], [UT.PORT, 257, 100, 2], [UT.PORT, 42, 140, 1]] },
       foes: [], allow: ALL, quest: none,
       // drawn only: the rings show at once, as if the mouse pointed at the first air defence
       look: function (v, g) { if (!v.hoverUnit) v.hoverUnit = g.human.units.find(function (u) { return u.type === UT.SAM && u.built; }) || null; },
-      tips: [{ text: 'Zeig mit der Maus auf eine Fabrik.', pins: function (Q) { return Q.units(Q.me, UT.FACTORY, 1); } }]
+      tips: [{ text: 'Zeig mit der Maus auf eine Fabrik oder einen Hafen.', pins: function (Q) { return Q.units(Q.me, UT.FACTORY, 1).concat(Q.units(Q.me, UT.PORT, 2)); } }]
     },
     {
       n: 116, date: '25.11.2026', title: 'Neues Zeichen für die Wasserstoffbombe',

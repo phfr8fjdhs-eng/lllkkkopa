@@ -778,6 +778,9 @@
   // picked (`selUnit`, its card is open; a tapped cloaking tower), and while placing a building
   // the one of that kind with the widest reach, for comparison. The ring of the building being
   // placed itself is drawn by drawGhost. Foreign defence posts still show while fighting their owner.
+  // the kinds whose rings all show together (air defence, factory, and since 25.11.2026 ports: how
+  // far their merchants sail), each kind on its own
+  G.REACH_ALL = function (t) { return t === UT.SAM || t === UT.FACTORY || t === UT.PORT; };
   const REACH_ALL_ZOOM = 1.4;   // rings of all air defences / factories only from 1.4 times the zoom that shows the whole map
   View.prototype.drawReach = function (ctx, g, z, ox, oy) {
     const h = g.human, cw = this.cw, ch = this.ch;
@@ -795,19 +798,19 @@
     let sel = this.selUnit && this.selUnit.active !== false && this.selUnit.owner === h ? this.selUnit : null;
     if (!sel && this.cloakTap) sel = this.cloakTap;
     if (sel && reachOf(sel)) show.push(sel);
-    // Air defence and factories (25.11.2026): picking one, choosing it in the build bar or just
+    // Air defence, factories and ports (25.11.2026): picking one, choosing it in the build bar or just
     // pointing at one with the mouse rings every own one of that kind, so gaps in the cover show.
-    // The two kinds are kept apart: pointing at a factory shows the factories only. Not when the
+    // The kinds are kept apart: pointing at a factory shows the factories only. Not when the
     // map is zoomed out almost completely: there the rings would only be a tangle (a picked one
     // still shows its own). On the Earth that is below about a third of a pixel per tile.
     const hov = this.hoverUnit && this.hoverUnit.active !== false && this.hoverUnit.owner === h ? this.hoverUnit : null;
     // (the small maps of levels and «Änderungen» are seen whole anyway: there always)
     const zoomOk = !!g.lv || z >= Math.min(cw / this.map.W, ch / this.map.H) * REACH_ALL_ZOOM;
     let all = -1;
-    if (sel && (sel.type === UT.SAM || sel.type === UT.FACTORY)) all = sel.type;
-    else if (gh && (gh.type === UT.SAM || gh.type === UT.FACTORY)) all = gh.type;
-    else if (hov && (hov.type === UT.SAM || hov.type === UT.FACTORY)) all = hov.type;
-    else if (this.reachKind === UT.SAM || this.reachKind === UT.FACTORY) all = this.reachKind;   // kept after closing the card
+    if (sel && G.REACH_ALL(sel.type)) all = sel.type;
+    else if (gh && G.REACH_ALL(gh.type)) all = gh.type;
+    else if (hov && G.REACH_ALL(hov.type)) all = hov.type;
+    else if (this.reachKind >= 0 && G.REACH_ALL(this.reachKind)) all = this.reachKind;   // kept after closing the card
     if (all >= 0 && zoomOk) {
       for (const u of h.units) if (u.built && u.type === all && u !== sel) show.push(u);
     } else if (gh) {
