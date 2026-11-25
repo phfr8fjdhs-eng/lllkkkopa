@@ -42,7 +42,7 @@
     },
     {
       n: 116, date: '25.11.2026', title: 'Neue Zeichen für Atom- und Wasserstoffbombe',
-      text: 'Die Atombombe ist jetzt ein dicker Bombenkörper in Eiform mit offenem Kastenleitwerk. Die Wasserstoffbombe ist lang und massiv, mit zwei Ringen und demselben Leitwerk.',
+      text: 'Die Atombombe ist jetzt ein dicker Bombenkörper in Eiform mit Kastenleitwerk und Nieten. Die Wasserstoffbombe ist lang und massiv, mit zwei Ringen und Flossen am Heck.',
       map: { w: 300, h: 200, seed: 916, shapes: [circ(150, 100, 95), rect(40, 30, 260, 170)] },
       me: { x: 150, y: 100, box: [0, 0, 300, 200], troops: 60000, gold: 2000000 },
       foes: [], allow: ALL, quest: none,

@@ -3,7 +3,7 @@ Was seit dem 13.11.2026 geändert wurde und warum. Den heutigen Stand der Regeln
 
 ## Neue Zeichen für Atom- und Wasserstoffbombe (25.11.2026)
 - **Wunsch:** Die Atombombe sah schlecht aus (runde Kugel), die Wasserstoffbombe als Stern komisch. Vorlage war ein Bild des Besitzers mit zwei historischen Bomben: oben die eiförmige für die Atombombe, unten die lange für die Wasserstoffbombe.
-- **Geändert:** Atombombe: dicker, eiförmiger Körper (wie Fat Man) mit offenem Kastenleitwerk. Wasserstoffbombe: langer, massiver Zylinder mit runder Nase, zwei Ringen und einem Schwanzkegel, der in dasselbe Kastenleitwerk läuft. Beide schräg im Fallen. Zwei Entwürfe vom selben Tag (Zar-Bombe, dann beide als Little Boy) sind damit ersetzt. Gilt überall, wo die Zeichen vorkommen (Bauleiste, Baumenü, Zielen). Szene 116 in «Änderungen».
+- **Geändert:** Atombombe: dicker, eiförmiger Körper (wie Fat Man) mit vollem Kastenleitwerk, einer Naht mit Nieten in der Mitte und einer Kante an der Nase. Wasserstoffbombe: langer, massiver Körper mit runder Nase, zwei Ringen, drei Nieten und einem Schwanzkegel mit zwei schräg nach hinten gezogenen Flossen; die dritte Flosse ragt hinten als Kante heraus (wie bei der Mk-17). Beide schräg im Fallen. Drei Entwürfe vom selben Tag (Zar-Bombe, beide als Little Boy, beide mit offenem Kastenleitwerk) sind damit ersetzt. Gilt überall, wo die Zeichen vorkommen (Bauleiste, Baumenü, Zielen). Szene 116 in «Änderungen».
 - **Nicht geändert:** Spielregeln, das Bild der fliegenden Bombe auf der Karte.
 
 ## Leistung: Abgleich mit dem Auftrag, Dichte geprüft, Speicher (24.11.2026, Abend)
