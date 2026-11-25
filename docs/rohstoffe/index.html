@@ -498,6 +498,20 @@ body.placing #cv { cursor: crosshair; }
 .linkb { display: block; margin: 12px auto 0; padding: 6px 10px; font: 600 14px var(--display); color: var(--muted); background: none; border: 0; cursor: pointer; }
 .linkb:hover { color: var(--ink); }
 /* campaign «Feldzug» (src/07b_level.js): quest bar, tips, level map, cards */
+/* «Änderungen» (src/07c_neu.js): the list and the bar at the bottom while a scene runs */
+.nwItem { display: block; width: 100%; margin: 0 0 7px; padding: 9px 12px; text-align: left; font: inherit; color: var(--ink); background: rgba(255, 255, 255, 0.05); border: 1px solid var(--line); border-radius: 12px; cursor: pointer; }
+.nwItem b { display: flex; align-items: center; gap: 8px; font: 600 16px/1.2 var(--display); }
+.nwItem em { font: 700 10px var(--display); letter-spacing: .1em; text-transform: uppercase; font-style: normal; color: var(--accent-ink); background: var(--accent); border-radius: 5px; padding: 2px 5px; }
+.nwItem small { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin-top: 3px; font-size: 13px; color: var(--muted); }
+@media (hover: hover) { .nwItem:hover { background: rgba(255, 255, 255, 0.09); border-color: rgba(190, 215, 240, 0.3); } }
+#nwBar { padding: 10px 12px 10px 14px; pointer-events: auto; border-color: var(--accent); }
+#nwBar .nwHead small { display: block; font: 600 11px var(--display); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+#nwBar .nwHead b { display: block; margin-top: 1px; font: 700 18px/1.15 var(--display); color: var(--accent); }
+#nwBar p { margin: 5px 0 8px; font-size: 14px; line-height: 1.35; }
+#nwBar .nwBtns { display: flex; gap: 6px; }
+#nwBar .nwBtns button { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 3px; padding: 6px 4px; border: 0; border-radius: 8px; font: 600 14px var(--display); color: var(--ink); background: rgba(255, 255, 255, 0.1); cursor: pointer; }
+#nwBar .nwBtns button:first-child svg { transform: scaleX(-1); }
+#nwBar .nwBtns button:disabled { opacity: .35; cursor: default; }
 #lvBar { position: absolute; left: 8px; top: 56px; width: min(64vw, 300px); padding: 8px 12px 10px; pointer-events: none; }
 #lvBar small { display: block; font: 600 11px var(--display); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
 #lvBar b { display: block; margin-top: 2px; font: 600 15px/1.25 var(--display); }
@@ -606,6 +620,7 @@ body.placing #cv { cursor: crosshair; }
     <div id="news" aria-live="polite"></div>
     <div id="bottom">
       <div id="feed"><div id="feedMsgs"></div><div id="feedLive"></div></div>
+      <div id="nwBar" class="panel" hidden></div>
       <div id="ctrl" class="panel">
         <div class="stats">
           <div class="stat"><span id="icTroops"></span><div><b id="sTroops">0</b><small id="sTroopsSub">Truppen</small></div></div>
@@ -1568,7 +1583,9 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     this.requests = []; this.events = []; this.fx = [];
     this.res = !!(this.opts.res && map.ctile);   // version «Rohstoffe»: countries pay for their raw materials
     this.human = null; this.humans = []; this.winner = null; this.names = new Set();
-    this.dirty = new Int32Array(N); this.dirtyN = 0; this.dirtyFlag = new Uint8Array(N);
+    // the tiles changed since the last picture: a list that grows when needed (24.11.2026; one
+    // slot for every tile was 65 MB on the Earth, a tick changes some ten thousand)
+    this.dirty = new Int32Array(Math.min(N, 1 << 16)); this.dirtyN = 0; this.dirtyFlag = new Uint8Array(N);
     this.sea = map.sea || (map.sea = new G.SeaGraph(map));   // built once per map, shared by every game on it
     this.pathLeg = new G.Pathfinder(map, 160000); this.pathCache = new Map(); this.pathQ = []; this.pathJob = null;
     this.pathNear = new G.Pathfinder(map, 260000); this.nearQ = []; this.nearJob = null;   // short hops: a window of at most 260 000 tiles
@@ -1759,7 +1776,10 @@ globalThis.G = { VARIANT: 'rohstoffe' };
 
   // ---------- territory ----------
   Game.prototype.markDirty = function (t) {
-    if (!this.dirtyFlag[t]) { this.dirtyFlag[t] = 1; this.dirty[this.dirtyN++] = t; }
+    if (this.dirtyFlag[t]) return;
+    this.dirtyFlag[t] = 1;
+    if (this.dirtyN === this.dirty.length) { const d = new Int32Array(Math.min(this.N, this.dirty.length * 2)); d.set(this.dirty); this.dirty = d; }
+    this.dirty[this.dirtyN++] = t;
   };
   Game.prototype.fixBorder = function (t) {
     const own = this.owner, id = own[t];
@@ -3539,7 +3559,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   };
   // The same for the display (shading, tooltips): reads only. postDens above evens out a realm
   // without units as a side effect, and the display asks at its own times, different on every
-  // device; until 25.11.2026 the shading did that through postDens, which could part the games
+  // device; until 24.11.2026 the shading did that through postDens, which could part the games
   // of two devices playing together.
   Game.prototype.postDensSeen = function (p, c) {
     const post = p.post;
@@ -3579,7 +3599,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   Game.prototype.postGain = function (p, t) {
     const post = p.post, id = this.cellOf(t);
     let c = post.cells.get(id);
-    if (!c) { c = { id: id, n: 0, u: 0, m: 1, want: 0, diff: 0, r: 0, d: 0, to: null, ec: 0, cut: false }; post.cells.set(id, c); }   // new ground starts empty
+    if (!c) { c = { id: id, n: 0, u: 0, m: 1, want: 0, diff: 0, r: 0, d: 0, to: null, ec: 0, cut: false }; post.cells.set(id, c); post.cv = (post.cv | 0) + 1; }   // new ground starts empty
     c.n++;
   };
   Game.prototype.postLose = function (p, t) {
@@ -3587,6 +3607,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     if (!c) return;
     if (--c.n > 0) return;
     post.cells.delete(id);
+    post.cv = (post.cv | 0) + 1;
     if (!(c.u > 0)) return;
     // the last of the cell is gone: whoever stood there falls back to the cells next to it
     const CW = this.CW, cx = id % CW, near = [];
@@ -3710,9 +3731,28 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   // nearest cell that holds less.
   // Which cells are cut off: a group of cells (neighbours in eight directions) that is not the
   // largest one and has no sea coast is a pocket without supply.
+  // The groups only change when a cell comes or goes (`post.cv`, counted in postGain and
+  // postLose). Until then they are kept and only which group is the largest is checked again
+  // (24.11.2026): the search over all cells ran at every flow step and was some 4 % of a tick on
+  // the Earth. Same result as before, in the same order.
   Game.prototype.postPockets = function (p) {
-    const cells = p.post.cells, CW = this.CW, q = this.pocketQ || (this.pocketQ = []);
-    for (const c of cells.values()) { c.grp = -1; c.cut = false; }
+    const post = p.post, cells = post.cells, CW = this.CW, q = this.pocketQ || (this.pocketQ = []);
+    for (const c of cells.values()) c.cut = false;
+    let groups = post.pk;
+    if (groups && post.pkV === (post.cv | 0)) {
+      if (groups.length < 2) return;
+      for (const g of groups) { let n = 0; for (const c of g.list) n += c.n; g.n = n; }
+    } else {
+      groups = this.postGroups(cells, CW, q);
+      post.pk = groups; post.pkV = post.cv | 0;
+      if (groups.length < 2) return;
+    }
+    let main = groups[0];
+    for (const g of groups) if (g.n > main.n) main = g;
+    for (const g of groups) if (g !== main && !g.coast) for (const c of g.list) c.cut = true;
+  };
+  Game.prototype.postGroups = function (cells, CW, q) {
+    for (const c of cells.values()) c.grp = -1;
     const groups = [];
     for (const c of cells.values()) {
       if (c.grp >= 0) continue;
@@ -3730,10 +3770,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
         }
       }
     }
-    if (groups.length < 2) return;
-    let main = groups[0];
-    for (const g of groups) if (g.n > main.n) main = g;
-    for (const g of groups) if (g !== main && !g.coast) for (const c of g.list) c.cut = true;
+    return groups;
   };
   Game.prototype.postFlow = function (p) {
     const post = p.post, cells = post.cells, now = this.ticks;
@@ -3893,6 +3930,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   // goal    [x, y]: a ring on the map that marks the target
   const hot = function (t) { return '#hotbar [data-t="' + t + '"]'; };
   G.LEVEL_PACE = 0.67;   // pace of fronts in a level, as on the world map (S of «Welt»)
+  G.levelShape = { circ: circ, rect: rect, line: line };   // for the scenes of «Änderungen» (src/03e_neu.js)
   const LEVELS = G.LEVELS = [
     {
       n: 1, name: 'Lichtung', learn: 'Startpunkt und Ausbreiten',
@@ -4118,6 +4156,10 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   }
   function clock(s) { s = Math.max(0, Math.ceil(s)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }
   G.levelClock = clock;
+  // A level or a scene of «Änderungen» (G.NEUES, src/03e_neu.js, numbers from 101) by its number.
+  G.levelDef = function (n) {
+    return LEVELS.find(function (L) { return L.n === n; }) || (G.NEUES || []).find(function (L) { return L.n === n; });
+  };
 
   // ---------- setting a level up ----------
   // The tile of land nearest to x, y (owned by p, if given), searched in growing squares.
@@ -4168,7 +4210,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   };
 
   Game.prototype.levelSetup = function (human) {
-    const def = LEVELS.find(function (L) { return L.n === this.opts.level; }, this);
+    const def = G.levelDef(this.opts.level);
     const people = Array.isArray(human) ? human : [human];
     const me = this.addPlayer({ name: people[0].name, type: PT.HUMAN, color: people[0].color });
     this.humans.push(me); this.human = me; this.names.add(me.name);
@@ -4295,11 +4337,12 @@ globalThis.G = { VARIANT: 'rohstoffe' };
       fire: function (p, type, x, y) { p.gold += g.cost(p, type); const t = type === UT.WARSHIP ? Q.tile(x, y) : g.levelTile(x, y); return t >= 0 ? g.build(p, type, t) : null; },
       push: function (p, q, share, x, y, mode) { if (p.alive && q.alive) g.attack(p, q.id, p.troops * share, -1, g.levelTile(x, y, q), mode || 0); },
       // a warship that is simply there, at sea (without a port of its own it cannot be repaired)
-      ship: function (p, x, y) {
+      ship: function (p, x, y, cls) {
         const t = Q.tile(x, y);
         if (g.map.land[t]) return null;
         const u = g.newUnit(UT.WARSHIP, p, t);
-        u.hp = 1000; u.patrol = t; u.shotAt = 0; u.target = null; u.path = null; u.pi = 0; u.wait = false;
+        u.cls = cls ? 1 : 0;
+        u.hp = G.SHIP_CLASS ? G.SHIP_CLASS[u.cls].hp : 1000; u.patrol = t; u.shotAt = 0; u.target = null; u.path = null; u.pi = 0; u.wait = false;
         g.addUnit(u);
         return u;
       },
@@ -4332,6 +4375,10 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     lv.lastTiles = me.tiles; lv.lastFall = this.falloutCount;
     const ev = def.events || [];
     while ((lv.ev || 0) < ev.length && Q.secs >= ev[lv.ev || 0][0]) { const e = ev[lv.ev || 0]; lv.ev = (lv.ev || 0) + 1; e[1](Q); }
+    // a scene of «Änderungen» repeats its script (loop: [first second, every so many seconds, function])
+    // and never ends: it is there to be watched and played with
+    if (def.loop && Q.secs >= (lv.loopAt === undefined ? def.loop[0] : lv.loopAt)) { lv.loopAt = Q.secs + def.loop[1]; lv.loops = (lv.loops || 0) + 1; def.loop[2](Q, lv.loops); }
+    if (def.show) { lv.check = { ok: false, prog: 0, line: '' }; return; }
     const r = def.quest.check(Q);
     lv.check = r;
     let end = null;
@@ -4345,6 +4392,181 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     lv.over = true; lv.result = end;
     this.emit({ k: 'quest', win: end.win, stars: end.stars, secs: end.secs, why: end.why || '' });
   };
+})(globalThis.G = globalThis.G || {});
+
+(function (G) {
+  'use strict';
+  const Math = G.M;   // same results on every device, see 00_util.js
+  const UT = G.UT;
+
+  // ---------- «Änderungen»: every change as a little scene (doku/neuheiten.md) ----------
+  // A scene is a level without a quest (show: true): a small map of its own, a script that makes
+  // the change happen at once (a ship sails, a bomb falls, a front moves), a line at the bottom
+  // that says what changed, and the player can join in at any time. It never ends. The list on
+  // screen (src/07c_neu.js) shows the newest first. Numbers from 101, so they never meet a level.
+  // Fields as in G.LEVELS (src/03d_level.js), and:
+  //   date   when the change came (dd.mm.yyyy), title   what it is called in the list
+  //   text   one or two sentences: what is new, said plainly (shown at the bottom while it runs)
+  //   loop   [first second, every n seconds, function (Q, k)]: the part of the script that repeats
+  //   arsenal  the scene needs the «Arsenal» mode
+  // A new change gets a scene here (at the top of the list), see CLAUDE.md.
+  const S = G.levelShape, circ = S.circ, rect = S.rect;
+  const hot = function (t) { return '#hotbar [data-t="' + t + '"]'; };
+  const ALL = [UT.CITY, UT.DEFENSE, UT.PORT, UT.SILO, UT.SAM, UT.FACTORY, UT.WARSHIP, UT.ATOM, UT.HYDRO, UT.MIRV, UT.CRUISE];
+  const none = { text: '', check: function () { return { ok: false, prog: 0, line: '' }; } };
+  // two coasts, open sea between them
+  const STRAIT = { w: 300, h: 200, rough: 4, shapes: [rect(0, 0, 300, 46), rect(0, 154, 300, 200)] };
+  // the own cells (of the troop net) from column x0 on get weight v: the land there turns darker
+  function thick(Q, x0, v) {
+    const g = Q.g, me = Q.me, CS = G.POST.cell, ids = [], vals = [];
+    if (!me.post) return;
+    for (const c of me.post.cells.values()) if ((c.id % g.CW) * CS >= x0) { ids.push(c.id); vals.push(v); }
+    g.postPaint(me, ids, vals);
+  }
+
+  G.NEUES = [
+    {
+      n: 115, date: '24.11.2026', title: 'Knopf «?» mit allen Kürzeln',
+      text: 'Oben rechts zeigt der Knopf «?» alle Tasten auf einen Blick. Die Bau-Tasten sind neu verteilt und stehen auch auf der Bauleiste.',
+      map: { w: 300, h: 200, seed: 915, shapes: [circ(150, 100, 95), rect(40, 30, 260, 170)] },
+      me: { x: 150, y: 100, box: [0, 0, 300, 200], troops: 60000, gold: 2000000 },
+      foes: [], allow: ALL, quest: none,
+      tips: [{ text: 'Hier sind alle Kürzel.', el: '#bKeys' }]
+    },
+    {
+      n: 114, date: '24.11.2026', title: 'Schnell verdichten',
+      text: 'Truppen verdichten geht jetzt ohne Fenster: Taste V halten (Shift + V dünnt aus), am Handy die Knöpfe + und − am Rand oder doppelt tippen und ziehen. Hier wird die Front alle paar Sekunden dichter und wieder dünner.',
+      map: { w: 300, h: 200, seed: 914, shapes: [circ(150, 100, 92), rect(50, 35, 250, 165)] },
+      me: { x: 70, y: 100, box: [0, 0, 150, 200], troops: 80000, gold: 300000 },
+      foes: [{ name: 'Brenn', x: 230, y: 100, box: [150, 0, 300, 200], troops: 70000 }],
+      allow: ALL, quest: none,
+      loop: [1, 8, function (Q, k) { thick(Q, 112, k % 2 ? 4 : 1); }],
+      tips: [{ text: '', el: '#brMore' }]
+    },
+    {
+      n: 101, date: '24.11.2026', title: 'Ruhige Dichte',
+      text: 'Wo mehr Truppen stehen, ist das Land dunkler, hier an deiner Front. Neu ist das geglättet und hat nur drei Stufen: Es flackert nicht mehr bei jedem Marsch, auch nicht bei den Nationen.',
+      map: { w: 300, h: 200, seed: 901, shapes: [circ(150, 100, 92), rect(50, 35, 250, 165)] },
+      me: { x: 70, y: 100, box: [0, 0, 150, 200], troops: 80000, gold: 300000 },
+      foes: [{ name: 'Varnholm', x: 230, y: 100, box: [150, 0, 300, 200], troops: 90000, ai: 1 }],
+      allow: ALL, quest: none,
+      events: [[0, function (Q) { thick(Q, 112, 4); }]],
+      loop: [8, 25, function (Q) { Q.push(Q.foe[0], Q.me, 0.12, 150, 100); }]
+    },
+    {
+      n: 102, date: '24.11.2026', title: 'Schlachtschiff fährt flüssig',
+      text: 'Das Schlachtschiff (gross) gleitet jetzt gleichmässig übers Wasser, im Tempo des Spiels, statt Feld für Feld zu springen. Daneben ein Zerstörer zum Vergleich.',
+      map: Object.assign({ seed: 902 }, STRAIT),
+      me: { x: 150, y: 180, box: [0, 150, 300, 200], troops: 60000, gold: 2000000, build: [[UT.PORT, 150, 156]] },
+      foes: [{ name: 'Quellmark', x: 150, y: 20, box: [0, 0, 300, 50], troops: 60000 }],
+      allow: ALL, quest: none,
+      events: [[0, function (Q) { Q.ship(Q.me, 90, 100, 1); Q.ship(Q.me, 210, 100, 0); }]],
+      tips: [{ text: '', pins: function (Q) { return Q.units(Q.me, UT.WARSHIP, 2); } }]
+    },
+    {
+      n: 103, date: '24.11.2026', title: 'Reichweite nur beim Antippen',
+      text: 'Reichweiten zeigt das Spiel nur noch für das Gebäude, das du antippst, nicht mehr für alle auf einmal. Die Karte bleibt so ruhig. Auch die Schiffe sind jetzt alle gleich gross gezeichnet.',
+      map: { w: 300, h: 200, seed: 903, shapes: [circ(150, 100, 95), rect(40, 30, 260, 170)] },
+      me: { x: 150, y: 100, box: [0, 0, 300, 200], troops: 60000, gold: 1000000,
+        build: [[UT.SAM, 110, 90], [UT.SILO, 190, 90], [UT.DEFENSE, 150, 140], [UT.CITY, 150, 60], [UT.CITY, 95, 130], [UT.FACTORY, 205, 130]] },
+      foes: [], allow: ALL, quest: none,
+      tips: [{ text: 'Tippe auf die Flugabwehr.', pins: function (Q) { return Q.units(Q.me, UT.SAM, 1); } }]
+    },
+    {
+      n: 104, date: '23.11.2026', title: 'Transportboot und Bootsspur',
+      text: 'Das Transportboot ist schlichter gezeichnet, und seine Spur im Wasser ist ruhig wie in OpenFront. Tippe selbst aufs Ufer gegenüber, um ein Boot zu schicken.',
+      map: { w: 320, h: 200, seed: 904, shapes: [circ(75, 100, 58), circ(245, 100, 58)] },
+      me: { x: 75, y: 100, r: 62, troops: 80000, gold: 300000 },
+      foes: [{ bot: 1, x: 235, y: 75, r: 10 }, { bot: 1, x: 255, y: 125, r: 10 }],
+      allow: ALL, quest: none,
+      loop: [1, 6, function (Q, k) { Q.boat(Q.me, 195 + (k % 3) * 4, 70 + (k * 23) % 60, 4000); }]
+    },
+    {
+      n: 105, date: '23.11.2026', title: 'Zerstörer und Schlachtschiff',
+      text: 'Es gibt zwei Kriegsschiffe: den schnellen Zerstörer und das langsame Schlachtschiff mit grosser Reichweite, das auch an Land schiesst. Tippe ein Schiff an: wählen, zurückrufen oder im Hafen lagern. Schiffe kosten Unterhalt.',
+      map: Object.assign({ seed: 905 }, STRAIT),
+      me: { x: 150, y: 180, box: [0, 150, 300, 200], troops: 60000, gold: 3000000, build: [[UT.PORT, 80, 156], [UT.PORT, 220, 156]] },
+      foes: [{ name: 'Quellmark', x: 150, y: 20, box: [0, 0, 300, 50], troops: 80000 }],
+      allow: ALL, quest: none,
+      events: [[0, function (Q) { Q.ship(Q.me, 100, 120, 1); Q.ship(Q.me, 200, 120, 0); }]],
+      loop: [3, 30, function (Q) { if (Q.ships(Q.foe[0]) < 2) Q.ship(Q.foe[0], 150, 75, 0); }],
+      tips: [{ text: 'Tippe auf ein Schiff.', pins: function (Q) { return Q.units(Q.me, UT.WARSHIP, 2); } }]
+    },
+    {
+      n: 106, date: '23.11.2026', title: 'Handel in drei Klassen',
+      text: 'Je höher ein Hafen ausgebaut ist, desto grössere Handelsschiffe schickt er: kleine Frachter für kurze Wege, Containerschiffe für weite Strecken, mit mehr Gold.',
+      map: { w: 300, h: 200, seed: 906, rough: 4, shapes: [rect(0, 0, 95, 200), rect(205, 0, 300, 200)] },
+      me: { x: 40, y: 100, box: [0, 0, 100, 200], troops: 60000, gold: 500000, build: [[UT.PORT, 95, 45, 1], [UT.PORT, 95, 155, 3]] },
+      foes: [{ name: 'Ostmark', x: 260, y: 100, box: [200, 0, 300, 200], troops: 60000, build: [[UT.PORT, 205, 40, 3], [UT.PORT, 205, 100, 2], [UT.PORT, 205, 160, 3]] }],
+      allow: ALL, quest: none,
+      tips: [{ text: '', pins: function (Q) { return Q.units(Q.me, UT.PORT, 2); } }]
+    },
+    {
+      n: 107, date: '23.11.2026', title: 'Grüne Schienen-Vorschau',
+      text: 'Wählst du eine Fabrik oder Stadt zum Bauen, zeigt eine grüne Linie, wo die Schienen hinkommen. Das Land hat jetzt die Farben wie in OpenFront.',
+      map: { w: 300, h: 200, seed: 907, shapes: [circ(150, 100, 95), rect(40, 30, 260, 170)] },
+      me: { x: 150, y: 100, box: [0, 0, 300, 200], troops: 60000, gold: 2000000,
+        build: [[UT.FACTORY, 150, 100], [UT.CITY, 115, 80], [UT.CITY, 185, 80], [UT.CITY, 140, 135]] },
+      foes: [], allow: ALL, quest: none,
+      tips: [{ text: 'Fabrik wählen, dann über die Karte fahren.', el: hot(UT.FACTORY) }]
+    },
+    {
+      n: 108, date: '23.11.2026', title: 'Kampf wie OpenFront',
+      text: 'Ein Angriff auf der ganzen Front rechnet jetzt genau wie OpenFront. Das Gelände zählt: Durch das Gebirge in der Mitte geht der Angriff langsamer und kostet mehr.',
+      map: { w: 300, h: 200, seed: 908, shapes: [circ(150, 100, 92), rect(45, 30, 255, 170), circ(150, 70, 22, 3), circ(150, 135, 16, 2)] },
+      me: { x: 60, y: 100, box: [0, 0, 125, 200], troops: 120000, gold: 300000 },
+      foes: [{ name: 'Grauwald', x: 240, y: 100, box: [125, 0, 300, 200], troops: 60000 }],
+      allow: ALL, quest: none,
+      loop: [6, 20, function (Q) { Q.push(Q.me, Q.foe[0], 0.35, 220, 100); }]
+    },
+    {
+      n: 109, date: '23.11.2026', title: 'Nationen schlagen nicht sofort zurück',
+      text: 'Greifst du eine Nation an, wirft sie nicht mehr sofort alle Truppen zurück. Sie wehrt sich, aber du hast Zeit zu reagieren. Greif selbst an: Linksklick auf ihr Land.',
+      map: { w: 300, h: 200, seed: 909, shapes: [circ(150, 100, 92), rect(45, 30, 255, 170)] },
+      me: { x: 60, y: 100, box: [0, 0, 150, 200], troops: 90000, gold: 300000 },
+      foes: [{ name: 'Selvia', x: 240, y: 100, box: [150, 0, 300, 200], troops: 90000, ai: 1 }],
+      allow: ALL, quest: none,
+      loop: [6, 30, function (Q) { Q.push(Q.me, Q.foe[0], 0.25, 200, 100); }]
+    },
+    {
+      n: 110, date: '20.11.2026', title: 'Bots wachsen in Armen',
+      text: 'Bots breiten sich am Anfang schneller aus und wachsen in Armen statt als runder Fleck. Wer einen Bot erobert, bekommt 20 % weniger Gold als früher.',
+      map: { w: 300, h: 200, seed: 910, shapes: [circ(150, 100, 95), rect(40, 25, 260, 175)] },
+      me: { x: 50, y: 100, r: 10, troops: 30000, gold: 0 },
+      foes: [{ bot: 1, x: 130, y: 60, r: 2 }, { bot: 1, x: 200, y: 70, r: 2 }, { bot: 1, x: 160, y: 140, r: 2 }, { bot: 1, x: 235, y: 130, r: 2 }, { bot: 1, x: 100, y: 145, r: 2 }],
+      allow: ALL, quest: none
+    },
+    {
+      n: 111, date: '19.11.2026', title: 'MIRV',
+      text: 'Die MIRV teilt sich in viele Sprengköpfe. Wie viele, hängt von der Grösse des Ziels ab. Wer getroffen wird, verliert weniger Truppen als früher.',
+      map: { w: 320, h: 200, seed: 911, shapes: [circ(70, 100, 55), circ(225, 100, 85)] },
+      me: { x: 70, y: 100, r: 60, troops: 60000, gold: 0, build: [[UT.SILO, 70, 90], [UT.SILO, 60, 115]] },
+      foes: [{ name: 'Kaldor', x: 225, y: 100, r: 90, troops: 200000, build: [[UT.CITY, 210, 80], [UT.CITY, 245, 120], [UT.CITY, 230, 70]] }],
+      allow: ALL, quest: none,
+      loop: [6, 32, function (Q) { Q.fire(Q.me, UT.MIRV, 225, 100); }]
+    },
+    {
+      n: 112, date: '18.11.2026', title: 'Tarnturm',
+      text: 'Im Modus «Arsenal» versteckt der Tarnturm die Gebäude in seiner Nähe, bis Gegner nahe herankommen. Seinen Bereich siehst du nur beim Bauen oder wenn du den Turm antippst.',
+      arsenal: true,
+      map: { w: 300, h: 200, seed: 912, shapes: [circ(150, 100, 95), rect(40, 30, 260, 170)] },
+      me: { x: 90, y: 100, box: [0, 0, 170, 200], troops: 80000, gold: 2000000,
+        build: [[UT.CLOAK, 100, 100], [UT.CITY, 85, 80], [UT.SILO, 120, 115], [UT.CITY, 60, 130]] },
+      foes: [{ name: 'Morn', x: 240, y: 100, box: [170, 0, 300, 200], troops: 60000 }],
+      allow: ALL.concat([UT.CLOAK]), quest: none,
+      tips: [{ text: 'Tippe auf den Tarnturm.', pins: function (Q) { return Q.units(Q.me, UT.CLOAK, 1); } }]
+    },
+    {
+      n: 113, date: '17.11.2026', title: 'Boot auf feindliche Inseln',
+      text: 'Ein Tipp auf eine Insel des Gegners schickt sofort ein Boot hin, auch während du an Land angreifst.',
+      map: { w: 320, h: 200, seed: 913, shapes: [circ(110, 100, 75), circ(255, 50, 22), circ(265, 150, 22), circ(215, 100, 14)] },
+      me: { x: 110, y: 100, r: 80, troops: 90000, gold: 300000 },
+      foes: [{ bot: 1, x: 255, y: 50, r: 24 }, { bot: 1, x: 265, y: 150, r: 24 }, { bot: 1, x: 215, y: 100, r: 16 }],
+      allow: ALL, quest: none,
+      tips: [{ text: 'Tippe auf eine Insel.', pins: function (Q) { return Q.realms(G.PT.BOT, 3); } }]
+    }
+  ];
+  for (const L of G.NEUES) { L.show = true; L.name = L.title; }
 })(globalThis.G = globalThis.G || {});
 
 (function (G) {
@@ -6512,7 +6734,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   G.AI = AI;
 })(globalThis.G = globalThis.G || {});
 
-// The simulation in its own thread (doku/leistung.md, 25.11.2026).
+// The simulation in its own thread (doku/leistung.md, 24.11.2026).
 //
 // The game runs in a Web Worker; the page keeps a read-only copy of it, the mirror, that the
 // drawing and the controls read as they read the game itself. After every step the worker sends
@@ -6910,7 +7132,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
       delete msg.lv.Q; delete msg.lv.def;
       if (!m.lv) m.lv = {};
       this.patch(m.lv, msg.lv);
-      m.lv.def = G.LEVELS.find(function (L) { return L.n === n; });
+      m.lv.def = G.levelDef(n);
       if (!this.Q) this.Q = m.levelQ();
       Object.assign(this.Q, q);
       m.lv.Q = this.Q;
@@ -7196,7 +7418,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   };
 })(globalThis.G = globalThis.G || {});
 
-// The map drawn by the graphics card (WebGL 2, doku/leistung.md, 25.11.2026).
+// The map drawn by the graphics card (WebGL 2, doku/leistung.md, 24.11.2026).
 //
 // Until now every changed tile was coloured in JavaScript (View.color) and copied into a picture
 // of the whole map, 16 million pixels on the Earth, that the browser then took to the graphics
@@ -7959,7 +8181,7 @@ void main() { outc = texture(uColor, vUV); }`;
   };
   // The step of every cell of every realm with a posture, worked out again once a second; where a
   // step changed, the owner's tiles of that cell and the cells around it (the blend reaches into
-  // them) are marked for painting. Until 25.11.2026 all realms were done in one go inside draw
+  // them) are marked for painting. Until 24.11.2026 all realms were done in one go inside draw
   // and painted at once: on the Earth a pause of up to 100 ms every second. Now the realms are
   // taken in turn, at most SHADE_MS per picture, and the painting goes with the next flush.
   const SHADE_MS = 1.5, SHADE_LO = 0.5, SHADE_W = (Math.log2(3) - SHADE_LO) / 3, SHADE_EASE = 0.15;
@@ -8006,8 +8228,8 @@ void main() { outc = texture(uColor, vUV); }`;
         else if (raw <= old - 0.25) st = Math.max(0, Math.ceil(raw + 0.25) - 1);
         set(c.id, st * 2);
       }
-      for (const id of Array.from(av.keys())) if (!p.post.cells.has(id)) av.delete(id);
-      // cells the realm has left: their step goes (until 25.11.2026 it stayed and still tinted
+      for (const id of av.keys()) if (!p.post.cells.has(id)) av.delete(id);   // deleting while going through a Map is safe, no copy needed
+      // cells the realm has left: their step goes (until 24.11.2026 it stayed and still tinted
       // the realm's tiles next to them)
       for (const id of Array.from(m.keys())) if (!p.post.cells.has(id)) set(id, 0);
       if (performance.now() - t0 > SHADE_MS) break;
@@ -8054,7 +8276,7 @@ void main() { outc = texture(uColor, vUV); }`;
     for (const id of h.allies.keys()) if (!seen.has(id)) { seen.add(id); changed.push(id); }
     for (const id of Array.from(seen)) if (!h.allies.has(id)) { seen.delete(id); changed.push(id); }
     if (!changed.length) return;
-    // only those whose standing changed get new colours (until 25.11.2026 every realm's border
+    // only those whose standing changed get new colours (until 24.11.2026 every realm's border
     // was painted again)
     for (const id of changed) {
       const p = g.players[id];
@@ -8950,7 +9172,10 @@ void main() { outc = texture(uColor, vUV); }`;
   // How many screen pixels a picture pixel is at OpenFront zoom zz: one tile, never so small that
   // the ship is lost, and never so large that a destroyer outgrows a building sign (24.11.2026:
   // zoomed in, ships grew with the map while the signs stay put, a large merchant twice a city)
-  function shipPx(zz) { return Math.max(1.4, Math.min(zz, ICON_PX * 0.9 * iconScaleAt(zz) / 11)); }
+  // In the first ten levels of the campaign every ship is drawn 1.6 times as large, so a beginner
+  // finds the boats easily (25.11.2026). Only the picture changes, the simulation does not.
+  let SHIP_BOOST = 1;
+  function shipPx(zz) { return Math.max(1.4, Math.min(zz, ICON_PX * 0.9 * iconScaleAt(zz) / 11)) * SHIP_BOOST; }
   // where the forward gun sits, as a share of the length from the middle (war0, war1)
   const GUN_FORE = 0.26;
   function warship(ctx, x, y, ang, s, p, aim, cls) { drawShip(ctx, cls === 1 ? 'war1' : 'war0', x, y, ang, s * 2 / HULLS[cls === 1 ? 'war1' : 'war0'][0], p); }
@@ -9040,6 +9265,7 @@ void main() { outc = texture(uColor, vUV); }`;
   }
 
   View.prototype.drawUnits = function (ctx, g, z, ox, oy, alpha, now) {
+    SHIP_BOOST = g.lv && g.lv.def && g.lv.def.n <= 10 ? 1.6 : 1;
     const cw = this.cw, ch = this.ch, us = g.units;
     const zz = z * (g.S || 1), ws = warSize(zz), bs = boatSize(zz);
     this.frame = (this.frame || 0) + 1;
@@ -10472,7 +10698,7 @@ void main() { outc = texture(uColor, vUV); }`;
   G.Session = Session;
 })(globalThis.G = globalThis.G || {});
 
-// Where the game runs (doku/leistung.md, 25.11.2026). Two hosts with the same face:
+// Where the game runs (doku/leistung.md, 24.11.2026). Two hosts with the same face:
 //   in a worker  the default: the simulation has its own thread, so a long tick never holds up a
 //                picture; the page reads the mirror (src/05b_sync.js), one tick behind at most
 //   on the page  with ?worker=0 in the address, for the tests that reach into the game, and
@@ -10896,6 +11122,8 @@ void main() { outc = texture(uColor, vUV); }`;
       const mapName = (function () { const m = MAPS.find(function (x) { return x.id === cfg.map; }) || special(cfg.map); return m ? m.name : 'Zufallskarte'; })();
       h += '<div class="goes">' + goRow('fStart', 'sword', 'Spiel starten', esc(mapName) + ' · ' + G.DIFF_NAMES[cfg.diff] + (cfg.mode === 'arsenal' ? ' · Arsenal' : ''), true);
       if (lv) h += goRow('fCamp', 'flag', 'Levels', lv.n ? 'Level ' + lv.n + ' · ' + esc(lv.name) + ' · ' + lv.stars + ' von ' + lv.max + ' Sternen' : 'Alle Lern-Levels geschafft · ' + lv.stars + ' von ' + lv.max + ' Sternen', false);
+      const nw = !RES && G.Neuheiten ? G.Neuheiten.summary() : null;
+      if (nw) h += goRow('fNews', 'star', 'Änderungen', (nw.fresh ? nw.fresh + ' neu' : nw.count + ' Änderungen') + ' · zuletzt: ' + esc(nw.newest.title), false);
       h += goRow('fHost', 'people', 'Mit Freunden spielen', 'Raum öffnen und Link teilen', false) + '</div>';
     }
     h += '<button class="linkb" id="fHelp" type="button">So wird gespielt</button>';
@@ -10948,6 +11176,7 @@ void main() { outc = texture(uColor, vUV); }`;
       $('fStart').querySelector('small').textContent = (m ? m.name : 'Zufallskarte') + ' · ' + G.DIFF_NAMES[cfg.diff] + (cfg.mode === 'arsenal' ? ' · Arsenal' : '');
     }
     if ($('fCamp')) $('fCamp').addEventListener('click', function () { readForm(); G.Feldzug.open(); });
+    if ($('fNews')) $('fNews').addEventListener('click', function () { readForm(); G.Neuheiten.open(); });
   }
   // A way to start, as a row with an icon, a title and a line under it (the start screen and the level screen)
   function goRow(id, icon, title, sub, main) {
@@ -11225,13 +11454,14 @@ void main() { outc = texture(uColor, vUV); }`;
     return out;
   }
   function quitGame() {
-    const wasLevel = !!(game && game.lv);
+    const wasLevel = !!(game && game.lv), wasShow = wasLevel && !!game.lv.def.show;
     if (host) { host.stop(); host = null; }
     game = null; closeRadial(); $('sheet').hidden = true; if (view) view.selUnit = null; stopAim();
     $('hud').hidden = true;
     leaveRoom();
     if (cfg.map === 'zufall') delete maps.zufall;
-    G.Feldzug.hide();
+    G.Feldzug.hide(); G.Neuheiten.hide();
+    if (wasShow) { G.Neuheiten.open(); return; }
     if (wasLevel) { G.Feldzug.open(); return; }
     showStart();
     previewMap(cfg.map);
@@ -11533,12 +11763,13 @@ void main() { outc = texture(uColor, vUV); }`;
 
   function showMenu() {
     if (!mp) setPaused(true);
-    openModal('<h2>' + (mp ? 'Menü' : 'Pause') + '</h2><p>' + (game.lv ? 'Level ' + game.lv.def.n + ' · ' + esc(game.lv.def.name) : esc(game.map.name) + ' · ' + G.DIFF_NAMES[game.opts.difficulty] + (game.opts.arsenal ? ' · Arsenal' : '')) + '</p>' +
+    openModal('<h2>' + (mp ? 'Menü' : 'Pause') + '</h2><p>' + (game.lv ? (game.lv.def.show ? 'Änderung · ' + esc(game.lv.def.title) : 'Level ' + game.lv.def.n + ' · ' + esc(game.lv.def.name)) : esc(game.map.name) + ' · ' + G.DIFF_NAMES[game.opts.difficulty] + (game.opts.arsenal ? ' · Arsenal' : '')) + '</p>' +
       '<button class="btn" data-act="resume" type="button">Weiterspielen</button>' +
       '<button class="btn ghost" data-act="help" type="button">So wird gespielt</button>' +
       '<label class="check wide" for="mMusic"><input id="mMusic" type="checkbox"' + (cfg.music ? ' checked' : '') + '>Musik</label>' +
       '<label class="check" for="mSfx"><input id="mSfx" type="checkbox"' + (cfg.sfx ? ' checked' : '') + '>Töne bei Aktionen</label>' +
-      (game.lv ? '<button class="btn ghost" data-act="lvRetry" type="button">Level neu starten</button><button class="btn ghost" data-act="quit" type="button">Zu den Levels</button>'
+      (game.lv && game.lv.def.show ? '<button class="btn ghost" data-act="nwRetry" type="button">Nochmals von vorn</button><button class="btn ghost" data-act="quit" type="button">Zur Liste der Änderungen</button>'
+        : game.lv ? '<button class="btn ghost" data-act="lvRetry" type="button">Level neu starten</button><button class="btn ghost" data-act="quit" type="button">Zu den Levels</button>'
         : '<button class="btn ghost" data-act="quit" type="button">Spiel beenden</button>'), 'menu');
     $('mMusic').addEventListener('change', function () { setSound('music', this.checked); });
     $('mSfx').addEventListener('change', function () { setSound('sfx', this.checked); });
@@ -11559,6 +11790,7 @@ void main() { outc = texture(uColor, vUV); }`;
     if (what === 'help') { showHelp(false); return; }
     if (what === 'quit') { quitGame(); return; }
     if (what.indexOf('lv') === 0) { G.Feldzug.act(what); return; }
+    if (what.indexOf('nw') === 0) { G.Neuheiten.act(what); return; }
     if (what === 'confirmBreak') { act({ k: 'break', p: p.id }); closeModal(); return; }
     if (what === 'ally') { act({ k: 'ally', p: p.id, say: 'Anfrage an ' + p.name + ' gesendet' }); return; }
     if (what === 'break') {
@@ -13030,6 +13262,7 @@ void main() { outc = texture(uColor, vUV); }`;
       kampf: c.kampf === 'grenzen' ? 'grenzen' : 'grenzland', pfeile: true
     }, { name: c.name, color: u.COLORS[c.color] });
     $('lvBar').hidden = false;
+    if (G.Neuheiten) G.Neuheiten.hide();
     hud();
   }
   // Called from the interface's own update, a few times a second.
@@ -13038,6 +13271,8 @@ void main() { outc = texture(uColor, vUV); }`;
     if (!g || !g.lv) return;
     const lv = g.lv, L = lv.def, Q = lv.Q;
     $('lb').hidden = true;
+    // a scene of «Änderungen» (src/07c_neu.js): its own bar at the bottom, the tips as here
+    if (L.show) { $('lvBar').hidden = true; G.Neuheiten.hud(g); tips(g); return; }
     const bar = $('lvBar'), spawn = g.phase === 'spawn';
     bar.hidden = spawn;
     if (!spawn) {
@@ -13173,7 +13408,122 @@ void main() { outc = texture(uColor, vUV); }`;
       const n = nextLevel();
       return { n: n, name: n ? def(n).name : '', stars: stars, max: G.LEVELS.length * 3 };
     },
-    hud: hud, end: end, act: act, hide: hide, start: start
+    hud: hud, end: end, act: act, hide: hide, start: start,
+    // a scene of «Änderungen» starts its tips from the first, like a level
+    freshTips: function () { tipCur = -1; tipNext = 0; tipSince = 0; hideTip(); }
+  };
+})(globalThis.G = globalThis.G || {});
+
+(function (G) {
+  'use strict';
+  // «Änderungen» on screen: the list of every change (newest first, like the levels, but each one
+  // opens at once), and while a scene runs the bar at the bottom with what changed and the way
+  // to the previous and next one. The scenes themselves are in src/03e_neu.js; the tips and pins
+  // of a scene are drawn by the campaign (src/07b_level.js), which hands its update over to here.
+  const $ = function (id) { return document.getElementById(id); };
+  const ui = function () { return G.ui; };
+  const SEEN = 'grenzland.neu';
+  let cur = 0, maps = {}, framed = false;
+  const def = function (n) { return G.NEUES.find(function (L) { return L.n === n; }); };
+  const mapOf = function (n) { return maps[n] || (maps[n] = G.levelMap(def(n))); };
+  function seen() { try { return JSON.parse(localStorage.getItem(SEEN) || '[]'); } catch (e) { return []; } }
+  function mark(n) {
+    const s = seen();
+    if (s.indexOf(n) >= 0) return;
+    s.push(n);
+    try { localStorage.setItem(SEEN, JSON.stringify(s)); } catch (e) { /* storage may be unavailable */ }
+  }
+
+  // ---------- the list ----------
+  function open() {
+    const u = ui(), s = seen();
+    hide();
+    let h = '<h2>Änderungen</h2><p>Tippe auf eine Änderung: Sie läuft sofort auf einer kleinen Karte, und du kannst mitspielen.</p>';
+    let day = '';
+    for (const L of G.NEUES) {
+      if (L.date !== day) { day = L.date; h += '<div class="lvSec">' + u.esc(day) + '</div>'; }
+      const nw = s.indexOf(L.n) < 0;
+      h += '<button type="button" class="nwItem" data-act="nwGo:' + L.n + '"><b>' + u.esc(L.title) + (nw ? '<em>neu</em>' : '') + '</b><small>' + u.esc(L.text) + '</small></button>';
+    }
+    h += '<div class="lvFoot"><button class="linkb" data-act="nwBack" type="button">Zurück</button></div>';
+    u.openModal(h, 'nwList');
+    if (!u.game) { const v = u.view; v.setMap(mapOf(G.NEUES[0].n)); v.fit(true); }
+  }
+
+  // ---------- one scene ----------
+  function start(n) {
+    const L = def(n), u = ui(), c = u.cfg;
+    if (!L) return;
+    cur = n; framed = false;
+    G.Feldzug.freshTips();
+    mark(n);
+    u.begin(mapOf(n), {
+      seed: 2000 + n, level: n, difficulty: 1, bots: 0, nations: false, arsenal: !!L.arsenal,
+      kampf: c.kampf === 'grenzen' ? 'grenzen' : 'grenzland', pfeile: c.pfeile !== false
+    }, { name: c.name, color: u.COLORS[c.color] });
+  }
+  // From the campaign's update (G.Feldzug.hud), a few times a second while a scene runs.
+  function hud(g) {
+    const L = g.lv.def, bar = $('nwBar'), u = ui();
+    if (!bar) return;
+    bar.hidden = false;
+    if (!framed && !$('ctrl').hidden) { framed = true; frame(); }
+    const i = G.NEUES.indexOf(L), prev = G.NEUES[i + 1], next = G.NEUES[i - 1];
+    const html = '<div class="nwHead"><small>' + u.esc(L.date) + ' · ' + (i + 1) + ' von ' + G.NEUES.length + '</small><b>' + u.esc(L.title) + '</b></div>' +
+      '<p>' + u.esc(L.text) + '</p><div class="nwBtns">' +
+      '<button type="button" data-nw="nwGo:' + (prev ? prev.n : 0) + '"' + (prev ? '' : ' disabled') + '>' + u.svg('chev', 14) + 'Ältere</button>' +
+      '<button type="button" data-nw="nwGo:' + L.n + '">Nochmals</button>' +
+      '<button type="button" data-nw="nwList">Liste</button>' +
+      '<button type="button" data-nw="nwGo:' + (next ? next.n : 0) + '"' + (next ? '' : ' disabled') + '>Neuere' + u.svg('chev', 14) + '</button></div>';
+    if (bar.dataset.html !== html) { bar.innerHTML = html; bar.dataset.html = html; }
+  }
+  // The whole little map in the part of the screen the panels leave free: to the right of the
+  // bottom column on a wide screen, above it on a phone. Once, when the scene appears.
+  function frame() {
+    const v = ui().view, m = v && v.map, app = $('app').getBoundingClientRect(), b = $('bottom').getBoundingClientRect();
+    if (!m) return;
+    const top = 58, hot = $('hotbar'), hb = hot && !hot.hidden && hot.offsetWidth ? app.bottom - hot.getBoundingClientRect().top + 8 : 8;
+    const rects = [
+      { x: b.right - app.left + 8, y: top, w: app.right - b.right - 16, h: app.height - top - hb },
+      { x: 8, y: top, w: app.width - 16, h: b.top - app.top - top - 8 }
+    ];
+    let best = null, bz = 0;
+    for (const r of rects) { if (r.w < 120 || r.h < 120) continue; const z = Math.min(r.w / m.W, r.h / m.H); if (z > bz) { bz = z; best = r; } }
+    if (!best) { v.fit(false); return; }
+    const c = v.cam;
+    c.z = bz * 0.96; v.fly = null;
+    c.x = m.W / 2 - (best.x + best.w / 2 - v.cw / 2) / c.z;
+    c.y = m.H / 2 - (best.y + best.h / 2 - v.ch / 2) / c.z;
+    v.clampCam();
+    // the view does not zoom out that far: keep the right edge of the map on screen (the panels
+    // only cover the lower left)
+    if (c.z > bz * 0.97 && best === rects[0]) c.x = Math.max(m.W / 2, m.W - (v.cw / 2 - 8) / c.z);
+  }
+  function hide() {
+    const b = $('nwBar');
+    if (b) { b.hidden = true; b.dataset.html = ''; }
+  }
+
+  // Buttons with data-act="nw…" in a window, and data-nw="nw…" in the bar, land here.
+  function act(what) {
+    const u = ui(), i = what.indexOf(':'), n = i > 0 ? +what.slice(i + 1) : 0, k = i > 0 ? what.slice(0, i) : what;
+    if (k === 'nwBack') { u.showStart(); u.previewMap(u.cfg.map); return; }
+    if (k === 'nwList') { u.quitGame(); return; }
+    if (k === 'nwGo' && n) { hide(); start(n); return; }
+    if (k === 'nwRetry') { hide(); start(cur); }
+  }
+  document.addEventListener('click', function (e) {
+    const b = e.target.closest && e.target.closest('#nwBar [data-nw]');
+    if (b && !b.disabled) act(b.dataset.nw);
+  });
+
+  G.Neuheiten = {
+    open: open, start: start, hud: hud, hide: hide, act: act,
+    // what the start screen shows under «Änderungen»
+    summary: function () {
+      const s = seen(), fresh = G.NEUES.filter(function (L) { return s.indexOf(L.n) < 0; }).length;
+      return { count: G.NEUES.length, fresh: fresh, newest: G.NEUES[0] };
+    }
   };
 })(globalThis.G = globalThis.G || {});
 

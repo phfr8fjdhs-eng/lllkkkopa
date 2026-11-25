@@ -1,6 +1,11 @@
 # Änderungsprotokoll
 Was seit dem 13.11.2026 geändert wurde und warum. Den heutigen Stand der Regeln beschreiben die anderen Dateien in `doku/`.
 
+
+## Schiffe in den ersten 10 Levels grösser (25.11.2026)
+- **Wunsch:** Die Schiffe sollen besonders in den ersten 10 Levels grösser sein.
+- **Geändert:** In den Levels 1 bis 10 werden alle Schiffe 1.6-mal so gross gezeichnet (`SHIP_BOOST` in `src/06_view.js`, wirkt über `shipPx`). Nur das Bild ändert sich, nicht die Spielregeln. Im freien Spiel und ab Level 11 bleibt alles wie vorher.
+- **Keine Szene** in «Änderungen»: Die Szenen laufen als eigene Levels (ab 101), dort würde die Änderung nicht greifen.
 ## Leistung: Abgleich mit dem Auftrag, Dichte geprüft, Speicher (24.11.2026, Abend)
 - **Wunsch:** Den Auftrag «Leistung» mit dem heutigen Stand vergleichen und ergänzen, was fehlt; die Dichte besonders prüfen, ohne sie wegzunehmen.
 - **Gemessen:** Neue Messbank `test/phasen.js`. Auf der Erde geht ein Tick zu 77 % in die Eroberung, 14 % in die Dichte, 7 % in die Bots. Die Dichte bleibt (Urteil und Zahlen in `doku/leistung.md`).
