@@ -815,6 +815,27 @@
 
   // The build bar at the bottom of a desktop screen, as in OpenFront: every building and weapon with
   // its key, how many you own and its price (red while you cannot pay). A click picks it up.
+  // The small number on a button of the build bar and the build card (25.11.2026): ships as before;
+  // air defence the shots of all of them together (one per level), not the number of buildings;
+  // bombs and missiles how many can be fired right now (loaded silo slots), 0 in red while every
+  // silo is reloading; other buildings how many there are.
+  function ownBadge(h, t) {
+    if (t === UT.WARSHIP || t === BS) return { n: shipsOf(h, real(t).cls), cls: '' };
+    const T = game.ticks;
+    if (t === UT.SAM) { let n = 0; for (const u of h.units) if (u.type === UT.SAM && u.built) n += u.level || 1; return { n: n, cls: '' }; }
+    if (t === UT.ATOM || t === UT.HYDRO || t === UT.MIRV || t === UT.CRUISE) {
+      let n = 0, silos = 0;
+      for (const u of h.units) {
+        if (u.type !== UT.SILO || !u.built || !u.ready) continue;
+        silos++;
+        for (let i = 0; i < u.ready.length; i++) if (u.ready[i] <= T) n++;
+      }
+      return silos ? { n: n, cls: n ? ' ammo' : ' ammo empty', show: true } : { n: 0, cls: '' };
+    }
+    if (t <= UT.CLOAK) { let n = 0; for (const u of h.units) if (u.type === t) n++; return { n: n, cls: '' }; }
+    return { n: 0, cls: '' };
+  }
+  function badge(o) { return o.n || o.show ? '<i class="own' + o.cls + '">' + o.n + '</i>' : ''; }
   let hotSig = '';
   function renderHotbar() {
     const el = $('hotbar'), h = game.human;
@@ -823,15 +844,15 @@
     const rich = game.opts.infiniteGold;
     const cells = BUILD.filter(function (b) { return offered(b.t); }).map(function (b) {
       const cost = costOf(h, b.t), wait = b.t === UT.LASER ? Math.ceil(((h.laserAt || 0) - game.ticks) / 10) : 0;
-      const have = b.t === UT.WARSHIP || b.t === BS ? shipsOf(h, real(b.t).cls) : b.t <= UT.CLOAK ? h.units.filter(function (u) { return u.type === b.t; }).length : 0;
+      const have = ownBadge(h, b.t);
       return { b: b, cost: wait > 0 ? wait + ' s' : fmt(cost), poor: wait > 0 || (!rich && h.gold < cost), have: have, on: !!ghost && ghost.t === b.t };
     });
-    const sig = cells.map(function (c) { return c.cost + (c.poor ? '!' : '') + c.have + (c.on ? '*' : ''); }).join('|');
+    const sig = cells.map(function (c) { return c.cost + (c.poor ? '!' : '') + c.have.n + c.have.cls + (c.on ? '*' : ''); }).join('|');
     if (sig === hotSig) return;
     hotSig = sig;
     el.innerHTML = cells.map(function (c) {
       return '<button type="button" class="hk' + (c.poor ? ' poor' : '') + '" data-t="' + c.b.t + '" aria-pressed="' + c.on + '" title="' + plain(c.b.t) + ': ' + esc(c.b.note) + '">' +
-        '<kbd>' + c.b.key.toUpperCase() + '</kbd>' + (c.have ? '<i class="own">' + c.have + '</i>' : '') + svg(c.b.icon, 22) + '<span>' + c.cost + '</span></button>';
+        '<kbd>' + c.b.key.toUpperCase() + '</kbd>' + badge(c.have) + svg(c.b.icon, 22) + '<span>' + c.cost + '</span></button>';
     }).join('');
   }
 
@@ -1116,12 +1137,12 @@
         const c = game.buildCheck(h, real(b.t).u, tile, real(b.t).cls);
         ok = c.ok; note = c.ok ? b.note : c.why; cost = c.cost;
       }
-      const have = b.t === UT.WARSHIP || b.t === BS ? shipsOf(h, real(b.t).cls) : b.t < UT.ATOM ? h.cnt[b.t] : 0;
+      const have = ownBadge(h, b.t);
       // a warship laid up in a port sails out first; a second button builds a new one all the same
       const lager = b.t === UT.WARSHIP || b.t === BS ? game.stored(h, real(b.t).cls) : 0;
       if (lager && ok) note = 'Aus dem Lager (' + lager + ' im Hafen), gratis';
       const extra = lager ? '<button class="item" type="button" data-t="' + b.t + '" data-fresh="1"><span class="ic">' + svg(b.icon, 24) + '</span><b>Neu bauen</b><small>' + esc(b.note) + '</small>' + coin(costOf(h, b.t)) + '</button>' : '';
-      return extra + '<button class="item' + (nuke ? ' nuke' : '') + (!game.opts.infiniteGold && h.gold < cost ? ' poor' : '') + '" type="button" data-t="' + b.t + '"' + (ok ? '' : ' disabled') + '><kbd>' + b.key.toUpperCase() + '</kbd>' + (have ? '<i class="own">' + have + '</i>' : '') +
+      return extra + '<button class="item' + (nuke ? ' nuke' : '') + (!game.opts.infiniteGold && h.gold < cost ? ' poor' : '') + '" type="button" data-t="' + b.t + '"' + (ok ? '' : ' disabled') + '><kbd>' + b.key.toUpperCase() + '</kbd>' + badge(have) +
         '<span class="ic">' + svg(b.icon, 24) + '</span><b>' + G.UNAME[b.t] + '</b><small>' + esc(note) + '</small>' + coin(cost) + '</button>';
     };
     html += '<h3>Gebäude</h3><div class="grid">' + BUILD.filter(function (b) { return b.t <= UT.CLOAK && offered(b.t); }).map(cell).join('') + '</div>';

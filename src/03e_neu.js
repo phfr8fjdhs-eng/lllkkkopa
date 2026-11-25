@@ -30,6 +30,16 @@
 
   G.NEUES = [
     {
+      n: 120, date: '25.11.2026', title: 'Schüsse bereit auf der Bauleiste',
+      text: 'Auf den Bomben in der Bauleiste steht jetzt, wie viele du sofort abfeuern kannst (geladene Silo-Schüsse), rot 0, solange alles nachlädt. Bei der Flugabwehr steht die Zahl aller Abwehrschüsse zusammen (eine pro Stufe), nicht mehr die Anzahl Türme.',
+      map: { w: 320, h: 200, seed: 920, shapes: [circ(80, 100, 60), circ(235, 100, 72)] },
+      me: { x: 80, y: 100, r: 64, troops: 60000, gold: 0, build: [[UT.SILO, 95, 125, 3], [UT.SAM, 70, 80, 3], [UT.SAM, 55, 120, 1]] },
+      foes: [{ name: 'Vellmar', x: 235, y: 100, r: 76, troops: 200000 }],
+      allow: ALL, quest: none,
+      loop: [6, 8, function (Q, k) { Q.fire(Q.me, UT.ATOM, 215 + (k % 3) * 18, 80 + (k % 2) * 40); }],
+      tips: [{ text: 'Hier: bereit zum Abfeuern.', el: hot(UT.ATOM) }]
+    },
+    {
       n: 119, date: '25.11.2026', title: 'Hohe Stufen von weitem',
       text: 'Die Stufe über einem Gebäude erscheint umso früher, je höher sie ist. Hier siehst du von weitem nur die 30 und die 10. Zoom hinein: Erst dann kommen die 5 und die 3 dazu.',
       map: { w: 900, h: 600, seed: 919, rough: 8, shapes: [circ(450, 300, 270), rect(140, 110, 760, 490)] },

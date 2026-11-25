@@ -444,6 +444,10 @@ body.placing #cv { cursor: crosshair; }
 .hk[aria-pressed=true] { border-color: var(--accent); background: rgba(244, 183, 64, 0.16); }
 .hk kbd { position: absolute; left: 3px; top: 3px; min-width: 16px; padding: 0 3px; font-size: 10.5px; line-height: 13px; border-bottom-width: 1px; }
 .hk .own { position: absolute; right: 4px; top: 3px; font: 700 10.5px var(--display); font-style: normal; color: var(--muted); }
+/* bombs: how many can be fired now (loaded silo slots); 0 in red while all silos reload */
+.own.ammo { color: #1c1505; background: var(--accent); }
+.own.ammo.empty { color: #fff; background: var(--bad); }
+.hk .own.ammo { top: 2px; min-width: 14px; padding: 0 3px; border-radius: 999px; line-height: 14px; text-align: center; }
 .hk span { font: 700 11.5px var(--display); color: var(--accent); font-variant-numeric: tabular-nums; }
 .hk.poor span { color: #ff8a80; }
 .hk.poor svg { opacity: 0.5; }

@@ -10,6 +10,7 @@ const count = (g, type, p) => g.units.filter((u) => u.active && u.type === type 
 // what has to be seen in each scene, asked every second; seen once is enough
 const SEEN = {
   116: (g) => g.human.tiles > 0,
+  120: (g) => { const u = g.human.units.find((x) => x.type === UT.SILO); return !!u && u.ready.length === 3 && u.ready.some((r) => r > g.ticks); },
   119: (g) => [30, 10, 5, 3].every((l) => g.human.units.some((u) => u.type === UT.CITY && u.level === l)),
   118: (g) => { const u = g.human.units.find((x) => x.type === UT.SILO); return !!u && u.ready.length === 2 && u.ready.some((r) => r > g.ticks); },
   117: (g) => count(g, UT.SAM, g.human) === 3 && count(g, UT.FACTORY, g.human) === 1 && count(g, UT.PORT, g.human) === 2,

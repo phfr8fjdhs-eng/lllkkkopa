@@ -11,6 +11,10 @@ Was seit dem 13.11.2026 geändert wurde und warum. Den heutigen Stand der Regeln
 - **Gemessen:** Neue Messbank `test/phasen.js`. Auf der Erde geht ein Tick zu 77 % in die Eroberung, 14 % in die Dichte, 7 % in die Bots. Die Dichte bleibt (Urteil und Zahlen in `doku/leistung.md`).
 - **Geändert:** Taschen-Suche der Dichte nur, wenn Zellen kommen oder gehen (0.40 statt 0.77 ms pro Tick auf der Erde). Liste der geänderten Felder wächst bei Bedarf (64 MB weniger auf der Erde). Kleine Aufräumung im Dichte-Schatten (keine Kopie pro Reich und Sekunde). Datum «25.11.2026» in Doku und Kommentaren auf 24.11.2026 berichtigt.
 - **Nicht geändert:** Spielregeln. Prüfsummen gleich, `det.js` (alle Varianten), `posture.js`.
+## Schüsse bereit auf der Bauleiste (25.11.2026)
+- **Wunsch:** Auf den Bomben-Symbolen soll stehen, wie viele man abschiessen kann; bei der Flugabwehr nicht die Anzahl Türme, sondern die gesamte Anzahl.
+- **Geändert:** Bomben zeigen die geladenen Silo-Schüsse (gold, rot 0 beim Nachladen), Flugabwehr die Summe der Stufen (`ownBadge`). Szene 120.
+
 ## Hohe Stufen von weitem (25.11.2026)
 - **Wunsch:** Je höher die Stufe eines Gebäudes, desto weniger muss man hineinzoomen, um sie zu sehen; Stufe 30 schon viel früher.
 - **Geändert:** Die Zahl erscheint ab Zoom 1.2 · √(2 / Stufe) statt für alle erst ab 1.2 (`levelSeenAt` in `06_view.js`). Szene 119.

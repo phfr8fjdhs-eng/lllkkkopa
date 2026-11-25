@@ -11,6 +11,7 @@ Ein eigener Bereich neben dem normalen Spiel und den Levels. Auf dem Startbildsc
 ## Die Szenen (Stand 25.11.2026)
 | Nr. | Datum | Name | Was passiert |
 | --- | --- | --- | --- |
+| 120 | 25.11. | Schüsse bereit auf der Bauleiste | Silo auf Stufe 3 feuert alle 8 s; Zahl auf den Bomben sinkt und steigt, Flugabwehr zeigt 4 (Stufe 3 + 1) |
 | 119 | 25.11. | Hohe Stufen von weitem | Grosse Karte (900 × 600), damit man weit herauszoomen kann; Städte auf Stufe 3, 5, 10 und 30 |
 | 118 | 25.11. | Silo zeigt das Nachladen | Ein Silo auf Stufe 2 feuert alle 14 s eine Atombombe; Ring und Sekunden laufen |
 | 117 | 25.11. | Alle Reichweiten auf einen Blick | Drei Flugabwehren, eine Fabrik, zwei Häfen; die Kreise aller Flugabwehren sind gleich zu sehen (`look` tut, als zeige die Maus darauf) |
