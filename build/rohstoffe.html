@@ -8706,9 +8706,11 @@ void main() { outc = texture(uColor, vUV); }`;
       const col = u.type === UT.SAM ? '197,139,255' : u.type === UT.CLOAK ? '120,230,200' : u.type === UT.PORT ? '140,200,255' : u.type === UT.FACTORY ? '255,214,120' : '255,255,255';
       const main = u === sel || (!sel && u === hov);
       ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832);
-      if (main) { ctx.fillStyle = 'rgba(' + col + ',0.08)'; ctx.fill(); }
-      ctx.setLineDash(main ? [8, 6] : [4, 6]); ctx.lineWidth = main ? 2 : 1.4;
-      ctx.strokeStyle = 'rgba(' + col + ',' + (main ? 0.85 : 0.45) + ')'; ctx.stroke(); ctx.setLineDash([]);
+      // the others of the kind (25.11.2026) get a light fill too and a clearer line, so their
+      // reach reads as well; the picked one stays a little stronger
+      ctx.fillStyle = 'rgba(' + col + ',' + (main ? 0.1 : 0.06) + ')'; ctx.fill();
+      ctx.setLineDash(main ? [8, 6] : [6, 5]); ctx.lineWidth = main ? 2.2 : 1.8;
+      ctx.strokeStyle = 'rgba(' + col + ',' + (main ? 0.9 : 0.7) + ')'; ctx.stroke(); ctx.setLineDash([]);
     }
     // the buildings a picked or placed cloaking tower hides get a dashed ring
     if ((sel && sel.type === UT.CLOAK) || (gh && gh.type === UT.CLOAK)) {
