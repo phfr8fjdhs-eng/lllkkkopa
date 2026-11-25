@@ -52,6 +52,7 @@
     if (!bar) return;
     bar.hidden = false;
     if (!framed && !$('ctrl').hidden) { framed = true; frame(); }
+    if (L.look) { try { L.look(u.view, g); } catch (e) { /* a scene's look only draws */ } }
     const i = G.NEUES.indexOf(L), prev = G.NEUES[i + 1], next = G.NEUES[i - 1];
     const html = '<div class="nwHead"><small>' + u.esc(L.date) + ' · ' + (i + 1) + ' von ' + G.NEUES.length + '</small><b>' + u.esc(L.title) + '</b></div>' +
       '<p>' + u.esc(L.text) + '</p><div class="nwBtns">' +

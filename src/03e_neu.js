@@ -30,6 +30,17 @@
 
   G.NEUES = [
     {
+      n: 117, date: '25.11.2026', title: 'Alle Flugabwehr-Reichweiten',
+      text: 'Zeigst du mit der Maus auf eine Flugabwehr, tippst sie an oder wählst sie zum Bauen, siehst du die Reichweite aller deiner Flugabwehren, so erkennst du Lücken. Bei Fabriken genauso, aber getrennt. Ganz herausgezoomt bleiben die Kreise weg.',
+      map: { w: 300, h: 200, seed: 916, shapes: [circ(150, 100, 95), rect(40, 30, 260, 170)] },
+      me: { x: 150, y: 100, box: [0, 0, 300, 200], troops: 60000, gold: 3000000,
+        build: [[UT.SAM, 95, 75], [UT.SAM, 150, 130], [UT.SAM, 210, 70], [UT.FACTORY, 150, 70], [UT.CITY, 120, 95], [UT.CITY, 185, 100]] },
+      foes: [], allow: ALL, quest: none,
+      // drawn only: the rings show at once, as if the mouse pointed at the first air defence
+      look: function (v, g) { if (!v.hoverUnit) v.hoverUnit = g.human.units.find(function (u) { return u.type === UT.SAM && u.built; }) || null; },
+      tips: [{ text: 'Zeig mit der Maus auf eine Fabrik.', pins: function (Q) { return Q.units(Q.me, UT.FACTORY, 1); } }]
+    },
+    {
       n: 116, date: '25.11.2026', title: 'Neues Zeichen für die Wasserstoffbombe',
       text: 'Die Wasserstoffbombe sieht jetzt aus wie eine grosse, schwere Atombombe, nach dem Vorbild der Zar-Bombe. Vorher war sie ein Stern.',
       map: { w: 300, h: 200, seed: 916, shapes: [circ(150, 100, 95), rect(40, 30, 260, 170)] },
@@ -77,7 +88,7 @@
     },
     {
       n: 103, date: '24.11.2026', title: 'Reichweite nur beim Antippen',
-      text: 'Reichweiten zeigt das Spiel nur noch für das Gebäude, das du antippst, nicht mehr für alle auf einmal. Die Karte bleibt so ruhig. Auch die Schiffe sind jetzt alle gleich gross gezeichnet.',
+      text: 'Reichweiten zeigt das Spiel nicht mehr dauernd für alle Gebäude, sondern erst, wenn du eines antippst. Die Karte bleibt so ruhig. Auch die Schiffe sind jetzt alle gleich gross gezeichnet. (Bei Flugabwehr und Fabriken siehe 25.11.)',
       map: { w: 300, h: 200, seed: 903, shapes: [circ(150, 100, 95), rect(40, 30, 260, 170)] },
       me: { x: 150, y: 100, box: [0, 0, 300, 200], troops: 60000, gold: 1000000,
         build: [[UT.SAM, 110, 90], [UT.SILO, 190, 90], [UT.DEFENSE, 150, 140], [UT.CITY, 150, 60], [UT.CITY, 95, 130], [UT.FACTORY, 205, 130]] },

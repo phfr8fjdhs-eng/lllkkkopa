@@ -4137,6 +4137,17 @@ body.placing #cv { cursor: crosshair; }
 
   G.NEUES = [
     {
+      n: 117, date: '25.11.2026', title: 'Alle Flugabwehr-Reichweiten',
+      text: 'Zeigst du mit der Maus auf eine Flugabwehr, tippst sie an oder wählst sie zum Bauen, siehst du die Reichweite aller deiner Flugabwehren, so erkennst du Lücken. Bei Fabriken genauso, aber getrennt. Ganz herausgezoomt bleiben die Kreise weg.',
+      map: { w: 300, h: 200, seed: 916, shapes: [circ(150, 100, 95), rect(40, 30, 260, 170)] },
+      me: { x: 150, y: 100, box: [0, 0, 300, 200], troops: 60000, gold: 3000000,
+        build: [[UT.SAM, 95, 75], [UT.SAM, 150, 130], [UT.SAM, 210, 70], [UT.FACTORY, 150, 70], [UT.CITY, 120, 95], [UT.CITY, 185, 100]] },
+      foes: [], allow: ALL, quest: none,
+      // drawn only: the rings show at once, as if the mouse pointed at the first air defence
+      look: function (v, g) { if (!v.hoverUnit) v.hoverUnit = g.human.units.find(function (u) { return u.type === UT.SAM && u.built; }) || null; },
+      tips: [{ text: 'Zeig mit der Maus auf eine Fabrik.', pins: function (Q) { return Q.units(Q.me, UT.FACTORY, 1); } }]
+    },
+    {
       n: 116, date: '25.11.2026', title: 'Neues Zeichen für die Wasserstoffbombe',
       text: 'Die Wasserstoffbombe sieht jetzt aus wie eine grosse, schwere Atombombe, nach dem Vorbild der Zar-Bombe. Vorher war sie ein Stern.',
       map: { w: 300, h: 200, seed: 916, shapes: [circ(150, 100, 95), rect(40, 30, 260, 170)] },
@@ -4184,7 +4195,7 @@ body.placing #cv { cursor: crosshair; }
     },
     {
       n: 103, date: '24.11.2026', title: 'Reichweite nur beim Antippen',
-      text: 'Reichweiten zeigt das Spiel nur noch für das Gebäude, das du antippst, nicht mehr für alle auf einmal. Die Karte bleibt so ruhig. Auch die Schiffe sind jetzt alle gleich gross gezeichnet.',
+      text: 'Reichweiten zeigt das Spiel nicht mehr dauernd für alle Gebäude, sondern erst, wenn du eines antippst. Die Karte bleibt so ruhig. Auch die Schiffe sind jetzt alle gleich gross gezeichnet. (Bei Flugabwehr und Fabriken siehe 25.11.)',
       map: { w: 300, h: 200, seed: 903, shapes: [circ(150, 100, 95), rect(40, 30, 260, 170)] },
       me: { x: 150, y: 100, box: [0, 0, 300, 200], troops: 60000, gold: 1000000,
         build: [[UT.SAM, 110, 90], [UT.SILO, 190, 90], [UT.DEFENSE, 150, 140], [UT.CITY, 150, 60], [UT.CITY, 95, 130], [UT.FACTORY, 205, 130]] },
@@ -8355,6 +8366,7 @@ void main() { outc = texture(uColor, vUV); }`;
   // picked (`selUnit`, its card is open; a tapped cloaking tower), and while placing a building
   // the one of that kind with the widest reach, for comparison. The ring of the building being
   // placed itself is drawn by drawGhost. Foreign defence posts still show while fighting their owner.
+  const REACH_ALL_ZOOM = 1.4;   // rings of all air defences / factories only from 1.4 times the zoom that shows the whole map
   View.prototype.drawReach = function (ctx, g, z, ox, oy) {
     const h = g.human, cw = this.cw, ch = this.ch;
     if (!h) return;
@@ -8371,7 +8383,21 @@ void main() { outc = texture(uColor, vUV); }`;
     let sel = this.selUnit && this.selUnit.active !== false && this.selUnit.owner === h ? this.selUnit : null;
     if (!sel && this.cloakTap) sel = this.cloakTap;
     if (sel && reachOf(sel)) show.push(sel);
-    if (gh) {
+    // Air defence and factories (25.11.2026): picking one, choosing it in the build bar or just
+    // pointing at one with the mouse rings every own one of that kind, so gaps in the cover show.
+    // The two kinds are kept apart: pointing at a factory shows the factories only. Not when the
+    // map is zoomed out almost completely: there the rings would only be a tangle (a picked one
+    // still shows its own). On the Earth that is below about a third of a pixel per tile.
+    const hov = this.hoverUnit && this.hoverUnit.active !== false && this.hoverUnit.owner === h ? this.hoverUnit : null;
+    // (the small maps of levels and «Änderungen» are seen whole anyway: there always)
+    const zoomOk = !!g.lv || z >= Math.min(cw / this.map.W, ch / this.map.H) * REACH_ALL_ZOOM;
+    let all = -1;
+    if (sel && (sel.type === UT.SAM || sel.type === UT.FACTORY)) all = sel.type;
+    else if (gh && (gh.type === UT.SAM || gh.type === UT.FACTORY)) all = gh.type;
+    else if (hov && (hov.type === UT.SAM || hov.type === UT.FACTORY)) all = hov.type;
+    if (all >= 0 && zoomOk) {
+      for (const u of h.units) if (u.built && u.type === all && u !== sel) show.push(u);
+    } else if (gh) {
       let best = null, br = 0;
       for (const u of h.units) {
         if (!u.built || u.type !== gh.type || u === sel) continue;
@@ -8385,7 +8411,7 @@ void main() { outc = texture(uColor, vUV); }`;
       const x = (u.x + 0.5) * z + ox, y = (u.y + 0.5) * z + oy, r = reachOf(u) * z;
       if (r < 4 || x < -r || y < -r || x > cw + r || y > ch + r) continue;
       const col = u.type === UT.SAM ? '197,139,255' : u.type === UT.CLOAK ? '120,230,200' : u.type === UT.PORT ? '140,200,255' : u.type === UT.FACTORY ? '255,214,120' : '255,255,255';
-      const main = u === sel;
+      const main = u === sel || (!sel && u === hov);
       ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832);
       if (main) { ctx.fillStyle = 'rgba(' + col + ',0.08)'; ctx.fill(); }
       ctx.setLineDash(main ? [8, 6] : [4, 6]); ctx.lineWidth = main ? 2 : 1.4;
@@ -11678,6 +11704,25 @@ void main() { outc = texture(uColor, vUV); }`;
     const u = game.structNear(tile, 4);
     act({ k: 'up', t: tile, n: n || 1, say: (u ? plain(u.type) : 'Gebäude') + ' ausgebaut' });
   }
+  // The mouse over an own air defence or factory (25.11.2026): the view then rings every one of
+  // that kind (View.drawReach). Only the own buildings are searched, and only when the mouse moves.
+  function hoverUnit() {
+    if (!view) return;
+    let best = null;
+    if (game && game.human && game.phase === 'play' && !netOn) {
+      const t = view.tileAt(hoverX, hoverY), h = game.human;
+      if (t >= 0) {
+        const W = game.W, x = t % W, y = (t / W) | 0, r = Math.max(2, 16 / view.cam.z);
+        let bd = r * r;
+        for (const u of h.units) {
+          if (!u.built || (u.type !== UT.SAM && u.type !== UT.FACTORY)) continue;
+          const d = (u.x - x) * (u.x - x) + (u.y - y) * (u.y - y);
+          if (d <= bd) { bd = d; best = u; }
+        }
+      }
+    }
+    view.hoverUnit = best;
+  }
   function upgradeKind(t) {
     const h = game.human, W = game.W;
     const at = hoverX >= 0 ? view.tileAt(hoverX, hoverY) : -1;
@@ -12465,7 +12510,7 @@ void main() { outc = texture(uColor, vUV); }`;
       }
     });
     cv.addEventListener('pointermove', function (e) {
-      if (e.pointerType === 'mouse') { const r = cv.getBoundingClientRect(); hoverX = e.clientX - r.left; hoverY = e.clientY - r.top; }
+      if (e.pointerType === 'mouse') { const r = cv.getBoundingClientRect(); hoverX = e.clientX - r.left; hoverY = e.clientY - r.top; hoverUnit(); }
       if (rdrag && e.pointerType === 'mouse') {
         rdrag.x = hoverX; rdrag.y = hoverY;
         if (!rdrag.started && Math.hypot(rdrag.x - rdrag.x0, rdrag.y - rdrag.y0) > 10) rdrag.started = true;
@@ -12555,7 +12600,7 @@ void main() { outc = texture(uColor, vUV); }`;
     ['gesturestart', 'gesturechange', 'gestureend'].forEach(function (n) {
       document.addEventListener(n, function (e) { e.preventDefault(); }, { passive: false });
     });
-    cv.addEventListener('pointerleave', function (e) { if (e.pointerType === 'mouse') { hoverX = -1; hoverY = -1; } });
+    cv.addEventListener('pointerleave', function (e) { if (e.pointerType === 'mouse') { hoverX = -1; hoverY = -1; if (view) view.hoverUnit = null; } });
     cv.addEventListener('contextmenu', function (e) {
       e.preventDefault();
       // the menu waits for the button to come up, so that a drag can become a thrust instead;
@@ -13185,6 +13230,7 @@ void main() { outc = texture(uColor, vUV); }`;
     if (!bar) return;
     bar.hidden = false;
     if (!framed && !$('ctrl').hidden) { framed = true; frame(); }
+    if (L.look) { try { L.look(u.view, g); } catch (e) { /* a scene's look only draws */ } }
     const i = G.NEUES.indexOf(L), prev = G.NEUES[i + 1], next = G.NEUES[i - 1];
     const html = '<div class="nwHead"><small>' + u.esc(L.date) + ' · ' + (i + 1) + ' von ' + G.NEUES.length + '</small><b>' + u.esc(L.title) + '</b></div>' +
       '<p>' + u.esc(L.text) + '</p><div class="nwBtns">' +

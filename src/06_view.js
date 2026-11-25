@@ -778,6 +778,7 @@
   // picked (`selUnit`, its card is open; a tapped cloaking tower), and while placing a building
   // the one of that kind with the widest reach, for comparison. The ring of the building being
   // placed itself is drawn by drawGhost. Foreign defence posts still show while fighting their owner.
+  const REACH_ALL_ZOOM = 1.4;   // rings of all air defences / factories only from 1.4 times the zoom that shows the whole map
   View.prototype.drawReach = function (ctx, g, z, ox, oy) {
     const h = g.human, cw = this.cw, ch = this.ch;
     if (!h) return;
@@ -794,7 +795,21 @@
     let sel = this.selUnit && this.selUnit.active !== false && this.selUnit.owner === h ? this.selUnit : null;
     if (!sel && this.cloakTap) sel = this.cloakTap;
     if (sel && reachOf(sel)) show.push(sel);
-    if (gh) {
+    // Air defence and factories (25.11.2026): picking one, choosing it in the build bar or just
+    // pointing at one with the mouse rings every own one of that kind, so gaps in the cover show.
+    // The two kinds are kept apart: pointing at a factory shows the factories only. Not when the
+    // map is zoomed out almost completely: there the rings would only be a tangle (a picked one
+    // still shows its own). On the Earth that is below about a third of a pixel per tile.
+    const hov = this.hoverUnit && this.hoverUnit.active !== false && this.hoverUnit.owner === h ? this.hoverUnit : null;
+    // (the small maps of levels and «Änderungen» are seen whole anyway: there always)
+    const zoomOk = !!g.lv || z >= Math.min(cw / this.map.W, ch / this.map.H) * REACH_ALL_ZOOM;
+    let all = -1;
+    if (sel && (sel.type === UT.SAM || sel.type === UT.FACTORY)) all = sel.type;
+    else if (gh && (gh.type === UT.SAM || gh.type === UT.FACTORY)) all = gh.type;
+    else if (hov && (hov.type === UT.SAM || hov.type === UT.FACTORY)) all = hov.type;
+    if (all >= 0 && zoomOk) {
+      for (const u of h.units) if (u.built && u.type === all && u !== sel) show.push(u);
+    } else if (gh) {
       let best = null, br = 0;
       for (const u of h.units) {
         if (!u.built || u.type !== gh.type || u === sel) continue;
@@ -808,7 +823,7 @@
       const x = (u.x + 0.5) * z + ox, y = (u.y + 0.5) * z + oy, r = reachOf(u) * z;
       if (r < 4 || x < -r || y < -r || x > cw + r || y > ch + r) continue;
       const col = u.type === UT.SAM ? '197,139,255' : u.type === UT.CLOAK ? '120,230,200' : u.type === UT.PORT ? '140,200,255' : u.type === UT.FACTORY ? '255,214,120' : '255,255,255';
-      const main = u === sel;
+      const main = u === sel || (!sel && u === hov);
       ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832);
       if (main) { ctx.fillStyle = 'rgba(' + col + ',0.08)'; ctx.fill(); }
       ctx.setLineDash(main ? [8, 6] : [4, 6]); ctx.lineWidth = main ? 2 : 1.4;

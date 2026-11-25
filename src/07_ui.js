@@ -1151,6 +1151,25 @@
     const u = game.structNear(tile, 4);
     act({ k: 'up', t: tile, n: n || 1, say: (u ? plain(u.type) : 'Gebäude') + ' ausgebaut' });
   }
+  // The mouse over an own air defence or factory (25.11.2026): the view then rings every one of
+  // that kind (View.drawReach). Only the own buildings are searched, and only when the mouse moves.
+  function hoverUnit() {
+    if (!view) return;
+    let best = null;
+    if (game && game.human && game.phase === 'play' && !netOn) {
+      const t = view.tileAt(hoverX, hoverY), h = game.human;
+      if (t >= 0) {
+        const W = game.W, x = t % W, y = (t / W) | 0, r = Math.max(2, 16 / view.cam.z);
+        let bd = r * r;
+        for (const u of h.units) {
+          if (!u.built || (u.type !== UT.SAM && u.type !== UT.FACTORY)) continue;
+          const d = (u.x - x) * (u.x - x) + (u.y - y) * (u.y - y);
+          if (d <= bd) { bd = d; best = u; }
+        }
+      }
+    }
+    view.hoverUnit = best;
+  }
   function upgradeKind(t) {
     const h = game.human, W = game.W;
     const at = hoverX >= 0 ? view.tileAt(hoverX, hoverY) : -1;
@@ -1938,7 +1957,7 @@
       }
     });
     cv.addEventListener('pointermove', function (e) {
-      if (e.pointerType === 'mouse') { const r = cv.getBoundingClientRect(); hoverX = e.clientX - r.left; hoverY = e.clientY - r.top; }
+      if (e.pointerType === 'mouse') { const r = cv.getBoundingClientRect(); hoverX = e.clientX - r.left; hoverY = e.clientY - r.top; hoverUnit(); }
       if (rdrag && e.pointerType === 'mouse') {
         rdrag.x = hoverX; rdrag.y = hoverY;
         if (!rdrag.started && Math.hypot(rdrag.x - rdrag.x0, rdrag.y - rdrag.y0) > 10) rdrag.started = true;
@@ -2028,7 +2047,7 @@
     ['gesturestart', 'gesturechange', 'gestureend'].forEach(function (n) {
       document.addEventListener(n, function (e) { e.preventDefault(); }, { passive: false });
     });
-    cv.addEventListener('pointerleave', function (e) { if (e.pointerType === 'mouse') { hoverX = -1; hoverY = -1; } });
+    cv.addEventListener('pointerleave', function (e) { if (e.pointerType === 'mouse') { hoverX = -1; hoverY = -1; if (view) view.hoverUnit = null; } });
     cv.addEventListener('contextmenu', function (e) {
       e.preventDefault();
       // the menu waits for the button to come up, so that a drag can become a thrust instead;

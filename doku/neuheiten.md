@@ -11,6 +11,7 @@ Ein eigener Bereich neben dem normalen Spiel und den Levels. Auf dem Startbildsc
 ## Die Szenen (Stand 25.11.2026)
 | Nr. | Datum | Name | Was passiert |
 | --- | --- | --- | --- |
+| 117 | 25.11. | Alle Flugabwehr-Reichweiten | Drei Flugabwehren und eine Fabrik; die Kreise aller Flugabwehren sind gleich zu sehen (`look` tut, als zeige die Maus darauf) |
 | 116 | 25.11. | Neues Zeichen für die Wasserstoffbombe | Tipp zeigt auf die Wasserstoffbombe in der Bauleiste |
 | 115 | 24.11. | Knopf «?» mit allen Kürzeln | Tipp zeigt auf den Knopf «?» |
 | 114 | 24.11. | Schnell verdichten | Die Front wird alle 8 s dichter und wieder dünner, Tipp zeigt auf den Knopf + |
@@ -33,7 +34,7 @@ Ein eigener Bereich neben dem normalen Spiel und den Levels. Auf dem Startbildsc
 ## Eine neue Änderung eintragen
 Zu jeder Änderung, die man im Spiel sieht, gehört eine Szene:
 1. In `src/03e_neu.js` einen Eintrag **zuoberst** in `G.NEUES` einfügen, mit der nächsten freien Nummer (ab 101, nie unter 101, sonst trifft sie ein Level).
-2. Felder wie bei einem Level (`map`, `me`, `foes`, `events`, `tips`, `allow`, siehe Kommentar in `src/03d_level.js`), dazu `date`, `title`, `text` (ein bis zwei einfache Sätze: was ist neu) und `loop: [erste Sekunde, alle n Sekunden, function (Q, k)]` für das, was sich wiederholt.
+2. Felder wie bei einem Level (`map`, `me`, `foes`, `events`, `tips`, `allow`, siehe Kommentar in `src/03d_level.js`), dazu `date`, `title`, `text` (ein bis zwei einfache Sätze: was ist neu) und `loop: [erste Sekunde, alle n Sekunden, function (Q, k)]` für das, was sich wiederholt. Was nur die Anzeige betrifft (zum Beispiel, als zeige die Maus auf ein Gebäude), geht über `look: function (view, game)`: läuft nur auf der Seite und ändert das Spiel nie.
 3. Die Szene muss die Änderung **sofort** zeigen, ohne dass man etwas tun muss. Angriffe und Bomben erst ab Sekunde 6 (Schutzzeit am Anfang).
 4. In `test/neu.js` unter `SEEN` prüfen, dass das Gezeigte wirklich passiert, und `node test/neu.js` laufen lassen. Tabelle oben nachführen.
 
