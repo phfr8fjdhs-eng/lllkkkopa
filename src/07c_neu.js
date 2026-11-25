@@ -51,7 +51,7 @@
     const L = g.lv.def, bar = $('nwBar'), u = ui();
     if (!bar) return;
     bar.hidden = false;
-    if (!framed && !$('ctrl').hidden) { framed = true; frame(); }
+    if (!framed && !$('ctrl').hidden) { framed = true; frame(L); }
     if (L.look) { try { L.look(u.view, g); } catch (e) { /* a scene's look only draws */ } }
     const i = G.NEUES.indexOf(L), prev = G.NEUES[i + 1], next = G.NEUES[i - 1];
     const html = '<div class="nwHead"><small>' + u.esc(L.date) + ' · ' + (i + 1) + ' von ' + G.NEUES.length + '</small><b>' + u.esc(L.title) + '</b></div>' +
@@ -64,7 +64,7 @@
   }
   // The whole little map in the part of the screen the panels leave free: to the right of the
   // bottom column on a wide screen, above it on a phone. Once, when the scene appears.
-  function frame() {
+  function frame(L) {
     const v = ui().view, m = v && v.map, app = $('app').getBoundingClientRect(), b = $('bottom').getBoundingClientRect();
     if (!m) return;
     const top = 58, hot = $('hotbar'), hb = hot && !hot.hidden && hot.offsetWidth ? app.bottom - hot.getBoundingClientRect().top + 8 : 8;
@@ -75,6 +75,16 @@
     let best = null, bz = 0;
     for (const r of rects) { if (r.w < 120 || r.h < 120) continue; const z = Math.min(r.w / m.W, r.h / m.H); if (z > bz) { bz = z; best = r; } }
     if (!best) { v.fit(false); return; }
+    // a scene that shows something small (a ring at a building) looks closer: cam [x, y, zoom]
+    // puts that tile in the middle of the free part at that zoom
+    if (L && L.cam) {
+      const c = v.cam;
+      c.z = L.cam[2]; v.fly = null;
+      c.x = L.cam[0] - (best.x + best.w / 2 - v.cw / 2) / c.z;
+      c.y = L.cam[1] - (best.y + best.h / 2 - v.ch / 2) / c.z;
+      v.clampCam();
+      return;
+    }
     const c = v.cam;
     c.z = bz * 0.96; v.fly = null;
     c.x = m.W / 2 - (best.x + best.w / 2 - v.cw / 2) / c.z;

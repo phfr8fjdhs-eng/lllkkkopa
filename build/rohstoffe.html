@@ -4426,6 +4426,16 @@ globalThis.G = { VARIANT: 'rohstoffe' };
 
   G.NEUES = [
     {
+      n: 118, date: '25.11.2026', title: 'Silo zeigt das Nachladen',
+      text: 'Hat dein Raketensilo eine Bombe abgefeuert, zeigt ein Ring, wie weit es nachgeladen hat, und darunter die Sekunden bis zum nächsten Schuss. Ein Silo auf Stufe 2 hat zwei Teile im Ring, einen pro Schuss. Anders als beim Bauen (dünner goldener Bogen) ist der Ring dunkel mit rotem Fortschritt.',
+      map: { w: 320, h: 200, seed: 918, shapes: [circ(80, 100, 60), circ(235, 100, 72)] },
+      me: { x: 80, y: 100, r: 64, troops: 60000, gold: 0, build: [[UT.SILO, 95, 125, 2]] },
+      cam: [110, 115, 7],
+      foes: [{ name: 'Torvik', x: 235, y: 100, r: 76, troops: 200000 }],
+      allow: ALL, quest: none,
+      loop: [6, 14, function (Q, k) { Q.fire(Q.me, UT.ATOM, 215 + (k % 3) * 18, 80 + (k % 2) * 40); }]
+    },
+    {
       n: 117, date: '25.11.2026', title: 'Alle Reichweiten auf einen Blick',
       text: 'Zeigst du mit der Maus auf eine Flugabwehr, tippst sie an oder wählst sie zum Bauen, siehst du die Reichweite aller deiner Flugabwehren, so erkennst du Lücken. Bei Fabriken und Häfen (wie weit ihre Handelsschiffe fahren) genauso, jede Art für sich. Schliesst du die Karte mit dem Kreuz, bleiben die Kreise stehen. Ganz herausgezoomt bleiben sie weg.',
       map: { w: 300, h: 200, seed: 916, shapes: [circ(150, 100, 95), rect(40, 30, 260, 170)] },
@@ -9036,8 +9046,35 @@ void main() { outc = texture(uColor, vUV); }`;
         ctx.beginPath(); ctx.arc(x, y, side * 0.5 + 2, -1.5708, -1.5708 + 6.2832 * q);
         ctx.strokeStyle = '#f4b740'; ctx.lineWidth = 2; ctx.stroke();
       } else if (u.level > 1) levelTag(ctx, u.level, x, y, side);
+      if (u.built && u.type === UT.SILO && u.owner === h && u.ready) reloadRing(ctx, u, x, y, side, T);
     }
   };
+  // An own missile silo that has fired (25.11.2026): how long until it can fire again. Unlike the
+  // amber arc of a building under way, this is a dark track with one segment per slot (a silo of
+  // level 3 has three); a slot that is reloading fills in coral, clockwise, a loaded one is white;
+  // under the sign the seconds until the next slot is loaded. Nothing shows while all are loaded.
+  function reloadRing(ctx, u, x, y, side, T) {
+    const rd = u.ready, n = rd.length;
+    let wait = Infinity;
+    for (let i = 0; i < n; i++) if (rd[i] > T && rd[i] - T < wait) wait = rd[i] - T;
+    if (wait === Infinity) return;
+    const r = side * 0.5 + 4, gap = n > 1 ? 0.22 : 0, seg = 6.2832 / n, w = Math.max(3, side * 0.1);
+    ctx.lineCap = 'butt';
+    for (let i = 0; i < n; i++) {
+      const a0 = -1.5708 + i * seg + gap / 2, a1 = a0 + seg - gap;
+      ctx.beginPath(); ctx.arc(x, y, r, a0, a1);
+      ctx.strokeStyle = 'rgba(11,16,22,0.8)'; ctx.lineWidth = w + 2; ctx.stroke();
+      const left = rd[i] - T, q = left > 0 ? within(1 - left / G.SILO_RELOAD, 0, 1) : 1;
+      if (q <= 0) continue;
+      ctx.beginPath(); ctx.arc(x, y, r, a0, a0 + (a1 - a0) * q);
+      ctx.strokeStyle = left > 0 ? '#ff7a5c' : '#f2f5f8'; ctx.lineWidth = w; ctx.stroke();
+    }
+    const fs = Math.round(Math.max(10, side * 0.3)), ty = y + r + fs * 0.75;
+    const txt = Math.ceil(wait / 10) + ' s';
+    ctx.font = '800 ' + fs + 'px ' + FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
+    ctx.lineWidth = Math.max(3, fs * 0.32); ctx.strokeStyle = '#0b1016'; ctx.strokeText(txt, x, ty);
+    ctx.fillStyle = '#ff9a80'; ctx.fillText(txt, x, ty);
+  }
 
   // The water a ship has crossed. A troop boat keeps its whole course in its owner's colour until it
   // lands (as in OpenFront); warships and merchants leave nothing behind.
@@ -13532,7 +13569,7 @@ void main() { outc = texture(uColor, vUV); }`;
     const L = g.lv.def, bar = $('nwBar'), u = ui();
     if (!bar) return;
     bar.hidden = false;
-    if (!framed && !$('ctrl').hidden) { framed = true; frame(); }
+    if (!framed && !$('ctrl').hidden) { framed = true; frame(L); }
     if (L.look) { try { L.look(u.view, g); } catch (e) { /* a scene's look only draws */ } }
     const i = G.NEUES.indexOf(L), prev = G.NEUES[i + 1], next = G.NEUES[i - 1];
     const html = '<div class="nwHead"><small>' + u.esc(L.date) + ' · ' + (i + 1) + ' von ' + G.NEUES.length + '</small><b>' + u.esc(L.title) + '</b></div>' +
@@ -13545,7 +13582,7 @@ void main() { outc = texture(uColor, vUV); }`;
   }
   // The whole little map in the part of the screen the panels leave free: to the right of the
   // bottom column on a wide screen, above it on a phone. Once, when the scene appears.
-  function frame() {
+  function frame(L) {
     const v = ui().view, m = v && v.map, app = $('app').getBoundingClientRect(), b = $('bottom').getBoundingClientRect();
     if (!m) return;
     const top = 58, hot = $('hotbar'), hb = hot && !hot.hidden && hot.offsetWidth ? app.bottom - hot.getBoundingClientRect().top + 8 : 8;
@@ -13556,6 +13593,16 @@ void main() { outc = texture(uColor, vUV); }`;
     let best = null, bz = 0;
     for (const r of rects) { if (r.w < 120 || r.h < 120) continue; const z = Math.min(r.w / m.W, r.h / m.H); if (z > bz) { bz = z; best = r; } }
     if (!best) { v.fit(false); return; }
+    // a scene that shows something small (a ring at a building) looks closer: cam [x, y, zoom]
+    // puts that tile in the middle of the free part at that zoom
+    if (L && L.cam) {
+      const c = v.cam;
+      c.z = L.cam[2]; v.fly = null;
+      c.x = L.cam[0] - (best.x + best.w / 2 - v.cw / 2) / c.z;
+      c.y = L.cam[1] - (best.y + best.h / 2 - v.ch / 2) / c.z;
+      v.clampCam();
+      return;
+    }
     const c = v.cam;
     c.z = bz * 0.96; v.fly = null;
     c.x = m.W / 2 - (best.x + best.w / 2 - v.cw / 2) / c.z;

@@ -1159,8 +1159,35 @@
         ctx.beginPath(); ctx.arc(x, y, side * 0.5 + 2, -1.5708, -1.5708 + 6.2832 * q);
         ctx.strokeStyle = '#f4b740'; ctx.lineWidth = 2; ctx.stroke();
       } else if (u.level > 1) levelTag(ctx, u.level, x, y, side);
+      if (u.built && u.type === UT.SILO && u.owner === h && u.ready) reloadRing(ctx, u, x, y, side, T);
     }
   };
+  // An own missile silo that has fired (25.11.2026): how long until it can fire again. Unlike the
+  // amber arc of a building under way, this is a dark track with one segment per slot (a silo of
+  // level 3 has three); a slot that is reloading fills in coral, clockwise, a loaded one is white;
+  // under the sign the seconds until the next slot is loaded. Nothing shows while all are loaded.
+  function reloadRing(ctx, u, x, y, side, T) {
+    const rd = u.ready, n = rd.length;
+    let wait = Infinity;
+    for (let i = 0; i < n; i++) if (rd[i] > T && rd[i] - T < wait) wait = rd[i] - T;
+    if (wait === Infinity) return;
+    const r = side * 0.5 + 4, gap = n > 1 ? 0.22 : 0, seg = 6.2832 / n, w = Math.max(3, side * 0.1);
+    ctx.lineCap = 'butt';
+    for (let i = 0; i < n; i++) {
+      const a0 = -1.5708 + i * seg + gap / 2, a1 = a0 + seg - gap;
+      ctx.beginPath(); ctx.arc(x, y, r, a0, a1);
+      ctx.strokeStyle = 'rgba(11,16,22,0.8)'; ctx.lineWidth = w + 2; ctx.stroke();
+      const left = rd[i] - T, q = left > 0 ? within(1 - left / G.SILO_RELOAD, 0, 1) : 1;
+      if (q <= 0) continue;
+      ctx.beginPath(); ctx.arc(x, y, r, a0, a0 + (a1 - a0) * q);
+      ctx.strokeStyle = left > 0 ? '#ff7a5c' : '#f2f5f8'; ctx.lineWidth = w; ctx.stroke();
+    }
+    const fs = Math.round(Math.max(10, side * 0.3)), ty = y + r + fs * 0.75;
+    const txt = Math.ceil(wait / 10) + ' s';
+    ctx.font = '800 ' + fs + 'px ' + FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
+    ctx.lineWidth = Math.max(3, fs * 0.32); ctx.strokeStyle = '#0b1016'; ctx.strokeText(txt, x, ty);
+    ctx.fillStyle = '#ff9a80'; ctx.fillText(txt, x, ty);
+  }
 
   // The water a ship has crossed. A troop boat keeps its whole course in its owner's colour until it
   // lands (as in OpenFront); warships and merchants leave nothing behind.

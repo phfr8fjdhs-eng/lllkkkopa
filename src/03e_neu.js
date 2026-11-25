@@ -30,6 +30,16 @@
 
   G.NEUES = [
     {
+      n: 118, date: '25.11.2026', title: 'Silo zeigt das Nachladen',
+      text: 'Hat dein Raketensilo eine Bombe abgefeuert, zeigt ein Ring, wie weit es nachgeladen hat, und darunter die Sekunden bis zum nächsten Schuss. Ein Silo auf Stufe 2 hat zwei Teile im Ring, einen pro Schuss. Anders als beim Bauen (dünner goldener Bogen) ist der Ring dunkel mit rotem Fortschritt.',
+      map: { w: 320, h: 200, seed: 918, shapes: [circ(80, 100, 60), circ(235, 100, 72)] },
+      me: { x: 80, y: 100, r: 64, troops: 60000, gold: 0, build: [[UT.SILO, 95, 125, 2]] },
+      cam: [110, 115, 7],
+      foes: [{ name: 'Torvik', x: 235, y: 100, r: 76, troops: 200000 }],
+      allow: ALL, quest: none,
+      loop: [6, 14, function (Q, k) { Q.fire(Q.me, UT.ATOM, 215 + (k % 3) * 18, 80 + (k % 2) * 40); }]
+    },
+    {
       n: 117, date: '25.11.2026', title: 'Alle Reichweiten auf einen Blick',
       text: 'Zeigst du mit der Maus auf eine Flugabwehr, tippst sie an oder wählst sie zum Bauen, siehst du die Reichweite aller deiner Flugabwehren, so erkennst du Lücken. Bei Fabriken und Häfen (wie weit ihre Handelsschiffe fahren) genauso, jede Art für sich. Schliesst du die Karte mit dem Kreuz, bleiben die Kreise stehen. Ganz herausgezoomt bleiben sie weg.',
       map: { w: 300, h: 200, seed: 916, shapes: [circ(150, 100, 95), rect(40, 30, 260, 170)] },
