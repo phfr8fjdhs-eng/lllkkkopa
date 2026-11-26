@@ -11,6 +11,7 @@ Ein eigener Bereich neben dem normalen Spiel und den Levels. Auf dem Startbildsc
 ## Die Szenen (Stand 26.11.2026)
 | Nr. | Datum | Name | Was passiert |
 | --- | --- | --- | --- |
+| 133 | 26.11. | Langes Spiel: Marine | Eigenes U-Boot versenkt Zerstörer der Südküste und zeigt sich dabei, Seeminen vor dem Hafen versenken anlaufende Boote, der Flugzeugträger schickt Bomber |
 | 132 | 26.11. | Langes Spiel: Tarnbomber | Alle 40 s ein Tarnbomber mit Atombombe über eine Reihe von Flugabwehren hinweg auf die Stadt des Küstenreichs |
 | 131 | 26.11. | Langes Spiel: Luftwaffe | Eigener Flugplatz schickt reihum Bomber und Aufklärer; Varnholms Marschflugkörper holen die Abfangjäger herunter |
 | 130 | 26.11. | Langes Spiel: Forschung | Zwei Städte bekommen eine Uni und forschen Blitzkrieg und Marschflugkörper; Tipp zeigt auf den Knopf «Forschung» |

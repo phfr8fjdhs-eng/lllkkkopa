@@ -472,8 +472,9 @@
         const t = Q.tile(x, y);
         if (g.map.land[t]) return null;
         const u = g.newUnit(UT.WARSHIP, p, t);
-        u.cls = cls ? 1 : 0;
+        u.cls = cls === true ? 1 : cls | 0;   // «Langes Spiel» also 2 submarine, 3 carrier
         u.hp = G.SHIP_CLASS ? G.SHIP_CLASS[u.cls].hp : 1000; u.patrol = t; u.shotAt = 0; u.target = null; u.path = null; u.pi = 0; u.wait = false;
+        if (g.lang) g.langShip(u);
         g.addUnit(u);
         return u;
       },

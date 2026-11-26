@@ -9,6 +9,7 @@ const G = globalThis.G, UT = G.UT;
 const count = (g, type, p) => g.units.filter((u) => u.active && u.type === type && (!p || u.owner === p)).length;
 // what has to be seen in each scene, asked every second; seen once is enough
 const SEEN = {
+  133: (g, s) => (s.sub = s.sub || g.units.some((u) => u.active && u.type === UT.WARSHIP && u.cls === 2 && u.shown > g.ticks)) && (s.air = s.air || g.units.some((u) => u.active && u.type === UT.BOMBER)) && g.human.cnt[UT.MINE] < 7 && g.units.some((u) => u.active && u.type === UT.WARSHIP && u.cls === 3),
   132: (g) => g.units.some((u) => u.active && u.type === UT.STEALTH) && g.ticks > 300,
   131: (g) => (g.human.recon || []).length > 0 && g.units.some((u) => u.active && (u.type === UT.FIGHTER || u.type === UT.BOMBER)),
   130: (g) => g.human.units.filter((u) => u.uni && u.res && u.res.pts > 0).length === 2,

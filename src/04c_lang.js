@@ -510,7 +510,20 @@
     T_('luft3', 'Luftwaffe', 3, 'Luftbetankung', 'Flugplätze reichen 1.5-mal so weit', ['luft2']),
     T_('luftbr', 'Luftwaffe', 3, 'Luftbrücke', 'Ein Kessel in Reichweite eines eigenen Flugplatzes hungert nicht', ['luft1']),
     T_('luft4', 'Luftwaffe', 4, 'Bomber', 'Bomber werfen Streubomben auf die Front', ['luft2']),
-    T_('luft5', 'Luftwaffe', 5, 'Tarnbomber', 'Tarnbomber mit Atombombe (mit Wasserstoffbombe, wenn erforscht), kaum zu erfassen', ['luft4', 'atom'])
+    T_('luft5', 'Luftwaffe', 5, 'Tarnbomber', 'Tarnbomber mit Atombombe (mit Wasserstoffbombe, wenn erforscht), kaum zu erfassen', ['luft4', 'atom']),
+    // Paket 6: the navy (destroyer, battleship and submarine lines, mines, the carrier)
+    T_('mar2', 'Marine', 2, 'Schnelle Zerstörer', 'Zerstörer fahren 1.25-mal so schnell'),
+    T_('sonar', 'Marine', 3, 'Sonar', 'Zerstörer finden U-Boote und Seeminen in ihrer Nähe', ['mar2']),
+    T_('mar4', 'Marine', 4, 'Flugabwehr an Bord', 'Zerstörer schiessen Bomber und Marschflugkörper in der Nähe ab', ['sonar']),
+    T_('bs2', 'Marine', 2, 'Panzerung', 'Schlachtschiffe halten 1.3-mal so viel aus'),
+    T_('bs3', 'Marine', 3, 'Weitreichende Geschütze', 'Schlachtschiffe schiessen 1.3-mal so weit', ['bs2']),
+    T_('bs4', 'Marine', 4, 'Schwere Granaten', 'Schlachtschiffe treffen 1.3-mal so hart', ['bs3']),
+    T_('ub1', 'Marine', 1, 'U-Boot', 'U-Boote bauen: unsichtbar, bis sie feuern oder ein Sonar sie findet'),
+    T_('mine', 'Marine', 2, 'Seeminen', 'Seeminen legen: unsichtbar, versenken Boote und Handelsschiffe, beschädigen Kriegsschiffe', ['ub1']),
+    T_('ub2', 'Marine', 3, 'Leise U-Boote', 'Sonar findet deine U-Boote erst auf 60 % der Entfernung', ['ub1']),
+    T_('ub4', 'Marine', 4, 'Stärkere Torpedos', 'U-Boote treffen 1.5-mal so hart', ['ub2']),
+    T_('traeger', 'Marine', 4, 'Flugzeugträger', 'Flugzeugträger: ein Flugplatz auf See', ['luft1', 'mar2']),
+    T_('geleit', 'Marine', 5, 'Geleitschutz', 'Zu jedem Flugzeugträger fährt ein Zerstörer mit', ['traeger'])
   ];
   const TECH = G.TECH_BY = {};
   for (const t of G.TECH) TECH[t.id] = t;
@@ -618,7 +631,7 @@
       case UT.CRUISE: return 'rak1'; case UT.CLUSTER: return 'rak2'; case UT.BUNKER: return 'rak3a'; case UT.THERMO: return 'rak3b';
       case UT.SRBM: return 'rak4'; case UT.ATOM: return 'atom'; case UT.HYDRO: return 'hydro'; case UT.MIRV: return 'mirv';
       case UT.SAM: return cls === 2 ? 'auf1' : 'abw1';
-      case UT.BOMBER: return 'luft4'; case UT.STEALTH: return 'luft5'; case UT.RECON: return 'reco';
+      case UT.BOMBER: return 'luft4'; case UT.STEALTH: return 'luft5'; case UT.RECON: return 'reco'; case UT.MINE: return 'mine';
     }
     return '';
   };
@@ -630,15 +643,17 @@
   //   stealth  carries an atom bomb (a hydrogen bomb with that research), hard to pick up
   //   recon    shows reconR tiles around its target for reconTicks (research Aufklärungsflugzeug)
   //   fighter  starts by itself against enemy bombers and cruise missiles in reach (Abfangjäger)
+  // An airfield, or a carrier at sea (Paket 6), that can send planes.
+  G.isField = function (u) { return u.active && ((u.type === UT.SILO && u.cls === 1 && u.built) || (u.type === UT.WARSHIP && u.cls === 3 && !!u.ready)); };
   Game.prototype.airRange = function (u) {
-    return G.LANG.airR / 5600 * Math.max(this.W, G.LANG.rangeW) * (1 + 0.05 * (u.level - 1)) * (this.has(u.owner, 'luft3') ? 1.5 : 1);
+    return (u.type === UT.WARSHIP ? 0.6 : 1) * G.LANG.airR / 5600 * Math.max(this.W, G.LANG.rangeW) * (1 + 0.05 * (u.level - 1)) * (this.has(u.owner, 'luft3') ? 1.5 : 1);
   };
   Game.prototype.planeReach = function (u, type) { return this.airRange(u) * (type === UT.STEALTH ? 2 : 1); };
   Game.prototype.planeCheck = function (p, type, tile, pick, res) {
     const W = this.W, tx = tile % W, ty = (tile / W) | 0, T = this.ticks;
     let best = null, bd = Infinity, any = false, far = false;
     for (const u of p.units) {
-      if (u.type !== UT.SILO || u.cls !== 1 || !u.built) continue;
+      if (!G.isField(u)) continue;
       any = true;
       let free = false;
       for (let i = 0; i < u.ready.length; i++) if (u.ready[i] <= T) free = true;
@@ -731,14 +746,100 @@
   // Research Luftbrücke: a cell within reach of an own airfield.
   Game.prototype.airlift = function (p, id) {
     const CS = G.POST.cell, CW = this.CW, x = (id % CW + 0.5) * CS, y = (Math.floor(id / CW) + 0.5) * CS;
-    for (const u of p.units) if (u.type === UT.SILO && u.cls === 1 && u.built) { const r = this.airRange(u); if ((u.x - x) * (u.x - x) + (u.y - y) * (u.y - y) <= r * r) return true; }
+    for (const u of p.units) if (G.isField(u)) { const r = this.airRange(u); if ((u.x - x) * (u.x - x) + (u.y - y) * (u.y - y) <= r * r) return true; }
     return false;
   };
   // Research Warthog: an attack is stronger within reach of an own airfield.
   Game.prototype.airCover = function (p, tile) {
     const W = this.W, x = tile % W, y = (tile - x) / W;
-    for (const u of p.units) if (u.type === UT.SILO && u.cls === 1 && u.built) { const r = this.airRange(u); if ((u.x - x) * (u.x - x) + (u.y - y) * (u.y - y) <= r * r) return true; }
+    for (const u of p.units) if (G.isField(u)) { const r = this.airRange(u); if ((u.x - x) * (u.x - x) + (u.y - y) * (u.y - y) <= r * r) return true; }
     return false;
+  };
+
+  // ---------- Paket 6: the navy ----------
+  // Warships are heavier (shipHp) and dearer to keep (shipUpkeep); merchants pay tradeGold times
+  // as much. A submarine (class 2) cannot be targeted until it has fired (for subShow ticks) or an
+  // enemy destroyer with sonar is within sonarR of it. A carrier (class 3) sends planes like an
+  // airfield, with carrierSlots sorties. Sea mines lie unseen on the water.
+  Game.prototype.shipFull = function (u) {
+    const c = u.cls || 0, p = u.owner;
+    return G.SHIP_CLASS[c].hp * G.LANG.shipHp * (c === 1 && this.has(p, 'bs2') ? 1.3 : 1);
+  };
+  Game.prototype.shipSpeed = function (u) { return G.SHIP_CLASS[u.cls || 0].speed * (!u.cls && this.has(u.owner, 'mar2') ? 1.25 : 1); };
+  Game.prototype.langShip = function (u) {
+    u.hp = this.shipFull(u);
+    if (u.cls === 3) { u.ready = []; for (let i = 0; i < G.LANG.carrierSlots; i++) u.ready.push(0); }
+  };
+  // Research Geleitschutz: a destroyer sails with every new carrier and keeps to its waters.
+  Game.prototype.escort = function (p, carrier, c) {
+    const e = this.newUnit(UT.WARSHIP, p, c.port.water);
+    e.cls = 0; e.patrol = carrier.patrol; e.shotAt = 0; e.target = null; e.path = null; e.pi = 0; e.wait = false;
+    this.langShip(e);
+    this.addUnit(e);
+    this.sail(e, c.tile, false, 'order');
+  };
+  // Has player p a sonar destroyer within r of (x, y)? (Over p's own units, not seaNear: this is
+  // asked from inside loops over seaNear's shared list.)
+  Game.prototype.sonarNear = function (p, x, y, r) {
+    if (!p || !this.has(p, 'sonar')) return false;
+    const r2 = r * r;
+    for (const w of p.units) if (w.type === UT.WARSHIP && !w.cls && (w.x - x) * (w.x - x) + (w.y - y) * (w.y - y) <= r2) return true;
+    return false;
+  };
+  Game.prototype.subSeen = function (v, p) {
+    if (!this.lang || v.cls !== 2 || !p || p === v.owner || this.friendly(p, v.owner) || v.shown > this.ticks) return true;
+    return this.sonarNear(p, v.x, v.y, G.LANG.sonarR * this.S * this.reach * (this.has(v.owner, 'ub2') ? G.LANG.subQuiet : 1));
+  };
+  Game.prototype.mineSeen = function (v, p) {
+    return !p || p === v.owner || this.friendly(p, v.owner) || this.sonarNear(p, v.x, v.y, G.LANG.mineClear * this.S);
+  };
+  // Why p cannot lay a mine at tile ('' if it can): open water, an own port on it in reach.
+  Game.prototype.mineWhy = function (p, tile, res) {
+    const map = this.map, W = this.W, L = G.LANG;
+    res.cost = p.type === PT.HUMAN && this.opts.infiniteGold ? 0 : L.mineCost;
+    if (p.type === PT.HUMAN && !this.has(p, 'mine')) return 'Braucht Forschung: Seeminen';
+    if (map.land[tile]) return 'Tippe dafür auf Wasser';
+    if ((p.cnt[UT.MINE] | 0) >= L.mineMax) return 'Höchstens ' + L.mineMax + ' Seeminen';
+    const x = tile % W, y = (tile / W) | 0, r = L.mineR * this.S * this.reach;
+    for (const u of p.units) if (u.type === UT.PORT && u.built && map.wcomp[u.water] === map.wcomp[tile] && (u.x - x) * (u.x - x) + (u.y - y) * (u.y - y) <= r * r) return '';
+    return 'Kein eigener Hafen in der Nähe';
+  };
+  // A mine looks every 3 ticks: an enemy ship on top of it sets it off; an enemy destroyer with
+  // sonar close by clears it.
+  Game.prototype.tickMine = function (u) {
+    if ((this.ticks + u.id) % 3) return;
+    const L = G.LANG, p = u.owner, hit = Math.max(2, L.mineHit * this.S), clr = L.mineClear * this.S, h = this.human;
+    for (const v of this.seaNear(u.x, u.y, Math.max(hit, clr))) {
+      if (!v.active || v.owner === p || this.friendly(v.owner, p)) continue;
+      const d2 = (v.x - u.x) * (v.x - u.x) + (v.y - u.y) * (v.y - u.y);
+      if (v.type === UT.WARSHIP && !v.cls && d2 <= clr * clr && this.has(v.owner, 'sonar')) {
+        this.removeUnit(u);
+        if (v.owner === h) this.say('Seemine von ' + p.name + ' geräumt', 'good');
+        return;
+      }
+      if (d2 > hit * hit) continue;
+      this.fx.push({ k: 'shipboom', x: v.x, y: v.y, a: v.ang || 0 });
+      if (v.type === UT.WARSHIP) { v.hp -= L.mineDmg; if (v.hp <= 0) this.removeUnit(v); }
+      else this.removeUnit(v);
+      if (v.owner === h) this.say('Dein Schiff ist auf eine Seemine von ' + p.name + ' gelaufen', 'bad');
+      else if (p === h) this.say('Schiff von ' + v.owner.name + ' auf deine Seemine gelaufen', 'good');
+      this.removeUnit(u);
+      return;
+    }
+  };
+  // Research Flugabwehr an Bord: a destroyer shoots a bomber or cruise missile in its gun range.
+  Game.prototype.shipFlak = function (u) {
+    if (!this.nukes.length || (this.ticks + u.id) % 10 || !this.has(u.owner, 'mar4')) return;
+    const r = G.SHIP_CLASS[0].range * this.S * this.reach, r2 = r * r;
+    for (const n of this.nukes) {
+      if (!n.active || n.sam || (n.type !== UT.BOMBER && n.type !== UT.CRUISE && !G.lowFly(n.type))) continue;
+      if (n.owner === u.owner || this.friendly(n.owner, u.owner)) continue;
+      if ((n.x - u.x) * (n.x - u.x) + (n.y - u.y) * (n.y - u.y) > r2) continue;
+      this.fx.push({ k: 'pop', x: n.x, y: n.y, air: 0 });
+      if (n.owner === this.human) this.say('Dein ' + G.UNAME[n.type].replace('\u00AD', '') + ' wurde über dem Meer abgeschossen', 'warn');
+      this.removeUnit(n);
+      return;
+    }
   };
 
   // ---------- digging in and defence posts ----------

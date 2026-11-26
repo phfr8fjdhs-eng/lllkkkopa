@@ -45,6 +45,19 @@ check('Atombombe teurer', b.cost(pb, G.UT.ATOM) === a.cost(a.players[1], G.UT.AT
 const rs = [G.UT.SRBM, G.UT.CRUISE, G.UT.ATOM, G.UT.HYDRO, G.UT.MIRV].map((t) => b.weaponReach(t));
 check('Reichweiten steigen', rs[0] < rs[1] && rs[1] < rs[2] && rs[2] < rs[3] && rs[4] === Infinity, rs.slice(0, 4).map((r) => Math.round(r)).join(' / ') + ' Felder, MIRV ganze Welt');
 check('kleine Flugabwehr gegen die neuen Waffen', b.samCan({ cls: 0 }, G.UT.SRBM) && b.samCan({ cls: 0 }, G.UT.CLUSTER) && !b.samCan({ cls: 1 }, G.UT.SRBM));
+// Paket 6: the navy
+{
+  const UT = G.UT, foe = { id: 77, tech: {} }, me = { id: 78, tech: { sonar: 1 }, units: [] };
+  const sub = { cls: 2, owner: foe, x: 100, y: 100, shown: 0 };
+  b.friendly = (() => { const f = b.friendly; return function (p, q) { return p.allies ? f.call(this, p, q) : false; }; })();
+  check('U-Boot unsichtbar ohne Sonar', !b.subSeen(sub, { id: 79, tech: {}, units: [] }));
+  me.units.push({ type: UT.WARSHIP, cls: 0, x: 105, y: 100 });
+  check('Zerstörer mit Sonar findet es', b.subSeen(sub, me));
+  sub.shown = b.ticks + 10;
+  check('wer feuert, zeigt sich', b.subSeen(sub, { id: 79, tech: {}, units: [] }));
+  check('Kriegsschiffe schwerer', b.shipFull({ cls: 1, owner: me }) === G.SHIP_CLASS[1].hp * G.LANG.shipHp);
+  check('Seemine nur mit Hafen in der Nähe', b.mineWhy(pb, 0, {}) !== '', b.mineWhy(pb, 0, {}));
+}
 // on the Earth (a side scale S of 1): a ship over the Atlantic (about 80 tiles a minute today)
 console.log('Erde: Schiff ' + (1 * W) + ' Felder pro Tick, Atombombe ' + (6 * A).toFixed(1) + ' (heute 1 und 6)');
 if (bad) { console.log(bad + ' Fehler'); process.exit(1); }

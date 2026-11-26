@@ -42,6 +42,23 @@
 
   G.NEUES = [
     {
+      n: 133, date: '26.11.2026', title: 'Langes Spiel: Marine', lang: true,
+      text: 'Das U-Boot ist unsichtbar, bis es feuert, und versenkt Kriegs- und Handelsschiffe; finden kann es nur ein Zerstörer mit Sonar. Seeminen liegen unsichtbar vor dem eigenen Hafen und versenken Boote. Der Flugzeugträger ist ein Flugplatz auf See. Kriegsschiffe halten mehr aus und kosten mehr Unterhalt, Handelsschiffe bringen mehr Gold.',
+      map: STRAIT,
+      me: { x: 150, y: 20, box: [0, 0, 300, 46], troops: 60000, gold: 3000000, build: [[UT.PORT, 150, 44, 2]] },
+      foes: [{ name: 'Südküste', x: 150, y: 180, box: [0, 154, 300, 200], troops: 90000, build: [[UT.PORT, 150, 156, 2], [UT.CITY, 120, 180, 4]] }],
+      allow: ALL, quest: none,
+      events: [[0, function (Q) {
+        Q.ship(Q.me, 118, 118, 2); Q.ship(Q.me, 150, 105, 3);
+        Q.ship(Q.foe[0], 120, 128); Q.ship(Q.foe[0], 180, 128);
+        for (let x = 138; x <= 162; x += 4) { const t = Q.tile(x, 58); Q.me.gold += G.LANG.mineCost; Q.g.build(Q.me, UT.MINE, t); }
+      }]],
+      loop: [2, 8, function (Q, k) {
+        if (k % 2 === 0) Q.boat(Q.foe[0], 150, 25, 6000);
+        else Q.fire(Q.me, UT.BOMBER, 150, 168);
+      }]
+    },
+    {
       n: 132, date: '26.11.2026', title: 'Langes Spiel: Tarnbomber', lang: true,
       text: 'Der Tarnbomber trägt eine Atombombe und kommt durch Mauern aus Flugabwehr: Eine Flugabwehr sieht ihn nur in einem Viertel ihrer Reichweite, muss ihn dort 3 Sekunden halten und braucht dafür die Forschung «Gegen Tarnbomber»; er hält zwei Treffer aus. Nach dem Abwurf fliegt er zurück. Nur ein Radar mit «Tarnung erkennen» zeigt ihn.',
       map: { w: 380, h: 200, seed: 932, shapes: [circ(70, 100, 60), circ(290, 100, 80)] },

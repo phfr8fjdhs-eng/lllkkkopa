@@ -222,3 +222,34 @@ Code: Abschnitt «the air force» in `src/04c_lang.js` (`planeCheck`, `launchPla
 - **Warthog** (Heer 3) gilt jetzt im Umkreis eines eigenen Flugplatzes: Angriffe dort verlieren 15 % weniger.
 - Forschung Luftwaffe: 1 Flugplatz, 2 Abfangjäger, 3 Luftbetankung und Luftbrücke, 4 Bomber, 5 Tarnbomber (braucht die Atombombe). Dazu Aufklärung 2 Aufklärungsflugzeug und Abwehr 5 «Gegen Tarnbomber».
 - Szenen 131 (Luftwaffe) und 132 (Tarnbomber).
+
+## Paket 6: Marine (26.11.2026)
+Code: Abschnitt «the navy» in `src/04c_lang.js` (`shipFull`, `shipSpeed`, `langShip`, `subSeen`, `sonarNear`, `mineWhy`, `tickMine`, `shipFlak`, `escort`), Schiffsklassen in `G.SHIP_CLASS` (`src/04_units.js`), Zeichnen `war2`, `war3`, `drawMine`, `subShown` in `src/06_view.js`. Zahlen in `G.LANG` (`shipHp`, `shipUpkeep`, `tradeGold`, `sonarR`, `subShow`, `subQuiet`, `mine*`, `carrierSlots`).
+
+- **Schwerere Schiffe:** Kriegsschiffe halten im Modus 1.5-mal so viel aus und kosten 1.5-mal so viel Unterhalt; langsamer sind sie schon seit Paket 1a (halbes Tempo auf See).
+- **Mehr Gold zur See:** Handelsschiffe bringen 1.5-mal so viel (`tradeGold`). Das gleicht die halbe Reichweite der Häfen aus Paket 1a aus (nicht gemessen).
+- **Klare Rollen:** Der Zerstörer jagt Boote und, mit Sonar, U-Boote und Minen. Das Schlachtschiff versenkt Kriegsschiffe und beschiesst die Küste. Das U-Boot versenkt Kriegs- und Handelsschiffe. Der Flugzeugträger trägt die Luftwaffe übers Meer.
+- **U-Boot** (Schiffsklasse 2, auf der Seite 7.2, ohne Taste, Preis × 2, Forschung «U-Boot»):
+  - Auf andere Spieler wirkt es unsichtbar: Kein Schiff zielt darauf, und die Karte zeigt es nicht.
+  - Feuert es einen Torpedo, sehen es alle für 30 s (`subShow`).
+  - Sonst findet es nur ein feindlicher Zerstörer mit der Forschung «Sonar» in 60 Feldern der Erde (`sonarR`, mal Reichweite des Modus); mit «Leise U-Boote» erst in 60 % davon.
+  - Ein Torpedo versenkt ein Handelsschiff samt Ladung.
+- **Seeminen** (auf der Seite 7.9, 150K, Forschung «Seeminen», höchstens 30):
+  - Man legt sie auf Wasser in 120 Feldern um einen eigenen Hafen am selben Gewässer.
+  - Andere sehen sie nicht.
+  - Fährt ein feindliches Schiff auf eine Mine, versenkt sie Boote und Handelsschiffe und nimmt Kriegsschiffen 1500 Punkte; dabei geht die Mine hoch.
+  - Ein feindlicher Zerstörer mit Sonar räumt sie aus 25 Feldern.
+  - So lassen sich Häfen und Meerengen sperren.
+- **Flugzeugträger** (Schiffsklasse 3, auf der Seite 7.7, Preis × 5, Forschung «Flugzeugträger»):
+  - Er ist ein Flugplatz auf See: Bomber, Tarnbomber und Aufklärer starten von ihm, Abfangjäger von selbst.
+  - Er hat 2 Startplätze und 0.6 der Reichweite eines Flugplatzes.
+  - Er hat keine eigenen Geschütze.
+  - Er zählt für Luftbrücke und Warthog wie ein Flugplatz.
+  - Mit «Geleitschutz» fährt zu jedem neuen Träger ein Zerstörer mit.
+- **Forschung Marine:**
+  - Zerstörer: 2 Schnelle Zerstörer (× 1.25), 3 Sonar, 4 Flugabwehr an Bord (schiesst Bomber und Marschflugkörper in Geschützweite ab).
+  - Schlachtschiff: 2 Panzerung (× 1.3), 3 Weitreichende Geschütze (× 1.3), 4 Schwere Granaten (× 1.3).
+  - U-Boot: 1 U-Boot, 2 Seeminen, 3 Leise U-Boote, 4 Stärkere Torpedos (× 1.5).
+  - 4 Flugzeugträger (braucht Flugplatz und Schnelle Zerstörer), 5 Geleitschutz.
+- **Noch nicht gebaut** (aus deiner Liste): U-Boot mit Marschflugkörpern, strategisches U-Boot mit Langstreckenraketen (Zweitschlag), Abwehr- und Radarschiff, Küstenbeschuss, Marineinfanterie. Nationen bauen noch keine U-Boote, Träger und Minen; sie bekommen aber die Forschung, ihre Zerstörer finden also mit Sonar U-Boote.
+- Szene 133 (Marine).

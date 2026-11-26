@@ -46,6 +46,7 @@ for (let i = 0; i < 4000; i++) {
       both(id, { k: 'strike', t: goal, r: 0.6, w: w });
       if (w) thrusts++;
     }
+    else if (kind < 8 && LANG && rnd(3) === 0) { let w = rnd(map.N); for (let k = 0; k < 50 && map.land[w]; k++) w = rnd(map.N); both(id, rnd(4) ? { k: 'build', u: UT.WARSHIP, t: w, cls: rnd(4) } : { k: 'build', u: UT.MINE, t: w }); }
     else if (kind < 8) both(id, { k: 'build', u: [UT.CITY, UT.SILO, UT.SAM, UT.FACTORY, UT.DEFENSE, UT.PORT, UT.CLOAK][rnd(ARS ? 7 : 6)], t: t0, cls: LANG ? rnd(2) : 0 });
     else if (kind < 9) both(id, { k: 'up', t: t0 });
     else { const foe = a.players[3 - id]; if (foe.alive && a.immuneUntil <= a.ticks) { const ft = Array.from(foe.border)[0]; both(id, LANG ? { k: 'build', u: [UT.CRUISE, UT.ATOM, UT.CLUSTER, UT.BUNKER, UT.THERMO, UT.SRBM, UT.BOMBER, UT.STEALTH, UT.RECON][rnd(9)], t: ft } : { k: 'build', u: rnd(2) ? UT.CRUISE : UT.ATOM, t: ft }); cruise++; } }
@@ -54,5 +55,5 @@ for (let i = 0; i < 4000; i++) {
 }
 let same = true;
 for (let t = 0; t < map.N; t++) if (a.owner[t] !== b.owner[t] || a.fallout[t] !== b.fallout[t]) { same = false; break; }
-console.log(KAMPF || (ARS ? 'arsenal' : LANG ? 'lang' : 'klassisch'), 'orders', orders, 'armed', a.units.filter((u) => u.active && u.arm).length, 'weapons in the air', a.nukes.filter((u) => u.active).length, 'airfields', a.units.filter((u) => u.active && u.type === UT.SILO && u.cls === 1).length, 'cloaking towers', a.units.filter((u) => u.active && u.type === UT.CLOAK).length, 'thrusts', thrusts, 'missiles ordered', cruise, 'tiles A/B', a.players[1].tiles, a.players[2].tiles, 'fallout', a.falloutCount, 'identical map:', same, 'checksum differences:', diff);
+console.log(KAMPF || (ARS ? 'arsenal' : LANG ? 'lang' : 'klassisch'), 'orders', orders, 'armed', a.units.filter((u) => u.active && u.arm).length, 'weapons in the air', a.nukes.filter((u) => u.active).length, 'airfields', a.units.filter((u) => u.active && u.type === UT.SILO && u.cls === 1).length, 'ships', a.units.filter((u) => u.active && u.type === UT.WARSHIP).length, 'mines', a.units.filter((u) => u.active && u.type === UT.MINE).length, 'cloaking towers', a.units.filter((u) => u.active && u.type === UT.CLOAK).length, 'thrusts', thrusts, 'missiles ordered', cruise, 'tiles A/B', a.players[1].tiles, a.players[2].tiles, 'fallout', a.falloutCount, 'identical map:', same, 'checksum differences:', diff);
 process.exit(same && !diff ? 0 : 1);

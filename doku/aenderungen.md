@@ -3,6 +3,10 @@ Was seit dem 13.11.2026 geändert wurde und warum. Den heutigen Stand der Regeln
 
 
 
+## Spielmodus «Langes Spiel», Paket 6: Marine (26.11.2026)
+- **Wunsch:** U-Boot, das man erst sieht, wenn es feuert; Sonar und Zerstörer dagegen; schwerere Kriegsschiffe mit klaren Rollen; mehr Gold aus dem Seehandel; Seeminen; Flugzeugträger; Forschungszweig Marine.
+- **Geändert (nur im Modus):** U-Boot (Schiffsklasse 2), Flugzeugträger (Klasse 3, ein Flugplatz auf See), Seeminen (`UT.MINE`), Sonar; Kriegsschiffe × 1.5 Punkte und Unterhalt, Handelsschiffe × 1.5 Gold; Forschungszweig Marine. Szene 133. Klassisches Spiel unverändert (Prüfsumme gleich).
+
 ## Spielmodus «Langes Spiel», Paket 5: Luftwaffe (26.11.2026)
 - **Wunsch:** Flugplatz mit Reichweite, Bomber auf die Front, Abfangjäger, Tarnbomber gegen Mauern aus Flugabwehr, ohne dass ihn eine Flugabwehr der Stufe 2 sofort abschiesst.
 - **Geändert (nur im Modus):** Flugplatz (Taste 9), Flugzeuge fliegen selbst hin und zurück; Bomber mit Streubombe, Tarnbomber mit Atom- oder Wasserstoffbombe (nur mit Forschung, Viertel der Reichweite, 3 s Erfassen, 2 Treffer), Aufklärungsflugzeug, Abfangjäger, Luftbrücke; Warthog im Umkreis eines Flugplatzes. Szenen 131, 132.

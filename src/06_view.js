@@ -28,6 +28,9 @@
     abm: 'M2.5 19.5h19V22h-19zM6.5 18V8.2L8.5 3l2 5.2V18zM13.5 18V8.2L15.5 3l2 5.2V18zM5 18l1.5-3.5V18zM12 18l1.5-3.5V18zM10.5 18v-3.5L12 18zM17.5 18v-3.5L19 18z',
     sam: 'M2.5 19.5h19V22h-19zM4.5 19L7 16.2L17.6 5.6L21.5 3.5L19.4 7.4L8.8 18zM6.2 13.4l3.2-.8l-2 2.2zM10.6 17.8l.8-3.2l1.4 2z',
     factory: 'M2.5 21V10l5.2 3.4V10l5.2 3.4V3.5h3.6V12h5v9zM5.2 15.5V18h2.4v-2.5zM10.4 15.5V18h2.4v-2.5zM15.6 15.5V18H18v-2.5z',
+    sub: 'M2 13.5c0-1.6 1.6-2.5 4-2.5h3l1-3h3l1 3h4c2.4 0 4 .9 4 2.5S20.4 16 18 16H6c-2.4 0-4-.9-4-2.5z',
+    carrier: 'M1 10h18l4 2.5L19 16H3zM14 6.5h3V10h-3z',
+    mine: 'M11 2h2v3.1a7 7 0 0 1 2.9 1.2l2.2-2.2l1.4 1.4l-2.2 2.2A7 7 0 0 1 18.9 11H22v2h-3.1a7 7 0 0 1-1.2 2.9l2.2 2.2l-1.4 1.4l-2.2-2.2a7 7 0 0 1-2.9 1.2V22h-2v-3.1a7 7 0 0 1-2.9-1.2l-2.2 2.2l-1.4-1.4l2.2-2.2A7 7 0 0 1 5.1 13H2v-2h3.1a7 7 0 0 1 1.2-2.9L4.1 5.9l1.4-1.4l2.2 2.2A7 7 0 0 1 11 5.1z',
     battleship: 'M1 12L4 8.6h13.5L23 12l-5.5 3.4H4zM15.4 10.4a1.6 1.6 0 1 0 0 3.2a1.6 1.6 0 1 0 0-3.2zM11.4 10.4a1.6 1.6 0 1 0 0 3.2a1.6 1.6 0 1 0 0-3.2zM5.8 10.6a1.4 1.4 0 1 0 0 2.8a1.4 1.4 0 1 0 0-2.8z',
     warship: 'M1 14.5h22l-3.2 5H4.6zM7.5 14.5v-3h2V8h3.5V5.5h1.6V8h1.4v3.5H18v3zM2.5 12.6h4.2v1.4H2.5zM19 12.2h3v1.3h-3z',
     boat: 'M3 14h18l-3 6H6zM11 3h1.6v10H11zM13.4 4l5.6 8h-5.6z',
@@ -1506,7 +1509,10 @@
     trade1: ['.kkkkkkkkk..', 'kwwoddoddok.', 'kwwoddoddook', 'kwwoddoddok.', '.kkkkkkkkk..'],
     trade2: ['.kkkkkkkkkkkkk..', 'kww0011223344ok.', 'kww3344001122ook', 'kww1122334400ok.', '.kkkkkkkkkkkkk..'],
     war0: ['.kkkkkkkkkk...', 'koooowwoooook.', 'kogGowwoGggook', 'koooowwoooook.', '.kkkkkkkkkk...'],
-    war1: ['.kkkkkkkkkkkkkkk....', 'koooooowwwoooooook..', 'kogGGowwwwwoGGgoook.', 'kggGGowwwwwoGGggoook', 'kogGGowwwwwoGGgoook.', 'koooooowwwoooooook..', '.kkkkkkkkkkkkkkk....']
+    war1: ['.kkkkkkkkkkkkkkk....', 'koooooowwwoooooook..', 'kogGGowwwwwoGGgoook.', 'kggGGowwwwwoGGggoook', 'kogGGowwwwwoGGgoook.', 'koooooowwwoooooook..', '.kkkkkkkkkkkkkkk....'],
+    // «Langes Spiel»: submarine (low, a dark tower), carrier (a long grey flight deck, the island to starboard)
+    war2: ['..kkkkkkkk...', '.kddddGGdddk.', 'kddddGGGddddk', '.kddddddddk..', '..kkkkkkkk...'],
+    war3: ['.kkkkkkkkkkkkkkkkkkk...', 'kooooooooooooooGGoook..', 'kogggggggggggggggggggok', 'kgwgggwgggwgggwggggggok', 'kogggggggggggggggggggok', 'kooooooooooooooooooook..', '.kkkkkkkkkkkkkkkkkkk...']
   };
   const HULLS = {};
   // how large each picture is drawn, against one picture pixel per OpenFront tile. Every ship the
@@ -1514,7 +1520,7 @@
   // than the destroyer, its pixels finer, and the large merchant the largest ship of all). The
   // order by length now: troop boat 6, merchants 11 / 12, destroyer 14, container ship 16 (long, but as slim
   // as the others), battleship 20.
-  const SCALE = { rkt: 1, boat: 0.8, trade0: 0.8, trade1: 0.8, trade2: 0.8, war0: 0.8, war1: 0.8 };
+  const SCALE = { rkt: 1, boat: 0.8, trade0: 0.8, trade1: 0.8, trade2: 0.8, war0: 0.8, war1: 0.8, war2: 0.8, war3: 0.8 };
   for (const k in ART) HULLS[k] = [ART[k][0].length * SCALE[k], ART[k].length * SCALE[k]];
   const BOXCOL = ['#e0793a', '#3d7fc4', '#c94a3f', '#4f9a5a', '#d8b23a'];
   function hullGrid(kind) { return ART[kind]; }
@@ -1568,7 +1574,7 @@
   function shipPx(zz) { return Math.max(1.4, Math.min(zz, ICON_PX * 0.9 * iconScaleAt(zz) / 11)) * SHIP_BOOST; }
   // where the forward gun sits, as a share of the length from the middle (war0, war1)
   const GUN_FORE = 0.26;
-  function warship(ctx, x, y, ang, s, p, aim, cls) { drawShip(ctx, cls === 1 ? 'war1' : 'war0', x, y, ang, s * 2 / HULLS[cls === 1 ? 'war1' : 'war0'][0], p); }
+  function warship(ctx, x, y, ang, s, p, aim, cls) { const k = 'war' + (cls || 0); drawShip(ctx, k, x, y, ang, s * 2 / HULLS[k][0], p); }
   function merchant(ctx, x, y, ang, s, p, captured, kind) {
     const k = 'trade' + (kind || 0);
     drawShip(ctx, k, x, y, ang, s * 2 / HULLS.trade0[0], p);
@@ -1579,7 +1585,22 @@
   // `zz` is the zoom in OpenFront's tiles: there a troop boat and a merchant are 5 tiles long, a
   // warship 11 (half-lengths here)
   // (the picture is HULLS[...][0] pixels long at shipPx(zz) pixels each)
-  function warSize(zz, cls) { return HULLS[cls === 1 ? 'war1' : 'war0'][0] * shipPx(zz) / 2; }
+  function warSize(zz, cls) { return HULLS['war' + (cls || 0)][0] * shipPx(zz) / 2; }
+  // «Langes Spiel»: is this submarine (or sea mine) seen at this screen? Kept for the tick (sonarNear runs over units).
+  function subShown(g, u) {
+    if (u.subT !== g.ticks) { u.subT = g.ticks; u.subV = u.type === UT.MINE ? g.mineSeen(u, g.human) : g.subSeen(u, g.human); }
+    return u.subV;
+  }
+  // A sea mine: a dark ball with spikes, the owner's colour in the middle.
+  function drawMine(ctx, x, y, z, p) {
+    const r = Math.max(2.5, Math.min(7, z * 1.6));
+    ctx.strokeStyle = '#0c1218'; ctx.lineWidth = Math.max(1, r * 0.35);
+    ctx.beginPath();
+    for (let k = 0; k < 4; k++) { const a = k * 0.7854; ctx.moveTo(x - Math.cos(a) * r * 1.6, y - Math.sin(a) * r * 1.6); ctx.lineTo(x + Math.cos(a) * r * 1.6, y + Math.sin(a) * r * 1.6); }
+    ctx.stroke();
+    ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832); ctx.fillStyle = '#1a232c'; ctx.fill();
+    ctx.beginPath(); ctx.arc(x, y, r * 0.45, 0, 6.2832); ctx.fillStyle = 'rgb(' + p.r + ',' + p.g + ',' + p.b + ')'; ctx.fill();
+  }
   function tradeSize(zz) { return HULLS.trade0[0] * shipPx(zz) / 2; }
   function boatSize(zz) { return HULLS.boat[0] * shipPx(zz) / 2; }
   // Where the muzzle of the gun that fires is on the screen, aiming at world point (tx, ty): the
@@ -1685,8 +1706,10 @@
     for (let i = 0; i < us.length; i++) {
       const u = us[i], ty = u.type;
       if (!u.active || ty <= UT.CLOAK) continue;
+      if (ty === UT.MINE) { if (subShown(g, u)) drawMine(ctx, (u.x + 0.5) * z + ox, (u.y + 0.5) * z + oy, z, u.owner); continue; }
       if (ty >= UT.ATOM) { if (!fogBomb(g, u)) this.drawMissile(ctx, g, u, z, ox, oy, alpha, now); continue; }
       if (FOG && fogHides(g, u)) continue;   // «Langes Spiel»: ships and the like in the fog
+      if (ty === UT.WARSHIP && u.cls === 2 && !subShown(g, u)) continue;   // a submarine nobody has found
       const sea = ty === UT.WARSHIP || ty === UT.TRANSPORT || ty === UT.TRADE;
       let x = ((sea ? u.vx : u.px + (u.x - u.px) * alpha) + 0.5) * z + ox, y = ((sea ? u.vy : u.py + (u.y - u.py) * alpha) + 0.5) * z + oy;
       if (x < -30 || y < -30 || x > cw + 30 || y > ch + 30) continue;
@@ -1726,7 +1749,7 @@
         continue;
       }
       if (ty === UT.WARSHIP) {
-        const s = warSize(zz, u.cls), tg = u.target && u.target.active && u.target.type !== UT.TRADE ? u.target : null, full = G.SHIP_CLASS[u.cls || 0].hp;
+        const s = warSize(zz, u.cls), tg = u.target && u.target.active && u.target.type !== UT.TRADE ? u.target : null, full = g.lang ? g.shipFull(u) : G.SHIP_CLASS[u.cls || 0].hp;
         warship(ctx, x, y, ang, s, p, tg ? Math.atan2(tg.y - u.y, tg.x - u.x) - ang : null, u.cls);
         if (u.id === this.shipSel) {
           // the ship you picked: a white ring; where it goes, a dashed line
