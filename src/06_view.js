@@ -10,6 +10,11 @@
     defense: 'M12 2l8.5 3.2v6.3c0 5.2-3.6 9-8.5 10.5c-4.9-1.5-8.5-5.3-8.5-10.5V5.2z',
     port: 'M12 1.4a3.1 3.1 0 1 1 0 6.2a3.1 3.1 0 1 1 0-6.2zM12 3.1a1.4 1.4 0 1 0 0 2.8a1.4 1.4 0 1 0 0-2.8zM10.7 7.4h2.6V20h-2.6zM7 9.2h10v2.4H7zM20.8 13A8.8 8.8 0 0 1 3.2 13H6A6 6 0 0 0 18 13zM1.6 14.6L4.4 9.6L7.6 13.8zM22.4 14.6L16.4 13.8L19.6 9.6z',
     silo: 'M12 1c2 1.6 3 4 3 6.8V17H9V7.8C9 5 10 2.6 12 1zM9 12.2l-3.2 3.4V20L9 18zM15 12.2l3.2 3.4V20L15 18zM10 18h4v2l-2 2.2l-2-2.2z',
+    // «Langes Spiel»: the air force
+    airfield: 'M2 20h20v2H2zM11 3h2v4l7 4v2l-7-2v5l2 1.5V19l-3-1l-3 1v-1.5l2-1.5v-5l-7 2v-2l7-4z',
+    bomber: 'M12 2l1.6 6.5L22 12v2l-8.4-2.2L13 18l2.5 2v1.5L12 20.5l-3.5 1V20l2.5-2l-.6-6.2L2 14v-2l8.4-3.5z',
+    stealth: 'M12 4l10 12l-4 1.5l-2-2l-2 2l-2-2l-2 2l-2-2l-2 2l-4-1.5z',
+    recon: 'M12 3l1.2 6L21 11v1.6l-7.8-1L12.6 17l2 1.4V20L12 19.2L9.4 20v-1.6l2-1.4l-.6-5.4L3 12.6V11l7.8-2z',
     // «Langes Spiel»: research
     flask: 'M9 2h6v2h-1v5.2l5.6 9.7A2 2 0 0 1 17.9 22H6.1a2 2 0 0 1-1.7-3.1L10 9.2V4H9zM8.2 15l-1.8 3.2V20h11.2v-1.8L15.8 15z',
     // «Langes Spiel»: the radar, a dish on a mast
@@ -63,6 +68,7 @@
   const STRUCT_ICON = ['city', 'defense', 'port', 'silo', 'sam', 'factory', 'cloak'];
   STRUCT_ICON[4.5] = 'abm';   // missile defence, air defence class 1 (src/07_ui.js, ABM)
   STRUCT_ICON[4.7] = 'radar'; // radar, air defence class 2
+  STRUCT_ICON[3.5] = 'airfield'; // airfield, silo class 1
   // The sign of a kind of building, the same at every level (the level is a number above it)
   function signOf(type) { return STRUCT_ICON[type]; }
   // Is building u hidden from the player at this screen? Asked every frame, so kept for the tick.
@@ -92,7 +98,10 @@
   // A bomb in the fog: unseen, unless it is bound for you and lands within ten seconds.
   function fogBomb(g, u) {
     const h = g.human;
-    if (!g.lang || !FOG || !h || u.owner === h || g.friendly(u.owner, h)) return false;
+    if (!g.lang || !h || u.owner === h || g.friendly(u.owner, h)) return false;
+    // a stealth bomber shows only inside an own radar with the research «Tarnung erkennen»
+    if (u.type === UT.STEALTH) { if (!g.has(h, 'auf3')) return true; for (const r of h.units) if (r.type === UT.SAM && r.cls === 2 && r.built) { const R = g.radarRange(r); if ((r.x - u.x) * (r.x - u.x) + (r.y - u.y) * (r.y - u.y) <= R * R) return false; } return true; }
+    if (!FOG) return false;
     if (fogSeen(g, Math.round(u.y) * g.W + Math.round(u.x))) return false;
     if (g.has(h, 'auf5')) return false;   // research Satellit: every launch on the world is seen
     if (g.has(h, 'auf4')) for (const r of h.units) if (r.type === UT.SAM && r.cls === 2 && r.built) { const R3 = 3 * g.radarRange(r); if ((r.x - u.x) * (r.x - u.x) + (r.y - u.y) * (r.y - u.y) <= R3 * R3) return false; }   // early warning radar
@@ -114,7 +123,7 @@
     if (!g || !g.lang || !h || !h.post || !g.CW) { FOG = null; return; }
     if (now - (this.fogAt || 0) < 1000) return;
     this.fogAt = now;
-    let sig = h.lastChange + ':' + ((g.ticks / 100) | 0);
+    let sig = h.lastChange + ':' + ((g.ticks / 100) | 0) + ':' + (h.recon ? h.recon.length : 0);
     for (const id of h.allies.keys()) { const q = g.players[id]; sig += ',' + id + ':' + q.lastChange; }
     if (sig === this.fogSig && FOG) return;
     this.fogSig = sig;
@@ -145,6 +154,14 @@
       if (u.type !== UT.SAM || u.cls !== 2 || !u.built) continue;
       if (u.owner !== h && !(g.friendly(u.owner, h) && g.allyRadar(h, u.owner))) continue;
       const r = g.radarRange(u) / CS, cx = u.x / CS, cy = u.y / CS;
+      for (let y = Math.max(0, Math.floor(cy - r)); y <= Math.min(CH - 1, Math.ceil(cy + r)); y++)
+        for (let x = Math.max(0, Math.floor(cx - r)); x <= Math.min(CW - 1, Math.ceil(cx + r)); x++)
+          if ((x + 0.5 - cx) * (x + 0.5 - cx) + (y + 0.5 - cy) * (y + 0.5 - cy) <= r * r) grid[y * CW + x] = 1;
+    }
+    // recon flights: a circle around their target for a while
+    if (h.recon) for (const e of h.recon) {
+      if (e.until <= g.ticks) continue;
+      const r = G.LANG.reconR / CS, cx = e.x / CS, cy = e.y / CS;
       for (let y = Math.max(0, Math.floor(cy - r)); y <= Math.min(CH - 1, Math.ceil(cy + r)); y++)
         for (let x = Math.max(0, Math.floor(cx - r)); x <= Math.min(CW - 1, Math.ceil(cx + r)); x++)
           if ((x + 0.5 - cx) * (x + 0.5 - cx) + (y + 0.5 - cy) * (y + 0.5 - cy) <= r * r) grid[y * CW + x] = 1;
@@ -913,6 +930,7 @@
     const reachOf = function (u) {
       if (u.type === UT.DEFENSE) return g.R.defense;
       if (u.type === UT.SAM) return u.cls === 2 ? g.radarRange(u) : g.samRange(u);
+      if (u.type === UT.SILO && u.cls === 1) return g.airRange(u);
       if (u.type === UT.CLOAK) return g.R.cloak;
       if (u.type === UT.FACTORY) return g.R.rail;
       if (u.type === UT.PORT && g.hafen) { let r = 0; G.HAFEN.ships.forEach(function (k) { if (u.level >= k.from) r = Math.max(r, k.range * g.S * (g.reach || 1)); }); return r; }
@@ -1259,6 +1277,7 @@
     else if (type === UT.SAM) poly(ctx, x, y, r, 4, 0.7854);
     else if (type === 4.5) poly(ctx, x, y, r, 6, 0.5236);   // «Langes Spiel»: missile defence
     else if (type === 4.7) poly(ctx, x, y, r, 10, 0);       // «Langes Spiel»: radar
+    else if (type === 3.5) poly(ctx, x, y, r, 4, 0);        // «Langes Spiel»: airfield
     else if (type === UT.CLOAK) poly(ctx, x, y, r, 4, 0);
     else poly(ctx, x, y + r * 0.15, r, 3, -1.5708);
   }
@@ -1304,7 +1323,7 @@
       // your own buildings under a cloaking tower are drawn faded, so you see that others do not see them
       const veil = !far && u.cloak && u.owner === h;
       if (veil) ctx.globalAlpha = 0.55;
-      const side = structIcon(ctx, u.type === UT.SAM && u.cls ? (u.cls === 2 ? 4.7 : 4.5) : u.type, x, y, k, u.owner, u.built, !far);
+      const side = structIcon(ctx, u.type === UT.SAM && u.cls ? (u.cls === 2 ? 4.7 : 4.5) : u.type === UT.SILO && u.cls ? 3.5 : u.type, x, y, k, u.owner, u.built, !far);
       if (veil) ctx.globalAlpha = 1;
       if (far) {
         // zoomed out (25.11.2026): the level of a building shows the sooner the higher it is, so
@@ -1323,7 +1342,7 @@
         ctx.beginPath(); ctx.arc(x, y, side * 0.5 + 2, -1.5708, -1.5708 + 6.2832 * q);
         ctx.strokeStyle = '#f4b740'; ctx.lineWidth = 2; ctx.stroke();
       } else if (u.level > 1) levelTag(ctx, u.level, x, y, side);
-      if (u.built && u.type === UT.SILO && u.owner === h && u.ready) reloadRing(ctx, u, x, y, side, T);
+      if (u.built && u.type === UT.SILO && u.owner === h && u.ready && !u.cls) reloadRing(ctx, u, x, y, side, T);
       if (u.arm) armRing(ctx, u, x, y, side, T);   // «Langes Spiel»: a nuclear weapon being armed, seen by all
     }
   };
@@ -1876,7 +1895,23 @@
     }
   };
 
+  // «Langes Spiel», Paket 5: a plane, a small dark silhouette in its owner's colour pointing where it flies
+  function drawPlane(ctx, g, u, z, ox, oy, alpha) {
+    const pr = Math.min(1, u.prog + alpha * u.speed / u.dist);
+    const tx = u.type === UT.FIGHTER && u.leg === 0 && u.target ? u.target.x : u.dx, ty = u.type === UT.FIGHTER && u.leg === 0 && u.target ? u.target.y : u.dy;
+    const px = u.type === UT.FIGHTER && u.leg === 0 ? u.x : u.sx + (u.dx - u.sx) * pr, py = u.type === UT.FIGHTER && u.leg === 0 ? u.y : u.sy + (u.dy - u.sy) * pr;
+    const x = (px + 0.5) * z + ox, y = (py + 0.5) * z + oy, a = Math.atan2(ty - py, tx - px), s = within(z * (u.type === UT.FIGHTER ? 2.4 : 3.4), 8, 18);
+    const p = u.owner;
+    ctx.save(); ctx.translate(x, y); ctx.rotate(a);
+    ctx.beginPath();
+    if (u.type === UT.STEALTH) { ctx.moveTo(s, 0); ctx.lineTo(-s * 0.6, s); ctx.lineTo(-s * 0.3, 0); ctx.lineTo(-s * 0.6, -s); ctx.closePath(); }
+    else { ctx.moveTo(s, 0); ctx.lineTo(-s * 0.2, s * 0.15); ctx.lineTo(-s * 0.4, s * 0.85); ctx.lineTo(-s * 0.6, s * 0.85); ctx.lineTo(-s * 0.5, s * 0.15); ctx.lineTo(-s, s * 0.35); ctx.lineTo(-s, -s * 0.35); ctx.lineTo(-s * 0.5, -s * 0.15); ctx.lineTo(-s * 0.6, -s * 0.85); ctx.lineTo(-s * 0.4, -s * 0.85); ctx.lineTo(-s * 0.2, -s * 0.15); ctx.closePath(); }
+    ctx.fillStyle = 'rgb(' + p.r + ',' + p.g + ',' + p.b + ')'; ctx.fill();
+    ctx.lineWidth = 1.4; ctx.strokeStyle = '#0b1016'; ctx.stroke();
+    ctx.restore();
+  }
   View.prototype.drawMissile = function (ctx, g, u, z, ox, oy, alpha, now) {
+    if (G.isPlane(u.type)) { drawPlane(ctx, g, u, z, ox, oy, alpha); return; }
     if (u.type === UT.LASER) {
       // the beam gathering: a ring closes in on the target while a thin ray comes down from above
       const x = (u.dx + 0.5) * z + ox, y = (u.dy + 0.5) * z + oy, k = 1 - Math.max(0, u.fuse - alpha) / 30;

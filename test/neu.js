@@ -9,6 +9,8 @@ const G = globalThis.G, UT = G.UT;
 const count = (g, type, p) => g.units.filter((u) => u.active && u.type === type && (!p || u.owner === p)).length;
 // what has to be seen in each scene, asked every second; seen once is enough
 const SEEN = {
+  132: (g) => g.units.some((u) => u.active && u.type === UT.STEALTH) && g.ticks > 300,
+  131: (g) => (g.human.recon || []).length > 0 && g.units.some((u) => u.active && (u.type === UT.FIGHTER || u.type === UT.BOMBER)),
   130: (g) => g.human.units.filter((u) => u.uni && u.res && u.res.pts > 0).length === 2,
   129: (g) => g.human.units.some((u) => u.type === UT.SILO && u.base) && g.spying(g.human, g.lv.foes[1]) && g.allyRadar(g.human, g.lv.foes[0]),
   128: (g) => g.human.units.some((u) => u.type === UT.SAM && u.cls === 2) && g.lv.foes[0].units.some((u) => u.type === UT.SILO && u.firedAt > 0),
@@ -51,8 +53,8 @@ for (const L of G.NEUES) {
   if (G.levelDef(L.n) !== L) fail(L.n, 'not found by its number');
   if (!(g.human.tiles > 0)) fail(L.n, 'player starts without land');
   for (const f of g.lv.foes) if (!(f.tiles > 0)) fail(L.n, (f.name || 'bot') + ' starts without land');
-  for (const f of L.foes) for (const b of f.build || []) if (!g.lv.foes[L.foes.indexOf(f)].units.some((u) => u.type === (b[0] === 4.5 || b[0] === 4.7 ? UT.SAM : b[0]))) fail(L.n, 'building ' + G.UNAME[b[0]] + ' of the opponent missing');
-  for (const b of L.me.build || []) if (!g.human.units.some((u) => u.type === (b[0] === 4.5 || b[0] === 4.7 ? UT.SAM : b[0]))) fail(L.n, 'own building ' + G.UNAME[b[0]] + ' missing');
+  for (const f of L.foes) for (const b of f.build || []) if (!g.lv.foes[L.foes.indexOf(f)].units.some((u) => u.type === (b[0] === 4.5 || b[0] === 4.7 ? UT.SAM : b[0] === 3.5 ? UT.SILO : b[0]))) fail(L.n, 'building ' + G.UNAME[b[0]] + ' of the opponent missing');
+  for (const b of L.me.build || []) if (!g.human.units.some((u) => u.type === (b[0] === 4.5 || b[0] === 4.7 ? UT.SAM : b[0] === 3.5 ? UT.SILO : b[0]))) fail(L.n, 'own building ' + G.UNAME[b[0]] + ' missing');
   const st = { tiles0: g.human.tiles, moved: 0, last: new Map() };
   let seen = false, ended = false, drift = false;
   for (let i = 0; i < 900; i++) {

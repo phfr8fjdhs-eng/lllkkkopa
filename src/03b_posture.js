@@ -386,7 +386,8 @@
     const post = p.post, T = p.troops;
     if (!(post.H > 0) || !(T > 0)) return;
     let lost = 0;
-    for (const c of post.cells.values()) if (c.cut && c.u > 0) { const uu = c.u * PO.cut; c.u -= uu; lost += uu; }
+    const lift = this.lang && this.has(p, 'luftbr');   // «Langes Spiel», research Luftbrücke: a pocket in reach of an own airfield is supplied from the air
+    for (const c of post.cells.values()) if (c.cut && c.u > 0 && !(lift && this.airlift(p, c.id))) { const uu = c.u * PO.cut; c.u -= uu; lost += uu; }
     if (!(lost > 0)) return;
     const H0 = post.H;
     post.H = H0 - lost;

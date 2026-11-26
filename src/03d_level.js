@@ -322,15 +322,15 @@
   // A building that is already there when the level starts.
   Game.prototype.levelPlace = function (p, type, x, y, level) {
     // 4.5: the missile defence of «Langes Spiel» (air defence class 1)
-    const cls = type === 4.5 ? 1 : type === 4.7 ? 2 : 0;   // 4.7: the radar
-    if (cls) type = UT.SAM;
+    const cls = type === 4.5 || type === 3.5 ? 1 : type === 4.7 ? 2 : 0;   // 4.7: the radar, 3.5: the airfield
+    if (cls) type = type === 3.5 ? UT.SILO : UT.SAM;
     let t = this.levelTile(x, y, p);
     if (t < 0) return null;
     if (type === UT.PORT) { t = this.portSite(p, t); if (t < 0) return null; }
     const u = this.newUnit(type, p, t);
     u.level = level || 1;
     if (type === UT.PORT) u.water = this.portWater(t);
-    if (type === UT.SAM && this.lang) u.cls = cls;
+    if ((type === UT.SAM || type === UT.SILO) && this.lang && cls) u.cls = cls;
     this.addUnit(u);
     this.finishBuild(u);
     if (u.ready) { u.ready.length = 0; for (let i = 0; i < u.level; i++) u.ready.push(0); }
@@ -465,7 +465,7 @@
         return n / Math.max(1, isle.length);
       },
       // the script: build or fire something for an opponent (the gold is topped up), attack, send a boat
-      fire: function (p, type, x, y) { p.gold += g.cost(p, type); const t = type === UT.WARSHIP ? Q.tile(x, y) : g.levelTile(x, y); return t >= 0 ? g.build(p, type, t) : null; },
+      fire: function (p, type, x, y) { const t = type === UT.WARSHIP ? Q.tile(x, y) : g.levelTile(x, y); if (t < 0) return null; const c = g.buildCheck(p, type, t); p.gold += Math.max(g.cost(p, type), c.cost || 0); return g.build(p, type, t); },
       push: function (p, q, share, x, y, mode) { if (p.alive && q.alive) g.attack(p, q.id, p.troops * share, -1, g.levelTile(x, y, q), mode || 0); },
       // a warship that is simply there, at sea (without a port of its own it cannot be repaired)
       ship: function (p, x, y, cls) {

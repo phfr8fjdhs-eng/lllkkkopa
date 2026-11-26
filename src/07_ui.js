@@ -23,6 +23,7 @@
     { t: UT.SAM, icon: 'sam', note: 'Fängt Bomben ab', key: '6' },
     { t: 4.5, icon: 'abm', note: 'Fängt Atom- und Wasserstoffbomben ab', key: 'j' },
     { t: 4.7, icon: 'radar', note: 'Sieht im grossen Kreis alles, auch im Nebel', key: 'x' },
+    { t: 3.5, icon: 'airfield', note: 'Schickt Flugzeuge, Abfangjäger starten von selbst', key: '9' },
     // the digits for what both modes have, the specials to the right (MIRV, and the Arsenal's two)
     { t: UT.WARSHIP, icon: 'warship', note: 'Schnell, kapert Handelsschiffe, wehrt Boote ab', key: '7' },
     { t: 7.5, icon: 'battleship', note: 'Gross, Raketen, sieht über Inseln, versenkt Schiffe', key: '8' },
@@ -36,18 +37,23 @@
     { t: UT.CLUSTER, icon: 'cluster', note: 'Tötet Truppen in einem Gebiet, Gebäude bleiben', key: '' },
     { t: UT.BUNKER, icon: 'bunker', note: 'Zerstört ein Gebäude, auch mit Schutzräumen', key: '' },
     { t: UT.THERMO, icon: 'thermo', note: 'Mittleres Gebiet, Truppen und Gebäude, keine Verstrahlung', key: '' },
-    { t: UT.SRBM, icon: 'srbm', note: 'Schnell, schwer abzufangen, kurze Reichweite', key: '' }
+    { t: UT.SRBM, icon: 'srbm', note: 'Schnell, schwer abzufangen, kurze Reichweite', key: '' },
+    { t: UT.BOMBER, icon: 'bomber', note: 'Wirft vom Flugplatz aus eine Streubombe auf die Front', key: '' },
+    { t: UT.STEALTH, icon: 'stealth', note: 'Atombombe, kaum zu erfassen, fliegt zurück', key: '' },
+    { t: UT.RECON, icon: 'recon', note: 'Deckt kurz ein Gebiet auf', key: '' }
   ];
   // «Langes Spiel»: key R turns the bar to the weapons, then 1, 2, 3 ... pick one (the digits are the
   // buildings' otherwise). The order of the weapon bar:
-  const WEAPONS = [UT.CRUISE, UT.CLUSTER, UT.BUNKER, UT.THERMO, UT.SRBM, UT.ATOM, UT.HYDRO, UT.MIRV];
+  const WEAPONS = [UT.CRUISE, UT.CLUSTER, UT.BUNKER, UT.THERMO, UT.SRBM, UT.ATOM, UT.HYDRO, UT.MIRV, UT.BOMBER, UT.STEALTH, UT.RECON];
+  const WKEY = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', ''];
   let weaponBar = false, siloSel = 0;
   const salvoList = [];   // planned strikes (Shift + click), fired together with Enter
   function barItems() {
     if (!game.lang) return BUILD.filter(function (b) { return offered(b.t); }).map(function (b) { return { b: b, key: b.key }; });
-    if (weaponBar) return WEAPONS.map(function (t, i) { return { b: BUILD.find(function (b) { return b.t === t; }), key: String(i + 1) }; }).filter(function (c) { return offered(c.b.t); });
+    if (weaponBar) return WEAPONS.map(function (t, i) { return { b: BUILD.find(function (b) { return b.t === t; }), key: WKEY[i] }; }).filter(function (c) { return offered(c.b.t); });
     return BUILD.filter(function (b) { return b.t < UT.ATOM && offered(b.t); }).map(function (b) { return { b: b, key: b.key }; });
   }
+  const FIELD = 3.5;   // «Langes Spiel»: the airfield is silo class 1
   const TERRAIN = ['Ebene', 'Hochland', 'Gebirge'];
   // What the ground under a tile is called: its cover on the Earth, with height and river, and
   // what it does to an attack on a realm there (as tickAttack has it), so risky ground is learnt.
@@ -67,7 +73,7 @@
   const plain = function (t) { return G.UNAME[t].replace('\u00AD', ''); };
   // what only the Arsenal mode has
   const armory = function (t) { return t === UT.LASER || t === UT.CLOAK; };
-  const langOnly = function (t) { return t === 4.5 || t === 4.7 || G.LANG_WEAPON(t); };
+  const langOnly = function (t) { return t === 4.5 || t === 4.7 || t === 3.5 || G.LANG_WEAPON(t) || G.isPlane(t); };
   // what can be built in this game: the Arsenal's two only in that mode, in a level only what it unlocks
   const offered = function (t) { if (langOnly(t) && !game.lang) return false; t = real(t).u; return (!armory(t) || game.opts.arsenal) && (!game.lv || game.levelAllows(t)); };
   // The battleship is warship class 1 in the game; the interface gives it a number of its own (BS,
@@ -77,8 +83,10 @@
   // «Langes Spiel»: the missile defence is air defence class 1 (ABM, between air defence 4 and factory 5)
   const ABM = 4.5;
   const RADAR = 4.7;   // «Langes Spiel»: the radar is air defence class 2
-  function real(t) { return t === BS ? { u: UT.WARSHIP, cls: 1 } : t === ABM ? { u: UT.SAM, cls: 1 } : t === RADAR ? { u: UT.SAM, cls: 2 } : { u: t, cls: 0 }; }
-  function costOf(h, t) { const r = real(t), c = game.cost(h, r.u); if (r.cls === 2) return game.opts.infiniteGold ? 0 : G.LANG.radarCost; return r.cls ? Math.round(c * (r.u === UT.SAM ? G.LANG.abmCost : G.SHIP_CLASS[1].cost)) : c; }
+  function real(t) { return t === BS ? { u: UT.WARSHIP, cls: 1 } : t === ABM ? { u: UT.SAM, cls: 1 } : t === RADAR ? { u: UT.SAM, cls: 2 } : t === 3.5 ? { u: UT.SILO, cls: 1 } : { u: t, cls: 0 }; }
+  function costOf(h, t) { const r = real(t), c = game.cost(h, r.u); if (r.cls === 2) return game.opts.infiniteGold ? 0 : G.LANG.radarCost;
+    if (r.u === UT.SILO && r.cls) return game.opts.infiniteGold ? 0 : G.LANG.fieldCost;
+    if (r.u === UT.STEALTH) return c + game.cost(h, game.has(h, 'hydro') ? UT.HYDRO : UT.ATOM); return r.cls ? Math.round(c * (r.u === UT.SAM ? G.LANG.abmCost : G.SHIP_CLASS[1].cost)) : c; }
   function shipsOf(h, cls) { let n = 0; for (const u of h.units) if (u.type === UT.WARSHIP && (u.cls || 0) === cls) n++; return n; }
   // how many of a kind of building you can see at player q (a cloaking tower hides some)
   // «Langes Spiel»: in the fog only what the player can see counts (src/06_view.js, fogHides)
@@ -846,11 +854,12 @@
   function ownBadge(h, t) {
     if (t === UT.WARSHIP || t === BS) return { n: shipsOf(h, real(t).cls), cls: '' };
     const T = game.ticks;
+    if (game.lang && (t === UT.SILO || t === FIELD)) { const k = t === FIELD ? 1 : 0; let n = 0; for (const u of h.units) if (u.type === UT.SILO && (u.cls || 0) === k) n++; return { n: n, cls: '' }; }
     if (t === UT.SAM || t === ABM || t === RADAR) { const k = t === ABM ? 1 : t === RADAR ? 2 : 0; let n = 0; for (const u of h.units) if (u.type === UT.SAM && u.built && (u.cls || 0) === k) n += game.lang ? game.samShotsOf(u) : u.level || 1; return { n: n, cls: '' }; }
     if (t === UT.ATOM || t === UT.HYDRO || t === UT.MIRV || t === UT.CRUISE) {
       let n = 0, silos = 0;
       for (const u of h.units) {
-        if (u.type !== UT.SILO || !u.built || !u.ready) continue;
+        if (u.type !== UT.SILO || !u.built || !u.ready || u.cls) continue;
         silos++;
         for (let i = 0; i < u.ready.length; i++) if (u.ready[i] <= T) n++;
       }

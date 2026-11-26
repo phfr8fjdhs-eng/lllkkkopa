@@ -3,6 +3,10 @@ Was seit dem 13.11.2026 geändert wurde und warum. Den heutigen Stand der Regeln
 
 
 
+## Spielmodus «Langes Spiel», Paket 5: Luftwaffe (26.11.2026)
+- **Wunsch:** Flugplatz mit Reichweite, Bomber auf die Front, Abfangjäger, Tarnbomber gegen Mauern aus Flugabwehr, ohne dass ihn eine Flugabwehr der Stufe 2 sofort abschiesst.
+- **Geändert (nur im Modus):** Flugplatz (Taste 9), Flugzeuge fliegen selbst hin und zurück; Bomber mit Streubombe, Tarnbomber mit Atom- oder Wasserstoffbombe (nur mit Forschung, Viertel der Reichweite, 3 s Erfassen, 2 Treffer), Aufklärungsflugzeug, Abfangjäger, Luftbrücke; Warthog im Umkreis eines Flugplatzes. Szenen 131, 132.
+
 ## Spielmodus «Langes Spiel», Paket 4: Forschung (26.11.2026)
 - **Wunsch:** Forschung mit Unis statt Gold, Stufen nach Spielzeit gegen das Davonrollen, Entweder-oder statt alles, Doktrin als erste Wahl, Technik an Verbündete weitergeben.
 - **Geändert (nur im Modus):** Uni als Ausbau der Stadt (ab Stufe 5, höchstens 3); Forschungsbaum mit Doktrin, Aufklärung, Abwehr, Raketen, Atomwaffen, Heer (`G.TECH`); Flugabwehr, Radar, Waffen und Schutzräume brauchen Forschung; Forschung der Nachbarn sichtbar; schenken und verkaufen an Verbündete; Nationen bekommen die Stufen nach Zeit. Szene 130.

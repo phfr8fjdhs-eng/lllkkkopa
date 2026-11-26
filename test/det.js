@@ -48,11 +48,11 @@ for (let i = 0; i < 4000; i++) {
     }
     else if (kind < 8) both(id, { k: 'build', u: [UT.CITY, UT.SILO, UT.SAM, UT.FACTORY, UT.DEFENSE, UT.PORT, UT.CLOAK][rnd(ARS ? 7 : 6)], t: t0, cls: LANG ? rnd(2) : 0 });
     else if (kind < 9) both(id, { k: 'up', t: t0 });
-    else { const foe = a.players[3 - id]; if (foe.alive && a.immuneUntil <= a.ticks) { const ft = Array.from(foe.border)[0]; both(id, LANG ? { k: 'build', u: [UT.CRUISE, UT.ATOM, UT.CLUSTER, UT.BUNKER, UT.THERMO, UT.SRBM][rnd(6)], t: ft } : { k: 'build', u: rnd(2) ? UT.CRUISE : UT.ATOM, t: ft }); cruise++; } }
+    else { const foe = a.players[3 - id]; if (foe.alive && a.immuneUntil <= a.ticks) { const ft = Array.from(foe.border)[0]; both(id, LANG ? { k: 'build', u: [UT.CRUISE, UT.ATOM, UT.CLUSTER, UT.BUNKER, UT.THERMO, UT.SRBM, UT.BOMBER, UT.STEALTH, UT.RECON][rnd(9)], t: ft } : { k: 'build', u: rnd(2) ? UT.CRUISE : UT.ATOM, t: ft }); cruise++; } }
   }
   if (i % 50 === 0 && a.checksum() !== b.checksum()) { diff++; console.log('different at tick', a.ticks); break; }
 }
 let same = true;
 for (let t = 0; t < map.N; t++) if (a.owner[t] !== b.owner[t] || a.fallout[t] !== b.fallout[t]) { same = false; break; }
-console.log(KAMPF || (ARS ? 'arsenal' : LANG ? 'lang' : 'klassisch'), 'orders', orders, 'armed', a.units.filter((u) => u.active && u.arm).length, 'weapons in the air', a.nukes.filter((u) => u.active).length, 'cloaking towers', a.units.filter((u) => u.active && u.type === UT.CLOAK).length, 'thrusts', thrusts, 'missiles ordered', cruise, 'tiles A/B', a.players[1].tiles, a.players[2].tiles, 'fallout', a.falloutCount, 'identical map:', same, 'checksum differences:', diff);
+console.log(KAMPF || (ARS ? 'arsenal' : LANG ? 'lang' : 'klassisch'), 'orders', orders, 'armed', a.units.filter((u) => u.active && u.arm).length, 'weapons in the air', a.nukes.filter((u) => u.active).length, 'airfields', a.units.filter((u) => u.active && u.type === UT.SILO && u.cls === 1).length, 'cloaking towers', a.units.filter((u) => u.active && u.type === UT.CLOAK).length, 'thrusts', thrusts, 'missiles ordered', cruise, 'tiles A/B', a.players[1].tiles, a.players[2].tiles, 'fallout', a.falloutCount, 'identical map:', same, 'checksum differences:', diff);
 process.exit(same && !diff ? 0 : 1);

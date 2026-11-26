@@ -11,7 +11,7 @@ Die Regel aus `doku/vision.md` (Runden höchstens etwa 40 bis 45 Minuten) gilt f
 2. Bomben, Raketen, Bedienung (gebaut 26.11.2026, unten)
 3. Nebel, Aufklärung, Bündnisse (gebaut 26.11.2026, unten)
 4. Forschung (gebaut 26.11.2026, unten)
-5. Luftwaffe
+5. Luftwaffe (gebaut 26.11.2026, unten)
 6. Marine
 7. Im eigenen Land
 8. Inseln als Stützpunkte
@@ -203,3 +203,22 @@ Ohne Forschung baut man im Modus weder Flugabwehr noch Radar, feuert keinen Mars
 - Die Zweige **Marine** und **Luftwaffe** kommen mit Paket 5 und 6 (sie brauchen deren Einheiten).
 - **Gemessen** (`node test/kampf.js lang`): Nationen haben ab dem Start «Eingraben»; gegen eine ganz eingegrabene Nation braucht der Angreifer darum jetzt das 4-Fache (3-fach: steckt bei 65 %). Ohne diese Forschung bleibt es beim 3-Fachen (1d).
 - Szene 130.
+
+## Paket 5: Luftwaffe (26.11.2026)
+Code: Abschnitt «the air force» in `src/04c_lang.js` (`planeCheck`, `launchPlane`, `tickPlane`, `tickField`, `tickFighter`, `stealthLocked`), Zeichnen `drawPlane` in `src/06_view.js`. Zahlen in `G.LANG` (`fieldCost`, `airR`, `planeSpeed`, `planeCost`, `stealth*`, `recon*`).
+
+- **Flugplatz** (Taste `9` in der Bauleiste, 2M, Forschung «Flugplatz»): im Spiel ein Silo der Klasse 1 (`u.cls` = 1, auf der Seite 3.5), weil im Spielkern keine Gebäudenummer mehr frei ist; gezeichnet als Quadrat mit Flugzeug. Er schickt so viele Flüge gleichzeitig, wie er Stufen hat. Reichweite 250 Felder der Erde, wie die Waffen auf die Karte umgerechnet, +5 % pro Stufe, mit «Luftbetankung» × 1.5 (`airRange`). Kann als Stützpunkt bei einem Verbündeten stehen (3d).
+- **Flugzeuge fliegen selbst** hin und zurück (`tickPlane`); niemand steuert sie. Nach der Landung braucht der Flugplatz den Hin- und Rückflug plus 20 s, bis derselbe Platz wieder startet. Fällt der Flugplatz, ist das Flugzeug bei der Rückkehr weg.
+- **Bomber** (Waffenleiste `9`, 600K, Forschung «Bomber»): wirft am Ziel eine Streubombe (Truppen, kein Land, keine Gebäude). Die kleine Flugabwehr schiesst auf das Flugzeug, sobald sie es in Reichweite hat, nicht auf die Bomben (die fallen ungelenkt).
+- **Tarnbomber** (Waffenleiste `0`, 2M plus der Preis der Bombe, Forschung «Tarnbomber», erst ab Minute 30): trägt eine Atombombe, mit der Forschung «Wasserstoffbombe» eine Wasserstoffbombe (feste Nutzlast). Wirkt wie die Bombe aus dem Silo, auf Truppen und Gebäude, mit Ächtung. Reicht doppelt so weit wie der Flugplatz. **Schutz gegen das Abschiessen** (deine Vorgabe: nicht von einer Flugabwehr der Stufe 2 sofort weg):
+  - Nur die kleine Flugabwehr mit der Forschung «Gegen Tarnbomber» (Abwehr 5) kann überhaupt auf ihn schiessen.
+  - Sie sieht ihn erst in einem Viertel ihrer Reichweite (`stealthSeen`) und muss ihn dort 3 s halten, bevor sie schiesst (`stealthLock`).
+  - Er hält 2 Treffer aus (`stealthHp`).
+  - So überfliegt er Mauern aus Flugabwehr; nur eine Flugabwehr direkt beim Ziel trifft ihn noch, meist auf dem Rückweg.
+  - Auf der Karte sehen ihn andere nur im Kreis eines eigenen Radars mit «Tarnung erkennen» (Aufklärung 3).
+- **Aufklärungsflugzeug** (Waffenleiste, ohne Taste, 200K, Forschung Aufklärung 2): deckt um sein Ziel 40 Felder eine Minute lang auf (`recon`).
+- **Abfangjäger** (Forschung «Abfangjäger»): Ein Flugplatz schickt von selbst einen Jäger gegen feindliche Bomber und Marschflugkörper (und die anderen tief fliegenden Waffen) in seiner Reichweite; der Jäger holt sie ein, schiesst sie ab und fliegt zurück, dann 15 s Pause für diesen Platz.
+- **Luftbrücke** (Luftwaffe 3): Ein Kessel in Reichweite eines eigenen Flugplatzes hungert nicht.
+- **Warthog** (Heer 3) gilt jetzt im Umkreis eines eigenen Flugplatzes: Angriffe dort verlieren 15 % weniger.
+- Forschung Luftwaffe: 1 Flugplatz, 2 Abfangjäger, 3 Luftbetankung und Luftbrücke, 4 Bomber, 5 Tarnbomber (braucht die Atombombe). Dazu Aufklärung 2 Aufklärungsflugzeug und Abwehr 5 «Gegen Tarnbomber».
+- Szenen 131 (Luftwaffe) und 132 (Tarnbomber).

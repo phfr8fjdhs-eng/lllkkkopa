@@ -59,6 +59,7 @@
       case UT.MIRV: return (25e6 + 15e6 * (this.mirvs || 0)) * (this.lang ? G.LANG.nukeCost[UT.MIRV] : 1);   // every MIRV launched in this game makes the next one dearer
       case UT.LASER: return 600000;
       case UT.CLUSTER: case UT.BUNKER: case UT.THERMO: case UT.SRBM: return G.LANG.price[type];
+      case UT.BOMBER: case UT.STEALTH: case UT.RECON: return G.LANG.planeCost[type];
     }
     return 0;
   };
@@ -282,7 +283,7 @@
     const reach = this.lang && type !== undefined ? this.weaponReach(type, p) : Infinity, r2 = reach * reach;
     let best = null, bd = Infinity, any = false, far = false;
     for (const u of p.units) {
-      if (u.type !== UT.SILO || !u.built) continue;
+      if (u.type !== UT.SILO || !u.built || u.cls) continue;   // an airfield (class 1) is no silo
       any = true;
       let free = !u.arm;
       if (free) { free = false; for (let i = 0; i < u.ready.length; i++) if (u.ready[i] <= T) free = true; }
@@ -298,6 +299,7 @@
   Game.prototype.buildCheck = function (p, type, tile, cls, fresh, pick) {
     const res = { ok: false, why: '', cost: this.cost(p, type), tile: tile, port: null, silo: null, stored: false };
     if (type === UT.WARSHIP && cls) res.cost = Math.round(res.cost * G.SHIP_CLASS[1].cost);
+    if (type === UT.SILO && cls && this.lang) res.cost = p.type === PT.HUMAN && this.opts.infiniteGold ? 0 : G.LANG.fieldCost;
     if (type === UT.SAM && cls && this.lang) res.cost = cls === 2 ? (p.type === PT.HUMAN && this.opts.infiniteGold ? 0 : G.LANG.radarCost) : Math.round(res.cost * G.LANG.abmCost);
     const map = this.map, W = this.W;
     if (!p.alive || this.phase !== 'play') { res.why = 'Nicht möglich'; return res; }
@@ -305,6 +307,7 @@
       if (type === UT.CLOAK && !this.opts.arsenal) { res.why = 'Nur im Arsenal-Modus'; return res; }
       // «Langes Spiel»: a base in an ally's land (src/04c_lang.js, baseHost)
       const host = this.owner[tile] !== p.id && this.lang ? this.baseHost(p, tile, type) : null;
+      if (this.lang && p.type === PT.HUMAN && type === UT.SILO && cls && !this.has(p, 'luft1')) { res.why = 'Braucht Forschung: Flugplatz'; return res; }
       if (this.lang && p.type === PT.HUMAN && type === UT.SAM && !this.has(p, this.techFor(UT.SAM, cls))) { res.why = 'Braucht Forschung: ' + G.TECH_BY[this.techFor(UT.SAM, cls)].name; return res; }
       if (this.owner[tile] !== p.id && !host) { res.why = this.lang && this.owner[tile] && p.allies.has(this.owner[tile]) ? this.baseWhy(p, tile, type) : 'Nur auf eigenem Gebiet'; return res; }
       res.base = host;
@@ -340,6 +343,7 @@
       if (!map.land[tile]) { res.why = 'Ziel muss Land sein'; return res; }
     } else {
       if (this.lang) { const why = this.weaponWhy(p, type); if (why) { res.why = why; return res; } }
+      if (this.lang && G.isPlane(type)) { this.planeCheck(p, type, tile, pick, res); return res; }   // planes start from an airfield (src/04c_lang.js)
       const s = this.readySilo(p, tile, type, pick);
       if (!s.silo) { res.why = s.far ? 'Kein Silo in Reichweite' : s.any ? 'Silo lädt noch nach' : 'Dafür brauchst du ein Raketensilo'; return res; }
       if (this.ticks < this.immuneUntil) { res.why = 'Schonfrist läuft noch'; return res; }
@@ -355,7 +359,7 @@
   };
 
   Game.prototype.build = function (p, type, tile, cls, fresh, pick) {
-    cls = (type === UT.WARSHIP && cls === 1) || (type === UT.SAM && this.lang && (cls === 1 || cls === 2)) ? cls : 0;
+    cls = (type === UT.WARSHIP && cls === 1) || (type === UT.SAM && this.lang && (cls === 1 || cls === 2)) || (type === UT.SILO && this.lang && cls === 1) ? cls : 0;
     const c = this.buildCheck(p, type, tile, cls, fresh, pick);
     if (!c.ok) return null;
     p.gold -= c.cost;
@@ -366,6 +370,7 @@
       u.buildEnd = this.ticks + (this.opts.instantBuild ? 0 : BUILD_TICKS[type]);
       if (type === UT.PORT) u.water = this.portWater(c.tile);
       if (type === UT.SAM && this.lang) u.cls = cls;   // «Langes Spiel»: 0 air defence, 1 missile defence, 2 radar
+      if (type === UT.SILO && this.lang && cls) u.cls = cls;   // «Langes Spiel»: 1 airfield
       if (c.base) { u.base = c.base.id; if (p === this.human || c.base === this.human) this.say('Stützpunkt im Land von ' + c.base.name + ' wird gebaut', 'info'); }
       this.addUnit(u);
       if (this.opts.instantBuild) this.finishBuild(u);
@@ -377,6 +382,8 @@
       this.sail(u, c.tile, p.type === PT.HUMAN, 'order');
     } else if (type === UT.LASER) {
       u = this.fireLaser(p, c.tile);
+    } else if (this.lang && G.isPlane(type)) {
+      u = this.launchPlane(p, type, c.silo, c.tile);
     } else if (this.lang && G.LANG.arm[type]) {
       u = this.armSilo(p, type, c.silo, c.tile);   // «Langes Spiel»: the silo arms it first, seen by all
     } else {
@@ -1298,7 +1305,7 @@
   // at which a launcher picks up a weapon. The short-range missile of «Langes Spiel» comes down so
   // fast that a launcher has only a quarter of its reach for it.
   G.lowFly = function (type) { return type === UT.CRUISE || type === UT.CLUSTER || type === UT.BUNKER || type === UT.THERMO; };
-  G.seenAt = function (type) { return type === UT.SRBM ? G.LANG.srbmSeen : G.lowFly(type) ? G.CRUISE_RANGE : 1; };
+  G.seenAt = function (type) { return type === UT.SRBM ? G.LANG.srbmSeen : type === UT.STEALTH ? G.LANG.stealthSeen : G.lowFly(type) ? G.CRUISE_RANGE : 1; };
   Game.prototype.tickSam = function (u) {
     if (!this.nukes.length) return;
     const T = this.ticks, sr = this.samRange(u);
@@ -1307,6 +1314,7 @@
       for (const n of this.nukes) {
         if (!n.active || n.sam || !(this.lang ? this.samCan(u, n.type) : G.canIntercept(n.type))) continue;
         if (n.owner === u.owner || this.friendly(n.owner, u.owner)) continue;
+        if (n.type === UT.STEALTH && !this.stealthLocked(u, n, sr)) continue;   // «Langes Spiel»: it has to be held a while first
         if (!this.samSolve(u, n, sr * G.seenAt(n.type) * (this.lang && (n.type === UT.CRUISE || n.type === UT.SRBM) && this.has(n.owner, 'hyper') ? 0.5 : 1))) continue;
         n.sam = true; u.ready[s] = T + (this.lang ? this.samReload(u) : 90);
         const m = this.newUnit(UT.SAMM, u.owner, u.tile);
@@ -1326,8 +1334,10 @@
     }
     const dx = n.x - u.x, dy = n.y - u.y, d = Math.hypot(dx, dy), sp = this.sammSpeed();
     if (d > sp) { u.x += dx / d * sp; u.y += dy / d * sp; return; }
-    // Contact. An interceptor that reaches its target always kills it, as in OpenFront.
+    // Contact. An interceptor that reaches its target always kills it, as in OpenFront. («Langes
+    // Spiel»: a stealth bomber takes more than one.)
     this.removeUnit(u);
+    if (n.hp > 1) { n.hp--; n.sam = false; return; }
     this.removeUnit(n);
     // `air`: how high the picture shows the bomb at this point of its arc, so the flash is drawn there
     this.fx.push({ k: 'pop', x: n.x, y: n.y, air: Math.min(n.dist * 0.28, 70) * (n.type === UT.CRUISE ? 0.12 : 1) * Math.sin(Math.PI * Math.min(1, n.prog)) });
@@ -1361,6 +1371,7 @@
       if (!u.built) { if (this.ticks >= u.buildEnd) this.finishBuild(u); return; }
       if (ty === UT.PORT) this.tickPort(u);
       else if (ty === UT.SAM) this.tickSam(u);
+      else if (ty === UT.SILO && u.cls === 1 && this.lang) this.tickField(u);
       return;
     }
     u.px = u.x; u.py = u.y;
@@ -1370,6 +1381,7 @@
     else if (ty === UT.WARSHIP) this.tickWarship(u);
     else if (ty === UT.SHELL) this.tickShell(u);
     else if (ty === UT.SAMM) this.tickSamMissile(u);
+    else if (ty >= UT.BOMBER && ty <= UT.FIGHTER) this.tickPlane(u);
     else this.tickNuke(u);
   };
 })(globalThis.G = globalThis.G || {});

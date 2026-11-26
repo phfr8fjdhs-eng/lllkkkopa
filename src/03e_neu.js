@@ -42,6 +42,29 @@
 
   G.NEUES = [
     {
+      n: 132, date: '26.11.2026', title: 'Langes Spiel: Tarnbomber', lang: true,
+      text: 'Der Tarnbomber trägt eine Atombombe und kommt durch Mauern aus Flugabwehr: Eine Flugabwehr sieht ihn nur in einem Viertel ihrer Reichweite, muss ihn dort 3 Sekunden halten und braucht dafür die Forschung «Gegen Tarnbomber»; er hält zwei Treffer aus. Nach dem Abwurf fliegt er zurück. Nur ein Radar mit «Tarnung erkennen» zeigt ihn.',
+      map: { w: 380, h: 200, seed: 932, shapes: [circ(70, 100, 60), circ(290, 100, 80)] },
+      me: { x: 70, y: 100, r: 62, troops: 80000, gold: 0, build: [[3.5, 90, 100, 2], [4.7, 60, 70, 3]] },
+      foes: [{ name: 'Küstenreich', x: 290, y: 100, r: 82, troops: 200000, build: [[UT.SAM, 220, 70, 2], [UT.SAM, 215, 100, 2], [UT.SAM, 220, 130, 2], [UT.CITY, 300, 100, 10]] }],
+      allow: ALL, quest: none,
+      events: [[0, function (Q) { Q.g.langEarly = G.LANG.nukeFrom[UT.ATOM]; }]],
+      loop: [6, 40, function (Q) { Q.fire(Q.me, UT.STEALTH, 300, 100); }]
+    },
+    {
+      n: 131, date: '26.11.2026', title: 'Langes Spiel: Luftwaffe', lang: true,
+      text: 'Der Flugplatz (Taste 9) schickt Flugzeuge in seiner Reichweite. Bomber werfen Streubomben auf die Front, das Aufklärungsflugzeug deckt kurz ein Gebiet auf, und Abfangjäger starten von selbst gegen Bomber und Marschflugkörper. Flugzeuge fliegen selbst hin und zurück; man schiebt sie nicht.',
+      map: { w: 300, h: 200, seed: 931, shapes: [circ(150, 100, 92), rect(50, 35, 250, 165)] },
+      me: { x: 70, y: 100, box: [0, 0, 150, 200], troops: 80000, gold: 0, build: [[3.5, 100, 100, 3]] },
+      foes: [{ name: 'Varnholm', x: 230, y: 100, box: [150, 0, 300, 200], troops: 120000, build: [[UT.SILO, 240, 100, 3]] }],
+      allow: ALL, quest: none,
+      loop: [6, 9, function (Q, k) {
+        if (k % 3 === 0) Q.fire(Q.me, UT.BOMBER, 168, 90 + (k % 2) * 30);
+        else if (k % 3 === 1) Q.fire(Q.me, UT.RECON, 250, 60);
+        else Q.fire(Q.foe[0], UT.CRUISE, 95, 120);
+      }]
+    },
+    {
       n: 130, date: '26.11.2026', title: 'Langes Spiel: Forschung', lang: true, research: true,
       text: 'Im Langen Spiel wird geforscht: Baue in einer Stadt ab Stufe 5 eine Uni (Ausbaukarte der Stadt, höchstens 3). Jede Uni forscht an einer Sache, grosse Städte schneller. Der Knopf mit dem Kolben oben zeigt alle Stufen. Zuerst wählst du eine Doktrin: Blitzkrieg oder Tiefenverteidigung.',
       map: { w: 300, h: 200, seed: 930, shapes: [circ(150, 100, 90)] },

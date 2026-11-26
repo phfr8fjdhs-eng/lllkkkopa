@@ -7,7 +7,9 @@
     CITY: 0, DEFENSE: 1, PORT: 2, SILO: 3, SAM: 4, FACTORY: 5, CLOAK: 6, WARSHIP: 7, TRANSPORT: 8, TRADE: 9,
     TRAIN: 10, SHELL: 11, SAMM: 12, ATOM: 13, HYDRO: 14, MIRV: 15, WARHEAD: 16, CRUISE: 17, LASER: 18,
     // «Langes Spiel» only (src/04c_lang.js): cluster bomb, bunker buster, thermobaric bomb, short-range ballistic missile
-    CLUSTER: 19, BUNKER: 20, THERMO: 21, SRBM: 22
+    CLUSTER: 19, BUNKER: 20, THERMO: 21, SRBM: 22,
+    // «Langes Spiel», Paket 5: planes (they fly from an airfield, a silo of class 1, and back)
+    BOMBER: 23, STEALTH: 24, RECON: 25, FIGHTER: 26
   };
   // Buildings are the kinds up to the cloaking tower; everything after them moves.
   G.isStruct = function (type) { return type <= UT.CLOAK; };
@@ -46,9 +48,10 @@
   G.THRUST = { widths: [0, 30, 12], max: 4, pull: 1.2, ring: 0.6, speed: 0.5, flank: 3, deep: 4, hold: 1.5, fan: 0.45, nose: 1, crowd: 2, dirShare: 0.6, search: 250000 };
   G.UNAME = ['Stadt', 'Verteidigungs\u00ADposten', 'Hafen', 'Raketensilo', 'Flugabwehr', 'Fabrik', 'Tarnturm', 'Zerstörer', 'Boot',
     'Handelsschiff', 'Zug', 'Granate', 'Abwehrrakete', 'Atombombe', 'Wasserstoff\u00ADbombe', 'MIRV', 'Sprengkopf', 'Marschflug\u00ADkörper', 'Satelliten\u00ADstrahl',
-    'Streubombe', 'Bunker\u00ADbrecher', 'Thermobare Bombe', 'Kurzstrecken\u00ADrakete'];
+    'Streubombe', 'Bunker\u00ADbrecher', 'Thermobare Bombe', 'Kurzstrecken\u00ADrakete', 'Bomber', 'Tarnbomber', 'Aufklärungs\u00ADflugzeug', 'Abfangjäger'];
   G.UNAME[7.5] = 'Schlachtschiff';   // the interface's own number for warship class 1 (src/07_ui.js, BS)
   G.UNAME[4.5] = 'Raketenabwehr';    // «Langes Spiel»: air defence class 1 (src/07_ui.js, ABM)
+  G.UNAME[3.5] = 'Flugplatz';        // «Langes Spiel»: silo class 1 (src/07_ui.js, FIELD)
   G.UNAME[4.7] = 'Radar';            // «Langes Spiel»: air defence class 2 (src/07_ui.js, RADAR)
   // Tempo. The numbers of the simulation are OpenFront's, but its maps have two million tiles and
   // ours are smaller (map.S is the scale of a side), so the same tiles per tick looked hectic:
@@ -105,6 +108,13 @@
   //           tierCost points; a university (city upgrade from level uniLevel, at most uniMax,
   //           price uniCost, upkeep uniUpkeep gold per tick) brings uniRp x (1 + level / 10)
   //           points per tick. Stronger shelters (research) let shelter2 through
+  //   field*, air*, plane*  air force: an airfield (silo class 1, price fieldCost, a sortie per level)
+  //           reaches airR tiles of the Earth (scaled like `range`); planes fly planeSpeed x the
+  //           speed of a bomb, cost planeCost a sortie (the stealth bomber its bomb on top) and
+  //           the airfield needs the flight there and back plus planeRest ticks. The stealth
+  //           bomber: a launcher sees it only inside stealthSeen of its reach, must hold it there
+  //           stealthLock ticks, and it takes stealthHp hits. A recon flight shows reconR tiles
+  //           around its target for reconTicks; a fighter rests fighterRest ticks after a hunt
   //   post*   defence posts: radius x postR, losses x (postLoss[0] + postLoss[1] x level), time
   //           x (1 + postTime x level), and a tile they cover counts as at least postDens dense
   G.LANG = {
@@ -126,8 +136,12 @@
     allySight: 3000, allyRadar: 9000, rent: 100, baseLeave: 300,
     // Paket 4: research (src/04c_lang.js, G.TECH)
     tierFrom: [0, 0, 9000, 18000, 27000], tierCost: [120, 240, 420, 600, 900],
-    uniLevel: 5, uniMax: 3, uniCost: 1000000, uniUpkeep: 50, uniRp: 0.08, shelter2: 0.3
+    uniLevel: 5, uniMax: 3, uniCost: 1000000, uniUpkeep: 50, uniRp: 0.08, shelter2: 0.3,
+    // Paket 5: the air force (src/04c_lang.js, planes)
+    fieldCost: 2000000, airR: 250, planeSpeed: { 23: 0.6, 24: 0.6, 25: 0.9, 26: 1.5 }, planeCost: { 23: 600000, 24: 2000000, 25: 200000 },
+    planeRest: 200, stealthSeen: 0.25, stealthLock: 30, stealthHp: 2, reconR: 40, reconTicks: 600, fighterRest: 150
   };
+  G.isPlane = function (t) { return t >= UT.BOMBER && t <= UT.FIGHTER; };
   G.LANG_WEAPON = function (t) { return t >= UT.CLUSTER && t <= UT.SRBM; };
   // What the ground does to an attack, by what covers it (index: G.COVER). `speed` multiplies
   // what a tile costs in time, `loss` what it costs the attacker in troops. Height comes on top
@@ -281,7 +295,7 @@
       id: id, name: info.name, type: info.type, strength: info.strength || 1, flag: info.flag || '',
       troops: 0, gold: 0, tiles: 0, peak: 0, border: new Set(), alive: false, spawned: false, spawnTile: -1,
       x0: this.W, y0: this.H, x1: -1, y1: -1,
-      units: [], cnt: new Int32Array(24), cityLv: 0, dposts: [], boats: 0,
+      units: [], cnt: new Int32Array(28), cityLv: 0, dposts: [], boats: 0,
       out: [], inc: [], allies: new Map(), embargo: new Set(), reqCd: new Map(),
       rel: info.type === PT.NATION ? new Map() : null,
       traitorUntil: -1, betrayals: 0, lastChange: 0, lastCluster: 0, ai: null,
@@ -1298,7 +1312,7 @@
         loss = this.tileLoss(mag, R, dAvg, dk, pc ? this.postHold(pc) : 1, a.type !== PT.BOT && t.type === PT.BOT, traitor);
         if (this.lang) {
           if (t.outlawUntil > this.ticks) loss /= G.LANG.outlawHit;   // «Langes Spiel»: an outcast is fought harder
-          if (at.mom !== undefined && this.has(a, 'heer3a')) loss *= 0.85;   // research Warthog: narrow attacks are cheaper
+          if (this.has(a, 'heer3a') && this.airCover(a, tile)) loss *= 0.85;   // research Warthog: cheaper within reach of an own airfield
         }
         used = this.tileTime(speed, R, dk, traitor, at.front.size);
         if (this.lang && pc && this.has(t, 'heer3b') && t.post && t.post.front && !t.post.front.has(pc.id)) used *= 1.3;   // research Apache: slow behind the front
@@ -1766,9 +1780,9 @@
       case 'ship': return tileOk && this.moveWarship(p, c.t, c.s >= 0 ? Math.floor(c.s) : -1) ? '' : 'Kein Schiff kann dorthin';
       case 'dock': return this.dockWarship(p, Math.floor(+c.s), tileOk ? c.t : -1) ? '' : 'Kein eigener Hafen an diesem Gewässer';
       case 'build': {
-        if (!tileOk || !(c.u <= UT.WARSHIP || c.u === UT.ATOM || c.u === UT.HYDRO || c.u === UT.MIRV || c.u === UT.CRUISE || c.u === UT.LASER || (this.lang && G.LANG_WEAPON(c.u))) || !(c.u >= 0)) return 'Nicht möglich';
+        if (!tileOk || !(c.u <= UT.WARSHIP || c.u === UT.ATOM || c.u === UT.HYDRO || c.u === UT.MIRV || c.u === UT.CRUISE || c.u === UT.LASER || (this.lang && (G.LANG_WEAPON(c.u) || (G.isPlane(c.u) && c.u !== UT.FIGHTER)))) || !(c.u >= 0)) return 'Nicht möglich';
         if (this.lv && !this.levelAllows(c.u)) return 'In diesem Level noch gesperrt';
-        const cls = (c.u === UT.WARSHIP && c.cls === 1) || (c.u === UT.SAM && this.lang && (c.cls === 1 || c.cls === 2)) ? c.cls : 0;    // a battleship; a missile defence, a radar
+        const cls = (c.u === UT.WARSHIP && c.cls === 1) || (c.u === UT.SAM && this.lang && (c.cls === 1 || c.cls === 2)) || (c.u === UT.SILO && this.lang && c.cls === 1) ? c.cls : 0;    // a battleship; a missile defence, a radar
         const pick = c.s | 0;   // the silo the player chose, 0 = the nearest (src/04c_lang.js)
         const chk = this.buildCheck(p, c.u, c.t, cls, !!c.fresh, pick);
         if (!chk.ok) return chk.why || 'Nicht möglich';

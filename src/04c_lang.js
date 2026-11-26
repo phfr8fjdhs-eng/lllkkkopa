@@ -150,6 +150,8 @@
   // class 1 (missile defence) at atom and hydrogen bombs and MIRV warheads.
   Game.prototype.samCan = function (u, type) {
     if (u.cls === 2) return false;
+    if (type === UT.FIGHTER) return false;
+    if (type === UT.STEALTH) return !u.cls && this.has(u.owner, 'abw5');
     if (u.cls) return (type === UT.ATOM && this.has(u.owner, 'abm3')) || (type === UT.HYDRO && this.has(u.owner, 'abm4')) || (type === UT.WARHEAD && this.has(u.owner, 'abm5'));
     return type === UT.CRUISE || G.LANG_WEAPON(type);
   };
@@ -272,7 +274,7 @@
   Game.prototype.weaponWhy = function (p, type) {
     const need = this.techFor(type, 0);
     if (need && p.type === PT.HUMAN && !this.has(p, need)) return 'Braucht Forschung: ' + G.TECH_BY[need].name;
-    const from = G.LANG.nukeFrom[type];
+    const from = G.LANG.nukeFrom[type === UT.STEALTH ? UT.ATOM : type];
     if (from && this.ticks - this.playStart + this.langEarly < from) return G.UNAME[type].replace('\u00AD', '') + ' erst ab Minute ' + Math.round(from / 600);
     return '';
   };
@@ -310,7 +312,7 @@
   Game.prototype.langLaunch = function (p, u) {
     const T = this.ticks, type = u.type;
     if (type === UT.CRUISE) { const l = p.cruiseT || (p.cruiseT = []); l.push(T); while (l.length && l[0] < T - G.LANG.cruiseCool) l.shift(); }
-    if (!NUCLEAR(type)) return;
+    if (!NUCLEAR(type) && !(type === UT.STEALTH && u.pay)) return;
     p.outlawUntil = T + G.LANG.outlaw;
     for (const id of Array.from(p.allies.keys())) { const q = this.players[id]; if (q) this.breakAlliance(p, q); }
     this.say(p === this.human ? 'Du hast eine Atomwaffe eingesetzt: Bündnisse gebrochen, ' + Math.round(G.LANG.outlaw / 600) + ' Minuten kein Handel, alle kämpfen härter gegen dich' : p.name + ' hat eine Atomwaffe eingesetzt und ist geächtet', 'bad');
@@ -367,7 +369,8 @@
   // A nuclear power: from minute 30 on, whoever has a silo (everyone sees it, it deters).
   Game.prototype.nuclearPower = function (p) {
     if (!this.lang || this.ticks - this.playStart + this.langEarly < G.LANG.nukeFrom[UT.ATOM]) return false;
-    return p.cnt[UT.SILO] > 0;
+    for (const u of p.units) if (u.type === UT.SILO && !u.cls) return true;
+    return false;
   };
   // A cruise missile or short-range missile takes a share of a building's levels (at least one; a
   // building on level 1 falls). Shelters of a city halve it.
@@ -494,12 +497,20 @@
     T_('heer1', 'Heer', 1, 'Eingraben', 'Eingegrabene Truppen verlieren noch weniger: Angreifer bis 4-mal so viele Verluste'),
     T_('infra', 'Heer', 2, 'Infrastruktur', 'Städte versorgen im doppelten Umkreis, eine Stadt ab Stufe 2 voll'),
     T_('heer2', 'Heer', 2, 'Schienen', 'Auf Schienen marschieren Truppen schneller', ['heer1']),
-    T_('heer3a', 'Heer', 3, 'Warthog', 'Keile und Abschnitte verlieren 15 % weniger Truppen', ['heer2'], 'heer3'),
+    T_('heer3a', 'Heer', 3, 'Warthog', 'Angriffe in Reichweite eines eigenen Flugplatzes verlieren 15 % weniger Truppen', ['heer2'], 'heer3'),
     T_('heer3b', 'Heer', 3, 'Apache', 'Feinde kommen hinter deiner Front 1.3-mal langsamer voran', ['heer2'], 'heer3'),
     T_('posten', 'Heer', 3, 'Stärkere Posten', 'Verteidigungsposten 1.3-mal so stark', ['heer1']),
     T_('heer4', 'Heer', 4, 'Panzerkeil', 'Deine Angriffe verlieren 30 % langsamer Schwung', ['heer2', 'blitz']),
     T_('heer5', 'Heer', 5, 'Stärkstes Eingraben', 'Eingegrabene Truppen: Angreifer bis 5-mal so viele Verluste', ['heer1', 'tief']),
-    T_('pionier', 'Heer', 5, 'Pioniere', 'Gebirge, Wald und Flüsse bremsen deinen Angriff weniger', ['heer2'])
+    T_('pionier', 'Heer', 5, 'Pioniere', 'Gebirge, Wald und Flüsse bremsen deinen Angriff weniger', ['heer2']),
+    T_('abw5', 'Abwehr', 5, 'Gegen Tarnbomber', 'Kleine Flugabwehr kann Tarnbomber treffen (wenn sie ihn 3 s erfasst)', ['abw4']),
+    T_('reco', 'Aufklärung', 2, 'Aufklärungsflugzeug', 'Deckt vom Flugplatz aus kurz ein Gebiet auf', ['luft1']),
+    T_('luft1', 'Luftwaffe', 1, 'Flugplatz', 'Flugplatz bauen (Taste 9); ohne ihn keine Luftwaffe'),
+    T_('luft2', 'Luftwaffe', 2, 'Abfangjäger', 'Flugplätze schicken Jäger gegen Bomber und Marschflugkörper in ihrer Reichweite', ['luft1']),
+    T_('luft3', 'Luftwaffe', 3, 'Luftbetankung', 'Flugplätze reichen 1.5-mal so weit', ['luft2']),
+    T_('luftbr', 'Luftwaffe', 3, 'Luftbrücke', 'Ein Kessel in Reichweite eines eigenen Flugplatzes hungert nicht', ['luft1']),
+    T_('luft4', 'Luftwaffe', 4, 'Bomber', 'Bomber werfen Streubomben auf die Front', ['luft2']),
+    T_('luft5', 'Luftwaffe', 5, 'Tarnbomber', 'Tarnbomber mit Atombombe (mit Wasserstoffbombe, wenn erforscht), kaum zu erfassen', ['luft4', 'atom'])
   ];
   const TECH = G.TECH_BY = {};
   for (const t of G.TECH) TECH[t.id] = t;
@@ -607,8 +618,127 @@
       case UT.CRUISE: return 'rak1'; case UT.CLUSTER: return 'rak2'; case UT.BUNKER: return 'rak3a'; case UT.THERMO: return 'rak3b';
       case UT.SRBM: return 'rak4'; case UT.ATOM: return 'atom'; case UT.HYDRO: return 'hydro'; case UT.MIRV: return 'mirv';
       case UT.SAM: return cls === 2 ? 'auf1' : 'abw1';
+      case UT.BOMBER: return 'luft4'; case UT.STEALTH: return 'luft5'; case UT.RECON: return 'reco';
     }
     return '';
+  };
+
+  // ---------- Paket 5: the air force ----------
+  // An airfield is a silo of class 1 (u.cls = 1): it fires nothing, it sends planes, one sortie per
+  // level at a time (its slots). Planes fly straight there and back on their own; nobody steers them.
+  //   bomber   drops a cluster bomb at the target (research Bomber)
+  //   stealth  carries an atom bomb (a hydrogen bomb with that research), hard to pick up
+  //   recon    shows reconR tiles around its target for reconTicks (research Aufklärungsflugzeug)
+  //   fighter  starts by itself against enemy bombers and cruise missiles in reach (Abfangjäger)
+  Game.prototype.airRange = function (u) {
+    return G.LANG.airR / 5600 * Math.max(this.W, G.LANG.rangeW) * (1 + 0.05 * (u.level - 1)) * (this.has(u.owner, 'luft3') ? 1.5 : 1);
+  };
+  Game.prototype.planeReach = function (u, type) { return this.airRange(u) * (type === UT.STEALTH ? 2 : 1); };
+  Game.prototype.planeCheck = function (p, type, tile, pick, res) {
+    const W = this.W, tx = tile % W, ty = (tile / W) | 0, T = this.ticks;
+    let best = null, bd = Infinity, any = false, far = false;
+    for (const u of p.units) {
+      if (u.type !== UT.SILO || u.cls !== 1 || !u.built) continue;
+      any = true;
+      let free = false;
+      for (let i = 0; i < u.ready.length; i++) if (u.ready[i] <= T) free = true;
+      if (!free) continue;
+      const d = (u.x - tx) * (u.x - tx) + (u.y - ty) * (u.y - ty), r = this.planeReach(u, type);
+      if (d > r * r) { far = true; continue; }
+      if (pick && u.id === pick) { best = u; bd = -1; continue; }
+      if (d < bd) { bd = d; best = u; }
+    }
+    if (!best) { res.why = far ? 'Kein Flugplatz in Reichweite' : any ? 'Flugplatz noch nicht bereit' : 'Dafür brauchst du einen Flugplatz'; return; }
+    if (this.ticks < this.immuneUntil) { res.why = 'Schonfrist läuft noch'; return; }
+    res.silo = best;
+    if (type === UT.STEALTH) res.cost += this.cost(p, this.has(p, 'hydro') ? UT.HYDRO : UT.ATOM);
+    if (p.gold < res.cost) { res.why = 'Zu wenig Gold'; return; }
+    res.ok = true;
+  };
+  Game.prototype.newPlane = function (p, type, field, tx, ty) {
+    const u = this.newUnit(type, p, field.tile);
+    u.sx = u.x; u.sy = u.y; u.dx = tx; u.dy = ty; u.dist = Math.max(1, Math.hypot(tx - u.sx, ty - u.sy));
+    u.prog = 0; u.speed = this.R.nukeSpeed * G.LANG.planeSpeed[type]; u.tid = this.owner[ty * this.W + tx]; u.sam = false; u.delay = 0;
+    u.home = field.id; u.leg = 0; u.hp = type === UT.STEALTH ? G.LANG.stealthHp : 0;
+    return u;
+  };
+  Game.prototype.launchPlane = function (p, type, field, tile) {
+    const T = this.ticks, W = this.W, tx = tile % W, ty = (tile / W) | 0;
+    const u = this.newPlane(p, type, field, tx, ty);
+    if (type === UT.STEALTH) u.pay = this.has(p, 'hydro') ? UT.HYDRO : UT.ATOM;
+    for (let i = 0; i < field.ready.length; i++) if (field.ready[i] <= T) { field.ready[i] = T + Math.ceil(2 * u.dist / u.speed) + G.LANG.planeRest; break; }
+    this.addUnit(u);
+    this.langLaunch(p, u);
+    const q = this.players[u.tid];
+    if (q && q !== p && type === UT.BOMBER && q === this.human) this.say('Bomber von ' + p.name + ' im Anflug', 'bad');
+    return u;
+  };
+  // A plane: out to the target, do its job there, back home; it lands and is gone.
+  Game.prototype.tickPlane = function (u) {
+    if (u.type === UT.FIGHTER && u.leg === 0) { this.tickFighter(u); return; }
+    u.prog += u.speed / u.dist;
+    if (u.prog < 1) { u.x = u.sx + (u.dx - u.sx) * u.prog; u.y = u.sy + (u.dy - u.sy) * u.prog; return; }
+    u.x = u.dx; u.y = u.dy;
+    if (u.leg === 1) { this.removeUnit(u); return; }
+    // over the target
+    if (u.type === UT.BOMBER) this.detonate({ type: UT.CLUSTER, dx: u.dx, dy: u.dy, owner: u.owner, x: u.dx, y: u.dy });
+    else if (u.type === UT.STEALTH && u.pay) { this.detonate({ type: u.pay, dx: u.dx, dy: u.dy, owner: u.owner, x: u.dx, y: u.dy }); u.pay = 0; }
+    else if (u.type === UT.RECON) { const l = u.owner.recon || (u.owner.recon = []); for (let i = l.length - 1; i >= 0; i--) if (l[i].until <= this.ticks) l.splice(i, 1); l.push({ x: u.dx, y: u.dy, until: this.ticks + G.LANG.reconTicks }); }
+    this.planeHome(u);
+  };
+  Game.prototype.planeHome = function (u) {
+    let f = null;
+    for (const v of u.owner.units) if (v.id === u.home && v.active) { f = v; break; }
+    if (!f) { this.removeUnit(u); return; }
+    u.leg = 1; u.sx = u.x; u.sy = u.y; u.dx = f.x; u.dy = f.y; u.prog = 0; u.dist = Math.max(1, Math.hypot(u.dx - u.sx, u.dy - u.sy)); u.sam = false;
+  };
+  // An airfield with fighters looks every 5 ticks for enemy bombers and cruise missiles in its reach.
+  Game.prototype.tickField = function (f) {
+    if ((this.ticks + f.id) % 5 !== 0 || !this.nukes.length || !this.has(f.owner, 'luft2')) return;
+    const T = this.ticks, r = this.airRange(f), r2 = r * r;
+    let slot = -1;
+    for (let i = 0; i < f.ready.length; i++) if (f.ready[i] <= T) { slot = i; break; }
+    if (slot < 0) return;
+    for (const n of this.nukes) {
+      if (!n.active || n.sam || (n.type !== UT.BOMBER && n.type !== UT.CRUISE && !G.lowFly(n.type))) continue;
+      if (n.owner === f.owner || this.friendly(n.owner, f.owner)) continue;
+      if ((n.x - f.x) * (n.x - f.x) + (n.y - f.y) * (n.y - f.y) > r2) continue;
+      const j = this.newPlane(f.owner, UT.FIGHTER, f, Math.round(n.x), Math.round(n.y));
+      j.target = n; n.sam = true;
+      f.ready[slot] = T + G.LANG.fighterRest;
+      this.addUnit(j);
+      return;
+    }
+  };
+  Game.prototype.tickFighter = function (u) {
+    const n = u.target;
+    if (!n || !n.active) { this.planeHome(u); return; }
+    const dx = n.x - u.x, dy = n.y - u.y, d = Math.hypot(dx, dy), sp = u.speed;
+    if (d > sp) { u.x += dx / d * sp; u.y += dy / d * sp; return; }
+    if (n.hp > 1) { n.hp--; n.sam = false; } else this.removeUnit(n);
+    this.fx.push({ k: 'pop', x: n.x, y: n.y, air: 0 });
+    if (u.owner === this.human) this.say('Abfangjäger hat ' + G.UNAME[n.type].replace('\u00AD', '') + ' von ' + n.owner.name + ' abgeschossen', 'good');
+    else if (n.owner === this.human) this.say('Dein ' + G.UNAME[n.type].replace('\u00AD', '') + ' wurde von einem Jäger abgeschossen', 'warn');
+    this.planeHome(u);
+  };
+  // A launcher has to hold a stealth bomber inside a quarter of its reach for stealthLock ticks.
+  Game.prototype.stealthLocked = function (u, n, sr) {
+    const r = sr * G.LANG.stealthSeen, inside = (n.x - u.x) * (n.x - u.x) + (n.y - u.y) * (n.y - u.y) <= r * r;
+    if (!inside) { if (u.lockId === n.id) u.lockId = 0; return false; }
+    if (u.lockId !== n.id) { u.lockId = n.id; u.lockAt = this.ticks; return false; }
+    return this.ticks - u.lockAt >= G.LANG.stealthLock;
+  };
+  // Research Luftbrücke: a cell within reach of an own airfield.
+  Game.prototype.airlift = function (p, id) {
+    const CS = G.POST.cell, CW = this.CW, x = (id % CW + 0.5) * CS, y = (Math.floor(id / CW) + 0.5) * CS;
+    for (const u of p.units) if (u.type === UT.SILO && u.cls === 1 && u.built) { const r = this.airRange(u); if ((u.x - x) * (u.x - x) + (u.y - y) * (u.y - y) <= r * r) return true; }
+    return false;
+  };
+  // Research Warthog: an attack is stronger within reach of an own airfield.
+  Game.prototype.airCover = function (p, tile) {
+    const W = this.W, x = tile % W, y = (tile - x) / W;
+    for (const u of p.units) if (u.type === UT.SILO && u.cls === 1 && u.built) { const r = this.airRange(u); if ((u.x - x) * (u.x - x) + (u.y - y) * (u.y - y) <= r * r) return true; }
+    return false;
   };
 
   // ---------- digging in and defence posts ----------
