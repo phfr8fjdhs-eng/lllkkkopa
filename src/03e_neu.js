@@ -41,6 +41,22 @@
 
   G.NEUES = [
     {
+      n: 125, date: '26.11.2026', title: 'Langes Spiel: Evakuieren und Schutzräume', lang: true,
+      text: 'Fliegt eine Bombe auf deine Stadt, erscheint oben «Evakuieren»: Dann sterben nur ein Drittel der Leute, aber die Stadt wächst eine Weile nicht. Eine Bombe nimmt der Stadt Stufen (Atombombe die Hälfte), statt sie ganz zu zerstören. Schutzräume (in der Ausbaukarte der Stadt) halbieren den Schaden.',
+      map: { w: 320, h: 200, seed: 925, shapes: [circ(80, 100, 60), circ(235, 100, 72)] },
+      me: { x: 80, y: 100, r: 64, troops: 200000, gold: 0, build: [[UT.CITY, 70, 60, 10], [UT.CITY, 70, 140, 10]] },
+      foes: [{ name: 'Vellmar', x: 235, y: 100, r: 76, troops: 200000, build: [[UT.SILO, 230, 100, 3]] }],
+      allow: ALL, quest: none,
+      events: [[0, function (Q) { const c = Q.me.units.find(function (u) { return u.type === UT.CITY && u.y > 100; }); if (c) c.shelter = 1; }]],
+      loop: [6, 30, function (Q) {
+        // the northern city is evacuated by the script; the southern one has shelters
+        for (const u of Q.me.units.slice()) if (u.type === UT.CITY && u.built) Q.fire(Q.foe[0], UT.ATOM, u.x, u.y);
+        const n = Q.me.units.find(function (u) { return u.type === UT.CITY && u.y < 100; });
+        if (n) Q.g.evacuate(Q.me, n.tile);
+      }],
+      tips: [{ text: 'Hier erscheint «Evakuieren».', el: '#evac' }]
+    },
+    {
       n: 124, date: '26.11.2026', title: 'Langes Spiel: zwei Flugabwehren', lang: true,
       text: 'Im Langen Spiel gibt es zwei Flugabwehren: die kleine (Taste 6) gegen Marschflugkörper, mit vielen Schüssen, und die Raketenabwehr (Taste J) gegen Atom- und Wasserstoffbomben, mit wenigen Schüssen. Stehen mehrere nahe beieinander, lädt die zweite halb so schnell nach, die dritte nur noch ein Viertel.',
       map: { w: 320, h: 200, seed: 924, shapes: [circ(80, 100, 60), circ(235, 100, 72)] },

@@ -17,7 +17,9 @@
 
   Game.prototype.langTick = function () {
     const T = this.ticks, ps = this.posted;
-    if (!ps || this.phase !== 'play') return;
+    if (this.phase !== 'play') return;
+    if (T % EVERY === 0) for (let i = 0; i < this.humans.length; i++) { const h = this.humans[i]; if (h.evacW || h.units.some(function (u) { return u.evac !== undefined; })) this.langEvacW(h); }
+    if (!ps) return;
     for (let i = 0; i < ps.length; i++) {
       const p = ps[i];
       if (!p.post || !p.alive || (T + p.id * 13) % EVERY !== 0) continue;
@@ -163,6 +165,81 @@
       u.stackF = Math.pow(L.abmStack, k);
     }
     return Math.round(base / u.stackF);
+  };
+
+  // ---------- bombs on cities, evacuating, shelters ----------
+  // The people of a city: its share of the troop limit, as full as the realm is.
+  Game.prototype.cityPeople = function (p, level) {
+    const max = this.maxTroops(p);
+    return max > 0 ? 250000 * level * within(p.troops / max, 0, 1) : 0;
+  };
+  // Is city u evacuated (an order not older than G.LANG.evacHold)?
+  Game.prototype.evacuated = function (u) { return u.evac !== undefined && this.ticks - u.evac <= G.LANG.evacHold; };
+  // A bomb hits a city (inner ring or outer): it loses levels, its people die (fewer if evacuated).
+  Game.prototype.cityHit = function (u, type, inner) {
+    const L = G.LANG, p = u.owner, L0 = u.level;
+    let f = L.cityHit[type] * (inner ? 1 : 0.5);
+    if (u.shelter) f *= L.shelter;
+    const lost = f >= 1 ? L0 : Math.min(L0, Math.max(1, Math.round(L0 * f)));
+    const L1 = L0 - lost, evac = this.evacuated(u);
+    let dead = evac ? L.evacDie * this.cityPeople(p, L1 > 0 ? L1 : L0) : this.cityPeople(p, L0);
+    if (!inner) dead *= 0.5;
+    if (u.shelter) dead *= L.shelter;
+    dead = Math.min(dead, p.troops);
+    p.troops -= dead;
+    if (L1 <= 0) this.removeUnit(u);
+    else { u.level = L1; p.cnt[UT.CITY] -= lost; p.cityLv -= lost; }
+    if (p === this.human) this.say((L1 <= 0 ? 'Stadt zerstört' : 'Stadt verliert ' + lost + ' Stufe' + (lost === 1 ? '' : 'n')) + ', ' + G.fmtTroops(dead) + ' Tote' + (evac ? ' (evakuiert)' : ''), 'bad');
+  };
+  // How far a bomb's blast reaches (outer ring).
+  Game.prototype.blastOut = function (type) {
+    const R = this.R;
+    return type === UT.HYDRO ? R.hydroOut : type === UT.ATOM ? R.atomOut : type === UT.MIRV ? R.mirvRange : R.headOut;
+  };
+  // Enemy bombs on their way to city u (atom, hydrogen, MIRV, warheads): the one due first, or null.
+  Game.prototype.cityThreat = function (u) {
+    let best = null, bt = 1e9;
+    for (const n of this.nukes) {
+      if (!n.active || (n.type !== UT.ATOM && n.type !== UT.HYDRO && n.type !== UT.MIRV && n.type !== UT.WARHEAD)) continue;
+      if (n.owner === u.owner || this.friendly(n.owner, u.owner)) continue;
+      const r = this.blastOut(n.type) + 2;
+      if ((n.dx - u.x) * (n.dx - u.x) + (n.dy - u.y) * (n.dy - u.y) > r * r) continue;
+      const eta = Math.ceil((1 - n.prog) * n.dist / Math.max(0.01, n.speed)) + (n.delay || 0);
+      if (eta < bt) { bt = eta; best = n; }
+    }
+    return best ? { n: best, eta: bt } : null;
+  };
+  // Order: evacuate an own city with a bomb on its way.
+  Game.prototype.evacuate = function (p, tile) {
+    const u = this.structNear(tile, 4);
+    if (!u || u.owner !== p || u.type !== UT.CITY || !u.built) return 'Keine eigene Stadt';
+    if (this.evacuated(u)) return 'Die Stadt wird schon evakuiert';
+    if (!this.cityThreat(u)) return 'Keine Bombe im Anflug';
+    u.evac = this.ticks;
+    this.langEvacW(p);
+    return '';
+  };
+  // Order: shelters for an own city (an upgrade, no building of its own).
+  Game.prototype.buildShelter = function (p, tile) {
+    const u = this.structNear(tile, 4), c = G.LANG.shelterCost;
+    if (!u || u.owner !== p || u.type !== UT.CITY || !u.built) return 'Keine eigene Stadt';
+    if (u.shelter) return 'Hat schon Schutzräume';
+    if (p.gold < c && !(p.type === PT.HUMAN && this.opts.infiniteGold)) return 'Zu wenig Gold';
+    p.gold -= c; u.shelter = 1;
+    return '';
+  };
+  // How much of the growth p's evacuated cities hold back: 0 for evacStop ticks, then back over
+  // evacBack ticks. Worked out on an order and every 50 ticks (langTick), not every tick.
+  Game.prototype.langEvacW = function (p) {
+    const L = G.LANG, T = this.ticks, max = this.maxTroops(p);
+    let w = 0, any = false;
+    for (const u of p.units) {
+      if (u.type !== UT.CITY || u.evac === undefined) continue;
+      const k = T - u.evac, back = k <= L.evacStop ? 0 : (k - L.evacStop) / L.evacBack;
+      if (back >= 1) { delete u.evac; continue; }
+      any = true; w += 250000 * u.level * (1 - back);
+    }
+    p.evacW = any && max > 0 ? within(w / max, 0, 1) : 0;
   };
 
   // ---------- digging in and defence posts ----------

@@ -73,6 +73,12 @@
   //           warheads, 1 + floor(level / 4) shots, reload abmReload x 8 / (level + 7), price x
   //           abmCost. A second launcher of the same class within reach reloads 1 / abmStack
   //           times as long, a third 1 / abmStack^2 (src/04c_lang.js)
+  //   cityHit  share of its levels a city loses to a bomb in the inner ring (by UT: atom bomb,
+  //           hydrogen bomb, warhead), half that in the outer ring, at least one level; its people
+  //           (its share of the troop limit, as full as the realm) die. Evacuated (an order given
+  //           at most evacHold ticks before), only evacDie of the people of the new level die; the
+  //           city then gives no growth for evacStop ticks and comes back over evacBack ticks.
+  //           Shelters (a city upgrade for shelterCost) halve the lost levels and the dead.
   //   post*   defence posts: radius x postR, losses x (postLoss[0] + postLoss[1] x level), time
   //           x (1 + postTime x level), and a tile they cover counts as at least postDens dense
   G.LANG = {
@@ -81,7 +87,8 @@
     wearFrom: 12000, wearOver: 2, wear: 0.01,
     digTicks: 1200, digLoss: 2, digTime: 0.75, digDrop: 0.004,
     postR: 1.5, postLoss: [5, 3], postTime: 3, postDens: 2,
-    samShots: 2, samReload: 90, abmCost: 1.5, abmReload: 90, abmStack: 0.5
+    samShots: 2, samReload: 90, abmCost: 1.5, abmReload: 90, abmStack: 0.5,
+    cityHit: { 13: 0.5, 14: 1, 16: 0.25 }, evacDie: 0.33, evacStop: 600, evacBack: 1800, evacHold: 900, shelterCost: 250000, shelter: 0.5
   };
   // What the ground does to an attack, by what covers it (index: G.COVER). `speed` multiplies
   // what a tile costs in time, `loss` what it costs the attacker in troops. Height comes on top
@@ -377,6 +384,7 @@
     if (p.type === PT.BOT) add *= 0.4;
     else if (p.type === PT.NATION) add *= NATION_GROW[this.opts.difficulty];
     add *= G.PACE.growth;
+    if (p.evacW) add *= 1 - p.evacW;   // «Langes Spiel»: evacuated cities do not grow (src/04c_lang.js)
     return Math.min(p.troops + add, max) - p.troops;
   };
   // In the version «Rohstoffe» the land and the factories of a player pay on top (src/03c_res.js).
@@ -1716,6 +1724,8 @@
         if (!chk.ok) return chk.why || 'Nicht möglich';
         return this.build(p, c.u, c.t, cls, !!c.fresh) ? '' : 'Nicht möglich';
       }
+      case 'evac': return tileOk && this.lang ? this.evacuate(p, c.t) : 'Nicht möglich';
+      case 'shelter': return tileOk && this.lang ? this.buildShelter(p, c.t) : 'Nicht möglich';
       case 'up': {
         const u = tileOk ? this.structNear(c.t, 4) : null;
         const n = c.n >= 1 && c.n <= 100 ? Math.floor(c.n) : 1;

@@ -516,6 +516,11 @@ body.placing #cv { cursor: crosshair; }
 #nwBar .nwBtns button { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 3px; padding: 6px 4px; border: 0; border-radius: 8px; font: 600 14px var(--display); color: var(--ink); background: rgba(255, 255, 255, 0.1); cursor: pointer; }
 #nwBar .nwBtns button:first-child svg { transform: scaleX(-1); }
 #nwBar .nwBtns button:disabled { opacity: .35; cursor: default; }
+#evac { position: absolute; left: 50%; top: 56px; transform: translateX(-50%); padding: 6px 8px; display: flex; flex-direction: column; gap: 6px; z-index: 6; }
+#evac .ev { display: flex; align-items: center; gap: 10px; font: 600 13px var(--display); }
+#evac .ev b { color: #ff8a7a; }
+#evac button { font: 600 13px var(--display); padding: 5px 10px; border-radius: 8px; border: 0; background: #d9534f; color: #fff; cursor: pointer; }
+#evac button[disabled] { background: #556; cursor: default; }
 #lvBar { position: absolute; left: 8px; top: 56px; width: min(64vw, 300px); padding: 8px 12px 10px; pointer-events: none; }
 #lvBar small { display: block; font: 600 11px var(--display); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
 #lvBar b { display: block; margin-top: 2px; font: 600 15px/1.25 var(--display); }
@@ -620,6 +625,7 @@ body.placing #cv { cursor: crosshair; }
     </div>
     <div id="hotbar" class="panel" hidden></div>
     <div id="lvBar" class="panel" hidden></div>
+    <div id="evac" class="panel" hidden></div>
     <div id="lvTip" hidden></div>
     <div id="news" aria-live="polite"></div>
     <div id="bottom">

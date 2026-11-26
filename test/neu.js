@@ -9,6 +9,7 @@ const G = globalThis.G, UT = G.UT;
 const count = (g, type, p) => g.units.filter((u) => u.active && u.type === type && (!p || u.owner === p)).length;
 // what has to be seen in each scene, asked every second; seen once is enough
 const SEEN = {
+  125: (g) => g.human.units.some((u) => u.type === UT.CITY && u.evac !== undefined) && g.human.units.some((u) => u.type === UT.CITY && u.level < 10),
   124: (g) => g.human.units.some((u) => u.type === UT.SAM && u.cls === 1 && u.ready.some((r) => r > g.ticks)) && g.human.units.some((u) => u.type === UT.SAM && !u.cls && u.ready.some((r) => r > g.ticks)),
   123: (g) => (g.human.wearLost || 0) > 0 && g.ticks > 300,
   122: (g) => { const m = g.human.mass; return !!m && Object.keys(m).some((k) => m[k].quiet > 0); },

@@ -516,6 +516,11 @@ body.placing #cv { cursor: crosshair; }
 #nwBar .nwBtns button { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 3px; padding: 6px 4px; border: 0; border-radius: 8px; font: 600 14px var(--display); color: var(--ink); background: rgba(255, 255, 255, 0.1); cursor: pointer; }
 #nwBar .nwBtns button:first-child svg { transform: scaleX(-1); }
 #nwBar .nwBtns button:disabled { opacity: .35; cursor: default; }
+#evac { position: absolute; left: 50%; top: 56px; transform: translateX(-50%); padding: 6px 8px; display: flex; flex-direction: column; gap: 6px; z-index: 6; }
+#evac .ev { display: flex; align-items: center; gap: 10px; font: 600 13px var(--display); }
+#evac .ev b { color: #ff8a7a; }
+#evac button { font: 600 13px var(--display); padding: 5px 10px; border-radius: 8px; border: 0; background: #d9534f; color: #fff; cursor: pointer; }
+#evac button[disabled] { background: #556; cursor: default; }
 #lvBar { position: absolute; left: 8px; top: 56px; width: min(64vw, 300px); padding: 8px 12px 10px; pointer-events: none; }
 #lvBar small { display: block; font: 600 11px var(--display); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
 #lvBar b { display: block; margin-top: 2px; font: 600 15px/1.25 var(--display); }
@@ -620,6 +625,7 @@ body.placing #cv { cursor: crosshair; }
     </div>
     <div id="hotbar" class="panel" hidden></div>
     <div id="lvBar" class="panel" hidden></div>
+    <div id="evac" class="panel" hidden></div>
     <div id="lvTip" hidden></div>
     <div id="news" aria-live="polite"></div>
     <div id="bottom">
@@ -1504,6 +1510,12 @@ body.placing #cv { cursor: crosshair; }
   //           warheads, 1 + floor(level / 4) shots, reload abmReload x 8 / (level + 7), price x
   //           abmCost. A second launcher of the same class within reach reloads 1 / abmStack
   //           times as long, a third 1 / abmStack^2 (src/04c_lang.js)
+  //   cityHit  share of its levels a city loses to a bomb in the inner ring (by UT: atom bomb,
+  //           hydrogen bomb, warhead), half that in the outer ring, at least one level; its people
+  //           (its share of the troop limit, as full as the realm) die. Evacuated (an order given
+  //           at most evacHold ticks before), only evacDie of the people of the new level die; the
+  //           city then gives no growth for evacStop ticks and comes back over evacBack ticks.
+  //           Shelters (a city upgrade for shelterCost) halve the lost levels and the dead.
   //   post*   defence posts: radius x postR, losses x (postLoss[0] + postLoss[1] x level), time
   //           x (1 + postTime x level), and a tile they cover counts as at least postDens dense
   G.LANG = {
@@ -1512,7 +1524,8 @@ body.placing #cv { cursor: crosshair; }
     wearFrom: 12000, wearOver: 2, wear: 0.01,
     digTicks: 1200, digLoss: 2, digTime: 0.75, digDrop: 0.004,
     postR: 1.5, postLoss: [5, 3], postTime: 3, postDens: 2,
-    samShots: 2, samReload: 90, abmCost: 1.5, abmReload: 90, abmStack: 0.5
+    samShots: 2, samReload: 90, abmCost: 1.5, abmReload: 90, abmStack: 0.5,
+    cityHit: { 13: 0.5, 14: 1, 16: 0.25 }, evacDie: 0.33, evacStop: 600, evacBack: 1800, evacHold: 900, shelterCost: 250000, shelter: 0.5
   };
   // What the ground does to an attack, by what covers it (index: G.COVER). `speed` multiplies
   // what a tile costs in time, `loss` what it costs the attacker in troops. Height comes on top
@@ -1808,6 +1821,7 @@ body.placing #cv { cursor: crosshair; }
     if (p.type === PT.BOT) add *= 0.4;
     else if (p.type === PT.NATION) add *= NATION_GROW[this.opts.difficulty];
     add *= G.PACE.growth;
+    if (p.evacW) add *= 1 - p.evacW;   // «Langes Spiel»: evacuated cities do not grow (src/04c_lang.js)
     return Math.min(p.troops + add, max) - p.troops;
   };
   // In the version «Rohstoffe» the land and the factories of a player pay on top (src/03c_res.js).
@@ -3147,6 +3161,8 @@ body.placing #cv { cursor: crosshair; }
         if (!chk.ok) return chk.why || 'Nicht möglich';
         return this.build(p, c.u, c.t, cls, !!c.fresh) ? '' : 'Nicht möglich';
       }
+      case 'evac': return tileOk && this.lang ? this.evacuate(p, c.t) : 'Nicht möglich';
+      case 'shelter': return tileOk && this.lang ? this.buildShelter(p, c.t) : 'Nicht möglich';
       case 'up': {
         const u = tileOk ? this.structNear(c.t, 4) : null;
         const n = c.n >= 1 && c.n <= 100 ? Math.floor(c.n) : 1;
@@ -4197,6 +4213,22 @@ body.placing #cv { cursor: crosshair; }
   }
 
   G.NEUES = [
+    {
+      n: 125, date: '26.11.2026', title: 'Langes Spiel: Evakuieren und Schutzräume', lang: true,
+      text: 'Fliegt eine Bombe auf deine Stadt, erscheint oben «Evakuieren»: Dann sterben nur ein Drittel der Leute, aber die Stadt wächst eine Weile nicht. Eine Bombe nimmt der Stadt Stufen (Atombombe die Hälfte), statt sie ganz zu zerstören. Schutzräume (in der Ausbaukarte der Stadt) halbieren den Schaden.',
+      map: { w: 320, h: 200, seed: 925, shapes: [circ(80, 100, 60), circ(235, 100, 72)] },
+      me: { x: 80, y: 100, r: 64, troops: 200000, gold: 0, build: [[UT.CITY, 70, 60, 10], [UT.CITY, 70, 140, 10]] },
+      foes: [{ name: 'Vellmar', x: 235, y: 100, r: 76, troops: 200000, build: [[UT.SILO, 230, 100, 3]] }],
+      allow: ALL, quest: none,
+      events: [[0, function (Q) { const c = Q.me.units.find(function (u) { return u.type === UT.CITY && u.y > 100; }); if (c) c.shelter = 1; }]],
+      loop: [6, 30, function (Q) {
+        // the northern city is evacuated by the script; the southern one has shelters
+        for (const u of Q.me.units.slice()) if (u.type === UT.CITY && u.built) Q.fire(Q.foe[0], UT.ATOM, u.x, u.y);
+        const n = Q.me.units.find(function (u) { return u.type === UT.CITY && u.y < 100; });
+        if (n) Q.g.evacuate(Q.me, n.tile);
+      }],
+      tips: [{ text: 'Hier erscheint «Evakuieren».', el: '#evac' }]
+    },
     {
       n: 124, date: '26.11.2026', title: 'Langes Spiel: zwei Flugabwehren', lang: true,
       text: 'Im Langen Spiel gibt es zwei Flugabwehren: die kleine (Taste 6) gegen Marschflugkörper, mit vielen Schüssen, und die Raketenabwehr (Taste J) gegen Atom- und Wasserstoffbomben, mit wenigen Schüssen. Stehen mehrere nahe beieinander, lädt die zweite halb so schnell nach, die dritte nur noch ein Viertel.',
@@ -5570,6 +5602,19 @@ body.placing #cv { cursor: crosshair; }
     // troops lost per hit tile, in tiles' worth of the average (OpenFront: 5; ours 3, see
     // doku/openfront-abgleich.md)
     const kill = type === UT.WARHEAD ? G.WARHEAD_KILL : G.NUKE_KILL;
+    // «Langes Spiel» (src/04c_lang.js): a city loses levels and people instead of falling at once;
+    // the tile of a city still standing is not torn from its owner
+    const cityRule = this.lang && G.LANG.cityHit[type] !== undefined;
+    let keep = null;
+    if (cityRule) {
+      for (const v of this.units) {
+        if (!v.active || v.type !== UT.CITY || !v.built) continue;
+        const vd2 = (v.x - cx) * (v.x - cx) + (v.y - cy) * (v.y - cy);
+        if (vd2 > out2) continue;
+        this.cityHit(v, type, vd2 <= in2);
+        if (v.active) (keep || (keep = new Set())).add(v.tile);
+      }
+    }
     for (let y = Math.max(0, cy - rout); y <= Math.min(H - 1, cy + rout); y++) {
       for (let x = Math.max(0, cx - rout); x <= Math.min(W - 1, cx + rout); x++) {
         const d2 = (x - cx) * (x - cx) + (y - cy) * (y - cy);
@@ -5581,7 +5626,7 @@ body.placing #cv { cursor: crosshair; }
           const q = ps[o];
           if (!before.has(o)) before.set(o, q.troops);
           q.troops = Math.max(0, q.troops - kill * q.troops / Math.max(1, q.tiles));
-          this.relinquish(t);
+          if (!keep || !keep.has(t)) this.relinquish(t);
         }
         if (!clean && !this.fallout[t]) { this.fallout[t] = 1; this.falloutCount++; this.markDirty(t); }
       }
@@ -5596,7 +5641,9 @@ body.placing #cv { cursor: crosshair; }
     }
     for (const v of this.units) {
       if (!v.active || v.type >= UT.SHELL) continue;
-      if ((v.x - cx) * (v.x - cx) + (v.y - cy) * (v.y - cy) <= out2) {
+      const vd2 = (v.x - cx) * (v.x - cx) + (v.y - cy) * (v.y - cy);
+      if (keep && keep.has(v.tile) && v.type === UT.CITY) continue;   // hit above, still standing
+      if (vd2 <= out2) {
         if (v.type === UT.WARSHIP) this.fx.push({ k: 'shipboom', x: v.x, y: v.y, a: 0 });
         this.removeUnit(v);
       }
@@ -6139,7 +6186,9 @@ body.placing #cv { cursor: crosshair; }
 
   Game.prototype.langTick = function () {
     const T = this.ticks, ps = this.posted;
-    if (!ps || this.phase !== 'play') return;
+    if (this.phase !== 'play') return;
+    if (T % EVERY === 0) for (let i = 0; i < this.humans.length; i++) { const h = this.humans[i]; if (h.evacW || h.units.some(function (u) { return u.evac !== undefined; })) this.langEvacW(h); }
+    if (!ps) return;
     for (let i = 0; i < ps.length; i++) {
       const p = ps[i];
       if (!p.post || !p.alive || (T + p.id * 13) % EVERY !== 0) continue;
@@ -6285,6 +6334,81 @@ body.placing #cv { cursor: crosshair; }
       u.stackF = Math.pow(L.abmStack, k);
     }
     return Math.round(base / u.stackF);
+  };
+
+  // ---------- bombs on cities, evacuating, shelters ----------
+  // The people of a city: its share of the troop limit, as full as the realm is.
+  Game.prototype.cityPeople = function (p, level) {
+    const max = this.maxTroops(p);
+    return max > 0 ? 250000 * level * within(p.troops / max, 0, 1) : 0;
+  };
+  // Is city u evacuated (an order not older than G.LANG.evacHold)?
+  Game.prototype.evacuated = function (u) { return u.evac !== undefined && this.ticks - u.evac <= G.LANG.evacHold; };
+  // A bomb hits a city (inner ring or outer): it loses levels, its people die (fewer if evacuated).
+  Game.prototype.cityHit = function (u, type, inner) {
+    const L = G.LANG, p = u.owner, L0 = u.level;
+    let f = L.cityHit[type] * (inner ? 1 : 0.5);
+    if (u.shelter) f *= L.shelter;
+    const lost = f >= 1 ? L0 : Math.min(L0, Math.max(1, Math.round(L0 * f)));
+    const L1 = L0 - lost, evac = this.evacuated(u);
+    let dead = evac ? L.evacDie * this.cityPeople(p, L1 > 0 ? L1 : L0) : this.cityPeople(p, L0);
+    if (!inner) dead *= 0.5;
+    if (u.shelter) dead *= L.shelter;
+    dead = Math.min(dead, p.troops);
+    p.troops -= dead;
+    if (L1 <= 0) this.removeUnit(u);
+    else { u.level = L1; p.cnt[UT.CITY] -= lost; p.cityLv -= lost; }
+    if (p === this.human) this.say((L1 <= 0 ? 'Stadt zerstört' : 'Stadt verliert ' + lost + ' Stufe' + (lost === 1 ? '' : 'n')) + ', ' + G.fmtTroops(dead) + ' Tote' + (evac ? ' (evakuiert)' : ''), 'bad');
+  };
+  // How far a bomb's blast reaches (outer ring).
+  Game.prototype.blastOut = function (type) {
+    const R = this.R;
+    return type === UT.HYDRO ? R.hydroOut : type === UT.ATOM ? R.atomOut : type === UT.MIRV ? R.mirvRange : R.headOut;
+  };
+  // Enemy bombs on their way to city u (atom, hydrogen, MIRV, warheads): the one due first, or null.
+  Game.prototype.cityThreat = function (u) {
+    let best = null, bt = 1e9;
+    for (const n of this.nukes) {
+      if (!n.active || (n.type !== UT.ATOM && n.type !== UT.HYDRO && n.type !== UT.MIRV && n.type !== UT.WARHEAD)) continue;
+      if (n.owner === u.owner || this.friendly(n.owner, u.owner)) continue;
+      const r = this.blastOut(n.type) + 2;
+      if ((n.dx - u.x) * (n.dx - u.x) + (n.dy - u.y) * (n.dy - u.y) > r * r) continue;
+      const eta = Math.ceil((1 - n.prog) * n.dist / Math.max(0.01, n.speed)) + (n.delay || 0);
+      if (eta < bt) { bt = eta; best = n; }
+    }
+    return best ? { n: best, eta: bt } : null;
+  };
+  // Order: evacuate an own city with a bomb on its way.
+  Game.prototype.evacuate = function (p, tile) {
+    const u = this.structNear(tile, 4);
+    if (!u || u.owner !== p || u.type !== UT.CITY || !u.built) return 'Keine eigene Stadt';
+    if (this.evacuated(u)) return 'Die Stadt wird schon evakuiert';
+    if (!this.cityThreat(u)) return 'Keine Bombe im Anflug';
+    u.evac = this.ticks;
+    this.langEvacW(p);
+    return '';
+  };
+  // Order: shelters for an own city (an upgrade, no building of its own).
+  Game.prototype.buildShelter = function (p, tile) {
+    const u = this.structNear(tile, 4), c = G.LANG.shelterCost;
+    if (!u || u.owner !== p || u.type !== UT.CITY || !u.built) return 'Keine eigene Stadt';
+    if (u.shelter) return 'Hat schon Schutzräume';
+    if (p.gold < c && !(p.type === PT.HUMAN && this.opts.infiniteGold)) return 'Zu wenig Gold';
+    p.gold -= c; u.shelter = 1;
+    return '';
+  };
+  // How much of the growth p's evacuated cities hold back: 0 for evacStop ticks, then back over
+  // evacBack ticks. Worked out on an order and every 50 ticks (langTick), not every tick.
+  Game.prototype.langEvacW = function (p) {
+    const L = G.LANG, T = this.ticks, max = this.maxTroops(p);
+    let w = 0, any = false;
+    for (const u of p.units) {
+      if (u.type !== UT.CITY || u.evac === undefined) continue;
+      const k = T - u.evac, back = k <= L.evacStop ? 0 : (k - L.evacStop) / L.evacBack;
+      if (back >= 1) { delete u.evac; continue; }
+      any = true; w += 250000 * u.level * (1 - back);
+    }
+    p.evacW = any && max > 0 ? within(w / max, 0, 1) : 0;
   };
 
   // ---------- digging in and defence posts ----------
@@ -11817,6 +11941,7 @@ void main() { outc = texture(uColor, vUV); }`;
     }
     $('clock').textContent = clock((T - game.playStart) / 10);
     renderHotbar();
+    if (game.lang) showEvac();
     if (h.alive) {
       $('sTroops').textContent = fmtT(h.troops);
       $('sTroopsSub').textContent = '+' + fmtT(Math.max(0, game.troopGrowth(h)) * 10) + '/s';
@@ -12058,6 +12183,8 @@ void main() { outc = texture(uColor, vUV); }`;
         }
         btns += '</div>';
       }
+      // «Langes Spiel»: shelters, an upgrade of the city
+      if (game.lang && near.type === UT.CITY) btns += near.shelter ? '<div class="uprow"><small>Schutzräume: halb so viele Tote, halb so viele verlorene Stufen bei einem Treffer</small></div>' : '<div class="uprow"><button class="upbtn" type="button" data-shelter="1"' + (rich || h.gold >= G.LANG.shelterCost ? '' : ' disabled') + '><span>Schutzräume</span>' + coin(G.LANG.shelterCost) + '</button></div>';
       html += '<div class="scard"><div class="shead"><span class="ic big">' + svg(BUILD.find(function (b) { return b.t === near.type; }).icon, 30) + '</span>' +
         '<div class="sinfo"><b>' + G.UNAME[near.type] + ' · Stufe ' + near.level + (top > 10 ? ' von ' + top : '') + '</b>' + bar +
         '<small>Jetzt: ' + levelText(near.type, near.level) + '</small>' +
@@ -12109,6 +12236,25 @@ void main() { outc = texture(uColor, vUV); }`;
     const r = real(t);
     act({ k: 'build', u: r.u, cls: r.cls, t: tile, fresh: fresh ? 1 : 0, say: r.u === UT.WARSHIP ? plain(t) + (fresh || !game.stored(game.human, r.cls) ? ' läuft aus' : ' läuft aus dem Lager aus') : plain(t) + (game.opts.instantBuild ? ' gebaut' : ' wird gebaut') });
   }
+  // «Langes Spiel»: an enemy bomb on its way to an own city puts a button «Evakuieren» at the top
+  // (src/04c_lang.js, cityThreat, evacuate); at most three cities, the one hit first on top
+  function showEvac() {
+    const el = $('evac'), h = game.human, list = [];
+    for (const u of h.units) {
+      if (u.type !== UT.CITY || !u.built) continue;
+      const th = game.cityThreat(u);
+      if (th) list.push({ u: u, eta: th.eta, n: th.n });
+    }
+    list.sort(function (a, b) { return a.eta - b.eta; });
+    let s = '';
+    for (const e of list.slice(0, 3)) {
+      const done = game.evacuated(e.u);
+      s += '<div class="ev"><span><b>' + esc(plain(e.n.type)) + '</b> auf Stadt Stufe ' + e.u.level + (e.u.shelter ? ' (Schutzräume)' : '') + ' · ' + Math.ceil(e.eta / 10) + ' s</span>' +
+        '<button type="button" data-evac="' + e.u.tile + '"' + (done ? ' disabled>Evakuiert' : '>Evakuieren') + '</button></div>';
+    }
+    if (el.dataset.html !== s) { el.innerHTML = s; el.dataset.html = s; }
+    el.hidden = !s;
+  }
   function doUpgrade(tile, n) {
     const u = game.structNear(tile, 4);
     act({ k: 'up', t: tile, n: n || 1, say: (u ? plain(u.type) : 'Gebäude') + ' ausgebaut' });
@@ -12153,9 +12299,10 @@ void main() { outc = texture(uColor, vUV); }`;
   function closeBuild() { $('sheet').hidden = true; if (view) { view.mark = -1; view.selUnit = null; } }
   function onBuild(e) {
     if (performance.now() - sheetAt < 350) return;
-    const b = e.target.closest('[data-t],[data-up]');
+    const b = e.target.closest('[data-t],[data-up],[data-shelter]');
     if (!b || b.disabled) return;
-    if (b.dataset.up) doUpgrade(buildTile, +b.dataset.up);
+    if (b.dataset.shelter) act({ k: 'shelter', t: buildTile, say: 'Schutzräume gebaut' });
+    else if (b.dataset.up) doUpgrade(buildTile, +b.dataset.up);
     else {
       const t = +b.dataset.t;
       if (t >= UT.ATOM) closeBuild();
@@ -13130,6 +13277,7 @@ void main() { outc = texture(uColor, vUV); }`;
     $('rS').addEventListener('click', function () { radialAct('S'); });
     $('rW').addEventListener('click', function () { radialAct('W'); });
     $('sheetBody').addEventListener('click', onBuild);
+    $('evac').addEventListener('click', function (e) { const b = e.target.closest('[data-evac]'); if (b && !b.disabled) act({ k: 'evac', t: +b.dataset.evac, say: 'Stadt wird evakuiert' }); });
     // Closing the card of an air defence or factory with the cross keeps the rings of all of that
     // kind on the map (25.11.2026), until the next tap on the map or Escape.
     $('sheetClose').addEventListener('click', function () {

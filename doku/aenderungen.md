@@ -3,6 +3,10 @@ Was seit dem 13.11.2026 geändert wurde und warum. Den heutigen Stand der Regeln
 
 
 
+## Spielmodus «Langes Spiel», Paket 1f: Bomben auf Städte, Evakuieren, Schutzräume (26.11.2026)
+- **Wunsch:** Man sieht die Bombe kommen und soll etwas tun können; eine Stadt hat Bevölkerung, ein Treffer nimmt Stufen und Leute, evakuiert sterben weniger, das Wachstum kommt danach langsam zurück.
+- **Geändert (nur im Modus):** Treffer nehmen Stufen (Sprengkopf ¼, Atombombe ½, Wasserstoffbombe alle) und töten die Bevölkerung; Knopf «Evakuieren» bei einer anfliegenden Bombe (33 % Tote, 60 s kein Wachstum, dann 3 Minuten Erholung); Schutzräume als Ausbau der Stadt (250K, halber Schaden). Szene 125.
+
 ## Spielmodus «Langes Spiel», Paket 1e: zwei Flugabwehren (26.11.2026)
 - **Wunsch:** Nicht mehr eine Flugabwehr auf Stufe 10 stapeln, die alles aufhält.
 - **Geändert (nur im Modus):** kleine Flugabwehr (Taste 6) nur gegen Marschflugkörper, 2 Schüsse pro Stufe; Raketenabwehr (Taste J) nur gegen Atom- und Wasserstoffbomben und Sprengköpfe, 1 + ⌊Stufe / 4⌋ Schüsse, schnelleres Nachladen mit der Stufe; mehrere nahe beieinander laden langsamer nach. Szene 124.

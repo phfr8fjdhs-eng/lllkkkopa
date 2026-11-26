@@ -7,7 +7,7 @@ Ruhiger, mehr Zeit zum Planen, taktischer. Runden von etwa **70 Minuten** (festg
 Die Regel aus `doku/vision.md` (Runden höchstens etwa 40 bis 45 Minuten) gilt für das klassische Spiel; dieser Modus ist bewusst länger.
 
 ## Pakete
-1. Tempo, Vorbereitung, Verteidigung, Abwehr (in Arbeit)
+1. Tempo, Vorbereitung, Verteidigung, Abwehr (gebaut 26.11.2026, Teile 1a bis 1f unten)
 2. Bomben, Raketen, Bedienung (Atomwaffen als Abschreckung, Reichweite ab dem Silo, Waffenleiste, Schläge planen, Zweitschlag)
 3. Nebel, Aufklärung, Bündnisse
 4. Forschung (Unis, Stufen, Doktrin; dazu ein Ausbau «Infrastruktur» für Versorgung und Schutz der Städte)
@@ -84,5 +84,19 @@ Im klassischen Spiel gibt jede Stufe einer Flugabwehr einen Abfangschuss mehr: E
 - Nationen bauen im Modus zuerst eine Raketenabwehr, dann eine kleine.
 - Szene 124.
 
-## Geplant für Paket 1 (abgesprochen 26.11.2026, noch nicht gebaut)
-- **1f Evakuieren und Schutzräume:** Bombe auf eine Stadt nimmt ihr Stufen (Sprengkopf ¼, Atombombe ½, Wasserstoffbombe alle, mindestens eine), ihre Bevölkerung (ihr Anteil am Truppen-Limit, so voll wie das Land) stirbt. Evakuiert sterben nur 33 % der Bevölkerung der neuen Stufe; dafür wächst die Stadt 60 s nicht, danach kommt ihr Wachstum über 3 Minuten langsam zurück. Schutzräume (Ausbau der Stadt) halbieren verlorene Stufen und Tote.
+## 1f. Bomben auf Städte, Evakuieren, Schutzräume (26.11.2026)
+Eine Stadt trägt die Bevölkerung: Truppen-Limit und Wachstum. Ihre **Bevölkerung** ist ihr Anteil am Truppen-Limit, so voll gefüllt wie das ganze Land: 250K · Stufe · Truppen / Limit (`cityPeople`).
+- **Treffer** (`cityHit` in `src/04c_lang.js`, aus `detonate`): Eine Stadt im inneren Sprengring verliert einen Anteil ihrer Stufen (`G.LANG.cityHit`), im äusseren Ring die Hälfte davon, immer mindestens eine. Ihre Bevölkerung stirbt (im äusseren Ring die Hälfte). Das Feld der Stadt bleibt beim Besitzer, solange sie steht.
+
+| Bombe | Stufen weg (innen) |
+| --- | --- |
+| Sprengkopf (MIRV) | ¼ |
+| Atombombe | ½ |
+| Wasserstoffbombe | alle (Stadt weg) |
+
+- **Evakuieren:** Fliegt eine feindliche Atombombe, Wasserstoffbombe, ein MIRV oder Sprengkopf auf eine eigene Stadt, erscheint oben eine Zeile mit «Evakuieren» und den Sekunden bis zum Einschlag (`cityThreat`, Befehl `{k:'evac', t}`). Evakuiert sterben nur 33 % der Bevölkerung der Stufe nach dem Treffer (`evacDie`). Dafür trägt die Stadt 60 s nichts zum Wachstum bei (`evacStop`) und kommt danach über 3 Minuten langsam zurück (`evacBack`); gerechnet alle 5 s als Anteil am Wachstum (`langEvacW`, `p.evacW`). Ein Befehl gilt 90 s (`evacHold`).
+- **Schutzräume:** ein Ausbau der Stadt in ihrer Ausbaukarte, einmalig 250K (`shelterCost`, Befehl `{k:'shelter', t}`), kein eigenes Gebäude. Halbieren verlorene Stufen und Tote.
+- Beispiel (Szene 125, Stadt Stufe 10, Atombombe genau darauf): evakuiert Stufe 10 → 5 und 4.6K Tote; mit Schutzräumen, nicht evakuiert, Stufe 10 → 7 und 15.5K Tote.
+- Zivilschutz (automatisches Evakuieren) kommt mit der Forschung (Paket 4). Der **Zweitschlag** kommt mit Paket 2, weil es erst dort eine Vorbereitungszeit für Atomwaffen gibt.
+- Marschflugkörper und Satellitenstrahl zerstören eine Stadt noch wie bisher; der Marschflugkörper nimmt mit Paket 2 einen Anteil der Stufen.
+- Szene 125.

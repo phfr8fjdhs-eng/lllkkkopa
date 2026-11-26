@@ -881,6 +881,7 @@
     }
     $('clock').textContent = clock((T - game.playStart) / 10);
     renderHotbar();
+    if (game.lang) showEvac();
     if (h.alive) {
       $('sTroops').textContent = fmtT(h.troops);
       $('sTroopsSub').textContent = '+' + fmtT(Math.max(0, game.troopGrowth(h)) * 10) + '/s';
@@ -1122,6 +1123,8 @@
         }
         btns += '</div>';
       }
+      // «Langes Spiel»: shelters, an upgrade of the city
+      if (game.lang && near.type === UT.CITY) btns += near.shelter ? '<div class="uprow"><small>Schutzräume: halb so viele Tote, halb so viele verlorene Stufen bei einem Treffer</small></div>' : '<div class="uprow"><button class="upbtn" type="button" data-shelter="1"' + (rich || h.gold >= G.LANG.shelterCost ? '' : ' disabled') + '><span>Schutzräume</span>' + coin(G.LANG.shelterCost) + '</button></div>';
       html += '<div class="scard"><div class="shead"><span class="ic big">' + svg(BUILD.find(function (b) { return b.t === near.type; }).icon, 30) + '</span>' +
         '<div class="sinfo"><b>' + G.UNAME[near.type] + ' · Stufe ' + near.level + (top > 10 ? ' von ' + top : '') + '</b>' + bar +
         '<small>Jetzt: ' + levelText(near.type, near.level) + '</small>' +
@@ -1173,6 +1176,25 @@
     const r = real(t);
     act({ k: 'build', u: r.u, cls: r.cls, t: tile, fresh: fresh ? 1 : 0, say: r.u === UT.WARSHIP ? plain(t) + (fresh || !game.stored(game.human, r.cls) ? ' läuft aus' : ' läuft aus dem Lager aus') : plain(t) + (game.opts.instantBuild ? ' gebaut' : ' wird gebaut') });
   }
+  // «Langes Spiel»: an enemy bomb on its way to an own city puts a button «Evakuieren» at the top
+  // (src/04c_lang.js, cityThreat, evacuate); at most three cities, the one hit first on top
+  function showEvac() {
+    const el = $('evac'), h = game.human, list = [];
+    for (const u of h.units) {
+      if (u.type !== UT.CITY || !u.built) continue;
+      const th = game.cityThreat(u);
+      if (th) list.push({ u: u, eta: th.eta, n: th.n });
+    }
+    list.sort(function (a, b) { return a.eta - b.eta; });
+    let s = '';
+    for (const e of list.slice(0, 3)) {
+      const done = game.evacuated(e.u);
+      s += '<div class="ev"><span><b>' + esc(plain(e.n.type)) + '</b> auf Stadt Stufe ' + e.u.level + (e.u.shelter ? ' (Schutzräume)' : '') + ' · ' + Math.ceil(e.eta / 10) + ' s</span>' +
+        '<button type="button" data-evac="' + e.u.tile + '"' + (done ? ' disabled>Evakuiert' : '>Evakuieren') + '</button></div>';
+    }
+    if (el.dataset.html !== s) { el.innerHTML = s; el.dataset.html = s; }
+    el.hidden = !s;
+  }
   function doUpgrade(tile, n) {
     const u = game.structNear(tile, 4);
     act({ k: 'up', t: tile, n: n || 1, say: (u ? plain(u.type) : 'Gebäude') + ' ausgebaut' });
@@ -1217,9 +1239,10 @@
   function closeBuild() { $('sheet').hidden = true; if (view) { view.mark = -1; view.selUnit = null; } }
   function onBuild(e) {
     if (performance.now() - sheetAt < 350) return;
-    const b = e.target.closest('[data-t],[data-up]');
+    const b = e.target.closest('[data-t],[data-up],[data-shelter]');
     if (!b || b.disabled) return;
-    if (b.dataset.up) doUpgrade(buildTile, +b.dataset.up);
+    if (b.dataset.shelter) act({ k: 'shelter', t: buildTile, say: 'Schutzräume gebaut' });
+    else if (b.dataset.up) doUpgrade(buildTile, +b.dataset.up);
     else {
       const t = +b.dataset.t;
       if (t >= UT.ATOM) closeBuild();
@@ -2194,6 +2217,7 @@
     $('rS').addEventListener('click', function () { radialAct('S'); });
     $('rW').addEventListener('click', function () { radialAct('W'); });
     $('sheetBody').addEventListener('click', onBuild);
+    $('evac').addEventListener('click', function (e) { const b = e.target.closest('[data-evac]'); if (b && !b.disabled) act({ k: 'evac', t: +b.dataset.evac, say: 'Stadt wird evakuiert' }); });
     // Closing the card of an air defence or factory with the cross keeps the rings of all of that
     // kind on the map (25.11.2026), until the next tap on the map or Escape.
     $('sheetClose').addEventListener('click', function () {

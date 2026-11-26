@@ -1137,6 +1137,19 @@
     // troops lost per hit tile, in tiles' worth of the average (OpenFront: 5; ours 3, see
     // doku/openfront-abgleich.md)
     const kill = type === UT.WARHEAD ? G.WARHEAD_KILL : G.NUKE_KILL;
+    // «Langes Spiel» (src/04c_lang.js): a city loses levels and people instead of falling at once;
+    // the tile of a city still standing is not torn from its owner
+    const cityRule = this.lang && G.LANG.cityHit[type] !== undefined;
+    let keep = null;
+    if (cityRule) {
+      for (const v of this.units) {
+        if (!v.active || v.type !== UT.CITY || !v.built) continue;
+        const vd2 = (v.x - cx) * (v.x - cx) + (v.y - cy) * (v.y - cy);
+        if (vd2 > out2) continue;
+        this.cityHit(v, type, vd2 <= in2);
+        if (v.active) (keep || (keep = new Set())).add(v.tile);
+      }
+    }
     for (let y = Math.max(0, cy - rout); y <= Math.min(H - 1, cy + rout); y++) {
       for (let x = Math.max(0, cx - rout); x <= Math.min(W - 1, cx + rout); x++) {
         const d2 = (x - cx) * (x - cx) + (y - cy) * (y - cy);
@@ -1148,7 +1161,7 @@
           const q = ps[o];
           if (!before.has(o)) before.set(o, q.troops);
           q.troops = Math.max(0, q.troops - kill * q.troops / Math.max(1, q.tiles));
-          this.relinquish(t);
+          if (!keep || !keep.has(t)) this.relinquish(t);
         }
         if (!clean && !this.fallout[t]) { this.fallout[t] = 1; this.falloutCount++; this.markDirty(t); }
       }
@@ -1163,7 +1176,9 @@
     }
     for (const v of this.units) {
       if (!v.active || v.type >= UT.SHELL) continue;
-      if ((v.x - cx) * (v.x - cx) + (v.y - cy) * (v.y - cy) <= out2) {
+      const vd2 = (v.x - cx) * (v.x - cx) + (v.y - cy) * (v.y - cy);
+      if (keep && keep.has(v.tile) && v.type === UT.CITY) continue;   // hit above, still standing
+      if (vd2 <= out2) {
         if (v.type === UT.WARSHIP) this.fx.push({ k: 'shipboom', x: v.x, y: v.y, a: 0 });
         this.removeUnit(v);
       }
