@@ -276,7 +276,7 @@
     // working memory of the few questions that search (boatPlan, portSite): made on first use
     let stamp = null, q = null;
     Object.defineProperty(m, 'stamp', { get: function () { return stamp || (stamp = new Int32Array(N)); }, configurable: true });
-    Object.defineProperty(m, 'q', { get: function () { return q || (q = new Int32Array(N)); }, configurable: true });
+    Object.defineProperty(m, 'q', { get: function () { return q || (q = new Int32Array(Math.min(N, 1 << 16))); }, set: function (v) { q = v; }, configurable: true });
     m.sid = 0;
     this.byU = new Map(); this.byA = new Map(); this.byE = new Map();
     this.Q = null;

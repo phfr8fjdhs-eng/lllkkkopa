@@ -236,12 +236,14 @@
   Game.prototype.portSite = function (p, tile) {
     const own = this.owner, map = this.map, W = this.W, H = this.H, id = p.id;
     if (own[tile] !== id) return -1;
-    const st = this.stamp, sid = ++this.sid, q = this.q, lim = this.R.portSearch;
+    const st = this.stamp, sid = ++this.sid, lim = this.R.portSearch;
+    let q = this.q;
     const tx = tile % W, ty = (tile / W) | 0;
     let qh = 0, qt = 0;
     q[qt++] = tile; st[tile] = sid;
     while (qh < qt) {
       const t = q[qh++];
+      if (qt + 8 > q.length && q.length < this.N) q = this.qGrow(qt + 8);
       if (map.shore[t] === 1 && this.portWater(t) >= 0 && !this.structNear(t, this.R.structDist)) return t;
       const x = t % W, y = (t - x) / W;
       for (let k = 0; k < 4; k++) {
@@ -422,11 +424,13 @@
     if (tid && this.friendly(p, this.players[tid])) return null;
     const comps = this.coastComps(p);
     if (!comps.size) return null;
-    const st = this.stamp, sid = ++this.sid, q = this.q;
+    const st = this.stamp, sid = ++this.sid;
+    let q = this.q;
     let qh = 0, qt = 0, dst = -1, dstWater = -1;
     q[qt++] = tile; st[tile] = sid;
     while (qh < qt && qh < 6000) {
       const t = q[qh++], x = t % W, y = (t - x) / W;
+      if (qt + 8 > q.length && q.length < this.N) q = this.qGrow(qt + 8);
       for (let k = 0; k < 4; k++) {
         let n;
         if (k === 0) { if (x === 0) continue; n = t - 1; }

@@ -144,7 +144,9 @@
     const N = this.N, S = this.S;
     this.owner = new Uint16Array(N);
     this.fallout = new Uint8Array(N); this.falloutCount = 0;
-    this.stamp = new Int32Array(N); this.sid = 0; this.q = new Int32Array(N);
+    // q: the queue of the searches over tiles; it grows when a search needs more (26.11.2026:
+    // a place for every tile was 62 MB on the Earth, a search uses a small part of it)
+    this.stamp = new Int32Array(N); this.sid = 0; this.q = new Int32Array(Math.min(N, 1 << 16));
     this.players = [null];
     this.ticks = 0; this.phase = 'spawn'; this.spawnEnd = this.opts.spawnTicks;
     this.playStart = 0; this.immuneUntil = 0;
@@ -604,12 +606,14 @@
   // Is this free tile part of open land that touches the player's territory?
   Game.prototype.tnTouches = function (p, tile) {
     const own = this.owner, land = this.map.land, W = this.W, H = this.H, id = p.id, lim = this.R.tnSearch;
-    const st = this.stamp, sid = ++this.sid, q = this.q;
+    const st = this.stamp, sid = ++this.sid;
+    let q = this.q;
     const tx = tile % W, ty = (tile / W) | 0;
     let qh = 0, qt = 0;
     q[qt++] = tile; st[tile] = sid;
     while (qh < qt) {
       const t = q[qh++], x = t % W, y = (t - x) / W;
+      if (qt + 8 > q.length && q.length < this.N) q = this.qGrow(qt + 8);
       for (let k = 0; k < 4; k++) {
         let n;
         if (k === 0) { if (x === 0) continue; n = t - 1; }
@@ -1415,11 +1419,13 @@
       }
     }
     if (!taker) return;
-    const st = this.stamp, sid = ++this.sid, q = this.q;
+    const st = this.stamp, sid = ++this.sid;
+    let q = this.q;
     let qh = 0, qt = 0;
     q[qt++] = cl[0]; st[cl[0]] = sid;
     while (qh < qt) {
       const t = q[qh++], x = t % W, y = (t - x) / W;
+      if (qt + 8 > q.length && q.length < this.N) q = this.qGrow(qt + 8);
       if (x > 0 && own[t - 1] === id && st[t - 1] !== sid) { st[t - 1] = sid; q[qt++] = t - 1; }
       if (x < W - 1 && own[t + 1] === id && st[t + 1] !== sid) { st[t + 1] = sid; q[qt++] = t + 1; }
       if (y > 0 && own[t - W] === id && st[t - W] !== sid) { st[t - W] = sid; q[qt++] = t - W; }
@@ -1708,6 +1714,12 @@
   };
 
   // A short fingerprint of the game, to notice when two devices have drifted apart.
+  // A longer queue for a search over tiles, with what is in it so far (the search goes on with it).
+  Game.prototype.qGrow = function (need) {
+    const n = Math.min(this.N, Math.max(need, this.q.length * 2)), e = new Int32Array(n);
+    e.set(this.q);
+    return (this.q = e);
+  };
   Game.prototype.checksum = function () {
     let h = this.ticks | 0;
     for (let i = 1; i < this.players.length; i++) {
