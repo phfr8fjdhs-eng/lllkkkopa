@@ -3,6 +3,11 @@ Was seit dem 13.11.2026 geändert wurde und warum. Den heutigen Stand der Regeln
 
 
 
+
+## Handy flüssiger, Spiel unverändert (26.11.2026)
+- **Wunsch:** Alles durchgehen, damit nichts laggt, auch auf dem Handy; das Spiel soll sich nicht verändern; die Handy-Version darf etwas weniger schön, aber nicht schlecht aussehen; PC und Handy sollen weiter zusammen spielen können.
+- **Geändert:** Schärfe auf Touch-Geräten höchstens 1.5 und automatisch tiefer bei Ruckeln; Namen auf der Karte verteilt platziert und ihre Breite gemerkt; Warteliste der Suchen wächst bei Bedarf; Bodenfarben auf der Seite nur ohne Grafikkarte. Neue Tests `test/handy.js` und `test/geraete.js`. Zahlen in `doku/leistung.md`.
+- **Nicht geändert:** Spielregeln und Ablauf, alle Prüfsummen gleich. Darum keine Szene in «Änderungen».
 ## Unbenutzte Namen entfernt (26.11.2026)
 - **Wunsch:** Reste aus der Code-Prüfung entfernen.
 - **Geändert:** `G.CITY_MAX_LEVEL` (`src/04_units.js`), `G.TRAIN_GOLD` (`src/04b_rail.js`), `G.hidFromMe` und `G.shipArt` (`src/06_view.js`) sowie `G.SyncOut` (`src/05b_sync.js`) gelöscht. Kein Code und kein Test hat sie benutzt.

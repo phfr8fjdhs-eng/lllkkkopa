@@ -177,9 +177,29 @@
     this.resize();
   }
 
+  // Sharpness (pixels per CSS pixel). A computer draws at up to 2. A phone or tablet (touch only)
+  // draws at up to 1.5 and goes down in steps to 1 while a picture takes over 30 ms, back up
+  // when they take under 18 ms again (26.11.2026: on a phone the browser spends most of a picture putting
+  // the pixels together, sharpness 1 instead of 2 gave nearly twice the pictures). Only the
+  // picture changes, never the game. ?schaerfe=1 fixes it, for tests.
+  const TOUCH = typeof window !== 'undefined' && !!window.matchMedia && window.matchMedia('(pointer: coarse)').matches && !window.matchMedia('(any-pointer: fine)').matches;
+  const SHARP = (function () { try { const v = +new URLSearchParams(location.search).get('schaerfe'); return v > 0 ? v : 0; } catch (e) { return 0; } })();
+  View.prototype.sharpCap = function () { return SHARP || Math.min(TOUCH ? 1.5 : 2, window.devicePixelRatio || 1); };
+  // called once a picture: the average gap between pictures decides the sharpness on touch screens
+  View.prototype.sharpTick = function (now) {
+    const s = this.sharp || (this.sharp = { last: now, avg: 16, since: now, k: 1 });
+    const dt = now - s.last; s.last = now;
+    if (!TOUCH || SHARP || dt <= 0 || dt > 500 || document.hidden) { s.since = now; return; }
+    s.avg += (dt - s.avg) * 0.05;
+    const cap = this.sharpCap(), lo = Math.min(1, cap);
+    if (s.avg > 30 && this.dpr > lo && now - s.since > 2000) { s.k = Math.max(lo / cap, s.k - 0.25 / cap); s.since = now; this.resize(); }
+    else if (s.avg < 18 && this.dpr < cap && now - s.since > 8000) { s.k = Math.min(1, s.k + 0.25 / cap); s.since = now; this.resize(); }
+    else if (!(s.avg > 30 && this.dpr > lo) && !(s.avg < 18 && this.dpr < cap)) s.since = now;
+  };
   View.prototype.resize = function () {
     const r = this.cv.getBoundingClientRect();
-    this.dpr = Math.min(2, window.devicePixelRatio || 1);
+    this.dpr = Math.max(1, Math.round(this.sharpCap() * (this.sharp ? this.sharp.k : 1) * 4) / 4) || 1;
+    if (this.dpr > this.sharpCap()) this.dpr = this.sharpCap();
     this.cw = Math.max(1, r.width); this.ch = Math.max(1, r.height);
     this.cv.width = Math.round(this.cw * this.dpr);
     this.cv.height = Math.round(this.ch * this.dpr);
@@ -189,11 +209,7 @@
 
   View.prototype.setMap = function (map) {
     this.map = map; this.game = null; this.fxList.length = 0; this.mark = -1; this.aim = null;
-    if (map.cover) this.base = worldColors(map);
-    else {
-      this.base = new Uint32Array(map.N);
-      for (let i = 0; i < map.N; i++) this.base[i] = terrainColor(map, i);
-    }
+    this._base = this.ground();
     if (this.glm) { this.glm.free(); this.glm = null; }
     this.mc = this.mctx = this.img = this.px = null;
     if (this.glOn) {
@@ -206,8 +222,20 @@
         this.glm = null; this.glOn = false;
       }
     }
-    if (!this.glm) this.picture();
+    // with the graphics card the ground colours are in its textures; the page keeps no copy
+    // (65 MB on the Earth) and works them out again if they are asked for (View.color, picture)
+    if (this.glm) this._base = null;
+    else this.picture();
   };
+  // The ground colour of every tile (land, water, terrain), before anyone owns it.
+  View.prototype.ground = function () {
+    const map = this.map;
+    if (map.cover) return worldColors(map);
+    const b = new Uint32Array(map.N);
+    for (let i = 0; i < map.N; i++) b[i] = terrainColor(map, i);
+    return b;
+  };
+  Object.defineProperty(View.prototype, 'base', { get: function () { return this._base || (this._base = this.ground()); } });
   // The map as a 2D picture (without WebGL, or after the graphics card was lost).
   View.prototype.picture = function () {
     const map = this.map, mc = this.mc = document.createElement('canvas');
@@ -262,7 +290,7 @@
   // the same numbers; test/gl.js compares the two.
   View.prototype.paint = function (t) { this.px[t] = this.color(t); };
   View.prototype.color = function (t) {
-    const g = this.game, own = g.owner, o = own[t], b = this.base[t];
+    const g = this.game, own = g.owner, o = own[t], b = (this._base || this.base)[t];
     if (!o) {
       if (!g.fallout[t]) return b;
       return pack(((b & 255) * 120 + 104 * 136) >> 8, (((b >>> 8) & 255) * 120 + 214 * 136) >> 8, (((b >>> 16) & 255) * 120 + 78 * 136) >> 8);
@@ -484,7 +512,9 @@
     for (let i = 1; i < ps.length; i++) {
       const p = ps[i];
       if (!p.alive) continue;
-      if (p.nameAt !== undefined && (p.lastChange < p.nameAt || T - p.nameAt < 12)) continue;
+      // at most every 12 ticks, each realm on its own tick (by its number), so not all of them in
+      // the same picture (26.11.2026: with hundreds of realms a small jolt every 1.2 s)
+      if (p.nameAt !== undefined && (p.lastChange < p.nameAt || T - p.nameAt < 12 || (T + p.id) % 12)) continue;
       p.nameAt = T;
       this.placeName(p);
     }
@@ -603,6 +633,7 @@
 
   // ---------- drawing ----------
   View.prototype.draw = function (alpha, now) {
+    this.sharpTick(now);
     if (this.game) { this.checkAllies(); this.shadeScan(now); }
     const ctx = this.ctx, c = this.cam, dpr = this.dpr, cw = this.cw, ch = this.ch;
     if (this.fly) {
@@ -2043,8 +2074,11 @@
       if (p.traitorUntil > T) label += ' !';
       const foe = foes.has(p), ally = !!h && p !== h && h.allies.has(p.id);
       if (foe) label = '⚔ ' + label;
-      ctx.font = '700 ' + fs.toFixed(1) + 'px ' + FONT;
-      const hw = ctx.measureText(label).width / 2 + 2, top = y - fs * 0.95, bot = y + fs * 0.95;
+      const font = '700 ' + fs.toFixed(1) + 'px ' + FONT;
+      ctx.font = font;
+      // the width of the label, measured again only when the text or the size changes
+      if (p.nmLabel !== label || p.nmFont !== font) { p.nmLabel = label; p.nmFont = font; p.nmW = ctx.measureText(label).width; }
+      const hw = p.nmW / 2 + 2, top = y - fs * 0.95, bot = y + fs * 0.95;
       let hit = false;
       for (let k = 0; k < boxes.length; k += 4) if (x - hw < boxes[k + 2] && x + hw > boxes[k] && top < boxes[k + 3] && bot > boxes[k + 1]) { hit = true; break; }
       if (hit && p !== h && !(h && h.allies.has(p.id)) && !foes.has(p)) continue;

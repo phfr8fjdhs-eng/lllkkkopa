@@ -194,3 +194,28 @@ Auf einem Handy (3- bis 5-mal langsamer) braucht ein Tick auf der Erde 50 bis 85
 | 4 | Spitzen der Simulation verteilen: `tickRail` (29 ms), `AI.tick` (22 ms, Bots starten Angriffe im selben Tick), `removeClusters` (22 ms) | Erde: längster Tick 64 auf etwa 35 ms | echt | mittel, `det.js` muss gleich bleiben |
 | 5 | Kern der Eroberung (`tickAttack` 57 % der Erde) | grösster Hebel der Simulation | wahrscheinlich | gross, Gleichlauf und `kampf.js` |
 | 6 | Auf einem echten Handy messen (iPhone und Android, Safari-Entwicklermenü, Chrome Remote Debugging), vor allem mit Grafikkarte | zeigt, ob 1 bis 4 reichen | echt | keines |
+
+## Umgesetzt am 26.11.2026, Abend: Handy flüssiger, ohne Spieländerung
+Regel dabei: Das Spiel rechnet genau gleich. Geprüft mit `det.js` (alle vier Arten), `SUM=1 stress.js`, `posture.js` und einem Fingerabdruck echter Spiele (Welt 2500 Ticks, Welt «Feste Grenzen», Erde 700 Ticks, 400 Bots): alle Prüfsummen vorher und nachher gleich. Dazu `worker.js` (beide Versionen), `gl.js`, `neu.js`, `level.js`, `pfeile.js`, `tarn.js`.
+
+| Was | Wo | Wirkung |
+| --- | --- | --- |
+| Schärfe: Touch-Geräte zeichnen mit höchstens 1.5 (Computer weiter 2) und gehen in Schritten von 0.25 bis 1 hinunter, solange ein Bild über 30 ms braucht (2 s lang), wieder hinauf unter 18 ms (8 s lang). `?schaerfe=1` setzt sie fest. Die Bedienung (HTML) bleibt scharf, nur das Kartenbild wird weicher. | `View.sharpCap`, `sharpTick`, `resize` | siehe Tabelle unten |
+| Namen: jedes Reich wird an seinem eigenen Tick neu platziert (`(T + id) % 12`), nicht alle im selben Bild; die Breite eines Namens wird nur gemessen, wenn sich Text oder Grösse ändern (`nmW`). | `placeNames`, `drawNames` | Hänger alle 1.2 s weg |
+| Warteliste der Suchen (`game.q`) wächst bei Bedarf (`qGrow`) statt einem Platz pro Feld. Nach 700 Ticks Erde: 0.25 MB statt 62 MB. Weil das System unberührten Speicher nicht belegt, war der echte Gewinn kleiner. | `03_game.js`, `04_units.js`, Spiegel | wenig |
+| Bodenfarben auf der Seite (`View.base`, 65 MB auf der Erde) nur ohne Grafikkarte; mit Grafikkarte stecken sie in deren Bild und werden bei Bedarf neu gerechnet (Grafikkarte verloren, `test/gl.js`). | `View.ground`, Getter `base` | 65 MB auf Geräten mit Grafikkarte (hier ohne Grafikkarte nicht messbar) |
+
+**Vorher und nachher** (`test/handy.js`, Prozessor 4-mal langsamer, Bildschirm mit Schärfe 3 wie ein iPhone):
+| | Bild im Mittel | 95 % unter | Hänger über 50 ms | längster | Schärfe am Ende |
+| --- | --- | --- | --- | --- | --- |
+| Welt vorher | 28 bis 38 ms | 67 bis 83 ms | 73 bis 134 | 117 ms | 2 |
+| Welt nachher | 21 ms (47 Bilder/s) | 33 ms | 8 bis 11 | 67 bis 83 ms | 1.5 |
+| Erde vorher | 53 ms (19 Bilder/s) | 100 ms | 179 von 470 | 300 ms | 2 |
+| Erde nachher | 30 ms (34 Bilder/s) | 50 ms | 90 von 1346 | 100 ms | 1 |
+
+**Noch offen:**
+- Speicher der Erde: weiter etwa 1.1 GB für den Tab (hier gemessen ohne Grafikkarte, 1.3 bis 1.5 GB für alle Chrome-Prozesse). Grösster Teil: die Felder liegen im Worker und im Spiegel. Gemeinsamer Speicher (`SharedArrayBuffer`) braucht Kopfzeilen, die GitHub Pages nicht setzen kann. Weiter möglich ohne Spieländerung: die Seite bekommt nur die Kartenfelder, die sie liest (`mapPack`), und `dirtyFlag` als Bits. Beides gründlich prüfen, weil Fragen der Bedienung (`buildCheck`, `actionsAt`) auf dem Spiegel rechnen.
+- Spitzen der Simulation (`tickRail`, `AI.tick`, `removeClusters`) verteilen ändert, wann etwas geschieht, also das Spiel. Nur nach Rücksprache.
+- PC und iPhone zusammen: Die Simulation nutzt nur Rechnungen, die überall gleich herauskommen (alle heiklen über `G.M`, Sortieren mit festen Vergleichen). `test/geraete.js` vergleicht Chrome und WebKit, braucht aber WebKit (`npx playwright install webkit`), hier nicht vorhanden. Restrisiko: Safari liest das Kartenbild im privaten Modus mit Rauschen (Schutz vor Fingerabdrücken). Dann wäre die Karte auf dem iPhone anders; die Prüfsumme jedes 100. Ticks meldet das.
+- Auf einem echten Handy mit Grafikkarte messen.
+

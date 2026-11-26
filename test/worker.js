@@ -8,7 +8,7 @@ const path = require('path');
 const MAP = process.argv[2] || 'welt', SECS = +(process.argv[3] || 30);
 // fields the drawing writes on the mirror's objects for itself (name labels, smooth motion,
 // cached sight): they are not the game's
-const VIEW = new Set(['nameX', 'nameY', 'nameSize', 'nameAt', 'boxAt', 'va', 'vf', 'vx', 'vy', 'vAt', 'hidT', 'hidV', 'geo']);
+const VIEW = new Set(['nameX', 'nameY', 'nameSize', 'nameAt', 'boxAt', 'va', 'vf', 'vx', 'vy', 'vAt', 'hidT', 'hidV', 'geo', 'nmLabel', 'nmFont', 'nmW']);
 let bad = 0;
 const ok = (c, m) => { console.log((c ? 'ok   ' : 'FAIL ') + m); if (!c) bad++; };
 (async () => {

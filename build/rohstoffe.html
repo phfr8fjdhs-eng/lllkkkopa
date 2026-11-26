@@ -1576,7 +1576,9 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     const N = this.N, S = this.S;
     this.owner = new Uint16Array(N);
     this.fallout = new Uint8Array(N); this.falloutCount = 0;
-    this.stamp = new Int32Array(N); this.sid = 0; this.q = new Int32Array(N);
+    // q: the queue of the searches over tiles; it grows when a search needs more (26.11.2026:
+    // a place for every tile was 62 MB on the Earth, a search uses a small part of it)
+    this.stamp = new Int32Array(N); this.sid = 0; this.q = new Int32Array(Math.min(N, 1 << 16));
     this.players = [null];
     this.ticks = 0; this.phase = 'spawn'; this.spawnEnd = this.opts.spawnTicks;
     this.playStart = 0; this.immuneUntil = 0;
@@ -2036,12 +2038,14 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   // Is this free tile part of open land that touches the player's territory?
   Game.prototype.tnTouches = function (p, tile) {
     const own = this.owner, land = this.map.land, W = this.W, H = this.H, id = p.id, lim = this.R.tnSearch;
-    const st = this.stamp, sid = ++this.sid, q = this.q;
+    const st = this.stamp, sid = ++this.sid;
+    let q = this.q;
     const tx = tile % W, ty = (tile / W) | 0;
     let qh = 0, qt = 0;
     q[qt++] = tile; st[tile] = sid;
     while (qh < qt) {
       const t = q[qh++], x = t % W, y = (t - x) / W;
+      if (qt + 8 > q.length && q.length < this.N) q = this.qGrow(qt + 8);
       for (let k = 0; k < 4; k++) {
         let n;
         if (k === 0) { if (x === 0) continue; n = t - 1; }
@@ -2847,11 +2851,13 @@ globalThis.G = { VARIANT: 'rohstoffe' };
       }
     }
     if (!taker) return;
-    const st = this.stamp, sid = ++this.sid, q = this.q;
+    const st = this.stamp, sid = ++this.sid;
+    let q = this.q;
     let qh = 0, qt = 0;
     q[qt++] = cl[0]; st[cl[0]] = sid;
     while (qh < qt) {
       const t = q[qh++], x = t % W, y = (t - x) / W;
+      if (qt + 8 > q.length && q.length < this.N) q = this.qGrow(qt + 8);
       if (x > 0 && own[t - 1] === id && st[t - 1] !== sid) { st[t - 1] = sid; q[qt++] = t - 1; }
       if (x < W - 1 && own[t + 1] === id && st[t + 1] !== sid) { st[t + 1] = sid; q[qt++] = t + 1; }
       if (y > 0 && own[t - W] === id && st[t - W] !== sid) { st[t - W] = sid; q[qt++] = t - W; }
@@ -3140,6 +3146,12 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   };
 
   // A short fingerprint of the game, to notice when two devices have drifted apart.
+  // A longer queue for a search over tiles, with what is in it so far (the search goes on with it).
+  Game.prototype.qGrow = function (need) {
+    const n = Math.min(this.N, Math.max(need, this.q.length * 2)), e = new Int32Array(n);
+    e.set(this.q);
+    return (this.q = e);
+  };
   Game.prototype.checksum = function () {
     let h = this.ticks | 0;
     for (let i = 1; i < this.players.length; i++) {
@@ -4858,12 +4870,14 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   Game.prototype.portSite = function (p, tile) {
     const own = this.owner, map = this.map, W = this.W, H = this.H, id = p.id;
     if (own[tile] !== id) return -1;
-    const st = this.stamp, sid = ++this.sid, q = this.q, lim = this.R.portSearch;
+    const st = this.stamp, sid = ++this.sid, lim = this.R.portSearch;
+    let q = this.q;
     const tx = tile % W, ty = (tile / W) | 0;
     let qh = 0, qt = 0;
     q[qt++] = tile; st[tile] = sid;
     while (qh < qt) {
       const t = q[qh++];
+      if (qt + 8 > q.length && q.length < this.N) q = this.qGrow(qt + 8);
       if (map.shore[t] === 1 && this.portWater(t) >= 0 && !this.structNear(t, this.R.structDist)) return t;
       const x = t % W, y = (t - x) / W;
       for (let k = 0; k < 4; k++) {
@@ -5044,11 +5058,13 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     if (tid && this.friendly(p, this.players[tid])) return null;
     const comps = this.coastComps(p);
     if (!comps.size) return null;
-    const st = this.stamp, sid = ++this.sid, q = this.q;
+    const st = this.stamp, sid = ++this.sid;
+    let q = this.q;
     let qh = 0, qt = 0, dst = -1, dstWater = -1;
     q[qt++] = tile; st[tile] = sid;
     while (qh < qt && qh < 6000) {
       const t = q[qh++], x = t % W, y = (t - x) / W;
+      if (qt + 8 > q.length && q.length < this.N) q = this.qGrow(qt + 8);
       for (let k = 0; k < 4; k++) {
         let n;
         if (k === 0) { if (x === 0) continue; n = t - 1; }
@@ -7062,7 +7078,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     // working memory of the few questions that search (boatPlan, portSite): made on first use
     let stamp = null, q = null;
     Object.defineProperty(m, 'stamp', { get: function () { return stamp || (stamp = new Int32Array(N)); }, configurable: true });
-    Object.defineProperty(m, 'q', { get: function () { return q || (q = new Int32Array(N)); }, configurable: true });
+    Object.defineProperty(m, 'q', { get: function () { return q || (q = new Int32Array(Math.min(N, 1 << 16))); }, set: function (v) { q = v; }, configurable: true });
     m.sid = 0;
     this.byU = new Map(); this.byA = new Map(); this.byE = new Map();
     this.Q = null;
@@ -8085,9 +8101,29 @@ void main() { outc = texture(uColor, vUV); }`;
     this.resize();
   }
 
+  // Sharpness (pixels per CSS pixel). A computer draws at up to 2. A phone or tablet (touch only)
+  // draws at up to 1.5 and goes down in steps to 1 while a picture takes over 30 ms, back up
+  // when they take under 18 ms again (26.11.2026: on a phone the browser spends most of a picture putting
+  // the pixels together, sharpness 1 instead of 2 gave nearly twice the pictures). Only the
+  // picture changes, never the game. ?schaerfe=1 fixes it, for tests.
+  const TOUCH = typeof window !== 'undefined' && !!window.matchMedia && window.matchMedia('(pointer: coarse)').matches && !window.matchMedia('(any-pointer: fine)').matches;
+  const SHARP = (function () { try { const v = +new URLSearchParams(location.search).get('schaerfe'); return v > 0 ? v : 0; } catch (e) { return 0; } })();
+  View.prototype.sharpCap = function () { return SHARP || Math.min(TOUCH ? 1.5 : 2, window.devicePixelRatio || 1); };
+  // called once a picture: the average gap between pictures decides the sharpness on touch screens
+  View.prototype.sharpTick = function (now) {
+    const s = this.sharp || (this.sharp = { last: now, avg: 16, since: now, k: 1 });
+    const dt = now - s.last; s.last = now;
+    if (!TOUCH || SHARP || dt <= 0 || dt > 500 || document.hidden) { s.since = now; return; }
+    s.avg += (dt - s.avg) * 0.05;
+    const cap = this.sharpCap(), lo = Math.min(1, cap);
+    if (s.avg > 30 && this.dpr > lo && now - s.since > 2000) { s.k = Math.max(lo / cap, s.k - 0.25 / cap); s.since = now; this.resize(); }
+    else if (s.avg < 18 && this.dpr < cap && now - s.since > 8000) { s.k = Math.min(1, s.k + 0.25 / cap); s.since = now; this.resize(); }
+    else if (!(s.avg > 30 && this.dpr > lo) && !(s.avg < 18 && this.dpr < cap)) s.since = now;
+  };
   View.prototype.resize = function () {
     const r = this.cv.getBoundingClientRect();
-    this.dpr = Math.min(2, window.devicePixelRatio || 1);
+    this.dpr = Math.max(1, Math.round(this.sharpCap() * (this.sharp ? this.sharp.k : 1) * 4) / 4) || 1;
+    if (this.dpr > this.sharpCap()) this.dpr = this.sharpCap();
     this.cw = Math.max(1, r.width); this.ch = Math.max(1, r.height);
     this.cv.width = Math.round(this.cw * this.dpr);
     this.cv.height = Math.round(this.ch * this.dpr);
@@ -8097,11 +8133,7 @@ void main() { outc = texture(uColor, vUV); }`;
 
   View.prototype.setMap = function (map) {
     this.map = map; this.game = null; this.fxList.length = 0; this.mark = -1; this.aim = null;
-    if (map.cover) this.base = worldColors(map);
-    else {
-      this.base = new Uint32Array(map.N);
-      for (let i = 0; i < map.N; i++) this.base[i] = terrainColor(map, i);
-    }
+    this._base = this.ground();
     if (this.glm) { this.glm.free(); this.glm = null; }
     this.mc = this.mctx = this.img = this.px = null;
     if (this.glOn) {
@@ -8114,8 +8146,20 @@ void main() { outc = texture(uColor, vUV); }`;
         this.glm = null; this.glOn = false;
       }
     }
-    if (!this.glm) this.picture();
+    // with the graphics card the ground colours are in its textures; the page keeps no copy
+    // (65 MB on the Earth) and works them out again if they are asked for (View.color, picture)
+    if (this.glm) this._base = null;
+    else this.picture();
   };
+  // The ground colour of every tile (land, water, terrain), before anyone owns it.
+  View.prototype.ground = function () {
+    const map = this.map;
+    if (map.cover) return worldColors(map);
+    const b = new Uint32Array(map.N);
+    for (let i = 0; i < map.N; i++) b[i] = terrainColor(map, i);
+    return b;
+  };
+  Object.defineProperty(View.prototype, 'base', { get: function () { return this._base || (this._base = this.ground()); } });
   // The map as a 2D picture (without WebGL, or after the graphics card was lost).
   View.prototype.picture = function () {
     const map = this.map, mc = this.mc = document.createElement('canvas');
@@ -8170,7 +8214,7 @@ void main() { outc = texture(uColor, vUV); }`;
   // the same numbers; test/gl.js compares the two.
   View.prototype.paint = function (t) { this.px[t] = this.color(t); };
   View.prototype.color = function (t) {
-    const g = this.game, own = g.owner, o = own[t], b = this.base[t];
+    const g = this.game, own = g.owner, o = own[t], b = (this._base || this.base)[t];
     if (!o) {
       if (!g.fallout[t]) return b;
       return pack(((b & 255) * 120 + 104 * 136) >> 8, (((b >>> 8) & 255) * 120 + 214 * 136) >> 8, (((b >>> 16) & 255) * 120 + 78 * 136) >> 8);
@@ -8392,7 +8436,9 @@ void main() { outc = texture(uColor, vUV); }`;
     for (let i = 1; i < ps.length; i++) {
       const p = ps[i];
       if (!p.alive) continue;
-      if (p.nameAt !== undefined && (p.lastChange < p.nameAt || T - p.nameAt < 12)) continue;
+      // at most every 12 ticks, each realm on its own tick (by its number), so not all of them in
+      // the same picture (26.11.2026: with hundreds of realms a small jolt every 1.2 s)
+      if (p.nameAt !== undefined && (p.lastChange < p.nameAt || T - p.nameAt < 12 || (T + p.id) % 12)) continue;
       p.nameAt = T;
       this.placeName(p);
     }
@@ -8511,6 +8557,7 @@ void main() { outc = texture(uColor, vUV); }`;
 
   // ---------- drawing ----------
   View.prototype.draw = function (alpha, now) {
+    this.sharpTick(now);
     if (this.game) { this.checkAllies(); this.shadeScan(now); }
     const ctx = this.ctx, c = this.cam, dpr = this.dpr, cw = this.cw, ch = this.ch;
     if (this.fly) {
@@ -9951,8 +9998,11 @@ void main() { outc = texture(uColor, vUV); }`;
       if (p.traitorUntil > T) label += ' !';
       const foe = foes.has(p), ally = !!h && p !== h && h.allies.has(p.id);
       if (foe) label = '⚔ ' + label;
-      ctx.font = '700 ' + fs.toFixed(1) + 'px ' + FONT;
-      const hw = ctx.measureText(label).width / 2 + 2, top = y - fs * 0.95, bot = y + fs * 0.95;
+      const font = '700 ' + fs.toFixed(1) + 'px ' + FONT;
+      ctx.font = font;
+      // the width of the label, measured again only when the text or the size changes
+      if (p.nmLabel !== label || p.nmFont !== font) { p.nmLabel = label; p.nmFont = font; p.nmW = ctx.measureText(label).width; }
+      const hw = p.nmW / 2 + 2, top = y - fs * 0.95, bot = y + fs * 0.95;
       let hit = false;
       for (let k = 0; k < boxes.length; k += 4) if (x - hw < boxes[k + 2] && x + hw > boxes[k] && top < boxes[k + 3] && bot > boxes[k + 1]) { hit = true; break; }
       if (hit && p !== h && !(h && h.allies.has(p.id)) && !foes.has(p)) continue;

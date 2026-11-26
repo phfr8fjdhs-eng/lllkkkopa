@@ -56,7 +56,7 @@ const [MAP, SECS, CPU] = [process.argv[2] || 'welt', +(process.argv[3] || 20), +
     const m = performance.memory || {};
     return { bilder: s.length, mittel: +(s.reduce((a, b) => a + b, 0) / s.length).toFixed(1), p95: +s[Math.floor(s.length * 0.95)].toFixed(1), max: +s[s.length - 1].toFixed(1),
       ueber50ms: s.filter((x) => x > 50).length, langeAufgaben: S.long.length, laengste: Math.round(Math.max(0, ...S.long)), ticks: g.ticks - S.t0,
-      worker: !G.debug.host.local, heapMB: Math.round((m.usedJSHeapSize || 0) / 1048576), gl: !!(G.debug.view && G.debug.view.gl) };
+      worker: !G.debug.host.local, heapMB: Math.round((m.usedJSHeapSize || 0) / 1048576), gl: !!(G.debug.view && G.debug.view.glm), schaerfe: G.debug.view.dpr };
   });
   r.ladenS = loadS; r.fehler = errors.slice(0, 3);
   console.log(MAP, 'CPU x' + CPU, 'DPR ' + (process.env.DPR || 2), JSON.stringify(r));

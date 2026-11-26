@@ -37,3 +37,4 @@ Alle Tests liegen in `test/` und laufen mit `node test/<name>.js`. Seit dem 24.1
 - `node test/pfeile.js`: Schalter: Netz aus lässt nichts malen, Netz an wie bisher, mehrere Pfeile teilen den Anteil gleichmässig, zwei Läufe gleich. Punktangriff: nimmt nur Land im Ring um die Stelle.
 - `node test/pinsel.js`: schnelles Verdichten/Ausdünnen (Taste V, Knöpfe + und −, Doppelklick halten), Knopf «?» mit allen Kürzeln, Reihenfolge der Bauleiste (braucht den Build, Playwright und Chrome).
 - `node test/handy.js [karte] [sekunden] [cpu]`: Bild wie auf einem Handy (kleiner Bildschirm, Touch, Prozessor 4-mal langsamer), zählt Bildabstände, lange Aufgaben und Ticks; `DPR=1`, `PROF=1` zeigt, wohin die Zeit der Seite geht (nach dem Build).
+- `node test/geraete.js [ticks]`: PC und iPhone zusammen: dasselbe Spiel mit denselben Befehlen in Chrome und WebKit (Safari) muss dieselben Prüfsummen geben (braucht WebKit für Playwright, nach dem Build).
