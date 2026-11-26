@@ -3,6 +3,10 @@ Was seit dem 13.11.2026 geändert wurde und warum. Den heutigen Stand der Regeln
 
 
 
+## Spielmodus «Langes Spiel», Paket 8: Inseln als Stützpunkte (26.11.2026)
+- **Wunsch:** Wichtige kleine Inseln (deine Liste von 25) bleiben auf der Erde, mindestens so gross, dass Hafen und Flugplatz Platz haben; Nationen starten nicht dort.
+- **Geändert (nur im Modus, nur auf der Erde):** eigene Erde mit den Inseln, Scheibe von 4 Feldern Halbmesser, Nationen weichen aus. Klassische Erde unverändert.
+
 ## Spielmodus «Langes Spiel», Paket 7: Im eigenen Land (26.11.2026)
 - **Wunsch:** Stösse nahe grosser Städte stärker, dichte versorgte Abschnitte mit mehr Schwung; Waffen in Fabriken bauen, Fabriken werden Ziele.
 - **Geändert (nur im Modus):** Schwung + 0.15 aus versorgtem Land, Dichte zählt ohne Versorgung nur zu 60 %; Atomwaffen baut die nächste Fabrik (ohne doppelt so lange, Verlust kostet die halbe Zeit). Szene 134.

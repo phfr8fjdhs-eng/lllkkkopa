@@ -163,9 +163,12 @@
   }
 
   // ---------- maps ----------
-  function loadMap(id, seed) {
+  // «Langes Spiel» keeps the base islands on the Earth (G.ISLES): a map of its own, kept under id + '+lang'
+  function loadMap(id, seed, lang) {
     if (id === 'zufall' && seed !== undefined && maps.zufall && maps.zufall.seed !== seed) delete maps.zufall;
-    if (maps[id]) return Promise.resolve(maps[id]);
+    const isEarth = MAPS.some(function (m) { return m.id === id && m.v === 2; });
+    if (lang && isEarth && maps[id + '+lang']) return Promise.resolve(maps[id + '+lang']);
+    if ((!lang || !isEarth) && maps[id]) return Promise.resolve(maps[id]);
     if (id === 'zufall') {
       if (seed === undefined) seed = (Math.random() * 2e9) | 0;
       maps.zufall = G.buildMap(960, 600, G.randomClassMap(960, 600, seed), seed, { id: 'zufall', name: 'Zufallskarte', nations: [] });
@@ -204,7 +207,9 @@
       return layer(def.png, def.w, def.h).then(function (a) { cls = a; return layer(def.mag, def.w, def.h); })
         .then(function (a) { cost = a; return layer(def.hgt, def.w >> 1, def.h >> 1); })
         .then(function (hgt) {
-          const map = G.buildWorld(def, cls, cost, hgt);
+          const map = G.buildWorld(def, cls, cost, hgt, { isles: !!lang });
+          if (lang) { delete maps[id]; maps[id + '+lang'] = map; return map; }   // one Earth in memory at a time
+          delete maps[id + '+lang'];
           // version «Rohstoffe»: the build adds a fourth picture, the country of every piece of land
           if (!def.ctry || !G.attachCountries) { maps[id] = map; return map; }
           return layer(def.ctry.png, def.ctry.w, def.ctry.h).then(function (cells) { G.attachCountries(map, def.ctry, cells); maps[id] = map; return map; });
@@ -230,7 +235,7 @@
   // One bot for every 850 tiles of land (22.11.2026: 630 made the big Earth lag), at most 600.
   function defaultBots(map) { return Math.min(600, Math.round(map.landTiles / 850 / 10) * 10); }
   function previewMap(id) {
-    loadMap(id).then(function (map) {
+    loadMap(id, undefined, cfg.mode === 'lang').then(function (map) {
       if (game || cfg.map !== id) return;
       view.setMap(map); view.fit(true);
       if (!botsTouched) setBots(defaultBots(map));
@@ -501,7 +506,7 @@
   function startMp(m) {
     const me = mp.index();
     turnLeft = 0;
-    loadMap(m.map, m.mapSeed).then(function (map) {
+    loadMap(m.map, m.mapSeed, !!m.lang).then(function (map) {
       begin(map, {
         seed: m.seed, difficulty: m.diff, bots: m.bots, nations: m.nations, arsenal: !!m.arsenal, lang: !!m.lang, res: !!m.res, kampf: m.opts ? m.opts.kampf : 'grenzland', pfeile: true, bahn: true, hafen: true, spawnTicks: 300, autoSpawn: true, me: me
       }, m.players.map(function (p) { return { name: p.name, color: COLORS[p.color % 6] }; }));
@@ -603,7 +608,7 @@
   function startGame() {
     readForm();
     $('fStart').disabled = true; $('fStart').querySelector('small').textContent = 'Karte wird vorbereitet';
-    loadMap(cfg.map).then(function (map) {
+    loadMap(cfg.map, undefined, cfg.mode === 'lang').then(function (map) {
       begin(map, {
         seed: (Math.random() * 2e9) | 0, difficulty: cfg.diff, bots: cfg.bots, nations: cfg.nations, arsenal: cfg.mode === 'arsenal', lang: cfg.mode === 'lang', res: RES, kampf: playOpts(cfg).kampf, pfeile: playOpts(cfg).pfeile, bahn: playOpts(cfg).bahn, hafen: playOpts(cfg).hafen,
         instantBuild: cfg.instant, infiniteGold: cfg.gold, infiniteTroops: cfg.troops

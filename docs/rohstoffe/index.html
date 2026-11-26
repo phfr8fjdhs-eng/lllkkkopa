@@ -1083,7 +1083,19 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   // river bit 4, taiga bit 5, rain forest bit 6, snow cap bit 7). `cost`: 0..30 per tile. `hgt`: height at half
   // the resolution, for the relief shading only.
   G.MIN_ISLAND = 100;   // smallest island (in tiles, about 5000 km2) the Earth keeps, see buildWorld
-  G.buildWorld = function (def, cls, cost, hgt) {
+  // «Langes Spiel», Paket 8: islands that matter as bases are kept however small, with at least a
+  // disc of G.ISLE_R tiles of ground (enough for a port and an airfield). Nations do not start on
+  // them (map.isle, Game.freeLandNear). Name, longitude, latitude. Only the Earth, only in the mode.
+  G.ISLES = [
+    ['Malta', 14.4, 35.9], ['Zypern', 33.2, 35.05], ['Kreta', 24.9, 35.2], ['Korsika', 9.1, 42.15], ['Sardinien', 9.0, 40.05],
+    ['Azoren', -25.5, 37.8], ['Kanaren', -15.6, 28.0], ['Kapverden', -23.6, 15.1], ['Bermuda', -64.75, 32.3], ['Ascension', -14.35, -7.95],
+    ['St. Helena', -5.7, -15.95], ['Falklandinseln', -59.0, -51.75], ['Island', -18.6, 64.9], ['Färöer', -6.9, 62.0], ['Diego Garcia', 72.42, -7.32],
+    ['Seychellen', 55.5, -4.65], ['Mauritius', 57.55, -20.25], ['Sri Lanka', 80.7, 7.8], ['Andamanen', 92.75, 11.7], ['Okinawa', 127.9, 26.5],
+    ['Guam', 144.8, 13.45], ['Midway', -177.37, 28.2], ['Hawaii', -155.5, 19.6], ['Wake', 166.63, 19.29], ['Tahiti', -149.45, -17.65]
+  ];
+  G.ISLE_R = 4;
+  G.EARTH_LON0 = -169.2;   // where the Earth map is cut (tools/build_world.py, LON0)
+  G.buildWorld = function (def, cls, cost, hgt, opt) {
     const W = def.w, H = def.h, N = W * H;
     const land = new Uint8Array(N), mag = new Uint8Array(N), shore = new Uint8Array(N);
     const cover = new Uint8Array(N), feat = new Uint8Array(N), snow = new Uint8Array(N);
@@ -1094,6 +1106,24 @@ globalThis.G = { VARIANT: 'rohstoffe' };
       snow[i] = c >> 7;
       land[i] = 1; landTiles++; cover[i] = cv; mag[i] = cost[i] > 30 ? 30 : cost[i];
       feat[i] = ((c >> 3) & 1) | (((c >> 4) & 1) << 1) | (((c >> 5) & 1) << 2) | (((c >> 6) & 1) << 3);
+    }
+    // «Langes Spiel»: the islands of G.ISLES get their ground first (a disc where there is sea)
+    const keep = opt && opt.isles ? new Uint8Array(N) : null, isle = keep ? new Uint8Array(N) : null;
+    if (keep) {
+      const lats = G.rowLats(H, { proj: 'pat', lat: def.lat || [-57.5, 79.5] }), R = G.ISLE_R;
+      for (const it of G.ISLES) {
+        let y = 0;
+        while (y < H - 1 && lats[y] > it[2]) y++;
+        const lon = it[1] < G.EARTH_LON0 ? it[1] + 360 : it[1], x = Math.floor((lon - G.EARTH_LON0) / 360 * W);
+        if (x < R || y < R || x >= W - R || y >= H - R) continue;
+        keep[y * W + x] = 1;
+        for (let dy = -R; dy <= R; dy++) for (let dx = -R; dx <= R; dx++) {
+          if (dx * dx + dy * dy > R * R + R) continue;
+          const t = (y + dy) * W + x + dx;
+          if (land[t]) continue;
+          land[t] = 1; landTiles++; cover[t] = 1; mag[t] = 2;
+        }
+      }
     }
     // Small islands become sea (17.11.2026: there were far too many tiny ones). Every island under
     // G.MIN_ISLAND tiles goes, also one a nation starts on (18.11.2026): such a nation starts on
@@ -1110,6 +1140,11 @@ globalThis.G = { VARIANT: 'rohstoffe' };
           if (x < W - 1 && land[t + 1] && !seen[t + 1]) { seen[t + 1] = 1; q[qt++] = t + 1; }
           if (t >= W && land[t - W] && !seen[t - W]) { seen[t - W] = 1; q[qt++] = t - W; }
           if (t + W < N && land[t + W] && !seen[t + W]) { seen[t + W] = 1; q[qt++] = t + W; }
+        }
+        if (keep && qt < 20000) {
+          let k = false;
+          for (let i = 0; i < qt && !k; i++) if (keep[q[i]]) k = true;
+          if (k) { if (qt < 1000) for (let i = 0; i < qt; i++) isle[q[i]] = 1; continue; }   // Iceland and Sri Lanka stay open to nations
         }
         if (qt >= G.MIN_ISLAND) continue;
         for (let i = 0; i < qt; i++) { const t = q[i]; land[t] = 0; cover[t] = 0; feat[t] = 0; snow[t] = 0; mag[t] = 0; }
@@ -1174,7 +1209,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
       W: W, H: H, N: N, land: land, mag: mag, shore: shore, wcomp: wcomp, wsize: wsize, landTiles: landTiles,
       cover: cover, feat: feat, snow: snow, hgt: hgt, hw: W >> 1, hh: H >> 1,
       S: G.within(Math.sqrt(N / 2e6), 0.4, 1),
-      id: def.id, name: def.name, nations: def.nations || [], credit: def.credit || ''
+      id: def.id, name: def.name, nations: def.nations || [], credit: def.credit || '', isle: isle
     }, G.rowLats(H, { proj: 'pat', lat: def.lat || [-57.5, 79.5] }));
   };
 })(globalThis.G = globalThis.G || {});
@@ -1808,14 +1843,14 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   };
 
   Game.prototype.freeLandNear = function (x, y, rad) {
-    const W = this.W, H = this.H, land = this.map.land, own = this.owner;
+    const W = this.W, H = this.H, land = this.map.land, own = this.owner, isle = this.lang ? this.map.isle : null;
     for (let r = 0; r <= rad; r++) {
       for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
         if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
         const xx = x + dx, yy = y + dy;
         if (xx < 0 || yy < 0 || xx >= W || yy >= H) continue;
         const t = yy * W + xx;
-        if (land[t] && !own[t]) return t;
+        if (land[t] && !own[t] && !(isle && isle[t])) return t;   // «Langes Spiel»: no nation starts on a base island
       }
     }
     return -1;
@@ -12658,9 +12693,12 @@ void main() { outc = texture(uColor, vUV); }`;
   }
 
   // ---------- maps ----------
-  function loadMap(id, seed) {
+  // «Langes Spiel» keeps the base islands on the Earth (G.ISLES): a map of its own, kept under id + '+lang'
+  function loadMap(id, seed, lang) {
     if (id === 'zufall' && seed !== undefined && maps.zufall && maps.zufall.seed !== seed) delete maps.zufall;
-    if (maps[id]) return Promise.resolve(maps[id]);
+    const isEarth = MAPS.some(function (m) { return m.id === id && m.v === 2; });
+    if (lang && isEarth && maps[id + '+lang']) return Promise.resolve(maps[id + '+lang']);
+    if ((!lang || !isEarth) && maps[id]) return Promise.resolve(maps[id]);
     if (id === 'zufall') {
       if (seed === undefined) seed = (Math.random() * 2e9) | 0;
       maps.zufall = G.buildMap(960, 600, G.randomClassMap(960, 600, seed), seed, { id: 'zufall', name: 'Zufallskarte', nations: [] });
@@ -12699,7 +12737,9 @@ void main() { outc = texture(uColor, vUV); }`;
       return layer(def.png, def.w, def.h).then(function (a) { cls = a; return layer(def.mag, def.w, def.h); })
         .then(function (a) { cost = a; return layer(def.hgt, def.w >> 1, def.h >> 1); })
         .then(function (hgt) {
-          const map = G.buildWorld(def, cls, cost, hgt);
+          const map = G.buildWorld(def, cls, cost, hgt, { isles: !!lang });
+          if (lang) { delete maps[id]; maps[id + '+lang'] = map; return map; }   // one Earth in memory at a time
+          delete maps[id + '+lang'];
           // version «Rohstoffe»: the build adds a fourth picture, the country of every piece of land
           if (!def.ctry || !G.attachCountries) { maps[id] = map; return map; }
           return layer(def.ctry.png, def.ctry.w, def.ctry.h).then(function (cells) { G.attachCountries(map, def.ctry, cells); maps[id] = map; return map; });
@@ -12725,7 +12765,7 @@ void main() { outc = texture(uColor, vUV); }`;
   // One bot for every 850 tiles of land (22.11.2026: 630 made the big Earth lag), at most 600.
   function defaultBots(map) { return Math.min(600, Math.round(map.landTiles / 850 / 10) * 10); }
   function previewMap(id) {
-    loadMap(id).then(function (map) {
+    loadMap(id, undefined, cfg.mode === 'lang').then(function (map) {
       if (game || cfg.map !== id) return;
       view.setMap(map); view.fit(true);
       if (!botsTouched) setBots(defaultBots(map));
@@ -12996,7 +13036,7 @@ void main() { outc = texture(uColor, vUV); }`;
   function startMp(m) {
     const me = mp.index();
     turnLeft = 0;
-    loadMap(m.map, m.mapSeed).then(function (map) {
+    loadMap(m.map, m.mapSeed, !!m.lang).then(function (map) {
       begin(map, {
         seed: m.seed, difficulty: m.diff, bots: m.bots, nations: m.nations, arsenal: !!m.arsenal, lang: !!m.lang, res: !!m.res, kampf: m.opts ? m.opts.kampf : 'grenzland', pfeile: true, bahn: true, hafen: true, spawnTicks: 300, autoSpawn: true, me: me
       }, m.players.map(function (p) { return { name: p.name, color: COLORS[p.color % 6] }; }));
@@ -13098,7 +13138,7 @@ void main() { outc = texture(uColor, vUV); }`;
   function startGame() {
     readForm();
     $('fStart').disabled = true; $('fStart').querySelector('small').textContent = 'Karte wird vorbereitet';
-    loadMap(cfg.map).then(function (map) {
+    loadMap(cfg.map, undefined, cfg.mode === 'lang').then(function (map) {
       begin(map, {
         seed: (Math.random() * 2e9) | 0, difficulty: cfg.diff, bots: cfg.bots, nations: cfg.nations, arsenal: cfg.mode === 'arsenal', lang: cfg.mode === 'lang', res: RES, kampf: playOpts(cfg).kampf, pfeile: playOpts(cfg).pfeile, bahn: playOpts(cfg).bahn, hafen: playOpts(cfg).hafen,
         instantBuild: cfg.instant, infiniteGold: cfg.gold, infiniteTroops: cfg.troops

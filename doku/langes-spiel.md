@@ -270,3 +270,12 @@ Code: `momentumStart` in `src/03_game.js`, `armFactory`, `armSilo`, `langArmTick
   - Vereinfachung: Der Weg folgt nicht den Schienen, und ein Zug fährt nicht wirklich.
   - Konventionelle Waffen starten wie bisher sofort.
 - Szene 134 (Rüstungsindustrie).
+
+## Paket 8: Inseln als Stützpunkte (26.11.2026)
+Code: `G.ISLES`, `G.ISLE_R` und `buildWorld(def, cls, cost, hgt, { isles: true })` in `src/01_map.js`, `map.isle`, `freeLandNear` in `src/03_game.js`, `loadMap(id, seed, lang)` in `src/07_ui.js`. Test: `test/inseln.js`.
+
+- Nur auf der Erde und nur in diesem Modus. Die Seite baut dafür eine eigene Erde (`erde+lang`) und hält immer nur eine der beiden im Speicher. Die klassische Erde bleibt gleich.
+- **Die Liste (deine):** Malta, Zypern, Kreta, Korsika, Sardinien, Azoren, Kanaren, Kapverden, Bermuda, Ascension, St. Helena, Falklandinseln, Island, Färöer, Diego Garcia, Seychellen, Mauritius, Sri Lanka, Andamanen, Okinawa, Guam, Midway, Hawaii, Wake, Tahiti.
+- **Bleiben, wie klein sie auch sind:** Sonst fällt jede Insel unter 100 Feldern weg (`G.MIN_ISLAND`). Jede Insel der Liste bekommt mindestens eine Scheibe mit Halbmesser 4 Feldern Land (rund 50 Felder, genug für Hafen und Flugplatz). Wo schon Land ist, ändert sich nichts.
+- **Nationen starten nicht dort:** Nationen starten nicht auf den Inseln unter 1000 Feldern (`map.isle`), sondern auf freiem Land in der Nähe. Island und Sri Lanka sind grösser und bleiben offen.
+- Keine Szene: Die Szenen laufen auf kleinen eigenen Karten, die Inseln gibt es nur auf der Erde. Geprüft mit `test/inseln.js`.

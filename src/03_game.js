@@ -357,14 +357,14 @@
   };
 
   Game.prototype.freeLandNear = function (x, y, rad) {
-    const W = this.W, H = this.H, land = this.map.land, own = this.owner;
+    const W = this.W, H = this.H, land = this.map.land, own = this.owner, isle = this.lang ? this.map.isle : null;
     for (let r = 0; r <= rad; r++) {
       for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
         if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
         const xx = x + dx, yy = y + dy;
         if (xx < 0 || yy < 0 || xx >= W || yy >= H) continue;
         const t = yy * W + xx;
-        if (land[t] && !own[t]) return t;
+        if (land[t] && !own[t] && !(isle && isle[t])) return t;   // «Langes Spiel»: no nation starts on a base island
       }
     }
     return -1;

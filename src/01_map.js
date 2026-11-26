@@ -262,7 +262,19 @@
   // river bit 4, taiga bit 5, rain forest bit 6, snow cap bit 7). `cost`: 0..30 per tile. `hgt`: height at half
   // the resolution, for the relief shading only.
   G.MIN_ISLAND = 100;   // smallest island (in tiles, about 5000 km2) the Earth keeps, see buildWorld
-  G.buildWorld = function (def, cls, cost, hgt) {
+  // «Langes Spiel», Paket 8: islands that matter as bases are kept however small, with at least a
+  // disc of G.ISLE_R tiles of ground (enough for a port and an airfield). Nations do not start on
+  // them (map.isle, Game.freeLandNear). Name, longitude, latitude. Only the Earth, only in the mode.
+  G.ISLES = [
+    ['Malta', 14.4, 35.9], ['Zypern', 33.2, 35.05], ['Kreta', 24.9, 35.2], ['Korsika', 9.1, 42.15], ['Sardinien', 9.0, 40.05],
+    ['Azoren', -25.5, 37.8], ['Kanaren', -15.6, 28.0], ['Kapverden', -23.6, 15.1], ['Bermuda', -64.75, 32.3], ['Ascension', -14.35, -7.95],
+    ['St. Helena', -5.7, -15.95], ['Falklandinseln', -59.0, -51.75], ['Island', -18.6, 64.9], ['Färöer', -6.9, 62.0], ['Diego Garcia', 72.42, -7.32],
+    ['Seychellen', 55.5, -4.65], ['Mauritius', 57.55, -20.25], ['Sri Lanka', 80.7, 7.8], ['Andamanen', 92.75, 11.7], ['Okinawa', 127.9, 26.5],
+    ['Guam', 144.8, 13.45], ['Midway', -177.37, 28.2], ['Hawaii', -155.5, 19.6], ['Wake', 166.63, 19.29], ['Tahiti', -149.45, -17.65]
+  ];
+  G.ISLE_R = 4;
+  G.EARTH_LON0 = -169.2;   // where the Earth map is cut (tools/build_world.py, LON0)
+  G.buildWorld = function (def, cls, cost, hgt, opt) {
     const W = def.w, H = def.h, N = W * H;
     const land = new Uint8Array(N), mag = new Uint8Array(N), shore = new Uint8Array(N);
     const cover = new Uint8Array(N), feat = new Uint8Array(N), snow = new Uint8Array(N);
@@ -273,6 +285,24 @@
       snow[i] = c >> 7;
       land[i] = 1; landTiles++; cover[i] = cv; mag[i] = cost[i] > 30 ? 30 : cost[i];
       feat[i] = ((c >> 3) & 1) | (((c >> 4) & 1) << 1) | (((c >> 5) & 1) << 2) | (((c >> 6) & 1) << 3);
+    }
+    // «Langes Spiel»: the islands of G.ISLES get their ground first (a disc where there is sea)
+    const keep = opt && opt.isles ? new Uint8Array(N) : null, isle = keep ? new Uint8Array(N) : null;
+    if (keep) {
+      const lats = G.rowLats(H, { proj: 'pat', lat: def.lat || [-57.5, 79.5] }), R = G.ISLE_R;
+      for (const it of G.ISLES) {
+        let y = 0;
+        while (y < H - 1 && lats[y] > it[2]) y++;
+        const lon = it[1] < G.EARTH_LON0 ? it[1] + 360 : it[1], x = Math.floor((lon - G.EARTH_LON0) / 360 * W);
+        if (x < R || y < R || x >= W - R || y >= H - R) continue;
+        keep[y * W + x] = 1;
+        for (let dy = -R; dy <= R; dy++) for (let dx = -R; dx <= R; dx++) {
+          if (dx * dx + dy * dy > R * R + R) continue;
+          const t = (y + dy) * W + x + dx;
+          if (land[t]) continue;
+          land[t] = 1; landTiles++; cover[t] = 1; mag[t] = 2;
+        }
+      }
     }
     // Small islands become sea (17.11.2026: there were far too many tiny ones). Every island under
     // G.MIN_ISLAND tiles goes, also one a nation starts on (18.11.2026): such a nation starts on
@@ -289,6 +319,11 @@
           if (x < W - 1 && land[t + 1] && !seen[t + 1]) { seen[t + 1] = 1; q[qt++] = t + 1; }
           if (t >= W && land[t - W] && !seen[t - W]) { seen[t - W] = 1; q[qt++] = t - W; }
           if (t + W < N && land[t + W] && !seen[t + W]) { seen[t + W] = 1; q[qt++] = t + W; }
+        }
+        if (keep && qt < 20000) {
+          let k = false;
+          for (let i = 0; i < qt && !k; i++) if (keep[q[i]]) k = true;
+          if (k) { if (qt < 1000) for (let i = 0; i < qt; i++) isle[q[i]] = 1; continue; }   // Iceland and Sri Lanka stay open to nations
         }
         if (qt >= G.MIN_ISLAND) continue;
         for (let i = 0; i < qt; i++) { const t = q[i]; land[t] = 0; cover[t] = 0; feat[t] = 0; snow[t] = 0; mag[t] = 0; }
@@ -353,7 +388,7 @@
       W: W, H: H, N: N, land: land, mag: mag, shore: shore, wcomp: wcomp, wsize: wsize, landTiles: landTiles,
       cover: cover, feat: feat, snow: snow, hgt: hgt, hw: W >> 1, hh: H >> 1,
       S: G.within(Math.sqrt(N / 2e6), 0.4, 1),
-      id: def.id, name: def.name, nations: def.nations || [], credit: def.credit || ''
+      id: def.id, name: def.name, nations: def.nations || [], credit: def.credit || '', isle: isle
     }, G.rowLats(H, { proj: 'pat', lat: def.lat || [-57.5, 79.5] }));
   };
 })(globalThis.G = globalThis.G || {});
