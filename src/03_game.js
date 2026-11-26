@@ -5,7 +5,9 @@
   const PT = G.PT = { HUMAN: 0, NATION: 1, BOT: 2 };
   const UT = G.UT = {
     CITY: 0, DEFENSE: 1, PORT: 2, SILO: 3, SAM: 4, FACTORY: 5, CLOAK: 6, WARSHIP: 7, TRANSPORT: 8, TRADE: 9,
-    TRAIN: 10, SHELL: 11, SAMM: 12, ATOM: 13, HYDRO: 14, MIRV: 15, WARHEAD: 16, CRUISE: 17, LASER: 18
+    TRAIN: 10, SHELL: 11, SAMM: 12, ATOM: 13, HYDRO: 14, MIRV: 15, WARHEAD: 16, CRUISE: 17, LASER: 18,
+    // «Langes Spiel» only (src/04c_lang.js): cluster bomb, bunker buster, thermobaric bomb, short-range ballistic missile
+    CLUSTER: 19, BUNKER: 20, THERMO: 21, SRBM: 22
   };
   // Buildings are the kinds up to the cloaking tower; everything after them moves.
   G.isStruct = function (type) { return type <= UT.CLOAK; };
@@ -43,7 +45,8 @@
   G.MOMENTUM = { decay: 0.012, stop: 0.25, slow: 0.5, stall: 200, rest: 300, mass: 0.25, rail: 0.15, railFade: 0.6, min: 0.55, max: 1.5 };
   G.THRUST = { widths: [0, 30, 12], max: 4, pull: 1.2, ring: 0.6, speed: 0.5, flank: 3, deep: 4, hold: 1.5, fan: 0.45, nose: 1, crowd: 2, dirShare: 0.6, search: 250000 };
   G.UNAME = ['Stadt', 'Verteidigungs\u00ADposten', 'Hafen', 'Raketensilo', 'Flugabwehr', 'Fabrik', 'Tarnturm', 'Zerstörer', 'Boot',
-    'Handelsschiff', 'Zug', 'Granate', 'Abwehrrakete', 'Atombombe', 'Wasserstoff\u00ADbombe', 'MIRV', 'Sprengkopf', 'Marschflug\u00ADkörper', 'Satelliten\u00ADstrahl'];
+    'Handelsschiff', 'Zug', 'Granate', 'Abwehrrakete', 'Atombombe', 'Wasserstoff\u00ADbombe', 'MIRV', 'Sprengkopf', 'Marschflug\u00ADkörper', 'Satelliten\u00ADstrahl',
+    'Streubombe', 'Bunker\u00ADbrecher', 'Thermobare Bombe', 'Kurzstrecken\u00ADrakete'];
   G.UNAME[7.5] = 'Schlachtschiff';
   G.UNAME[4.5] = 'Raketenabwehr';    // «Langes Spiel»: air defence class 1 (src/07_ui.js, ABM)   // the interface's own number for warship class 1 (src/07_ui.js, BS)
   // Tempo. The numbers of the simulation are OpenFront's, but its maps have two million tiles and
@@ -79,6 +82,16 @@
   //           at most evacHold ticks before), only evacDie of the people of the new level die; the
   //           city then gives no growth for evacStop ticks and comes back over evacBack ticks.
   //           Shelters (a city upgrade for shelterCost) halve the lost levels and the dead.
+  //   nuke*, arm  atom bomb, hydrogen bomb, MIRV: price x nukeCost, only from tick nukeFrom of play
+  //           (minute 30, 45, 60), and a silo has to arm one for `arm` ticks before it flies,
+  //           seen by all. Whoever fires one is an outcast for `outlaw` ticks: alliances broken,
+  //           no trade, and every attack on him is outlawHit times as strong (losses / outlawHit)
+  //   price   the conventional weapons of the mode (by UT)
+  //   range   reach from the silo, in tiles of the Earth (5600 wide), scaled to the width of the map
+  //           (at least rangeW wide, so small maps keep a useful reach)
+  //   share   share of a building's levels a cruise missile or short-range missile takes (at least
+  //           one; level 1 falls); the next cruise missile costs cruiseHeat more for every one fired
+  //           in the last cruiseCool ticks
   //   post*   defence posts: radius x postR, losses x (postLoss[0] + postLoss[1] x level), time
   //           x (1 + postTime x level), and a tile they cover counts as at least postDens dense
   G.LANG = {
@@ -88,8 +101,15 @@
     digTicks: 1200, digLoss: 2, digTime: 0.75, digDrop: 0.004,
     postR: 1.5, postLoss: [5, 3], postTime: 3, postDens: 2,
     samShots: 2, samReload: 90, abmCost: 1.5, abmReload: 90, abmStack: 0.5,
-    cityHit: { 13: 0.5, 14: 1, 16: 0.25 }, evacDie: 0.33, evacStop: 600, evacBack: 1800, evacHold: 900, shelterCost: 250000, shelter: 0.5
+    cityHit: { 13: 0.5, 14: 1, 16: 0.25, 21: 0.35 }, evacDie: 0.33, evacStop: 600, evacBack: 1800, evacHold: 900, shelterCost: 250000, shelter: 0.5,
+    // Paket 2: nuclear weapons deter, conventional ones fight the war
+    nukeCost: { 13: 8, 14: 8, 15: 4 }, nukeFrom: { 13: 18000, 14: 27000, 15: 36000 }, arm: { 13: 300, 14: 450, 15: 600 },
+    outlaw: 6000, outlawHit: 1.25,
+    price: { 19: 400000, 20: 600000, 21: 1500000, 22: 500000 },
+    range: { 22: 150, 17: 300, 19: 300, 20: 300, 21: 300, 13: 800, 14: 1500 }, rangeW: 2400,
+    share: 0.25, cruiseHeat: 0.25, cruiseCool: 300, srbmSpeed: 4, srbmSeen: 0.25
   };
+  G.LANG_WEAPON = function (t) { return t >= UT.CLUSTER && t <= UT.SRBM; };
   // What the ground does to an attack, by what covers it (index: G.COVER). `speed` multiplies
   // what a tile costs in time, `loss` what it costs the attacker in troops. Height comes on top
   // (lowland, highland, mountains: the numbers of OpenFront). Forest and swamp give cover and
@@ -201,6 +221,7 @@
     this.pathNear = new G.Pathfinder(map, 260000); this.nearQ = []; this.nearJob = null;   // short hops: a window of at most 260 000 tiles
     this.lang = !!this.opts.lang;         // mode «Langes Spiel»
     const LW = this.lang ? G.LANG.world : 1, LA = this.lang ? G.LANG.air : 1;
+    this.langEarly = 0;                  // «Langes Spiel»: ticks a scene adds to the game time for the nuclear weapons
     this.wearFrom = G.LANG.wearFrom;     // «Langes Spiel»: from this tick of play on, over-dense fronts wear (a scene may move it)
     this.reach = LW;                      // share of the usual reach at sea and in the air
     this.pace0 = S * G.PACE.move;         // tiles a train or shell covers per tick
@@ -220,6 +241,9 @@
       mirvRange: Math.round(1500 * S), mirvCount: Math.max(8, Math.round(120 * S * S)),
       botDist: Math.max(10, Math.round(30 * S)), boatBox: Math.round(150 * S),
       tnSearch: Math.max(60, Math.round(200 * S)), portSearch: Math.max(14, Math.round(40 * S)),
+      clusterIn: Math.max(4, Math.round(10 * S)), clusterOut: Math.max(7, Math.round(20 * S)),
+      bunkerIn: Math.max(2, Math.round(3 * S)), bunkerOut: Math.max(3, Math.round(5 * S)),
+      thermoIn: Math.max(4, Math.round(9 * S)), thermoOut: Math.max(7, Math.round(18 * S)),
       nukeSpeed: Math.max(2.5, 6 * S) * LA, rail: Math.max(30, Math.round(110 * S))
     };
   }
@@ -238,7 +262,7 @@
       id: id, name: info.name, type: info.type, strength: info.strength || 1, flag: info.flag || '',
       troops: 0, gold: 0, tiles: 0, peak: 0, border: new Set(), alive: false, spawned: false, spawnTile: -1,
       x0: this.W, y0: this.H, x1: -1, y1: -1,
-      units: [], cnt: new Int32Array(20), cityLv: 0, dposts: [], boats: 0,
+      units: [], cnt: new Int32Array(24), cityLv: 0, dposts: [], boats: 0,
       out: [], inc: [], allies: new Map(), embargo: new Set(), reqCd: new Map(),
       rel: info.type === PT.NATION ? new Map() : null,
       traitorUntil: -1, betrayals: 0, lastChange: 0, lastCluster: 0, ai: null,
@@ -492,7 +516,7 @@
     p.rel.set(other.id, within((p.rel.get(other.id) || 0) + delta, -100, 100));
   };
   Game.prototype.relation = function (p, other) { return p.rel ? (p.rel.get(other.id) || 0) : 0; };
-  Game.prototype.canTrade = function (a, b) { return !a.embargo.has(b.id) && !b.embargo.has(a.id); };
+  Game.prototype.canTrade = function (a, b) { return !a.embargo.has(b.id) && !b.embargo.has(a.id) && !(this.lang && (this.outlawed(a) || this.outlawed(b))); };
 
   Game.prototype.canRequestAlliance = function (a, b) {
     if (a === b || !a.alive || !b.alive || this.phase !== 'play') return false;
@@ -1252,6 +1276,7 @@
         if (this.lang && pc) { if (inPost) dk = Math.max(dk, G.LANG.postDens); const e = this.digOf(pc); mag *= 1 + G.LANG.digLoss * e; speed *= 1 + G.LANG.digTime * e; }
         const R = t.troops / Math.max(1, at.troops);
         loss = this.tileLoss(mag, R, dAvg, dk, pc ? this.postHold(pc) : 1, a.type !== PT.BOT && t.type === PT.BOT, traitor);
+        if (this.lang && t.outlawUntil > this.ticks) loss /= G.LANG.outlawHit;   // «Langes Spiel»: an outcast is fought harder
         used = this.tileTime(speed, R, dk, traitor, at.front.size);
         if (at.mom !== undefined) {
           // momentum (wedge, section, direction in «Grenzland»): fades with every tile, the more the
@@ -1717,13 +1742,15 @@
       case 'ship': return tileOk && this.moveWarship(p, c.t, c.s >= 0 ? Math.floor(c.s) : -1) ? '' : 'Kein Schiff kann dorthin';
       case 'dock': return this.dockWarship(p, Math.floor(+c.s), tileOk ? c.t : -1) ? '' : 'Kein eigener Hafen an diesem Gewässer';
       case 'build': {
-        if (!tileOk || !(c.u <= UT.WARSHIP || c.u === UT.ATOM || c.u === UT.HYDRO || c.u === UT.MIRV || c.u === UT.CRUISE || c.u === UT.LASER) || !(c.u >= 0)) return 'Nicht möglich';
+        if (!tileOk || !(c.u <= UT.WARSHIP || c.u === UT.ATOM || c.u === UT.HYDRO || c.u === UT.MIRV || c.u === UT.CRUISE || c.u === UT.LASER || (this.lang && G.LANG_WEAPON(c.u))) || !(c.u >= 0)) return 'Nicht möglich';
         if (this.lv && !this.levelAllows(c.u)) return 'In diesem Level noch gesperrt';
         const cls = (c.u === UT.WARSHIP || (c.u === UT.SAM && this.lang)) && c.cls === 1 ? 1 : 0;    // a battleship, a missile defence
-        const chk = this.buildCheck(p, c.u, c.t, cls, !!c.fresh);
+        const pick = c.s | 0;   // the silo the player chose, 0 = the nearest (src/04c_lang.js)
+        const chk = this.buildCheck(p, c.u, c.t, cls, !!c.fresh, pick);
         if (!chk.ok) return chk.why || 'Nicht möglich';
-        return this.build(p, c.u, c.t, cls, !!c.fresh) ? '' : 'Nicht möglich';
+        return this.build(p, c.u, c.t, cls, !!c.fresh, pick) ? '' : 'Nicht möglich';
       }
+      case 'salvo': return this.lang ? this.salvo(p, c.list) : 'Nicht möglich';
       case 'evac': return tileOk && this.lang ? this.evacuate(p, c.t) : 'Nicht möglich';
       case 'shelter': return tileOk && this.lang ? this.buildShelter(p, c.t) : 'Nicht möglich';
       case 'up': {

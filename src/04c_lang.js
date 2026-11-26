@@ -18,6 +18,8 @@
   Game.prototype.langTick = function () {
     const T = this.ticks, ps = this.posted;
     if (this.phase !== 'play') return;
+    if (this.armed && this.armed.length) this.langArmTick();
+    if (this.salvoQ && this.salvoQ.length) this.langSalvoTick();
     if (T % EVERY === 0) for (let i = 0; i < this.humans.length; i++) { const h = this.humans[i]; if (h.evacW || h.units.some(function (u) { return u.evac !== undefined; })) this.langEvacW(h); }
     if (!ps) return;
     for (let i = 0; i < ps.length; i++) {
@@ -136,10 +138,11 @@
   };
 
   // ---------- two air defences ----------
-  // Class 0 (air defence) shoots at cruise missiles (later planes and short-range missiles),
+  // Class 0 (air defence) shoots at cruise missiles and the conventional weapons of Paket 2 (the
+  // short-range missile it picks up only inside a quarter of its reach; later also planes),
   // class 1 (missile defence) at atom and hydrogen bombs and MIRV warheads.
   Game.prototype.samCan = function (u, type) {
-    return u.cls ? type === UT.ATOM || type === UT.HYDRO || type === UT.WARHEAD : type === UT.CRUISE;
+    return u.cls ? type === UT.ATOM || type === UT.HYDRO || type === UT.WARHEAD : type === UT.CRUISE || G.LANG_WEAPON(type);
   };
   // Shots per salvo: class 0 G.LANG.samShots per level, class 1 1 + floor(level / 4).
   Game.prototype.samShotsOf = function (u) {
@@ -240,6 +243,123 @@
       any = true; w += 250000 * u.level * (1 - back);
     }
     p.evacW = any && max > 0 ? within(w / max, 0, 1) : 0;
+  };
+
+  // ---------- weapons (Paket 2) ----------
+  const NUCLEAR = function (t) { return t === UT.ATOM || t === UT.HYDRO || t === UT.MIRV; };
+  G.isNuclear = NUCLEAR;
+  // Reach from the silo in tiles of this map: G.LANG.range is in tiles of the Earth (5600 wide),
+  // scaled to the width of the map, but as if it were at least G.LANG.rangeW wide: on a small map
+  // the weapons would otherwise reach only a few tiles.
+  Game.prototype.weaponReach = function (type) {
+    const r = G.LANG.range[type];
+    return r ? r / 5600 * Math.max(this.W, G.LANG.rangeW) : Infinity;
+  };
+  // Why p may not fire this weapon now ('' if he may): nuclear weapons only late in the game.
+  Game.prototype.weaponWhy = function (p, type) {
+    const from = G.LANG.nukeFrom[type];
+    if (from && this.ticks - this.playStart + this.langEarly < from) return G.UNAME[type].replace('\u00AD', '') + ' erst ab Minute ' + Math.round(from / 600);
+    return '';
+  };
+  // A nuclear weapon is armed in the silo for G.LANG.arm ticks, then flies. Everybody sees it.
+  Game.prototype.armSilo = function (p, type, silo, tile) {
+    const T = this.ticks;
+    for (let i = 0; i < silo.ready.length; i++) if (silo.ready[i] <= T) { silo.ready[i] = T + G.LANG.arm[type] + G.SILO_RELOAD; break; }
+    silo.arm = { type: type, tile: tile, at: T + G.LANG.arm[type], from: T };
+    (this.armed || (this.armed = [])).push(silo);
+    const h = this.human;
+    if (h && h !== p) this.say('Raketensilo von ' + p.name + ' macht eine ' + G.UNAME[type].replace('\u00AD', '') + ' scharf', 'bad');
+    else if (h === p) this.say(G.UNAME[type].replace('\u00AD', '') + ' wird scharfgemacht: Start in ' + Math.round(G.LANG.arm[type] / 10) + ' s', 'warn');
+    this.emit({ k: 'arm', p: p.id, s: silo.id });
+    return silo;
+  };
+  Game.prototype.langArmTick = function () {
+    const T = this.ticks, list = this.armed;
+    for (let i = list.length - 1; i >= 0; i--) {
+      const s = list[i], a = s.arm;
+      if (!s.active || !a) { if (s.active) s.arm = null; list.splice(i, 1); continue; }
+      if (T < a.at) continue;
+      s.arm = null; list.splice(i, 1);
+      if (s.owner.alive) this.launch(s.owner, a.type, s, a.tile);
+    }
+  };
+  // Second strike: whoever a nuclear weapon hits fires what his silos are arming at once.
+  Game.prototype.langNukeHit = function (type, cx, cy, r) {
+    if (!(NUCLEAR(type) || type === UT.WARHEAD) || !this.armed || !this.armed.length) return;
+    const own = this.owner, W = this.W, t = Math.round(cy) * W + Math.round(cx), o = own[t];
+    if (!o) return;
+    for (const s of this.armed) if (s.active && s.arm && s.owner.id === o) s.arm.at = Math.min(s.arm.at, this.ticks + 1);
+  };
+  // After a launch: a nuclear weapon makes an outcast of whoever fired it, a cruise missile makes
+  // the next one dearer.
+  Game.prototype.langLaunch = function (p, u) {
+    const T = this.ticks, type = u.type;
+    if (type === UT.CRUISE) { const l = p.cruiseT || (p.cruiseT = []); l.push(T); while (l.length && l[0] < T - G.LANG.cruiseCool) l.shift(); }
+    if (!NUCLEAR(type)) return;
+    p.outlawUntil = T + G.LANG.outlaw;
+    for (const id of Array.from(p.allies.keys())) { const q = this.players[id]; if (q) this.breakAlliance(p, q); }
+    this.say(p === this.human ? 'Du hast eine Atomwaffe eingesetzt: Bündnisse gebrochen, ' + Math.round(G.LANG.outlaw / 600) + ' Minuten kein Handel, alle kämpfen härter gegen dich' : p.name + ' hat eine Atomwaffe eingesetzt und ist geächtet', 'bad');
+  };
+  // A planned strike (command salvo): several targets, each with its weapon and silo, timed so that
+  // all land at once. The one that takes longest (arming included) starts now, the others later.
+  // Each start is checked and paid for when it comes, like a single order.
+  Game.prototype.salvo = function (p, list) {
+    if (!Array.isArray(list) || !list.length || list.length > 12) return 'Nicht möglich';
+    const T = this.ticks, W = this.W, plan = [];
+    let top = 0;
+    for (const e of list) {
+      const t = e && e.t | 0, u = e && e.u | 0;
+      if (!(t >= 0 && t < this.N) || !(u >= UT.ATOM) || u === UT.LASER || u === UT.WARHEAD) return 'Nicht möglich';
+      const c = this.buildCheck(p, u, t, 0, false, e.s | 0);
+      if (!c.silo) return c.why || 'Nicht möglich';
+      const d = Math.max(1, Math.hypot(t % W - c.silo.x, ((t / W) | 0) - c.silo.y));
+      const sp = this.R.nukeSpeed * (u === UT.SRBM ? G.LANG.srbmSpeed : G.lowFly(u) ? 1.6 : 1);
+      const need = Math.ceil(d / sp) + (G.LANG.arm[u] || 0);
+      if (need > top) top = need;
+      plan.push({ u: u, t: t, s: c.silo.id, need: need });
+    }
+    const q = this.salvoQ || (this.salvoQ = []);
+    for (const e of plan) q.push({ p: p.id, u: e.u, t: e.t, s: e.s, at: T + top - e.need });
+    return '';
+  };
+  Game.prototype.langSalvoTick = function () {
+    const q = this.salvoQ, T = this.ticks;
+    for (let i = 0; i < q.length; i++) {
+      const e = q[i];
+      if (e.at > T) continue;
+      q.splice(i--, 1);
+      const p = this.players[e.p];
+      if (!p || !p.alive) continue;
+      const done = this.build(p, e.u, e.t, 0, false, e.s);
+      if (!done && p === this.human) this.say('Geplanter Schlag: ' + G.UNAME[e.u].replace('\u00AD', '') + ' konnte nicht starten', 'warn');
+    }
+  };
+  Game.prototype.cruiseHeatOf = function (p) {
+    const l = p.cruiseT;
+    if (!l) return 0;
+    let n = 0;
+    for (let i = 0; i < l.length; i++) if (l[i] >= this.ticks - G.LANG.cruiseCool) n++;
+    return n;
+  };
+  Game.prototype.outlawed = function (p) { return !!p && p.outlawUntil > this.ticks; };
+  // A nuclear power: from minute 30 on, whoever has a silo (everyone sees it, it deters).
+  Game.prototype.nuclearPower = function (p) {
+    if (!this.lang || this.ticks - this.playStart + this.langEarly < G.LANG.nukeFrom[UT.ATOM]) return false;
+    return p.cnt[UT.SILO] > 0;
+  };
+  // A cruise missile or short-range missile takes a share of a building's levels (at least one; a
+  // building on level 1 falls). Shelters of a city halve it.
+  Game.prototype.structHit = function (v) {
+    const o = v.owner, L0 = v.level;
+    let f = G.LANG.share;
+    if (v.shelter) f *= G.LANG.shelter;
+    const lost = L0 <= 1 ? 1 : Math.min(L0, Math.max(1, Math.round(L0 * f)));
+    if (lost >= L0) { this.removeUnit(v); return; }
+    v.level = L0 - lost; o.cnt[v.type] -= lost;
+    if (v.type === UT.CITY) o.cityLv -= lost;
+    else if (v.type === UT.DEFENSE) this.dirtyDisc(v.tile);
+    if (v.ready) { if (v.type === UT.SAM) this.samSlots(v); else if (v.ready.length > v.level) v.ready.length = v.level; }
+    if (o === this.human) this.say(G.UNAME[v.type].replace('\u00AD', '') + ' verliert ' + lost + ' Stufe' + (lost === 1 ? '' : 'n'), 'bad');
   };
 
   // ---------- digging in and defence posts ----------

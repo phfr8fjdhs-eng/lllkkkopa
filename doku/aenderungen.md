@@ -3,6 +3,10 @@ Was seit dem 13.11.2026 geändert wurde und warum. Den heutigen Stand der Regeln
 
 
 
+## Spielmodus «Langes Spiel», Paket 2: Bomben, Raketen, Bedienung (26.11.2026)
+- **Wunsch:** Atomwaffen als Abschreckung statt als normale Bombe; den Krieg tragen konventionelle Waffen; Reichweite ab dem Silo; Waffenleiste und geplante Schläge, die gleichzeitig einschlagen.
+- **Geändert (nur im Modus):** Atomwaffen teurer, später erlaubt, im Silo scharfzumachen (für alle sichtbar), Ächtung nach dem Einsatz, Zweitschlag, ☢ für Atommächte; Streubombe, Bunkerbrecher, thermobare Bombe, Kurzstreckenrakete; Marschflugkörper nimmt ein Viertel der Stufen; Reichweite je Waffe ab dem Silo, Silo antippen wählt es; Taste R für die Waffenleiste, Shift + Klick plant Schläge, Enter feuert sie zusammen. Szenen 126, 127; die Szenen 121, 124 und 125 erlauben Atomwaffen sofort.
+
 ## Spielmodus «Langes Spiel», Paket 1f: Bomben auf Städte, Evakuieren, Schutzräume (26.11.2026)
 - **Wunsch:** Man sieht die Bombe kommen und soll etwas tun können; eine Stadt hat Bevölkerung, ein Treffer nimmt Stufen und Leute, evakuiert sterben weniger, das Wachstum kommt danach langsam zurück.
 - **Geändert (nur im Modus):** Treffer nehmen Stufen (Sprengkopf ¼, Atombombe ½, Wasserstoffbombe alle) und töten die Bevölkerung; Knopf «Evakuieren» bei einer anfliegenden Bombe (33 % Tote, 60 s kein Wachstum, dann 3 Minuten Erholung); Schutzräume als Ausbau der Stadt (250K, halber Schaden). Szene 125.

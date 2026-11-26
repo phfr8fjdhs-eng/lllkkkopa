@@ -10,6 +10,11 @@
     defense: 'M12 2l8.5 3.2v6.3c0 5.2-3.6 9-8.5 10.5c-4.9-1.5-8.5-5.3-8.5-10.5V5.2z',
     port: 'M12 1.4a3.1 3.1 0 1 1 0 6.2a3.1 3.1 0 1 1 0-6.2zM12 3.1a1.4 1.4 0 1 0 0 2.8a1.4 1.4 0 1 0 0-2.8zM10.7 7.4h2.6V20h-2.6zM7 9.2h10v2.4H7zM20.8 13A8.8 8.8 0 0 1 3.2 13H6A6 6 0 0 0 18 13zM1.6 14.6L4.4 9.6L7.6 13.8zM22.4 14.6L16.4 13.8L19.6 9.6z',
     silo: 'M12 1c2 1.6 3 4 3 6.8V17H9V7.8C9 5 10 2.6 12 1zM9 12.2l-3.2 3.4V20L9 18zM15 12.2l3.2 3.4V20L15 18zM10 18h4v2l-2 2.2l-2-2.2z',
+    // «Langes Spiel»: the conventional weapons
+    cluster: 'M12 2l3 4v5l-3 2l-3-2V6zM5 14a2 2 0 1 1 0 4a2 2 0 1 1 0-4zM12 16a2 2 0 1 1 0 4a2 2 0 1 1 0-4zM19 14a2 2 0 1 1 0 4a2 2 0 1 1 0-4zM8 19a1.6 1.6 0 1 1 0 3.2a1.6 1.6 0 1 1 0-3.2zM16 19a1.6 1.6 0 1 1 0 3.2a1.6 1.6 0 1 1 0-3.2z',
+    bunker: 'M12 1l2.6 4.5V15H9.4V5.5zM9.4 15l-2 2.5h9.2l-2-2.5zM3 19.5h18V23H3zM6 19.5l2-2h8l2 2z',
+    thermo: 'M12 2c4 3.5 6 6.8 6 10a6 6 0 0 1-12 0c0-2.2 1-4.4 3-6.4c.3 2 1.2 3.2 2.4 3.6C11 6.8 11.2 4.4 12 2zM12 13a2.5 2.5 0 1 0 0 5a2.5 2.5 0 1 0 0-5z',
+    srbm: 'M12 1l3.2 5.5V17h-6.4V6.5zM8.8 12l-3.3 4v4l3.3-2zM15.2 12l3.3 4v4l-3.3-2zM10 18h4l-.8 4h-2.4z',
     // «Langes Spiel»: missile defence, two interceptors on a launcher
     abm: 'M2.5 19.5h19V22h-19zM6.5 18V8.2L8.5 3l2 5.2V18zM13.5 18V8.2L15.5 3l2 5.2V18zM5 18l1.5-3.5V18zM12 18l1.5-3.5V18zM10.5 18v-3.5L12 18zM17.5 18v-3.5L19 18z',
     sam: 'M2.5 19.5h19V22h-19zM4.5 19L7 16.2L17.6 5.6L21.5 3.5L19.4 7.4L8.8 18zM6.2 13.4l3.2-.8l-2 2.2zM10.6 17.8l.8-3.2l1.4 2z',
@@ -660,6 +665,7 @@
     this.drawMarks(ctx, g, z, ox, oy, now);
     if (this.aim) this.drawAim(ctx, g, z, ox, oy, now);
     if (this.ghost) this.drawGhost(ctx, g, z, ox, oy, now);
+    if (g.lang) this.drawSalvo(ctx, g, z, ox, oy, now);
   };
 
   // The ground a defence post covers and the sky an air defence guards, drawn around the building at all
@@ -925,13 +931,42 @@
     ctx.lineWidth = lw; ctx.strokeStyle = 'rgba(255,255,255,0.5)';
     for (const p of pv.paths) line(p);
   };
+  // «Langes Spiel»: the strikes planned with Shift + click (numbered crosshairs, a line from their
+  // silo), the silo picked by a tap (a white ring), and while aiming a weapon the reach of every
+  // own silo for it (src/07_ui.js, salvoList; src/04c_lang.js, weaponReach)
+  View.prototype.drawSalvo = function (ctx, g, z, ox, oy, now) {
+    const W = g.W, h = g.human, list = this.salvo;
+    if (!h) return;
+    const gh = this.ghost, ty = gh && gh.type >= UT.ATOM && gh.type !== UT.LASER ? gh.type : -1;
+    if (ty >= 0) {
+      const reach = g.weaponReach(ty);
+      if (reach < Infinity) {
+        ctx.setLineDash([6, 6]); ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(255,255,255,0.45)';
+        for (const u of h.units) if (u.type === UT.SILO && u.built) { ctx.beginPath(); ctx.arc((u.x + 0.5) * z + ox, (u.y + 0.5) * z + oy, reach * z, 0, 6.2832); ctx.stroke(); }
+        ctx.setLineDash([]);
+      }
+    }
+    if (this.siloSel) {
+      const s = h.units.find((u) => u.id === this.siloSel);
+      if (s) { ctx.beginPath(); ctx.arc((s.x + 0.5) * z + ox, (s.y + 0.5) * z + oy, Math.max(12, z * 3), 0, 6.2832); ctx.strokeStyle = '#fff'; ctx.lineWidth = 2.5; ctx.stroke(); }
+    }
+    if (!list || !list.length) return;
+    ctx.font = '800 13px ' + FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    for (let i = 0; i < list.length; i++) {
+      const e = list[i], x = (e.t % W + 0.5) * z + ox, y = (((e.t / W) | 0) + 0.5) * z + oy, r = 10;
+      const s = h.units.find((u) => u.id === e.s);
+      if (s) { ctx.beginPath(); ctx.moveTo((s.x + 0.5) * z + ox, (s.y + 0.5) * z + oy); ctx.lineTo(x, y); ctx.setLineDash([4, 5]); ctx.strokeStyle = 'rgba(255,220,120,0.7)'; ctx.lineWidth = 1.5; ctx.stroke(); ctx.setLineDash([]); }
+      ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832); ctx.moveTo(x - r - 4, y); ctx.lineTo(x + r + 4, y); ctx.moveTo(x, y - r - 4); ctx.lineTo(x, y + r + 4);
+      ctx.strokeStyle = '#ffd36e'; ctx.lineWidth = 2; ctx.stroke();
+      ctx.lineWidth = 3; ctx.strokeStyle = '#0b1016'; ctx.strokeText(String(i + 1), x + r + 8, y - r - 6); ctx.fillStyle = '#ffd36e'; ctx.fillText(String(i + 1), x + r + 8, y - r - 6);
+    }
+  };
   View.prototype.drawGhost = function (ctx, g, z, ox, oy, now) {
     const gh = this.ghost, W = g.W, R = g.R, h = g.human;
     if (gh.tile < 0 || !h) return;
     const x = (gh.tile % W + 0.5) * z + ox, y = (((gh.tile / W) | 0) + 0.5) * z + oy;
     const s = within(9 + z * 3.4, 20, 32) * 1.25, t = gh.type, bad = !gh.ok;
-    const rout = t === UT.HYDRO ? R.hydroOut : t === UT.ATOM ? R.atomOut : t === UT.CRUISE ? R.cruiseOut : t === UT.LASER ? R.laserOut : 0;
-    const rin = t === UT.HYDRO ? R.hydroIn : t === UT.ATOM ? R.atomIn : t === UT.CRUISE ? R.cruiseIn : t === UT.LASER ? R.laserIn : 0;
+    const brr = t >= UT.ATOM && t !== UT.MIRV && t !== UT.WARHEAD ? G.blastR(R, t) : [0, 0], rout = brr[1], rin = brr[0];
     if (t >= UT.ATOM && t !== UT.LASER) {
       // a bomb from a silo: the full picture while you are still choosing the target. The flight path
       // from the silo (red where hostile air defence reaches it), the blast, and every air defence in
@@ -1184,8 +1219,23 @@
         ctx.strokeStyle = '#f4b740'; ctx.lineWidth = 2; ctx.stroke();
       } else if (u.level > 1) levelTag(ctx, u.level, x, y, side);
       if (u.built && u.type === UT.SILO && u.owner === h && u.ready) reloadRing(ctx, u, x, y, side, T);
+      if (u.arm) armRing(ctx, u, x, y, side, T);   // «Langes Spiel»: a nuclear weapon being armed, seen by all
     }
   };
+  // A silo arming a nuclear weapon: a pulsing red ring that closes as the launch comes nearer, and
+  // the seconds above the sign (src/04c_lang.js, armSilo).
+  function armRing(ctx, u, x, y, side, T) {
+    const a = u.arm, all = Math.max(1, a.at - a.from), q = within((T - a.from) / all, 0, 1);
+    const r = side * 0.5 + 9, pulse = 0.55 + 0.45 * Math.sin(T * 0.6);
+    ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832);
+    ctx.strokeStyle = 'rgba(255,60,40,' + (0.25 * pulse).toFixed(3) + ')'; ctx.lineWidth = 6; ctx.stroke();
+    ctx.beginPath(); ctx.arc(x, y, r, -1.5708, -1.5708 + 6.2832 * q);
+    ctx.strokeStyle = '#ff3c28'; ctx.lineWidth = 3; ctx.stroke();
+    const fs = Math.round(Math.max(10, side * 0.32)), ty = y - r - fs * 0.7, txt = '☢ ' + Math.max(0, Math.ceil((a.at - T) / 10)) + ' s';
+    ctx.font = '800 ' + fs + 'px ' + FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
+    ctx.lineWidth = Math.max(3, fs * 0.32); ctx.strokeStyle = '#0b1016'; ctx.strokeText(txt, x, ty);
+    ctx.fillStyle = '#ff6a50'; ctx.fillText(txt, x, ty);
+  }
   // An own missile silo that has fired (25.11.2026): how long until it can fire again. Unlike the
   // amber arc of a building under way, this is a dark track with one segment per slot (a silo of
   // level 3 has three); a slot that is reloading fills in coral, clockwise, a loaded one is white;
@@ -1423,7 +1473,7 @@
 
   // How high a bomb's arc rises at its top, in tiles, and how high it is at a point of its flight.
   // Only the picture flies in an arc; the simulation moves the bomb along the ground line.
-  function liftTop(n) { return Math.min(n.dist * 0.28, 70) * (n.type === UT.CRUISE ? 0.12 : 1); }
+  function liftTop(n) { return Math.min(n.dist * 0.28, 70) * (G.lowFly(n.type) ? 0.12 : 1); }
   function liftAt(n, prog) { return liftTop(n) * Math.sin(Math.PI * within(prog, 0, 1)); }
   View.liftAt = liftAt;
 
@@ -1669,6 +1719,7 @@
     if (ty === UT.ATOM) return [R.atomIn, R.atomOut];
     if (ty === UT.CRUISE) return [R.cruiseIn, R.cruiseOut];
     if (ty === UT.WARHEAD) return [R.headIn, R.headOut];
+    if (G.LANG_WEAPON(ty)) return G.blastR(R, ty);
     return null;
   };
   // Where your own bomb will land: a thin dashed ring, no fuss.
@@ -1678,7 +1729,7 @@
     const h = g.human;
     if (h && u.owner !== h && !g.friendly(u.owner, h)) return;   // that one gets the warning instead
     const ty = u.type;
-    const col = ty === UT.ATOM ? '255,86,64' : ty === UT.HYDRO ? '255,150,40' : ty === UT.CRUISE ? '110,215,255' : '206,120,255';
+    const col = ty === UT.ATOM ? '255,86,64' : ty === UT.HYDRO ? '255,150,40' : ty === UT.CRUISE || G.LANG_WEAPON(ty) ? '110,215,255' : '206,120,255';
     const x = (u.dx + 0.5) * z + ox, y = (u.dy + 0.5) * z + oy, r = b[1] * z;
     if (x + r < -40 || y + r < -40 || x - r > this.cw + 40 || y - r > this.ch + 40) return;
     ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832);
@@ -1737,7 +1788,7 @@
     if (u.delay > 0) return;
     const ty = u.type, prog = Math.min(1, u.prog + alpha * u.speed / u.dist);
     const liftMax = liftTop(u);
-    const col = ty === UT.ATOM ? '255,86,64' : ty === UT.HYDRO ? '255,150,40' : ty === UT.CRUISE ? '110,215,255' : '206,120,255';
+    const col = ty === UT.ATOM ? '255,86,64' : ty === UT.HYDRO ? '255,150,40' : ty === UT.CRUISE || G.LANG_WEAPON(ty) ? '110,215,255' : '206,120,255';
     const sx = (u.sx + 0.5) * z + ox, sy = (u.sy + 0.5) * z + oy;
     const ex = (u.dx + 0.5) * z + ox, ey = (u.dy + 0.5) * z + oy;
     if (Math.max(sx, ex) < -80 || Math.min(sx, ex) > this.cw + 80 || Math.max(sy, ey) < -200 || Math.min(sy, ey) > this.ch + 80) return;
@@ -1782,7 +1833,7 @@
     // higher up it is nearer to the eye: it grows towards the top of the arc
     const up = 1 + 0.35 * Math.sin(Math.PI * prog) * (ty === UT.CRUISE ? 0.3 : 1);
     const blink = (now + u.id * 137) % 620 < 150;
-    if (ty === UT.CRUISE) rocket(ctx, x, y, ang, within(z * 4.2, 13, 24) * up, col, 0, flick, blink);
+    if (ty === UT.CRUISE || G.LANG_WEAPON(ty)) rocket(ctx, x, y, ang, within(z * (ty === UT.THERMO ? 4.8 : 4.2), 13, 24) * up, col, 0, flick, blink);
     else if (ty === UT.ATOM) rocket(ctx, x, y, ang, within(z * 3.6, 12, 20) * up, col, 1, flick, blink);
     else if (ty === UT.HYDRO) rocket(ctx, x, y, ang, within(z * 4.6, 15, 27) * up, col, 2, flick, blink);
     else rocket(ctx, x, y, ang, within(z * 5, 16, 30) * up, col, 2, flick, blink);      // the MIRV carrier
@@ -2057,6 +2108,9 @@
         label += ' ✓ ' + ((left / 60) | 0) + ':' + String(left % 60).padStart(2, '0');
       }
       if (p.traitorUntil > T) label += ' !';
+      // «Langes Spiel»: everybody sees who could fire a nuclear weapon, and who is an outcast for using one
+      if (g.lang && g.nuclearPower(p)) label += ' ☢';
+      if (g.lang && g.outlawed(p)) label += ' ✖';
       const foe = foes.has(p), ally = !!h && p !== h && h.allies.has(p.id);
       if (foe) label = '⚔ ' + label;
       ctx.font = '700 ' + fs.toFixed(1) + 'px ' + FONT;

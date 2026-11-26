@@ -41,13 +41,36 @@
 
   G.NEUES = [
     {
+      n: 127, date: '26.11.2026', title: 'Langes Spiel: Waffen für den Krieg', lang: true,
+      text: 'Im Langen Spiel trägt nicht die Atombombe den Krieg. Die Streubombe tötet Truppen an der Front, der Bunkerbrecher zerstört ein Gebäude, die thermobare Bombe trifft ein mittleres Gebiet ohne Verstrahlung, die Kurzstreckenrakete ist schnell und schwer abzufangen. Ein Marschflugkörper nimmt einem Gebäude ein Viertel seiner Stufen. Taste R schaltet die Bauleiste auf Waffen um.',
+      map: { w: 320, h: 200, seed: 927, shapes: [circ(150, 100, 92), rect(50, 35, 250, 165)] },
+      me: { x: 70, y: 100, box: [0, 0, 150, 200], troops: 80000, gold: 0, build: [[UT.SILO, 110, 100, 6]] },
+      foes: [{ name: 'Varnholm', x: 230, y: 100, box: [150, 0, 300, 200], troops: 120000, build: [[UT.CITY, 200, 70, 12], [UT.FACTORY, 210, 130, 6], [UT.SAM, 245, 100, 1]] }],
+      allow: ALL.concat([UT.CLUSTER, UT.BUNKER, UT.THERMO, UT.SRBM]), quest: none,
+      loop: [6, 6, function (Q, k) {
+        const kinds = [UT.CLUSTER, UT.CRUISE, UT.SRBM, UT.THERMO, UT.BUNKER];
+        const t = kinds[k % kinds.length], at = t === UT.CRUISE || t === UT.BUNKER ? [200, 70] : t === UT.CLUSTER ? [165, 100] : t === UT.SRBM ? [170, 112] : [210, 130];
+        Q.fire(Q.me, t, at[0], at[1]);
+      }]
+    },
+    {
+      n: 126, date: '26.11.2026', title: 'Langes Spiel: Atomwaffen schrecken ab', lang: true,
+      text: 'Atomwaffen sind teuer, erst spät erlaubt (Atombombe ab Minute 30) und müssen im Silo scharfgemacht werden: Alle sehen den roten Ring. Wer eine einsetzt, verliert seine Bündnisse und seinen Handel, und alle kämpfen eine Weile härter gegen ihn. Wer ein Silo hat, trägt ☢ hinter dem Namen.',
+      map: { w: 320, h: 200, seed: 926, shapes: [circ(80, 100, 60), circ(235, 100, 72)] },
+      me: { x: 80, y: 100, r: 64, troops: 200000, gold: 0, build: [[UT.CITY, 70, 100, 8], [4.5, 95, 80, 4]] },
+      foes: [{ name: 'Vellmar', x: 235, y: 100, r: 76, troops: 200000, build: [[UT.SILO, 230, 100, 2]] }],
+      allow: ALL, quest: none,
+      events: [[0, function (Q) { Q.g.langEarly = G.LANG.nukeFrom[UT.ATOM]; }]],
+      loop: [6, 50, function (Q) { Q.fire(Q.foe[0], UT.ATOM, 70, 100); }]
+    },
+    {
       n: 125, date: '26.11.2026', title: 'Langes Spiel: Evakuieren und Schutzräume', lang: true,
       text: 'Fliegt eine Bombe auf deine Stadt, erscheint oben «Evakuieren»: Dann sterben nur ein Drittel der Leute, aber die Stadt wächst eine Weile nicht. Eine Bombe nimmt der Stadt Stufen (Atombombe die Hälfte), statt sie ganz zu zerstören. Schutzräume (in der Ausbaukarte der Stadt) halbieren den Schaden.',
       map: { w: 320, h: 200, seed: 925, shapes: [circ(80, 100, 60), circ(235, 100, 72)] },
       me: { x: 80, y: 100, r: 64, troops: 200000, gold: 0, build: [[UT.CITY, 70, 60, 10], [UT.CITY, 70, 140, 10]] },
       foes: [{ name: 'Vellmar', x: 235, y: 100, r: 76, troops: 200000, build: [[UT.SILO, 230, 100, 3]] }],
       allow: ALL, quest: none,
-      events: [[0, function (Q) { const c = Q.me.units.find(function (u) { return u.type === UT.CITY && u.y > 100; }); if (c) c.shelter = 1; }]],
+      events: [[0, function (Q) { Q.g.langEarly = G.LANG.nukeFrom[UT.ATOM]; const c = Q.me.units.find(function (u) { return u.type === UT.CITY && u.y > 100; }); if (c) c.shelter = 1; }]],
       loop: [6, 30, function (Q) {
         // the northern city is evacuated by the script; the southern one has shelters
         for (const u of Q.me.units.slice()) if (u.type === UT.CITY && u.built) Q.fire(Q.foe[0], UT.ATOM, u.x, u.y);
@@ -61,9 +84,10 @@
       text: 'Im Langen Spiel gibt es zwei Flugabwehren: die kleine (Taste 6) gegen Marschflugkörper, mit vielen Schüssen, und die Raketenabwehr (Taste J) gegen Atom- und Wasserstoffbomben, mit wenigen Schüssen. Stehen mehrere nahe beieinander, lädt die zweite halb so schnell nach, die dritte nur noch ein Viertel.',
       map: { w: 320, h: 200, seed: 924, shapes: [circ(80, 100, 60), circ(235, 100, 72)] },
       me: { x: 80, y: 100, r: 64, troops: 60000, gold: 0, build: [[UT.SAM, 100, 80, 5], [4.5, 100, 125, 4], [4.5, 70, 125, 4], [UT.CITY, 60, 90, 3]] },
-      foes: [{ name: 'Vellmar', x: 235, y: 100, r: 76, troops: 200000, build: [[UT.SILO, 230, 100, 5]] }],
+      foes: [{ name: 'Vellmar', x: 235, y: 100, r: 76, troops: 200000, build: [[UT.SILO, 230, 100, 5], [UT.SILO, 215, 75, 5]] }],
       allow: ALL, quest: none,
-      loop: [6, 7, function (Q, k) { if (k % 2) Q.fire(Q.foe[0], UT.CRUISE, 100, 88); else Q.fire(Q.foe[0], UT.ATOM, 85 + (k % 4) * 2, 118); }]
+      events: [[0, function (Q) { Q.g.langEarly = G.LANG.nukeFrom[UT.ATOM]; }]],   // nuclear weapons allowed at once (normally from minute 30)
+      loop: [6, 7, function (Q, k) { if (k % 2) Q.fire(Q.foe[0], UT.CRUISE, 104, 87); else Q.fire(Q.foe[0], UT.ATOM, 85 + (k % 4) * 2, 118); }]
     },
     {
       n: 123, date: '26.11.2026', title: 'Langes Spiel: Abnutzung und Eingraben', lang: true,
@@ -92,12 +116,13 @@
     },
     {
       n: 121, date: '26.11.2026', title: 'Langes Spiel: das Meer wirkt grösser', lang: true,
-      text: 'Neuer Spielmodus «Langes Spiel»: Schiffe fahren halb so schnell, Bomben und Raketen fliegen langsamer, und Flugabwehr, Kriegsschiffe und Häfen reichen nur halb so weit. Der Bodenkampf bleibt im Tempo.',
+      text: 'Neuer Spielmodus «Langes Spiel»: Schiffe fahren halb so schnell, Bomben und Raketen fliegen langsamer (hier ein Marschflugkörper), und Flugabwehr, Kriegsschiffe und Häfen reichen nur halb so weit. Der Bodenkampf bleibt im Tempo.',
       map: { w: 300, h: 200, seed: 921, rough: 4, shapes: [rect(0, 0, 120, 200), rect(180, 0, 300, 200)] },
-      me: { x: 50, y: 100, box: [0, 0, 125, 200], troops: 60000, gold: 500000, build: [[UT.PORT, 120, 60, 2], [UT.PORT, 120, 140, 2], [UT.SILO, 60, 100, 2], [UT.SAM, 100, 100, 2]] },
+      me: { x: 50, y: 100, box: [0, 0, 125, 200], troops: 60000, gold: 500000, build: [[UT.PORT, 120, 60, 2], [UT.PORT, 120, 140, 2], [UT.SILO, 105, 100, 2], [UT.SAM, 70, 100, 2]] },
       foes: [{ name: 'Ostmark', x: 250, y: 100, box: [175, 0, 300, 200], troops: 60000, build: [[UT.PORT, 180, 50, 2], [UT.PORT, 180, 150, 2], [UT.SAM, 200, 100, 1]] }],
       allow: ALL, quest: none,
-      loop: [6, 12, function (Q, k) { Q.fire(Q.me, UT.ATOM, 240 + (k % 2) * 30, 60 + (k % 3) * 40); }]
+      events: [[0, function (Q) { Q.g.langEarly = G.LANG.nukeFrom[UT.ATOM]; }]],   // nuclear weapons allowed at once (normally from minute 30)
+      loop: [6, 12, function (Q, k) { Q.fire(Q.me, UT.CRUISE, 200 + (k % 2) * 15, 60 + (k % 3) * 40); }]
     },
     {
       n: 120, date: '25.11.2026', title: 'Schüsse bereit auf der Bauleiste',

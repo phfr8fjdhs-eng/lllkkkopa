@@ -8,7 +8,7 @@ Die Regel aus `doku/vision.md` (Runden höchstens etwa 40 bis 45 Minuten) gilt f
 
 ## Pakete
 1. Tempo, Vorbereitung, Verteidigung, Abwehr (gebaut 26.11.2026, Teile 1a bis 1f unten)
-2. Bomben, Raketen, Bedienung (Atomwaffen als Abschreckung, Reichweite ab dem Silo, Waffenleiste, Schläge planen, Zweitschlag)
+2. Bomben, Raketen, Bedienung (gebaut 26.11.2026, unten)
 3. Nebel, Aufklärung, Bündnisse
 4. Forschung (Unis, Stufen, Doktrin; dazu ein Ausbau «Infrastruktur» für Versorgung und Schutz der Städte)
 5. Luftwaffe
@@ -17,6 +17,12 @@ Die Regel aus `doku/vision.md` (Runden höchstens etwa 40 bis 45 Minuten) gilt f
 8. Inseln als Stützpunkte
 
 Nach jedem Paket werden ein paar Runden gespielt und die Zahlen abgestimmt. Alle Zahlen hier sind Startwerte.
+
+## Entscheidungen für spätere Pakete (26.11.2026)
+- **Nebel (Paket 3):** Namen der Länder sind immer sichtbar. Truppen nur als grobe Schätzung (zum Beispiel beim Darüberfahren); genauer durch Spione (laufend oder als wiederholte Meldungen), gute Bündnisse und Forschung.
+- **Tarnbomber (Paket 5):** trägt eine normale Atom- oder Wasserstoffbombe (wirkt auf Truppen und Gebäude). Er darf nicht von einer Flugabwehr der Stufe 2 sofort abgeschossen werden: Regel noch auszuarbeiten (etwa ein toter Winkel direkt über der Flugabwehr, Erfassen braucht Zeit, oder er wirft viele kleine Bomben).
+- **Rüstungsindustrie (Paket 7):** ja.
+- **Inseln (Paket 8):** Liste vom 26.11.2026 gilt: Malta, Zypern, Kreta, Korsika, Sardinien, Azoren, Kanaren, Kapverden, Bermuda, Ascension, St. Helena, Falklandinseln, Island, Färöer, Diego Garcia, Seychellen, Mauritius, Sri Lanka, Andamanen, Okinawa, Guam, Midway, Hawaii, Wake, Tahiti.
 
 ## 1a. Die Welt wirkt grösser (26.11.2026)
 Alles auf dem Meer und in der Luft ist langsamer und reicht weniger weit, der Bodenkampf bleibt im Tempo. So wirken Meer und Entfernungen im Verhältnis zum Land grösser, ohne dass die Karte mehr Felder bekommt.
@@ -100,3 +106,40 @@ Eine Stadt trägt die Bevölkerung: Truppen-Limit und Wachstum. Ihre **Bevölker
 - Zivilschutz (automatisches Evakuieren) kommt mit der Forschung (Paket 4). Der **Zweitschlag** kommt mit Paket 2, weil es erst dort eine Vorbereitungszeit für Atomwaffen gibt.
 - Marschflugkörper und Satellitenstrahl zerstören eine Stadt noch wie bisher; der Marschflugkörper nimmt mit Paket 2 einen Anteil der Stufen.
 - Szene 125.
+
+## Paket 2: Bomben, Raketen, Bedienung (26.11.2026)
+Code: `src/04c_lang.js` (Abschnitt «weapons»), Haken in `buildCheck`, `build`, `launch`, `detonate` (`src/04_units.js`), Zahlen in `G.LANG`.
+
+### 2a. Atomwaffen als Abschreckung
+- **Preis:** Atombombe und Wasserstoffbombe 8-mal so teuer (6M, 40M), MIRV 4-mal (100M, jeder weitere 60M mehr) (`nukeCost`).
+- **Erst spät:** Atombombe ab Minute 30, Wasserstoffbombe ab 45, MIRV ab 60 (`nukeFrom`, `weaponWhy`).
+- **Scharfmachen** (`armSilo`, `langArmTick`): Eine Atomwaffe startet nicht sofort. Das Silo macht sie 30 s (Wasserstoffbombe 45 s, MIRV 60 s) scharf (`arm`), solange kann es nichts anderes. Alle sehen das: ein pulsierender roter Ring mit «☢ X s» am Silo und die Meldung «Raketensilo von X macht eine Atombombe scharf». Mit dem Nebel (Paket 3) sieht es nur, wer das Silo sieht.
+- **Zweitschlag** (`langNukeHit`): Wer von einer Atomwaffe getroffen wird, dessen Silos, die gerade eine Atomwaffe scharfmachen, feuern sofort.
+- **Ächtung** (`langLaunch`): Wer eine Atomwaffe startet, verliert alle Bündnisse, 10 Minuten keinen Handel (`canTrade`), und jeder Angriff auf ihn verliert so lange nur 1 / 1.25 so viele Truppen (`outlawHit`). Hinter seinem Namen steht «✖».
+- **Atommacht** (`nuclearPower`): Ab Minute 30 trägt jeder mit einem Silo «☢» hinter dem Namen, für alle sichtbar.
+- Atomwaffen werden nicht verbessert (keine Forschung dafür).
+
+### 2b. Konventionelle Waffen
+| Waffe | Preis | Reichweite (Erde) | Wirkung | Abfangen |
+| --- | --- | --- | --- | --- |
+| Marschflugkörper | 350K, +25 % für jeden in den letzten 30 s | 300 | nimmt Gebäuden im Umkreis ¼ ihrer Stufen (mindestens 1, Stufe 1 fällt; Schutzräume halbieren) | kleine Flugabwehr, halbe Reichweite |
+| Kurzstreckenrakete | 500K | 150 | wie der Marschflugkörper, 4-mal so schnell wie eine Atombombe | kleine Flugabwehr, nur ein Viertel der Reichweite |
+| Streubombe | 400K | 300 | tötet Truppen in einem grossen Gebiet, nimmt kein Land, lässt Gebäude stehen | kleine Flugabwehr, halbe Reichweite |
+| Bunkerbrecher | 600K | 300 | zerstört Gebäude in einem kleinen Kreis ganz, auch mit Schutzräumen | ebenso |
+| Thermobare Bombe | 1.5M | 300 | mittleres Gebiet, Truppen und Gebäude, Städte verlieren gut ein Drittel ihrer Stufen; keine Verstrahlung, keine Ächtung | ebenso |
+| Atombombe | 6M | 800 | wie bisher, Städte siehe 1f | Raketenabwehr |
+| Wasserstoffbombe | 40M | 1500 | wie bisher | Raketenabwehr |
+| MIRV | 100M | ganze Welt | wie bisher | Sprengköpfe: Raketenabwehr |
+
+- Keine Verstrahlung bei allen konventionellen Waffen. Bunkerbrecher und thermobare Bombe sind in Paket 4 eine «ODER»-Wahl der Forschung; bis dahin gibt es beide.
+
+### 2c. Reichweite ab dem Silo
+- Jede Waffe reicht nur so weit vom Silo (`range`, in Feldern der 5600 Felder breiten Erde, umgerechnet auf die Breite der Karte, aber mindestens wie auf einer 2400 breiten Karte, `rangeW`, sonst reicht auf kleinen Karten kaum etwas). Auf einer 320 breiten Karte: Kurzstrecke 64, Marschflugkörper 129, Atombombe 343, Wasserstoffbombe 643 Felder.
+- Gewählt wird das nächste geladene Silo in Reichweite; sonst «Kein Silo in Reichweite». Beim Zielen zeigen gestrichelte weisse Kreise die Reichweite jedes eigenen Silos.
+- **Silo wählen:** Mit einer Waffe am Mauszeiger ein eigenes Silo antippen wählt es für die nächsten Schüsse (weisser Ring), nochmals antippen nimmt die Wahl zurück. Befehl `build` mit `s` (Silo).
+- Ein Silo, das feuert, verrät seinen Standort: gilt mit dem Nebel (Paket 3).
+
+### 2d. Bedienung
+- **Waffenleiste:** Taste `R` (oder der erste Knopf der Leiste, «Waffen» / «Bauen») schaltet die Bauleiste auf die Waffen um: `1` Marschflugkörper, `2` Streubombe, `3` Bunkerbrecher, `4` thermobare Bombe, `5` Kurzstreckenrakete, `6` Atombombe, `7` Wasserstoffbombe, `8` MIRV. In der Bauleiste stehen dann nur Gebäude und Schiffe (wie bisher `1` bis `8`, dazu `J` Raketenabwehr).
+- **Schläge planen:** Shift + Klick mit einer Waffe setzt ein Ziel (gelbes Fadenkreuz mit Nummer und Linie zum Silo), bis 12. `Enter` feuert alle zusammen, `Backspace` nimmt das letzte weg, `Esc` verwirft alle. Die Simulation (`salvo`, `langSalvoTick`) startet jede Waffe so, dass alle gleichzeitig einschlagen (Scharfmachen eingerechnet); jede wird beim Start geprüft und bezahlt. Das ist die Antwort auf starke Flugabwehr, die pro Salve nur wenige abschiesst.
+- Szenen 126 (Abschreckung) und 127 (konventionelle Waffen).

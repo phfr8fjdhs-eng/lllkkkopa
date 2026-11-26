@@ -35,6 +35,13 @@ check('Raketenabwehr: Schüsse 1, 2, 3, 3', shots.join(',') === '1,2,3,3', shots
 check('kleine Flugabwehr: 2 Schüsse pro Stufe', b.samShotsOf({ cls: 0, level: 3 }) === 6);
 check('Raketenabwehr nur gegen Atomwaffen', b.samCan({ cls: 1 }, G.UT.ATOM) && b.samCan({ cls: 1 }, G.UT.WARHEAD) && !b.samCan({ cls: 1 }, G.UT.CRUISE));
 check('kleine nur gegen Marschflugkörper', b.samCan({ cls: 0 }, G.UT.CRUISE) && !b.samCan({ cls: 0 }, G.UT.ATOM));
+// Paket 2: nuclear weapons late and dear, reach from the silo
+const pb = b.players[1];
+check('Atombombe erst ab Minute 30', b.weaponWhy(pb, G.UT.ATOM) !== '' && b.weaponWhy(pb, G.UT.CRUISE) === '', b.weaponWhy(pb, G.UT.ATOM));
+check('Atombombe teurer', b.cost(pb, G.UT.ATOM) === a.cost(a.players[1], G.UT.ATOM) * G.LANG.nukeCost[G.UT.ATOM], G.fmt(a.cost(a.players[1], G.UT.ATOM)) + ' -> ' + G.fmt(b.cost(pb, G.UT.ATOM)));
+const rs = [G.UT.SRBM, G.UT.CRUISE, G.UT.ATOM, G.UT.HYDRO, G.UT.MIRV].map((t) => b.weaponReach(t));
+check('Reichweiten steigen', rs[0] < rs[1] && rs[1] < rs[2] && rs[2] < rs[3] && rs[4] === Infinity, rs.slice(0, 4).map((r) => Math.round(r)).join(' / ') + ' Felder, MIRV ganze Welt');
+check('kleine Flugabwehr gegen die neuen Waffen', b.samCan({ cls: 0 }, G.UT.SRBM) && b.samCan({ cls: 0 }, G.UT.CLUSTER) && !b.samCan({ cls: 1 }, G.UT.SRBM));
 // on the Earth (a side scale S of 1): a ship over the Atlantic (about 80 tiles a minute today)
 console.log('Erde: Schiff ' + (1 * W) + ' Felder pro Tick, Atombombe ' + (6 * A).toFixed(1) + ' (heute 1 und 6)');
 if (bad) { console.log(bad + ' Fehler'); process.exit(1); }

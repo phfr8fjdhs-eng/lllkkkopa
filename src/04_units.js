@@ -53,11 +53,12 @@
       case UT.SAM: return Math.min(3e6, (c + 1) * 1.5e6);
       case UT.CLOAK: return Math.min(500000, 150000 + c * 100000);   // Arsenal mode only, ours
       case UT.WARSHIP: return Math.min(1e6, (c + 1) * 250000);
-      case UT.ATOM: return 750000;
-      case UT.CRUISE: return 350000;
-      case UT.HYDRO: return 5e6;
-      case UT.MIRV: return 25e6 + 15e6 * (this.mirvs || 0);   // every MIRV launched in this game makes the next one dearer
+      case UT.ATOM: return 750000 * (this.lang ? G.LANG.nukeCost[UT.ATOM] : 1);
+      case UT.CRUISE: return this.lang ? Math.round(350000 * (1 + G.LANG.cruiseHeat * this.cruiseHeatOf(p))) : 350000;
+      case UT.HYDRO: return 5e6 * (this.lang ? G.LANG.nukeCost[UT.HYDRO] : 1);
+      case UT.MIRV: return (25e6 + 15e6 * (this.mirvs || 0)) * (this.lang ? G.LANG.nukeCost[UT.MIRV] : 1);   // every MIRV launched in this game makes the next one dearer
       case UT.LASER: return 600000;
+      case UT.CLUSTER: case UT.BUNKER: case UT.THERMO: case UT.SRBM: return G.LANG.price[type];
     }
     return 0;
   };
@@ -273,22 +274,27 @@
     }
     return -1;
   };
-  Game.prototype.readySilo = function (p, tile) {
+  // The silo to fire from: the nearest with a loaded slot. «Langes Spiel»: only within the weapon's
+  // reach (type), and the one the player picked (pick, a unit id) if it can.
+  Game.prototype.readySilo = function (p, tile, type, pick) {
     const W = this.W, tx = tile % W, ty = (tile / W) | 0, T = this.ticks;
-    let best = null, bd = Infinity, any = false;
+    const reach = this.lang && type !== undefined ? this.weaponReach(type) : Infinity, r2 = reach * reach;
+    let best = null, bd = Infinity, any = false, far = false;
     for (const u of p.units) {
       if (u.type !== UT.SILO || !u.built) continue;
       any = true;
-      let free = false;
-      for (let i = 0; i < u.ready.length; i++) if (u.ready[i] <= T) free = true;
+      let free = !u.arm;
+      if (free) { free = false; for (let i = 0; i < u.ready.length; i++) if (u.ready[i] <= T) free = true; }
       if (!free) continue;
       const d = (u.x - tx) * (u.x - tx) + (u.y - ty) * (u.y - ty);
+      if (d > r2) { far = true; continue; }
+      if (pick && u.id === pick) { best = u; bd = -1; continue; }
       if (d < bd) { bd = d; best = u; }
     }
-    return { silo: best, any: any };
+    return { silo: best, any: any, far: far && !best };
   };
 
-  Game.prototype.buildCheck = function (p, type, tile, cls, fresh) {
+  Game.prototype.buildCheck = function (p, type, tile, cls, fresh, pick) {
     const res = { ok: false, why: '', cost: this.cost(p, type), tile: tile, port: null, silo: null, stored: false };
     if (type === UT.WARSHIP && cls) res.cost = Math.round(res.cost * G.SHIP_CLASS[1].cost);
     if (type === UT.SAM && cls && this.lang) res.cost = Math.round(res.cost * G.LANG.abmCost);
@@ -328,8 +334,9 @@
       if (wait > 0) { res.why = 'Satellit lädt noch ' + Math.ceil(wait / 10) + ' s'; return res; }
       if (!map.land[tile]) { res.why = 'Ziel muss Land sein'; return res; }
     } else {
-      const s = this.readySilo(p, tile);
-      if (!s.silo) { res.why = s.any ? 'Silo lädt noch nach' : 'Dafür brauchst du ein Raketensilo'; return res; }
+      if (this.lang) { const why = this.weaponWhy(p, type); if (why) { res.why = why; return res; } }
+      const s = this.readySilo(p, tile, type, pick);
+      if (!s.silo) { res.why = s.far ? 'Kein Silo in Reichweite' : s.any ? 'Silo lädt noch nach' : 'Dafür brauchst du ein Raketensilo'; return res; }
       if (this.ticks < this.immuneUntil) { res.why = 'Schonfrist läuft noch'; return res; }
       if (type === UT.MIRV) {
         const o = this.owner[tile];
@@ -342,9 +349,9 @@
     return res;
   };
 
-  Game.prototype.build = function (p, type, tile, cls, fresh) {
+  Game.prototype.build = function (p, type, tile, cls, fresh, pick) {
     cls = (type === UT.WARSHIP || (type === UT.SAM && this.lang)) && cls === 1 ? 1 : 0;
-    const c = this.buildCheck(p, type, tile, cls, fresh);
+    const c = this.buildCheck(p, type, tile, cls, fresh, pick);
     if (!c.ok) return null;
     p.gold -= c.cost;
     let u;
@@ -364,6 +371,8 @@
       this.sail(u, c.tile, p.type === PT.HUMAN, 'order');
     } else if (type === UT.LASER) {
       u = this.fireLaser(p, c.tile);
+    } else if (this.lang && G.LANG.arm[type]) {
+      u = this.armSilo(p, type, c.silo, c.tile);   // «Langes Spiel»: the silo arms it first, seen by all
     } else {
       u = this.launch(p, type, c.silo, c.tile);
     }
@@ -1067,9 +1076,10 @@
     const u = this.newUnit(type, p, silo.tile);
     u.dst = tile; u.sx = u.x; u.sy = u.y; u.dx = tile % W; u.dy = (tile / W) | 0;
     u.dist = Math.max(1, Math.hypot(u.dx - u.sx, u.dy - u.sy));
-    u.prog = 0; u.speed = this.R.nukeSpeed * (type === UT.CRUISE ? 1.6 : 1); u.tid = this.owner[tile]; u.sam = false; u.delay = 0;
+    u.prog = 0; u.speed = this.R.nukeSpeed * (type === UT.SRBM ? G.LANG.srbmSpeed : G.lowFly(type) ? 1.6 : 1); u.tid = this.owner[tile]; u.sam = false; u.delay = 0;
     this.addUnit(u);
     this.fx.push({ k: 'launch', x: u.x, y: u.y, mine: p === this.human });
+    if (this.lang) this.langLaunch(p, u);   // outcast after a nuclear weapon, the price of cruise missiles (src/04c_lang.js)
     const h = this.human;
     if (type === UT.MIRV) {
       this.mirvs = (this.mirvs || 0) + 1;
@@ -1081,7 +1091,7 @@
       }
       return u;
     }
-    const hit = this.tilesInDisc(u.dx, u.dy, type === UT.HYDRO ? this.R.hydroOut : type === UT.CRUISE ? this.R.cruiseOut : this.R.atomOut);
+    const hit = this.tilesInDisc(u.dx, u.dy, G.blastR(this.R, type)[1]);
     for (const e of hit) {
       const q = this.players[e[0]];
       if (q === p) continue;
@@ -1128,28 +1138,30 @@
   };
   Game.prototype.detonate = function (u) {
     const R = this.R, type = u.type;
-    const rin = type === UT.HYDRO ? R.hydroIn : type === UT.ATOM ? R.atomIn : type === UT.CRUISE ? R.cruiseIn : type === UT.LASER ? R.laserIn : R.headIn;
-    const rout = type === UT.HYDRO ? R.hydroOut : type === UT.ATOM ? R.atomOut : type === UT.CRUISE ? R.cruiseOut : type === UT.LASER ? R.laserOut : R.headOut;
-    const clean = type === UT.CRUISE || type === UT.LASER;   // cruise missile and satellite beam leave no fallout behind
+    const br = G.blastR(R, type), rin = br[0], rout = br[1];
+    const clean = type === UT.CRUISE || type === UT.LASER || G.LANG_WEAPON(type);   // cruise missile, satellite beam and the conventional weapons of «Langes Spiel» leave no fallout behind
+    const crater = type !== UT.CLUSTER && type !== UT.BUNKER;   // the cluster bomb kills troops only, the bunker buster takes buildings only
     const W = this.W, H = this.H, own = this.owner, land = this.map.land, rng = this.rng, ps = this.players;
     const cx = u.dx, cy = u.dy, in2 = rin * rin, out2 = rout * rout;
     const before = new Map();
     // troops lost per hit tile, in tiles' worth of the average (OpenFront: 5; ours 3, see
     // doku/openfront-abgleich.md)
-    const kill = type === UT.WARHEAD ? G.WARHEAD_KILL : G.NUKE_KILL;
+    const kill = (type === UT.WARHEAD ? G.WARHEAD_KILL : G.NUKE_KILL) * (type === UT.BUNKER ? 0.3 : 1);
     // «Langes Spiel» (src/04c_lang.js): a city loses levels and people instead of falling at once;
     // the tile of a city still standing is not torn from its owner
     const cityRule = this.lang && G.LANG.cityHit[type] !== undefined;
+    const levelRule = this.lang && (type === UT.CRUISE || type === UT.SRBM);   // a share of the levels
     let keep = null;
-    if (cityRule) {
+    if (cityRule || levelRule) {
       for (const v of this.units) {
-        if (!v.active || v.type !== UT.CITY || !v.built) continue;
+        if (!v.active || !v.built || (levelRule ? v.type > UT.CLOAK : v.type !== UT.CITY)) continue;
         const vd2 = (v.x - cx) * (v.x - cx) + (v.y - cy) * (v.y - cy);
         if (vd2 > out2) continue;
-        this.cityHit(v, type, vd2 <= in2);
+        if (levelRule) this.structHit(v); else this.cityHit(v, type, vd2 <= in2);
         if (v.active) (keep || (keep = new Set())).add(v.tile);
       }
     }
+    if (this.lang) this.langNukeHit(type, cx, cy, rout);   // second strike: arming silos of those hit fire at once
     for (let y = Math.max(0, cy - rout); y <= Math.min(H - 1, cy + rout); y++) {
       for (let x = Math.max(0, cx - rout); x <= Math.min(W - 1, cx + rout); x++) {
         const d2 = (x - cx) * (x - cx) + (y - cy) * (y - cy);
@@ -1161,7 +1173,7 @@
           const q = ps[o];
           if (!before.has(o)) before.set(o, q.troops);
           q.troops = Math.max(0, q.troops - kill * q.troops / Math.max(1, q.tiles));
-          if (!keep || !keep.has(t)) this.relinquish(t);
+          if (crater && (!keep || !keep.has(t))) this.relinquish(t);
         }
         if (!clean && !this.fallout[t]) { this.fallout[t] = 1; this.falloutCount++; this.markDirty(t); }
       }
@@ -1177,7 +1189,8 @@
     for (const v of this.units) {
       if (!v.active || v.type >= UT.SHELL) continue;
       const vd2 = (v.x - cx) * (v.x - cx) + (v.y - cy) * (v.y - cy);
-      if (keep && keep.has(v.tile) && v.type === UT.CITY) continue;   // hit above, still standing
+      if (keep && keep.has(v.tile) && v.type <= UT.CLOAK) continue;   // hit above, still standing
+      if (type === UT.CLUSTER && v.type <= UT.CLOAK) continue;      // a cluster bomb leaves buildings standing
       if (vd2 <= out2) {
         if (v.type === UT.WARSHIP) this.fx.push({ k: 'shipboom', x: v.x, y: v.y, a: 0 });
         this.removeUnit(v);
@@ -1226,6 +1239,19 @@
   Game.prototype.sammSpeed = function () { return Math.max(5, 14 * this.S) * (this.lang ? G.LANG.air : 1); };
   // What an air defence may shoot at. The MIRV itself flies too high; its warheads do not, and
   // the satellite beam comes straight down from orbit (as in OpenFront).
+  // Inner and outer ring of a blast.
+  G.blastR = function (R, type) {
+    switch (type) {
+      case UT.HYDRO: return [R.hydroIn, R.hydroOut];
+      case UT.ATOM: return [R.atomIn, R.atomOut];
+      case UT.CRUISE: case UT.SRBM: return [R.cruiseIn, R.cruiseOut];
+      case UT.LASER: return [R.laserIn, R.laserOut];
+      case UT.CLUSTER: return [R.clusterIn, R.clusterOut];
+      case UT.BUNKER: return [R.bunkerIn, R.bunkerOut];
+      case UT.THERMO: return [R.thermoIn, R.thermoOut];
+    }
+    return [R.headIn, R.headOut];
+  };
   G.canIntercept = function (type) {
     return type === UT.ATOM || type === UT.HYDRO || type === UT.WARHEAD || type === UT.CRUISE;
   };
@@ -1261,6 +1287,11 @@
   // That is what makes it worth its lower price: it slips past a thin line of launchers, but a
   // launcher standing near the target still stops it for certain.
   G.CRUISE_RANGE = 0.5;
+  // Weapons that fly low (a launcher picks them up inside half its reach), and the share of its reach
+  // at which a launcher picks up a weapon. The short-range missile of «Langes Spiel» comes down so
+  // fast that a launcher has only a quarter of its reach for it.
+  G.lowFly = function (type) { return type === UT.CRUISE || type === UT.CLUSTER || type === UT.BUNKER || type === UT.THERMO; };
+  G.seenAt = function (type) { return type === UT.SRBM ? G.LANG.srbmSeen : G.lowFly(type) ? G.CRUISE_RANGE : 1; };
   Game.prototype.tickSam = function (u) {
     if (!this.nukes.length) return;
     const T = this.ticks, sr = this.samRange(u);
@@ -1269,7 +1300,7 @@
       for (const n of this.nukes) {
         if (!n.active || n.sam || !(this.lang ? this.samCan(u, n.type) : G.canIntercept(n.type))) continue;
         if (n.owner === u.owner || this.friendly(n.owner, u.owner)) continue;
-        if (!this.samSolve(u, n, n.type === UT.CRUISE ? sr * G.CRUISE_RANGE : sr)) continue;
+        if (!this.samSolve(u, n, sr * G.seenAt(n.type))) continue;
         n.sam = true; u.ready[s] = T + (this.lang ? this.samReload(u) : 90);
         const m = this.newUnit(UT.SAMM, u.owner, u.tile);
         m.target = n; m.src = u;
@@ -1303,8 +1334,8 @@
   // will really use.
   Game.prototype.samsOnPath = function (p, sx, sy, dx, dy, type) {
     const out = [];
-    if (type !== undefined && !G.canIntercept(type)) return out;
-    const f = type === UT.CRUISE ? G.CRUISE_RANGE : 1;
+    if (type !== undefined && !G.canIntercept(type) && !(this.lang && G.LANG_WEAPON(type))) return out;
+    const f = type === undefined ? 1 : G.seenAt(type);
     for (const u of this.structAt.values()) {
       if (u.type === UT.SAM && this.lang && type !== undefined && !this.samCan(u, type)) continue;
       if (u.type !== UT.SAM || !u.built || u.owner === p || this.friendly(u.owner, p) || this.hiddenFrom(u, p)) continue;   // a hidden one is a surprise

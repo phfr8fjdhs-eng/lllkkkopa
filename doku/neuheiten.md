@@ -11,11 +11,13 @@ Ein eigener Bereich neben dem normalen Spiel und den Levels. Auf dem Startbildsc
 ## Die Szenen (Stand 26.11.2026)
 | Nr. | Datum | Name | Was passiert |
 | --- | --- | --- | --- |
+| 127 | 26.11. | Langes Spiel: Waffen für den Krieg | Ein eigenes Silo feuert alle 6 s reihum Streubombe, Marschflugkörper, Kurzstreckenrakete, thermobare Bombe und Bunkerbrecher auf Varnholm |
+| 126 | 26.11. | Langes Spiel: Atomwaffen schrecken ab | Vellmar macht alle 50 s eine Atombombe scharf (roter Ring) und feuert sie auf deine Stadt; danach ist es geächtet |
 | 125 | 26.11. | Langes Spiel: Evakuieren und Schutzräume | Zwei Städte Stufe 10, eine mit Schutzräumen; alle 30 s eine Atombombe auf jede, die nördliche wird evakuiert |
 | 124 | 26.11. | Langes Spiel: zwei Flugabwehren | Kleine Flugabwehr Stufe 5 und zwei Raketenabwehren Stufe 4 nebeneinander; Vellmar schiesst abwechselnd Marschflugkörper und Atombomben, beide werden abgefangen |
 | 123 | 26.11. | Langes Spiel: Abnutzung und Eingraben | Nordhälfte der eigenen Front sechsfach dicht und ohne Versorgung, Abnutzung sofort; Varnholm greift alle 20 s an |
 | 122 | 26.11. | Langes Spiel: Truppen sammeln sich | Varnholm verdichtet alle 45 s seine Grenze (und wieder zurück), die Meldung kommt |
-| 121 | 26.11. | Langes Spiel: das Meer wirkt grösser | Modus «Langes Spiel»; enge Meerenge, Handel läuft, alle 12 s fliegt eine Atombombe langsam übers Meer |
+| 121 | 26.11. | Langes Spiel: das Meer wirkt grösser | Modus «Langes Spiel»; enge Meerenge, Handel läuft, alle 12 s fliegt ein Marschflugkörper langsam übers Meer |
 | 120 | 25.11. | Schüsse bereit auf der Bauleiste | Silo auf Stufe 3 feuert alle 8 s; Zahl auf den Bomben sinkt und steigt, Flugabwehr zeigt 4 (Stufe 3 + 1) |
 | 119 | 25.11. | Hohe Stufen von weitem | Grosse Karte (900 × 600), damit man weit herauszoomen kann; Städte auf Stufe 3, 5, 10 und 30 |
 | 118 | 25.11. | Silo zeigt das Nachladen | Ein Silo auf Stufe 2 feuert alle 14 s eine Atombombe; Ring und Sekunden laufen |
