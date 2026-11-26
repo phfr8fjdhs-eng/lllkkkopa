@@ -2,6 +2,11 @@
 Was seit dem 13.11.2026 geändert wurde und warum. Den heutigen Stand der Regeln beschreiben die anderen Dateien in `doku/`.
 
 
+
+## Unbenutzte Namen entfernt (26.11.2026)
+- **Wunsch:** Reste aus der Code-Prüfung entfernen.
+- **Geändert:** `G.CITY_MAX_LEVEL` (`src/04_units.js`), `G.TRAIN_GOLD` (`src/04b_rail.js`), `G.hidFromMe` und `G.shipArt` (`src/06_view.js`) sowie `G.SyncOut` (`src/05b_sync.js`) gelöscht. Kein Code und kein Test hat sie benutzt.
+- **Nicht geändert:** `G.FEAT` bleibt, es beschreibt die Bits von `map.feat`. Die Rohstoffe-Bedienung in der klassischen Version bleibt vorerst drin, weil beide Versionen denselben Code teilen.
 ## Prüfung: Test zum Richtungsangriff, Seite «Rohstoffe» (26.11.2026)
 - **Wunsch:** Den ganzen Code nach Fehlern und nach Zeug durchsuchen, das geladen wird, obwohl es im Spiel nicht vorkommt.
 - **Geändert:** `test/pfeile.js` prüfte beim Richtungsangriff einen geraden Streifen, der Angriff öffnet sich aber absichtlich als Fächer (`G.THRUST.fan`). Seit die Bots schneller wachsen, kam der Angriff weiter und der Test schlug fehl. Der Test rechnet jetzt mit dem Fächer. `docs/rohstoffe/index.html` war nicht neu gebaut (Bombenzeichen ohne Nieten fehlte) und ist jetzt aktuell.

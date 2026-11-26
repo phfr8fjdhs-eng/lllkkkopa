@@ -57,7 +57,6 @@
     if (u.hidT !== g.ticks) { u.hidT = g.ticks; u.hidV = g.hiddenFrom(u, g.human); }
     return u.hidV;
   }
-  G.hidFromMe = hid;
   const paths = {};
   function glyph(ctx, name, x, y, s) {
     const p = paths[name] || (paths[name] = new Path2D(ICON[name]));
@@ -1133,7 +1132,6 @@
     ctx.fillStyle = '#fff'; ctx.fillText(String(n), x, ty);
   }
   G.structIcon = structIcon;
-  G.shipArt = function (ctx, kind, x, y, ang, s, p) { if (kind === 'war' || kind === 'battle') warship(ctx, x, y, ang, s, p, null, kind === 'battle' ? 1 : 0); else merchant(ctx, x, y, ang, s, p, false, kind); };   // for checking the pictures (tests)
   // Buildings: up to zoom 1.2 the bare outline small, without its sign; nearer the full sign, the
   // level above it from level 2 (as OpenFront).
   // `zz`: the zoom in OpenFront's tiles. A tile of ours is 1 / S of theirs (S = 0.59 on the world

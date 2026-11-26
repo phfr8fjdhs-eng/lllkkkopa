@@ -4369,7 +4369,6 @@ body.placing #cv { cursor: crosshair; }
   };
   G.MAX_LEVEL = 100;
   G.SILO_RELOAD = 270;   // ticks a silo slot needs to reload after a launch (27 s, 3x OpenFront's 9 s)
-  G.CITY_MAX_LEVEL = 100;
   // Every building but the cloaking tower can be upgraded up to level 100.
   G.maxLevel = function (type) { return type === UT.CLOAK ? 1 : G.MAX_LEVEL; };   // the cloaking tower has no levels: its reach stays small
 
@@ -5658,7 +5657,6 @@ body.placing #cv { cursor: crosshair; }
   // Gold per station a train reaches: own station, a trade partner's, an ally's (as in OpenFront: 10K / 25K / 35K).
   // From the tenth station of its journey on a train pays 5K less per stop, but never under 5K.
   const TRAIN_OWN = 10000, TRAIN_FOREIGN = 25000, TRAIN_ALLY = 35000, TRAIN_EVERY = 200, HOPS = 4;
-  G.TRAIN_GOLD = [TRAIN_OWN, TRAIN_FOREIGN, TRAIN_ALLY];
 
   G.isStation = function (t) { return t === UT.CITY || t === UT.PORT || t === UT.FACTORY; };
 
@@ -6921,7 +6919,7 @@ body.placing #cv { cursor: crosshair; }
   };
   G.mapUnpack = function (o) { return G.addClimate(o, o.rowLat); };
 
-  G.SyncOut = Out; G.SyncIn = In;
+  G.SyncIn = In;
 
   // ---------- the worker ----------
   // Messages from the page, carried out in the order they come:
@@ -7678,7 +7676,6 @@ void main() { outc = texture(uColor, vUV); }`;
     if (u.hidT !== g.ticks) { u.hidT = g.ticks; u.hidV = g.hiddenFrom(u, g.human); }
     return u.hidV;
   }
-  G.hidFromMe = hid;
   const paths = {};
   function glyph(ctx, name, x, y, s) {
     const p = paths[name] || (paths[name] = new Path2D(ICON[name]));
@@ -8754,7 +8751,6 @@ void main() { outc = texture(uColor, vUV); }`;
     ctx.fillStyle = '#fff'; ctx.fillText(String(n), x, ty);
   }
   G.structIcon = structIcon;
-  G.shipArt = function (ctx, kind, x, y, ang, s, p) { if (kind === 'war' || kind === 'battle') warship(ctx, x, y, ang, s, p, null, kind === 'battle' ? 1 : 0); else merchant(ctx, x, y, ang, s, p, false, kind); };   // for checking the pictures (tests)
   // Buildings: up to zoom 1.2 the bare outline small, without its sign; nearer the full sign, the
   // level above it from level 2 (as OpenFront).
   // `zz`: the zoom in OpenFront's tiles. A tile of ours is 1 / S of theirs (S = 0.59 on the world

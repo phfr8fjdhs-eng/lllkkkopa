@@ -36,7 +36,6 @@
   };
   G.MAX_LEVEL = 100;
   G.SILO_RELOAD = 270;   // ticks a silo slot needs to reload after a launch (27 s, 3x OpenFront's 9 s)
-  G.CITY_MAX_LEVEL = 100;
   // Every building but the cloaking tower can be upgraded up to level 100.
   G.maxLevel = function (type) { return type === UT.CLOAK ? 1 : G.MAX_LEVEL; };   // the cloaking tower has no levels: its reach stays small
 
