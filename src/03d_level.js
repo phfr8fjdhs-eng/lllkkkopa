@@ -322,7 +322,7 @@
   // A building that is already there when the level starts.
   Game.prototype.levelPlace = function (p, type, x, y, level) {
     // 4.5: the missile defence of «Langes Spiel» (air defence class 1)
-    const cls = type === 4.5 ? 1 : 0;
+    const cls = type === 4.5 ? 1 : type === 4.7 ? 2 : 0;   // 4.7: the radar
     if (cls) type = UT.SAM;
     let t = this.levelTile(x, y, p);
     if (t < 0) return null;

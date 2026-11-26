@@ -41,6 +41,35 @@
 
   G.NEUES = [
     {
+      n: 129, date: '26.11.2026', title: 'Langes Spiel: Bündnisse, Stützpunkte, Spione', lang: true,
+      text: 'Ein Bündnis wird mit der Zeit wertvoller: nach 5 Minuten teilt ihr die Sicht, nach 15 Minuten auch das Radar, und du darfst im Land des Partners Stützpunkte bauen (Hafen, Silo, Flugabwehr). Du zahlst ihm dafür laufend Pacht. Ein Spion zeigt dir ein fremdes Land ein paar Minuten lang ganz.',
+      map: { w: 360, h: 200, seed: 929, shapes: [circ(70, 100, 60), circ(185, 100, 55), circ(300, 100, 55)] },
+      me: { x: 70, y: 100, r: 62, troops: 80000, gold: 3000000, build: [[UT.CITY, 60, 100, 4]] },
+      foes: [{ name: 'Brenna', x: 185, y: 100, r: 57, troops: 80000, build: [[UT.CITY, 185, 100, 3]] },
+        { name: 'Ostmark', x: 300, y: 100, r: 57, troops: 90000, build: [[UT.CITY, 300, 80, 6], [UT.SILO, 310, 120, 2], [UT.SAM, 285, 120, 2]] }],
+      allow: ALL, quest: none,
+      events: [[0, function (Q) {
+        const g = Q.g, b = Q.foe[0];
+        g.makeAlliance(Q.me, b);
+        const al = Q.me.allies.get(b.id); if (al) { al.since = g.ticks - G.LANG.allyRadar; al.end += 60000; }
+      }], [6, function (Q) {
+        const g = Q.g;
+        Q.me.gold += G.LANG.radarCost + 3e6;
+        g.build(Q.me, UT.SILO, g.levelTile(185, 125, Q.foe[0]));     // a base in Brenna's land
+        g.sendSpy(Q.me, Q.foe[1]);
+      }]],
+      tips: [{ text: 'Dein Silo im Land von Brenna.', pins: function (Q) { return Q.units(Q.me, UT.SILO, 1); } }]
+    },
+    {
+      n: 128, date: '26.11.2026', title: 'Langes Spiel: Nebel und Radar', lang: true,
+      text: 'Im Langen Spiel liegt Nebel über allem, was weiter als etwa 50 Felder von deinem Land weg ist. Dort siehst du nur, wem das Land gehört: keine Gebäude, Schiffe, Bomben, und die Truppen nur grob geschätzt (~). Ein Radar (Taste X) sieht in seinem grossen Kreis alles. Ein Silo, das feuert, verrät sich eine Minute lang.',
+      map: { w: 400, h: 220, seed: 928, shapes: [circ(70, 110, 62), rect(150, 20, 390, 200)] },
+      me: { x: 70, y: 110, r: 64, troops: 80000, gold: 0, build: [[4.7, 95, 140, 1], [UT.CITY, 60, 100, 3]] },
+      foes: [{ name: 'Vellmar', x: 300, y: 110, box: [150, 0, 400, 220], troops: 200000, build: [[UT.CITY, 175, 150, 4], [UT.CITY, 330, 70, 8], [UT.SILO, 225, 160, 2], [UT.FACTORY, 280, 100, 3], [UT.SAM, 240, 60, 2]] }],
+      allow: ALL, quest: none,
+      loop: [8, 30, function (Q) { Q.fire(Q.foe[0], UT.CRUISE, 110, 110); }]
+    },
+    {
       n: 127, date: '26.11.2026', title: 'Langes Spiel: Waffen für den Krieg', lang: true,
       text: 'Im Langen Spiel trägt nicht die Atombombe den Krieg. Die Streubombe tötet Truppen an der Front, der Bunkerbrecher zerstört ein Gebäude, die thermobare Bombe trifft ein mittleres Gebiet ohne Verstrahlung, die Kurzstreckenrakete ist schnell und schwer abzufangen. Ein Marschflugkörper nimmt einem Gebäude ein Viertel seiner Stufen. Taste R schaltet die Bauleiste auf Waffen um.',
       map: { w: 320, h: 200, seed: 927, shapes: [circ(150, 100, 92), rect(50, 35, 250, 165)] },

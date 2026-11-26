@@ -297,14 +297,17 @@
   Game.prototype.buildCheck = function (p, type, tile, cls, fresh, pick) {
     const res = { ok: false, why: '', cost: this.cost(p, type), tile: tile, port: null, silo: null, stored: false };
     if (type === UT.WARSHIP && cls) res.cost = Math.round(res.cost * G.SHIP_CLASS[1].cost);
-    if (type === UT.SAM && cls && this.lang) res.cost = Math.round(res.cost * G.LANG.abmCost);
+    if (type === UT.SAM && cls && this.lang) res.cost = cls === 2 ? (p.type === PT.HUMAN && this.opts.infiniteGold ? 0 : G.LANG.radarCost) : Math.round(res.cost * G.LANG.abmCost);
     const map = this.map, W = this.W;
     if (!p.alive || this.phase !== 'play') { res.why = 'Nicht möglich'; return res; }
     if (type <= UT.CLOAK) {
       if (type === UT.CLOAK && !this.opts.arsenal) { res.why = 'Nur im Arsenal-Modus'; return res; }
-      if (this.owner[tile] !== p.id) { res.why = 'Nur auf eigenem Gebiet'; return res; }
+      // «Langes Spiel»: a base in an ally's land (src/04c_lang.js, baseHost)
+      const host = this.owner[tile] !== p.id && this.lang ? this.baseHost(p, tile, type) : null;
+      if (this.owner[tile] !== p.id && !host) { res.why = this.lang && this.owner[tile] && p.allies.has(this.owner[tile]) ? this.baseWhy(p, tile, type) : 'Nur auf eigenem Gebiet'; return res; }
+      res.base = host;
       if (type === UT.PORT) {
-        const t = this.portSite(p, tile);
+        const t = this.portSite(host || p, tile);
         if (t < 0) { res.why = 'Keine freie Küste in der Nähe'; return res; }
         res.tile = t;
       } else if (this.structNear(tile, this.R.structDist)) { res.why = 'Zu nah an einem anderen Gebäude'; return res; }
@@ -350,7 +353,7 @@
   };
 
   Game.prototype.build = function (p, type, tile, cls, fresh, pick) {
-    cls = (type === UT.WARSHIP || (type === UT.SAM && this.lang)) && cls === 1 ? 1 : 0;
+    cls = (type === UT.WARSHIP && cls === 1) || (type === UT.SAM && this.lang && (cls === 1 || cls === 2)) ? cls : 0;
     const c = this.buildCheck(p, type, tile, cls, fresh, pick);
     if (!c.ok) return null;
     p.gold -= c.cost;
@@ -360,7 +363,8 @@
       u.built = false; u.buildStart = this.ticks;
       u.buildEnd = this.ticks + (this.opts.instantBuild ? 0 : BUILD_TICKS[type]);
       if (type === UT.PORT) u.water = this.portWater(c.tile);
-      if (type === UT.SAM && this.lang) u.cls = cls;   // «Langes Spiel»: 0 air defence, 1 missile defence
+      if (type === UT.SAM && this.lang) u.cls = cls;   // «Langes Spiel»: 0 air defence, 1 missile defence, 2 radar
+      if (c.base) { u.base = c.base.id; if (p === this.human || c.base === this.human) this.say('Stützpunkt im Land von ' + c.base.name + ' wird gebaut', 'info'); }
       this.addUnit(u);
       if (this.opts.instantBuild) this.finishBuild(u);
     } else if (type === UT.WARSHIP) {
@@ -1073,6 +1077,7 @@
   Game.prototype.launch = function (p, type, silo, tile) {
     const T = this.ticks, W = this.W;
     for (let i = 0; i < silo.ready.length; i++) if (silo.ready[i] <= T) { silo.ready[i] = T + G.SILO_RELOAD; break; }
+    if (this.lang) silo.firedAt = T;   // «Langes Spiel»: a silo that fires gives itself away
     const u = this.newUnit(type, p, silo.tile);
     u.dst = tile; u.sx = u.x; u.sy = u.y; u.dx = tile % W; u.dy = (tile / W) | 0;
     u.dist = Math.max(1, Math.hypot(u.dx - u.sx, u.dy - u.sy));

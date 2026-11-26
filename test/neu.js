@@ -9,6 +9,8 @@ const G = globalThis.G, UT = G.UT;
 const count = (g, type, p) => g.units.filter((u) => u.active && u.type === type && (!p || u.owner === p)).length;
 // what has to be seen in each scene, asked every second; seen once is enough
 const SEEN = {
+  129: (g) => g.human.units.some((u) => u.type === UT.SILO && u.base) && g.spying(g.human, g.lv.foes[1]) && g.allyRadar(g.human, g.lv.foes[0]),
+  128: (g) => g.human.units.some((u) => u.type === UT.SAM && u.cls === 2) && g.lv.foes[0].units.some((u) => u.type === UT.SILO && u.firedAt > 0),
   127: (g) => { const f = g.lv.foes[0], c = f.units.find((u) => u.type === UT.CITY); return g.ticks > 400 && (!c || c.level < 12) && (f.cruiseT || g.human.cruiseT || []).length >= 0 && !!g.human.cruiseT; },
   126: (g) => g.lv.foes[0].units.some((u) => u.type === UT.SILO && u.arm) || g.outlawed(g.lv.foes[0]),
   125: (g) => g.human.units.some((u) => u.type === UT.CITY && u.evac !== undefined) && g.human.units.some((u) => u.type === UT.CITY && u.level < 10),
@@ -48,8 +50,8 @@ for (const L of G.NEUES) {
   if (G.levelDef(L.n) !== L) fail(L.n, 'not found by its number');
   if (!(g.human.tiles > 0)) fail(L.n, 'player starts without land');
   for (const f of g.lv.foes) if (!(f.tiles > 0)) fail(L.n, (f.name || 'bot') + ' starts without land');
-  for (const f of L.foes) for (const b of f.build || []) if (!g.lv.foes[L.foes.indexOf(f)].units.some((u) => u.type === (b[0] === 4.5 ? UT.SAM : b[0]))) fail(L.n, 'building ' + G.UNAME[b[0]] + ' of the opponent missing');
-  for (const b of L.me.build || []) if (!g.human.units.some((u) => u.type === (b[0] === 4.5 ? UT.SAM : b[0]))) fail(L.n, 'own building ' + G.UNAME[b[0]] + ' missing');
+  for (const f of L.foes) for (const b of f.build || []) if (!g.lv.foes[L.foes.indexOf(f)].units.some((u) => u.type === (b[0] === 4.5 || b[0] === 4.7 ? UT.SAM : b[0]))) fail(L.n, 'building ' + G.UNAME[b[0]] + ' of the opponent missing');
+  for (const b of L.me.build || []) if (!g.human.units.some((u) => u.type === (b[0] === 4.5 || b[0] === 4.7 ? UT.SAM : b[0]))) fail(L.n, 'own building ' + G.UNAME[b[0]] + ' missing');
   const st = { tiles0: g.human.tiles, moved: 0, last: new Map() };
   let seen = false, ended = false, drift = false;
   for (let i = 0; i < 900; i++) {

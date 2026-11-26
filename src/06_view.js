@@ -10,6 +10,8 @@
     defense: 'M12 2l8.5 3.2v6.3c0 5.2-3.6 9-8.5 10.5c-4.9-1.5-8.5-5.3-8.5-10.5V5.2z',
     port: 'M12 1.4a3.1 3.1 0 1 1 0 6.2a3.1 3.1 0 1 1 0-6.2zM12 3.1a1.4 1.4 0 1 0 0 2.8a1.4 1.4 0 1 0 0-2.8zM10.7 7.4h2.6V20h-2.6zM7 9.2h10v2.4H7zM20.8 13A8.8 8.8 0 0 1 3.2 13H6A6 6 0 0 0 18 13zM1.6 14.6L4.4 9.6L7.6 13.8zM22.4 14.6L16.4 13.8L19.6 9.6z',
     silo: 'M12 1c2 1.6 3 4 3 6.8V17H9V7.8C9 5 10 2.6 12 1zM9 12.2l-3.2 3.4V20L9 18zM15 12.2l3.2 3.4V20L15 18zM10 18h4v2l-2 2.2l-2-2.2z',
+    // «Langes Spiel»: the radar, a dish on a mast
+    radar: 'M4 4a11 11 0 0 1 14 14zM7.5 7.5l5 5M12.5 12.5l2-2M11 15l-2 6h6l-2-6zM3 21h18v2H3z',
     // «Langes Spiel»: the conventional weapons
     cluster: 'M12 2l3 4v5l-3 2l-3-2V6zM5 14a2 2 0 1 1 0 4a2 2 0 1 1 0-4zM12 16a2 2 0 1 1 0 4a2 2 0 1 1 0-4zM19 14a2 2 0 1 1 0 4a2 2 0 1 1 0-4zM8 19a1.6 1.6 0 1 1 0 3.2a1.6 1.6 0 1 1 0-3.2zM16 19a1.6 1.6 0 1 1 0 3.2a1.6 1.6 0 1 1 0-3.2z',
     bunker: 'M12 1l2.6 4.5V15H9.4V5.5zM9.4 15l-2 2.5h9.2l-2-2.5zM3 19.5h18V23H3zM6 19.5l2-2h8l2 2z',
@@ -58,13 +60,110 @@
   };
   const STRUCT_ICON = ['city', 'defense', 'port', 'silo', 'sam', 'factory', 'cloak'];
   STRUCT_ICON[4.5] = 'abm';   // missile defence, air defence class 1 (src/07_ui.js, ABM)
+  STRUCT_ICON[4.7] = 'radar'; // radar, air defence class 2
   // The sign of a kind of building, the same at every level (the level is a number above it)
   function signOf(type) { return STRUCT_ICON[type]; }
   // Is building u hidden from the player at this screen? Asked every frame, so kept for the tick.
   function hid(g, u) {
-    if (u.hidT !== g.ticks) { u.hidT = g.ticks; u.hidV = g.hiddenFrom(u, g.human); }
+    if (u.hidT !== g.ticks) { u.hidT = g.ticks; u.hidV = g.hiddenFrom(u, g.human) || fogHides(g, u); }
     return u.hidV;
   }
+  // ---------- «Langes Spiel»: fog (only for the eye, doku/langes-spiel.md) ----------
+  // FOG holds one byte per cell of the troop net (16 x 16 tiles): 1 = in sight. In sight is what
+  // lies at most G.LANG.fogSee cells beyond your own land (by steps, not in a circle), the land of
+  // allies of five minutes and its edge, the circle of your radars (and your old allies'), and the
+  // whole land of a realm under your spy's eye. In the fog you see whose land it is and nothing else:
+  // no buildings, ships, bombs or density, and troops only as a rough guess. Worked out again at most
+  // once a second, and only when something it depends on changed (fogScan). A server could later
+  // send every player only this.
+  let FOG = null, FOG_CW = 0;
+  function fogSeen(g, t) { return !FOG || FOG[g.cellOf(t)] === 1; }
+  function fogHides(g, u) {
+    const h = g.human;
+    if (!g.lang || !FOG || !h || u.owner === h || g.friendly(u.owner, h)) return false;
+    if (u.type === UT.SILO && g.ticks - (u.firedAt || -1e9) < 600) return false;   // a silo that fired gives itself away for a minute
+    if (u.tid === h.id && u.type === UT.TRANSPORT) return false;                    // a boat bound for you
+    if (g.spying(h, u.owner)) return false;
+    return !fogSeen(g, u.tile);
+  }
+  G.fogSeen = fogSeen; G.fogHides = fogHides;
+  // A bomb in the fog: unseen, unless it is bound for you and lands within ten seconds.
+  function fogBomb(g, u) {
+    const h = g.human;
+    if (!g.lang || !FOG || !h || u.owner === h || g.friendly(u.owner, h)) return false;
+    if (fogSeen(g, Math.round(u.y) * g.W + Math.round(u.x))) return false;
+    if (g.owner[u.dy * g.W + u.dx] === h.id && (1 - u.prog) * u.dist / Math.max(0.01, u.speed) <= 100) return false;
+    return true;
+  }
+  // Troops of a realm as the player at this screen sees them: exact for himself, old allies and
+  // realms under his spy's eye; two figures for one in sight; one figure (a rough guess) in the fog.
+  G.troopsSeen = function (g, p) {
+    const h = g.human, t = p.troops;
+    if (!g.lang || !h || g.knows(h, p) || !FOG) return G.fmtTroops(t);
+    const inSight = p.nameSize > 0 && fogSeen(g, Math.round(p.nameY) * g.W + Math.round(p.nameX));
+    const v = t / 10, k = Math.pow(10, Math.max(0, Math.floor(Math.log10(Math.max(1, v))) - (inSight ? 1 : 0)));
+    const r = Math.round(v / k) * k, short = function (x) { return String(Number(x.toPrecision(2))); };
+    return '~' + (r >= 1e6 ? short(r / 1e6) + 'M' : r >= 1e3 ? short(r / 1e3) + 'K' : String(r));
+  };
+  View.prototype.fogScan = function (now) {
+    const g = this.game, h = g && g.human;
+    if (!g || !g.lang || !h || !h.post || !g.CW) { FOG = null; return; }
+    if (now - (this.fogAt || 0) < 1000) return;
+    this.fogAt = now;
+    let sig = h.lastChange + ':' + ((g.ticks / 100) | 0);
+    for (const id of h.allies.keys()) { const q = g.players[id]; sig += ',' + id + ':' + q.lastChange; }
+    if (sig === this.fogSig && FOG) return;
+    this.fogSig = sig;
+    const CW = g.CW, CH = g.CH, n = CW * CH, D = G.LANG.fogSee;
+    if (!this.fogGrid || this.fogGrid.length !== n) { this.fogGrid = new Uint8Array(n); this.fogDist = new Int16Array(n); this.fogQ = new Int32Array(n); }
+    const grid = this.fogGrid, dist = this.fogDist, q = this.fogQ;
+    grid.fill(0); dist.fill(-1);
+    let qh = 0, qt = 0;
+    const seed = (p) => { if (p.post) for (const id of p.post.cells.keys()) if (dist[id] < 0) { dist[id] = 0; grid[id] = 1; q[qt++] = id; } };
+    seed(h);
+    for (const id of h.allies.keys()) { const a = g.players[id]; if (a && g.allySees(h, a)) seed(a); }
+    // steps outward from the land in sight, up to D cells
+    while (qh < qt) {
+      const id = q[qh++], d = dist[id];
+      if (d >= D) continue;
+      const cx = id % CW, cy = (id - cx) / CW;
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+        const x = cx + dx, y = cy + dy;
+        if (x < 0 || y < 0 || x >= CW || y >= CH) continue;
+        const k = y * CW + x;
+        if (dist[k] >= 0) continue;
+        dist[k] = d + 1; grid[k] = 1; q[qt++] = k;
+      }
+    }
+    // radars: your own, and those of allies of fifteen minutes
+    const CS = G.POST.cell;
+    for (const u of g.structAt.values()) {
+      if (u.type !== UT.SAM || u.cls !== 2 || !u.built) continue;
+      if (u.owner !== h && !(g.friendly(u.owner, h) && g.allyRadar(h, u.owner))) continue;
+      const r = g.radarRange(u) / CS, cx = u.x / CS, cy = u.y / CS;
+      for (let y = Math.max(0, Math.floor(cy - r)); y <= Math.min(CH - 1, Math.ceil(cy + r)); y++)
+        for (let x = Math.max(0, Math.floor(cx - r)); x <= Math.min(CW - 1, Math.ceil(cx + r)); x++)
+          if ((x + 0.5 - cx) * (x + 0.5 - cx) + (y + 0.5 - cy) * (y + 0.5 - cy) <= r * r) grid[y * CW + x] = 1;
+    }
+    // realms under a spy's eye: all their land
+    if (h.spy) for (const k in h.spy) { const p = g.players[k]; if (p && p.post && g.spying(h, p)) for (const id of p.post.cells.keys()) grid[id] = 1; }
+    FOG = grid; FOG_CW = CW;
+    // the veil: one pixel per cell, drawn stretched over the map
+    const c = this.fogCv || (this.fogCv = document.createElement('canvas'));
+    if (c.width !== CW || c.height !== CH) { c.width = CW; c.height = CH; }
+    const cx2 = c.getContext('2d'), img = cx2.createImageData(CW, CH), d8 = img.data;
+    for (let i = 0; i < n; i++) { const o = i * 4; d8[o] = 8; d8[o + 1] = 12; d8[o + 2] = 20; d8[o + 3] = grid[i] ? 0 : 92; }
+    cx2.putImageData(img, 0, 0);
+    // everything hidden or shown anew: buildings ask again
+    for (const u of g.structAt.values()) u.hidT = -1;
+  };
+  View.prototype.drawFog = function (ctx, g, z, ox, oy) {
+    if (!FOG || !this.fogCv) return;
+    const CS = G.POST.cell, sm = ctx.imageSmoothingEnabled;
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(this.fogCv, ox, oy, g.CW * CS * z, g.CH * CS * z);
+    ctx.imageSmoothingEnabled = sm;
+  };
   const paths = {};
   function glyph(ctx, name, x, y, s) {
     const p = paths[name] || (paths[name] = new Path2D(ICON[name]));
@@ -380,7 +479,7 @@
       // nations 24 % -> 8 %, changes per second 8 % -> 1 %.
       let av = A.get(i);
       if (!av) { av = new Map(); A.set(i, av); }
-      const hide = g.lang && p !== g.human && !(g.human && g.friendly(p, g.human)) ? this.shadeNear : null;
+      const hide = g.lang && p !== g.human && !(g.human && (g.friendly(p, g.human) || g.spying(g.human, p))) ? this.shadeNear : null;
       for (const c of p.post.cells.values()) {
         const d = c.n > 0 && !(hide && !hide[c.id]) ? g.postDensSeen(p, c) : 1, l = Math.log2(Math.max(d, 1)), a0 = av.get(c.id);
         const a = a0 === undefined ? l : a0 + (l - a0) * SHADE_EASE;
@@ -650,6 +749,7 @@
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     const g = this.game;
     if (!g) return;
+    if (g.lang) { this.fogScan(now); this.drawFog(ctx, g, z, ox, oy); } else FOG = null;
     this.drawNet(ctx, g, z, ox, oy, now);
     this.drawRails(ctx, g, z, ox, oy);
     this.drawReach(ctx, g, z, ox, oy);
@@ -808,7 +908,7 @@
     const gh = this.ghost && this.ghost.tile >= 0 && this.ghost.type <= UT.CLOAK ? this.ghost : null;
     const reachOf = function (u) {
       if (u.type === UT.DEFENSE) return g.R.defense;
-      if (u.type === UT.SAM) return g.samRange(u);
+      if (u.type === UT.SAM) return u.cls === 2 ? g.radarRange(u) : g.samRange(u);
       if (u.type === UT.CLOAK) return g.R.cloak;
       if (u.type === UT.FACTORY) return g.R.rail;
       if (u.type === UT.PORT && g.hafen) { let r = 0; G.HAFEN.ships.forEach(function (k) { if (u.level >= k.from) r = Math.max(r, k.range * g.S * (g.reach || 1)); }); return r; }
@@ -1154,6 +1254,7 @@
     else if (type === UT.DEFENSE) poly(ctx, x, y, r, 8, 0.3927);
     else if (type === UT.SAM) poly(ctx, x, y, r, 4, 0.7854);
     else if (type === 4.5) poly(ctx, x, y, r, 6, 0.5236);   // «Langes Spiel»: missile defence
+    else if (type === 4.7) poly(ctx, x, y, r, 10, 0);       // «Langes Spiel»: radar
     else if (type === UT.CLOAK) poly(ctx, x, y, r, 4, 0);
     else poly(ctx, x, y + r * 0.15, r, 3, -1.5708);
   }
@@ -1199,7 +1300,7 @@
       // your own buildings under a cloaking tower are drawn faded, so you see that others do not see them
       const veil = !far && u.cloak && u.owner === h;
       if (veil) ctx.globalAlpha = 0.55;
-      const side = structIcon(ctx, u.type === UT.SAM && u.cls ? 4.5 : u.type, x, y, k, u.owner, u.built, !far);
+      const side = structIcon(ctx, u.type === UT.SAM && u.cls ? (u.cls === 2 ? 4.7 : 4.5) : u.type, x, y, k, u.owner, u.built, !far);
       if (veil) ctx.globalAlpha = 1;
       if (far) {
         // zoomed out (25.11.2026): the level of a building shows the sooner the higher it is, so
@@ -1561,7 +1662,8 @@
     for (let i = 0; i < us.length; i++) {
       const u = us[i], ty = u.type;
       if (!u.active || ty <= UT.CLOAK) continue;
-      if (ty >= UT.ATOM) { this.drawMissile(ctx, g, u, z, ox, oy, alpha, now); continue; }
+      if (ty >= UT.ATOM) { if (!fogBomb(g, u)) this.drawMissile(ctx, g, u, z, ox, oy, alpha, now); continue; }
+      if (FOG && fogHides(g, u)) continue;   // «Langes Spiel»: ships and the like in the fog
       const sea = ty === UT.WARSHIP || ty === UT.TRANSPORT || ty === UT.TRADE;
       let x = ((sea ? u.vx : u.px + (u.x - u.px) * alpha) + 0.5) * z + ox, y = ((sea ? u.vy : u.py + (u.y - u.py) * alpha) + 0.5) * z + oy;
       if (x < -30 || y < -30 || x > cw + 30 || y > ch + 30) continue;
@@ -1751,7 +1853,7 @@
     if (threat && !this.aim && !(this.ghost && this.ghost.type >= UT.ATOM)) this.drawSamRings(ctx, g, z, ox, oy, now, 'self');
     const fs = within(z * 2.6, 12, 16);
     for (const u of g.nukes) {
-      if (!u.active || u.type === UT.LASER) continue;
+      if (!u.active || u.type === UT.LASER || fogBomb(g, u)) continue;
       const b = blast(g.R, u.type);
       if (!b) continue;
       const x = (u.dx + 0.5) * z + ox, y = (u.dy + 0.5) * z + oy, r = b[1] * z;
@@ -2127,7 +2229,7 @@
       ctx.fillText(label, x, y - fs * 0.36);
       const fs2 = fs * 0.66;
       if (fs2 >= 8) {
-        const tr = G.fmtTroops(p.troops);
+        const tr = G.troopsSeen(g, p);
         ctx.font = '600 ' + fs2.toFixed(1) + 'px ' + FONT;
         ctx.lineWidth = Math.max(2, fs2 / 5.5);
         ctx.strokeText(tr, x, y + fs * 0.46);
@@ -2575,7 +2677,7 @@
   View.prototype.drawSamRings = function (ctx, g, z, ox, oy, now, only) {
     const h = g.human, hostile = [];
     for (const u of g.structAt.values()) {
-      if (u.type !== UT.SAM || !u.built || hid(g, u)) continue;
+      if (u.type !== UT.SAM || u.cls === 2 || !u.built || hid(g, u)) continue;
       const rel = h && u.owner === h ? 'self' : h && h.allies.has(u.owner.id) ? 'ally' : 'enemy';
       if (rel === 'enemy') hostile.push(u);
       if (only && rel !== only) continue;

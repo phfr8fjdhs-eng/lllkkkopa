@@ -9,7 +9,7 @@ Die Regel aus `doku/vision.md` (Runden höchstens etwa 40 bis 45 Minuten) gilt f
 ## Pakete
 1. Tempo, Vorbereitung, Verteidigung, Abwehr (gebaut 26.11.2026, Teile 1a bis 1f unten)
 2. Bomben, Raketen, Bedienung (gebaut 26.11.2026, unten)
-3. Nebel, Aufklärung, Bündnisse
+3. Nebel, Aufklärung, Bündnisse (gebaut 26.11.2026, unten)
 4. Forschung (Unis, Stufen, Doktrin; dazu ein Ausbau «Infrastruktur» für Versorgung und Schutz der Städte)
 5. Luftwaffe
 6. Marine
@@ -143,3 +143,29 @@ Code: `src/04c_lang.js` (Abschnitt «weapons»), Haken in `buildCheck`, `build`,
 - **Waffenleiste:** Taste `R` (oder der erste Knopf der Leiste, «Waffen» / «Bauen») schaltet die Bauleiste auf die Waffen um: `1` Marschflugkörper, `2` Streubombe, `3` Bunkerbrecher, `4` thermobare Bombe, `5` Kurzstreckenrakete, `6` Atombombe, `7` Wasserstoffbombe, `8` MIRV. In der Bauleiste stehen dann nur Gebäude und Schiffe (wie bisher `1` bis `8`, dazu `J` Raketenabwehr).
 - **Schläge planen:** Shift + Klick mit einer Waffe setzt ein Ziel (gelbes Fadenkreuz mit Nummer und Linie zum Silo), bis 12. `Enter` feuert alle zusammen, `Backspace` nimmt das letzte weg, `Esc` verwirft alle. Die Simulation (`salvo`, `langSalvoTick`) startet jede Waffe so, dass alle gleichzeitig einschlagen (Scharfmachen eingerechnet); jede wird beim Start geprüft und bezahlt. Das ist die Antwort auf starke Flugabwehr, die pro Salve nur wenige abschiesst.
 - Szenen 126 (Abschreckung) und 127 (konventionelle Waffen).
+
+## Paket 3: Nebel, Aufklärung, Bündnisse (26.11.2026)
+### 3a. Nebel (nur Anzeige)
+- Code: `fogScan`, `fogHides`, `drawFog`, `G.troopsSeen` in `src/06_view.js`. Das Raster ist das der Aufstellung (Zellen 16 × 16 Felder, statt der besprochenen 8 × 8: es ist schon da, und auf der Erde sind es so etwa 60 000 Zellen).
+- **In Sicht** ist, was höchstens 3 Zellen (etwa 50 Felder) vom eigenen Land entfernt liegt, in Schritten gezählt, nicht im Kreis (`G.LANG.fogSee`); dazu das Land von Verbündeten nach 5 Minuten samt Rand, der Kreis der eigenen Radare (und derer von Verbündeten nach 15 Minuten) und das ganze Land eines Reichs, in dem ein eigener Spion ist.
+- **Im Nebel** sieht man nur, wem das Land gehört, und den Namen. Keine Gebäude, Schiffe, Bomben, keine Dichte (dazu weiterhin nur 2 Zellen hinter der Grenze, 1b). Über dem Nebel liegt ein dunkler Schleier.
+- **Truppen** (Namen auf der Karte, Rangliste, Info, Karte beim Darüberfahren, Urteil beim Angriff): genau für sich selbst, Verbündete nach 5 Minuten und Reiche unter Spionage; mit zwei Ziffern («~35K»), wenn der Name des Reichs in Sicht ist; sonst mit einer Ziffer («~40K»), eine grobe Schätzung.
+- **Ausnahmen:** Eine Bombe, die auf das eigene Land zielt, erscheint spätestens 10 s vor dem Einschlag. Ein Silo, das feuert, ist eine Minute lang für alle sichtbar (`firedAt`). Ein Boot, das zu einem fährt, ist immer zu sehen.
+- Neu gerechnet höchstens einmal pro Sekunde, und nur wenn sich das eigene Land, das eines Verbündeten oder etwa alle 10 s etwas anderes geändert hat. Auf der Seite gerechnet, die Simulation ändert sich dadurch nicht. Bots und Nationen sehen weiter alles (Nebel als Regel in der Simulation erst, wo nötig). Ein Server könnte später jedem Spieler nur seine Sicht schicken.
+
+### 3b. Aufklärung
+- **Radar** (Taste `X` in der Bauleiste, 1M, `G.LANG.radarCost`): im Spiel eine Flugabwehr der Klasse 2 (`u.cls` = 2, auf der Seite die Nummer 4.7), schiesst nicht. Sieht im Kreis von (140 + 40 · √Stufe) · S Feldern alles, auch im Nebel und über die Grenze hinaus (`radarRange`). Gezeichnet als Zehneck mit Schüssel.
+- **Spion:** in der Info eines anderen Reichs «Spion schicken (500K)» (Befehl `{k:'spy', p}`, `sendSpy`). 5 Minuten lang sieht man dort Truppen genau, die Dichte und alle Gebäude (`spying`). Die Forschung (Paket 4) zeigt er dann auch.
+- Satellit, Frühwarnradar und Tarnung erkennen kommen mit der Forschung (Paket 4).
+
+### 3c. Bündnisse werden wertvoller
+- Ein Bündnis merkt sich, seit wann es besteht (`al.since`, `allyAge`). Sofort: die Grenzen wie bei jedem. Nach 5 Minuten: die Sicht des Partners (`allySees`) und seine Truppen genau. Nach 15 Minuten: auch sein Radar, und man darf Stützpunkte bauen (`allyRadar`). Die Info des Partners sagt, wie weit das Bündnis ist.
+- Wer bricht, verliert alles; ein neues Bündnis beginnt bei null.
+
+### 3d. Stützpunkte
+- Hafen, Silo oder Flugabwehr (auch Raketenabwehr und Radar) im Land eines Verbündeten, mit dem man seit 15 Minuten verbündet ist (`baseHost`, `buildCheck`). Ein Mensch muss es erlauben («Stützpunkte erlauben» in der Info des Verbündeten, Befehl `{k:'host', p, on}`), eine Nation erlaubt es immer.
+- Der Stützpunkt gehört dem Bauenden (`u.base` = Gastland). Er zahlt dem Gastland 100 Gold pro Tick (60K pro Minute, `rent`), auch wenn ihm das Gold ausgeht, bis zu dem, was er hat.
+- Endet das Bündnis, geht der Stützpunkt nach 30 s an das Gastland (`baseLeave`, `langBases`). Erobert ein anderer das Feld, nimmt er ihn wie jedes Gebäude.
+- Der Flugplatz als Stützpunkt kommt mit Paket 5.
+- **Technik weitergeben** kommt mit der Forschung (Paket 4).
+- Szenen 128 (Nebel und Radar) und 129 (Bündnis, Stützpunkt, Spion).

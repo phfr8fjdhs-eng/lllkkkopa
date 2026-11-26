@@ -20,6 +20,7 @@
     if (this.phase !== 'play') return;
     if (this.armed && this.armed.length) this.langArmTick();
     if (this.salvoQ && this.salvoQ.length) this.langSalvoTick();
+    if (T % EVERY === 7) this.langBases();
     if (T % EVERY === 0) for (let i = 0; i < this.humans.length; i++) { const h = this.humans[i]; if (h.evacW || h.units.some(function (u) { return u.evac !== undefined; })) this.langEvacW(h); }
     if (!ps) return;
     for (let i = 0; i < ps.length; i++) {
@@ -142,10 +143,12 @@
   // short-range missile it picks up only inside a quarter of its reach; later also planes),
   // class 1 (missile defence) at atom and hydrogen bombs and MIRV warheads.
   Game.prototype.samCan = function (u, type) {
+    if (u.cls === 2) return false;
     return u.cls ? type === UT.ATOM || type === UT.HYDRO || type === UT.WARHEAD : type === UT.CRUISE || G.LANG_WEAPON(type);
   };
   // Shots per salvo: class 0 G.LANG.samShots per level, class 1 1 + floor(level / 4).
   Game.prototype.samShotsOf = function (u) {
+    if (u.cls === 2) return 0;   // a radar only looks
     return u.cls ? 1 + Math.floor(u.level / 4) : G.LANG.samShots * u.level;
   };
   Game.prototype.samSlots = function (u) {
@@ -360,6 +363,67 @@
     else if (v.type === UT.DEFENSE) this.dirtyDisc(v.tile);
     if (v.ready) { if (v.type === UT.SAM) this.samSlots(v); else if (v.ready.length > v.level) v.ready.length = v.level; }
     if (o === this.human) this.say(G.UNAME[v.type].replace('\u00AD', '') + ' verliert ' + lost + ' Stufe' + (lost === 1 ? '' : 'n'), 'bad');
+  };
+
+  // ---------- Paket 3: reconnaissance, alliances, bases ----------
+  // How long two realms have been allied, in ticks (-1: not allied).
+  Game.prototype.allyAge = function (a, b) {
+    const al = a.allies.get(b.id);
+    return al ? this.ticks - (al.since || 0) : -1;
+  };
+  // What an alliance gives with time: the partner's sight after G.LANG.allySight, his radar and
+  // bases in his land after G.LANG.allyRadar. A new alliance starts at nought.
+  Game.prototype.allySees = function (a, b) { return this.allyAge(a, b) >= G.LANG.allySight; };
+  Game.prototype.allyRadar = function (a, b) { return this.allyAge(a, b) >= G.LANG.allyRadar; };
+  // Reach of a radar: (radarR[0] + radarR[1] x √level) x S tiles.
+  Game.prototype.radarRange = function (u) { return Math.round((G.LANG.radarR[0] + G.LANG.radarR[1] * Math.sqrt(u.level)) * this.S); };
+  // A spy (order spy): for G.LANG.spyTicks p sees q's troops, density and buildings.
+  Game.prototype.sendSpy = function (p, q) {
+    const c = G.LANG.spyCost;
+    if (!q.alive) return 'Nicht möglich';
+    if (p.gold < c && !this.opts.infiniteGold) return 'Zu wenig Gold';
+    p.gold -= c;
+    (p.spy || (p.spy = {}))[q.id] = this.ticks + G.LANG.spyTicks;
+    if (p === this.human) this.say('Spion in ' + q.name + ': ' + Math.round(G.LANG.spyTicks / 600) + ' Minuten lang siehst du dort alles', 'good');
+    return '';
+  };
+  Game.prototype.spying = function (p, q) { return !!p.spy && p.spy[q.id] > this.ticks; };
+  // Does p know q well: himself, an ally of long standing, or under a spy's eye.
+  Game.prototype.knows = function (p, q) {
+    return p === q || (!!p && !!q && (this.allySees(p, q) || this.spying(p, q)));
+  };
+  // A base: p may build a port, silo or radar in the land of an ally of G.LANG.allyRadar ticks who
+  // lets him (a nation always does). The base is p's; it stands in the host's land.
+  const BASE_TYPES = function (t) { return t === UT.PORT || t === UT.SILO || t === UT.SAM; };
+  Game.prototype.baseHost = function (p, tile, type) {
+    const o = this.owner[tile], q = o ? this.players[o] : null;
+    if (!q || !BASE_TYPES(type) || !this.allyRadar(p, q)) return null;
+    if (q.type === PT.HUMAN && !(q.hostOk && q.hostOk[p.id])) return null;
+    return q;
+  };
+  Game.prototype.baseWhy = function (p, tile, type) {
+    const q = this.players[this.owner[tile]];
+    if (!BASE_TYPES(type)) return 'Als Stützpunkt nur Hafen, Silo oder Flugabwehr';
+    if (!this.allyRadar(p, q)) return 'Stützpunkte erst nach ' + Math.round(G.LANG.allyRadar / 600) + ' Minuten Bündnis';
+    return q.name + ' erlaubt keine Stützpunkte';
+  };
+  // Every 50 ticks: bases pay their rent; a base whose alliance has ended goes to the host after
+  // G.LANG.baseLeave ticks.
+  Game.prototype.langBases = function () {
+    const T = this.ticks, L = G.LANG;
+    for (const u of this.structAt.values()) {
+      if (!u.base || !u.built) continue;
+      const host = this.players[u.base], p = u.owner;
+      if (!host || !host.alive || this.owner[u.tile] !== host.id) { delete u.base; delete u.baseEnd; continue; }
+      if (!p.allies.has(host.id)) {
+        if (u.baseEnd === undefined) { u.baseEnd = T + L.baseLeave; if (p === this.human) this.say('Bündnis mit ' + host.name + ' beendet: dein Stützpunkt geht in ' + Math.round(L.baseLeave / 10) + ' s an ' + host.name, 'warn'); }
+        else if (T >= u.baseEnd) { delete u.base; delete u.baseEnd; this.captureUnit(u, host); }
+        continue;
+      }
+      delete u.baseEnd;
+      const pay = Math.min(p.gold, L.rent * 50);
+      p.gold -= pay; host.gold += pay;
+    }
   };
 
   // ---------- digging in and defence posts ----------

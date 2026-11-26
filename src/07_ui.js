@@ -22,6 +22,7 @@
     { t: UT.SILO, icon: 'silo', note: 'Startet Bomben', key: '5' },
     { t: UT.SAM, icon: 'sam', note: 'Fängt Bomben ab', key: '6' },
     { t: 4.5, icon: 'abm', note: 'Fängt Atom- und Wasserstoffbomben ab', key: 'j' },
+    { t: 4.7, icon: 'radar', note: 'Sieht im grossen Kreis alles, auch im Nebel', key: 'x' },
     // the digits for what both modes have, the specials to the right (MIRV, and the Arsenal's two)
     { t: UT.WARSHIP, icon: 'warship', note: 'Schnell, kapert Handelsschiffe, wehrt Boote ab', key: '7' },
     { t: 7.5, icon: 'battleship', note: 'Gross, Raketen, sieht über Inseln, versenkt Schiffe', key: '8' },
@@ -66,7 +67,7 @@
   const plain = function (t) { return G.UNAME[t].replace('\u00AD', ''); };
   // what only the Arsenal mode has
   const armory = function (t) { return t === UT.LASER || t === UT.CLOAK; };
-  const langOnly = function (t) { return t === 4.5 || G.LANG_WEAPON(t); };
+  const langOnly = function (t) { return t === 4.5 || t === 4.7 || G.LANG_WEAPON(t); };
   // what can be built in this game: the Arsenal's two only in that mode, in a level only what it unlocks
   const offered = function (t) { if (langOnly(t) && !game.lang) return false; t = real(t).u; return (!armory(t) || game.opts.arsenal) && (!game.lv || game.levelAllows(t)); };
   // The battleship is warship class 1 in the game; the interface gives it a number of its own (BS,
@@ -75,18 +76,20 @@
   const BS = 7.5;
   // «Langes Spiel»: the missile defence is air defence class 1 (ABM, between air defence 4 and factory 5)
   const ABM = 4.5;
-  function real(t) { return t === BS ? { u: UT.WARSHIP, cls: 1 } : t === ABM ? { u: UT.SAM, cls: 1 } : { u: t, cls: 0 }; }
-  function costOf(h, t) { const r = real(t), c = game.cost(h, r.u); return r.cls ? Math.round(c * (r.u === UT.SAM ? G.LANG.abmCost : G.SHIP_CLASS[1].cost)) : c; }
+  const RADAR = 4.7;   // «Langes Spiel»: the radar is air defence class 2
+  function real(t) { return t === BS ? { u: UT.WARSHIP, cls: 1 } : t === ABM ? { u: UT.SAM, cls: 1 } : t === RADAR ? { u: UT.SAM, cls: 2 } : { u: t, cls: 0 }; }
+  function costOf(h, t) { const r = real(t), c = game.cost(h, r.u); if (r.cls === 2) return game.opts.infiniteGold ? 0 : G.LANG.radarCost; return r.cls ? Math.round(c * (r.u === UT.SAM ? G.LANG.abmCost : G.SHIP_CLASS[1].cost)) : c; }
   function shipsOf(h, cls) { let n = 0; for (const u of h.units) if (u.type === UT.WARSHIP && (u.cls || 0) === cls) n++; return n; }
   // how many of a kind of building you can see at player q (a cloaking tower hides some)
-  const seen = function (q, t) { return game.seenCount(game.human, q, t); };
+  // «Langes Spiel»: in the fog only what the player can see counts (src/06_view.js, fogHides)
+  const seen = function (q, t) { if (game.lang && !game.knows(game.human, q)) { let n = 0; for (const u of q.units) if (u.type === t && u.built && !G.fogHides(game, u) && !game.hiddenFrom(u, game.human)) n++; return n; } return game.seenCount(game.human, q, t); };
   const coin = function (n) { return '<span class="price">' + svg('gold', 13) + (n ? fmt(n) : 'gratis') + '</span>'; };
   // What a building does at a given level, for the upgrade card.
   function levelText(type, lv) {
     if (type === UT.CITY) return 'Truppen-Limit +' + 25 * lv + 'K';
     if (type === UT.PORT) return lv === 1 ? 'Schickt Handelsschiffe' : 'Schickt ' + lv + '-mal so oft Handelsschiffe';
     if (type === UT.SILO) return lv === 1 ? '1 Rakete pro Ladung' : lv + ' Raketen pro Ladung';
-    if (type === UT.SAM && game.lang) return lv + ' Stufe' + (lv === 1 ? '' : 'n') + ', Reichweite ' + Math.round((150 - 480 / (lv + 5)) * G.LANG.world);
+    if (type === UT.SAM && game.lang) return lv + ' Stufe' + (lv === 1 ? '' : 'n') + ', Reichweite ' + Math.round((150 - 480 / (lv + 5)) * G.LANG.world) + ' (Radar: Sicht ' + Math.round(G.LANG.radarR[0] + G.LANG.radarR[1] * Math.sqrt(lv)) + ')';
     if (type === UT.SAM) return (lv === 1 ? '1 Abwehrrakete' : lv + ' Abwehrraketen') + ' pro Ladung, Reichweite ' + Math.round(150 - 480 / (lv + 5));
     if (type === UT.DEFENSE) return 'Grenze ' + (3 + 2 * lv) + '-mal zäher';
     if (type === UT.CLOAK) return 'Versteckt deine Gebäude ganz in der Nähe vor den anderen, bis sie nahe herankommen';
@@ -824,7 +827,7 @@
     const row = function (p, i) {
       const s = p.tiles / den * 100;
       return '<button class="lbrow' + (p === h ? ' me' : '') + '" data-id="' + p.id + '" type="button"><i>' + (i + 1) + '</i><span><span class="dot" style="background:' + p.css + '"></span>' +
-        esc(p.name) + '</span><b>' + s.toFixed(s >= 10 ? 0 : 1) + '%</b><b>' + fmtT(p.troops) + '</b></button>';
+        esc(p.name) + '</span><b>' + s.toFixed(s >= 10 ? 0 : 1) + '%</b><b>' + G.troopsSeen(game, p) + '</b></button>';
     };
     let html = '';
     for (let i = 0; i < n && i < ps.length; i++) html += row(ps[i], i);
@@ -843,7 +846,7 @@
   function ownBadge(h, t) {
     if (t === UT.WARSHIP || t === BS) return { n: shipsOf(h, real(t).cls), cls: '' };
     const T = game.ticks;
-    if (t === UT.SAM || t === ABM) { const k = t === ABM ? 1 : 0; let n = 0; for (const u of h.units) if (u.type === UT.SAM && u.built && (u.cls || 0) === k) n += game.lang ? game.samShotsOf(u) : u.level || 1; return { n: n, cls: '' }; }
+    if (t === UT.SAM || t === ABM || t === RADAR) { const k = t === ABM ? 1 : t === RADAR ? 2 : 0; let n = 0; for (const u of h.units) if (u.type === UT.SAM && u.built && (u.cls || 0) === k) n += game.lang ? game.samShotsOf(u) : u.level || 1; return { n: n, cls: '' }; }
     if (t === UT.ATOM || t === UT.HYDRO || t === UT.MIRV || t === UT.CRUISE) {
       let n = 0, silos = 0;
       for (const u of h.units) {
@@ -966,7 +969,7 @@
       kind = 'Nation · ' + (r < -50 ? 'feindlich' : r < 0 ? 'misstrauisch' : r < 50 ? 'neutral' : 'freundlich') + ' gesinnt';
     } else kind = p.type === PT.HUMAN ? 'Mitspieler' : 'Bot · baut nichts, greift nur viel Schwächere langsam an';
     let s = '<div class="who"><span class="dot big" style="background:' + p.css + '"></span><div><h2>' + (p.flag ? G.flagOf(p.flag) + ' ' : '') + esc(p.name) + '</h2><p>' + kind + '</p></div></div>';
-    s += '<div class="facts">' + fact('Truppen', fmtT(p.troops)) + fact('Gold', me && game.opts.infiniteGold ? '∞' : fmt(p.gold)) + fact('Gebiet', (p.tiles / den * 100).toFixed(1) + ' %') + '</div>';
+    s += '<div class="facts">' + fact('Truppen', G.troopsSeen(game, p)) + fact('Gold', me && game.opts.infiniteGold ? '∞' : fmt(p.gold)) + fact('Gebiet', (p.tiles / den * 100).toFixed(1) + ' %') + '</div>';
     if (!me && p.alive) s += '<p class="notes">Eroberung bringt ' + fmt(game.lootValue(p)) + ' Gold (sein Gold und die Prämie für ' + G.fmt(Math.max(p.peak, p.tiles)) + ' Felder).</p>';
     s += '<div class="facts six">' + fact('Städte', seen(p, UT.CITY)) + fact('Häfen', seen(p, UT.PORT)) + fact('Fabriken', seen(p, UT.FACTORY)) +
       fact('Posten', seen(p, UT.DEFENSE)) + fact('Silos', seen(p, UT.SILO)) + fact('Abwehr', seen(p, UT.SAM)) + '</div>';
@@ -986,6 +989,12 @@
         s += '<button class="btn" data-act="ally" type="button"' + (game.canRequestAlliance(h, p) ? '' : ' disabled') + '>Allianz anfragen</button>';
       }
       s += '<button class="btn ghost" data-act="embargo" type="button">' + (h.embargo.has(p.id) ? 'Handel wieder erlauben' : 'Handel stoppen') + '</button>';
+      // «Langes Spiel»: a spy, and leave for an ally to build bases in your land
+      if (game.lang) {
+        s += '<button class="btn ghost" data-act="spy" type="button">' + (game.spying(h, p) ? 'Spion ist dort · ' + Math.ceil((h.spy[p.id] - T) / 600) + ' min' : 'Spion schicken (' + fmt(G.LANG.spyCost) + ')') + '</button>';
+        if (al && p.type === PT.HUMAN) s += '<button class="btn ghost" data-act="host" type="button">' + (h.hostOk && h.hostOk[p.id] ? 'Stützpunkte verbieten' : 'Stützpunkte erlauben') + '</button>';
+        if (al) { const age = game.allyAge(h, p), L = G.LANG; s += '<p class="notes">Bündnis seit ' + Math.floor(age / 600) + ' min: ' + (age >= L.allyRadar ? 'Sicht, Radar und Stützpunkte geteilt' : age >= L.allySight ? 'Sicht geteilt, Radar und Stützpunkte ab Minute ' + Math.round(L.allyRadar / 600) : 'Sicht ab Minute ' + Math.round(L.allySight / 600)) + '</p>'; }
+      }
     }
     if (p.alive) s += '<button class="btn ghost" data-act="show" type="button">Auf der Karte zeigen</button>';
     s += '<button class="btn ghost" data-act="close" type="button">Schliessen</button>';
@@ -1036,6 +1045,8 @@
     if (what === 'troops') { act({ k: 'don', p: p.id, g: 'troops', r: ratio, say: 'Truppen an ' + p.name + ' geschickt' }); return; }
     if (what === 'gold') { act({ k: 'don', p: p.id, g: 'gold', say: 'Gold an ' + p.name + ' geschickt' }); return; }
     if (what === 'renew') { act({ k: 'renew', p: p.id }); dropAsk('r' + p.id); return; }
+    if (what === 'spy') { if (!game.spying(h, p)) act({ k: 'spy', p: p.id }); return; }
+    if (what === 'host') { act({ k: 'host', p: p.id, on: h.hostOk && h.hostOk[p.id] ? 0 : 1, say: h.hostOk && h.hostOk[p.id] ? 'Keine Stützpunkte mehr für ' + p.name : p.name + ' darf Stützpunkte bei dir bauen' }); return; }
     if (what === 'embargo') { act({ k: 'emb', p: p.id, on: h.embargo.has(p.id) ? 0 : 1 }); return; }
     if (what === 'show') {
       closeModal();
@@ -1494,8 +1505,8 @@
       let sent = h.troops * ratio;
       for (const a of h.out) if (a.active && a.tid === q.id) sent += a.troops;
       const k = q.troops / Math.max(1, sent);
-      if (k > 1.2) return 'Ganze Front · ' + fmtT(sent) + ' gegen ' + fmtT(q.troops) + ': jedes Feld kostet ' + (k >= 2 ? 'doppelt' : 'deutlich mehr') + ', schicke mehr';
-      if (k > 0.8) return 'Ganze Front · ' + fmtT(sent) + ' gegen ' + fmtT(q.troops) + ': ausgeglichen, teuer';
+      if (k > 1.2) return 'Ganze Front · ' + fmtT(sent) + ' gegen ' + G.troopsSeen(game, q) + ': jedes Feld kostet ' + (k >= 2 ? 'doppelt' : 'deutlich mehr') + ', schicke mehr';
+      if (k > 0.8) return 'Ganze Front · ' + fmtT(sent) + ' gegen ' + G.troopsSeen(game, q) + ': ausgeglichen, teuer';
     }
     return '';
   }
@@ -1523,7 +1534,7 @@
     if (h.allies.has(q.id)) { tag = 'Verbündet'; cls = 'good'; }
     else if (h.out.some(function (a) { return a.active && a.tid === q.id; }) || h.inc.some(function (a) { return a.active && a.a === q; })) { tag = 'Im Krieg'; cls = 'bad'; }
     let s = '<div class="pkTop"><i style="background:' + q.css + '"></i><b>' + (q.flag ? G.flagOf(q.flag) + ' ' : '') + esc(q.name) + '</b><em class="' + cls + '">' + tag + '</em></div>' +
-      '<div class="pkNum"><span>' + svg('troops', 14) + fmtT(q.troops) + '</span><span class="gold">' + svg('gold', 14) + fmt(q.gold) + '</span><span>' + (q.tiles / den * 100).toFixed(1) + '% Land</span></div><div class="pkHas">';
+      '<div class="pkNum"><span>' + svg('troops', 14) + G.troopsSeen(game, q) + '</span><span class="gold">' + svg('gold', 14) + fmt(q.gold) + '</span><span>' + (q.tiles / den * 100).toFixed(1) + '% Land</span></div><div class="pkHas">';
     let any = false;
     for (const e of PEEK) { const n = seen(q, e[0]); if (n > 0) { any = true; s += '<span title="' + G.UNAME[e[0]].replace('\u00AD', '') + '">' + svg(e[1], 15) + n + '</span>'; } }
     if (!any) s += '<span class="none">keine Gebäude</span>';

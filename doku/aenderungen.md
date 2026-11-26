@@ -3,6 +3,10 @@ Was seit dem 13.11.2026 geändert wurde und warum. Den heutigen Stand der Regeln
 
 
 
+## Spielmodus «Langes Spiel», Paket 3: Nebel, Aufklärung, Bündnisse (26.11.2026)
+- **Wunsch:** Wissen ist eine Ressource: Nebel, Radar, Spione; Bündnisse sollen mit der Zeit wertvoller werden; Stützpunkte beim Partner.
+- **Geändert (nur im Modus):** Nebel ab etwa 50 Feldern vom eigenen Land (nur Anzeige), Truppen dort als Schätzung; Radar (Taste X); Spion für 500K; Bündnis teilt nach 5 Minuten die Sicht, nach 15 Minuten Radar und Stützpunkte; Stützpunkte zahlen Pacht und gehen nach dem Bruch an das Gastland. Szenen 128, 129.
+
 ## Spielmodus «Langes Spiel», Paket 2: Bomben, Raketen, Bedienung (26.11.2026)
 - **Wunsch:** Atomwaffen als Abschreckung statt als normale Bombe; den Krieg tragen konventionelle Waffen; Reichweite ab dem Silo; Waffenleiste und geplante Schläge, die gleichzeitig einschlagen.
 - **Geändert (nur im Modus):** Atomwaffen teurer, später erlaubt, im Silo scharfzumachen (für alle sichtbar), Ächtung nach dem Einsatz, Zweitschlag, ☢ für Atommächte; Streubombe, Bunkerbrecher, thermobare Bombe, Kurzstreckenrakete; Marschflugkörper nimmt ein Viertel der Stufen; Reichweite je Waffe ab dem Silo, Silo antippen wählt es; Taste R für die Waffenleiste, Shift + Klick plant Schläge, Enter feuert sie zusammen. Szenen 126, 127; die Szenen 121, 124 und 125 erlauben Atomwaffen sofort.

@@ -47,8 +47,9 @@
   G.UNAME = ['Stadt', 'Verteidigungs\u00ADposten', 'Hafen', 'Raketensilo', 'Flugabwehr', 'Fabrik', 'Tarnturm', 'Zerstörer', 'Boot',
     'Handelsschiff', 'Zug', 'Granate', 'Abwehrrakete', 'Atombombe', 'Wasserstoff\u00ADbombe', 'MIRV', 'Sprengkopf', 'Marschflug\u00ADkörper', 'Satelliten\u00ADstrahl',
     'Streubombe', 'Bunker\u00ADbrecher', 'Thermobare Bombe', 'Kurzstrecken\u00ADrakete'];
-  G.UNAME[7.5] = 'Schlachtschiff';
-  G.UNAME[4.5] = 'Raketenabwehr';    // «Langes Spiel»: air defence class 1 (src/07_ui.js, ABM)   // the interface's own number for warship class 1 (src/07_ui.js, BS)
+  G.UNAME[7.5] = 'Schlachtschiff';   // the interface's own number for warship class 1 (src/07_ui.js, BS)
+  G.UNAME[4.5] = 'Raketenabwehr';    // «Langes Spiel»: air defence class 1 (src/07_ui.js, ABM)
+  G.UNAME[4.7] = 'Radar';            // «Langes Spiel»: air defence class 2 (src/07_ui.js, RADAR)
   // Tempo. The numbers of the simulation are OpenFront's, but its maps have two million tiles and
   // ours are smaller (map.S is the scale of a side), so the same tiles per tick looked hectic:
   // a ship crossed our Atlantic in 0.6 of the time, a front rolled over a country in 0.6 of the
@@ -92,6 +93,14 @@
   //   share   share of a building's levels a cruise missile or short-range missile takes (at least
   //           one; level 1 falls); the next cruise missile costs cruiseHeat more for every one fired
   //           in the last cruiseCool ticks
+  //   fog*    fog (only for the eye): you see fogSee cells (16 tiles) beyond your own land
+  //   radar*  radar (air defence class 2, key X): price radarCost, sees everything within
+  //           (radarR[0] + radarR[1] x √level) x S tiles
+  //   spy*    a spy costs spyCost and shows a realm's troops, density and buildings for spyTicks
+  //   ally*   an alliance shows the partner's sight after allySight ticks, his radar and leave to
+  //           build bases in his land after allyRadar ticks
+  //   rent, baseLeave  a base pays its host `rent` gold per tick; when the alliance ends it goes
+  //           to the host after baseLeave ticks
   //   post*   defence posts: radius x postR, losses x (postLoss[0] + postLoss[1] x level), time
   //           x (1 + postTime x level), and a tile they cover counts as at least postDens dense
   G.LANG = {
@@ -107,7 +116,10 @@
     outlaw: 6000, outlawHit: 1.25,
     price: { 19: 400000, 20: 600000, 21: 1500000, 22: 500000 },
     range: { 22: 150, 17: 300, 19: 300, 20: 300, 21: 300, 13: 800, 14: 1500 }, rangeW: 2400,
-    share: 0.25, cruiseHeat: 0.25, cruiseCool: 300, srbmSpeed: 4, srbmSeen: 0.25
+    share: 0.25, cruiseHeat: 0.25, cruiseCool: 300, srbmSpeed: 4, srbmSeen: 0.25,
+    // Paket 3: fog, reconnaissance, alliances, bases
+    fogSee: 3, radarCost: 1000000, radarR: [140, 40], spyCost: 500000, spyTicks: 3000,
+    allySight: 3000, allyRadar: 9000, rent: 100, baseLeave: 300
   };
   G.LANG_WEAPON = function (t) { return t >= UT.CLUSTER && t <= UT.SRBM; };
   // What the ground does to an attack, by what covers it (index: G.COVER). `speed` multiplies
@@ -546,7 +558,7 @@
   };
   Game.prototype.makeAlliance = function (a, b) {
     if (a.allies.has(b.id)) return;
-    const al = { a: a, b: b, end: this.ticks + ALLIANCE_TICKS, prompted: false };
+    const al = { a: a, b: b, end: this.ticks + ALLIANCE_TICKS, prompted: false, since: this.ticks };   // since: «Langes Spiel», alliances grow more valuable with time
     a.allies.set(b.id, al); b.allies.set(a.id, al);
     for (const at of a.out.slice()) if (at.tid === b.id) this.endAttack(at, true);
     for (const at of b.out.slice()) if (at.tid === a.id) this.endAttack(at, true);
@@ -1744,13 +1756,15 @@
       case 'build': {
         if (!tileOk || !(c.u <= UT.WARSHIP || c.u === UT.ATOM || c.u === UT.HYDRO || c.u === UT.MIRV || c.u === UT.CRUISE || c.u === UT.LASER || (this.lang && G.LANG_WEAPON(c.u))) || !(c.u >= 0)) return 'Nicht möglich';
         if (this.lv && !this.levelAllows(c.u)) return 'In diesem Level noch gesperrt';
-        const cls = (c.u === UT.WARSHIP || (c.u === UT.SAM && this.lang)) && c.cls === 1 ? 1 : 0;    // a battleship, a missile defence
+        const cls = (c.u === UT.WARSHIP && c.cls === 1) || (c.u === UT.SAM && this.lang && (c.cls === 1 || c.cls === 2)) ? c.cls : 0;    // a battleship; a missile defence, a radar
         const pick = c.s | 0;   // the silo the player chose, 0 = the nearest (src/04c_lang.js)
         const chk = this.buildCheck(p, c.u, c.t, cls, !!c.fresh, pick);
         if (!chk.ok) return chk.why || 'Nicht möglich';
         return this.build(p, c.u, c.t, cls, !!c.fresh, pick) ? '' : 'Nicht möglich';
       }
       case 'salvo': return this.lang ? this.salvo(p, c.list) : 'Nicht möglich';
+      case 'spy': return this.lang && q && q !== p ? this.sendSpy(p, q) : 'Nicht möglich';
+      case 'host': if (!this.lang || !q) return 'Nicht möglich'; (p.hostOk || (p.hostOk = {}))[q.id] = c.on ? 1 : 0; return '';
       case 'evac': return tileOk && this.lang ? this.evacuate(p, c.t) : 'Nicht möglich';
       case 'shelter': return tileOk && this.lang ? this.buildShelter(p, c.t) : 'Nicht möglich';
       case 'up': {
