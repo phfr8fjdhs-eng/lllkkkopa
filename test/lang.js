@@ -2,7 +2,7 @@
 //   node test/lang.js
 const path = require('path');
 const src = path.join(__dirname, '..', 'src');
-for (const f of ['00_util.js', '01_map.js', '02_path.js', '03_game.js', '03b_posture.js', '04_units.js', '04b_rail.js', '05_ai.js']) require(path.join(src, f));
+for (const f of ['00_util.js', '01_map.js', '02_path.js', '03_game.js', '03b_posture.js', '04_units.js', '04b_rail.js', '04c_lang.js', '05_ai.js']) require(path.join(src, f));
 const G = globalThis.G;
 const seed = 4242, map = G.buildMap(480, 300, G.randomClassMap(480, 300, seed), seed, { id: 'zufall', name: 'Test', nations: [] });
 const make = (lang) => { const g = new G.Game(map, { seed: 99, bots: 0, difficulty: 1, me: 0, lang: lang }); g.setup([{ name: 'A' }]); return g; };
@@ -20,7 +20,15 @@ for (const L of [1, 10]) {
   check('Flugabwehr Stufe ' + L, Math.abs(rb - ra * W) <= 1, ra + ' -> ' + rb + ' Felder');
 }
 check('Kriegsschiff Patrouille', Math.abs(b.R.warPatrol - a.R.warPatrol * W) <= 1, a.R.warPatrol + ' -> ' + b.R.warPatrol);
-check('Bodenkampf gleich', a.attackPace === b.attackPace && a.R.defense === b.R.defense);
+check('Bodenkampf im Tempo gleich', a.attackPace === b.attackPace);
+check('Verteidigungsposten grösser', b.R.defense === Math.round(a.R.defense * G.LANG.postR), a.R.defense + ' -> ' + b.R.defense);
+check('Posten stärker', b.postMag(1) > a.postMag(1) && b.postSpd(1) > a.postSpd(1), 'Verluste x' + a.postMag(1) + ' -> x' + b.postMag(1) + ', Zeit x' + a.postSpd(1) + ' -> x' + b.postSpd(1));
+// digging in: a cell 2 minutes quiet is fully dug in, a lost tile takes a little of it
+const c = { dig0: b.ticks - G.LANG.digTicks };
+check('Eingraben nach 2 Minuten voll', b.digOf(c) === 1);
+b.digLose(c);
+check('ein verlorenes Feld nimmt etwas', Math.abs(b.digOf(c) - (1 - G.LANG.digDrop)) < 1e-9, b.digOf(c).toFixed(3));
+check('klassisch kein Eingraben', !a.lang && a.postMag(1) === 5);
 // on the Earth (a side scale S of 1): a ship over the Atlantic (about 80 tiles a minute today)
 console.log('Erde: Schiff ' + (1 * W) + ' Felder pro Tick, Atombombe ' + (6 * A).toFixed(1) + ' (heute 1 und 6)');
 if (bad) { console.log(bad + ' Fehler'); process.exit(1); }

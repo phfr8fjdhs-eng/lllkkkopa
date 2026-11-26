@@ -11,6 +11,8 @@ Ein eigener Bereich neben dem normalen Spiel und den Levels. Auf dem Startbildsc
 ## Die Szenen (Stand 26.11.2026)
 | Nr. | Datum | Name | Was passiert |
 | --- | --- | --- | --- |
+| 123 | 26.11. | Langes Spiel: Abnutzung und Eingraben | Nordhälfte der eigenen Front sechsfach dicht und ohne Versorgung, Abnutzung sofort; Varnholm greift alle 20 s an |
+| 122 | 26.11. | Langes Spiel: Truppen sammeln sich | Varnholm verdichtet alle 45 s seine Grenze (und wieder zurück), die Meldung kommt |
 | 121 | 26.11. | Langes Spiel: das Meer wirkt grösser | Modus «Langes Spiel»; enge Meerenge, Handel läuft, alle 12 s fliegt eine Atombombe langsam übers Meer |
 | 120 | 25.11. | Schüsse bereit auf der Bauleiste | Silo auf Stufe 3 feuert alle 8 s; Zahl auf den Bomben sinkt und steigt, Flugabwehr zeigt 4 (Stufe 3 + 1) |
 | 119 | 25.11. | Hohe Stufen von weitem | Grosse Karte (900 × 600), damit man weit herauszoomen kann; Städte auf Stufe 3, 5, 10 und 30 |

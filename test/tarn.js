@@ -1,7 +1,7 @@
 // Cloaking tower (Arsenal mode): what it hides, from whom, and when it shows again.
 const path = require('path');
 const src = path.join(__dirname, '..', 'src');
-for (const f of ['00_util.js', '01_map.js', '02_path.js', '03_game.js', '03b_posture.js', '04_units.js', '04b_rail.js', '05_ai.js']) require(path.join(src, f));
+for (const f of ['00_util.js', '01_map.js', '02_path.js', '03_game.js', '03b_posture.js', '04_units.js', '04b_rail.js', '04c_lang.js', '05_ai.js']) require(path.join(src, f));
 const G = globalThis.G, UT = G.UT;
 let fails = 0;
 const ok = (c, msg) => { console.log((c ? 'ok   ' : 'FAIL ') + msg); if (!c) fails++; };

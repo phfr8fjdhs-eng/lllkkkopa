@@ -79,7 +79,7 @@
     for (let i = 0; i < rails.length; i++) sig = (sig * 31 + rails[i].path.length) | 0;
     if (sig === this.railSeen) return;
     this.railSeen = sig;
-    const cr = this.cellRail, W = this.W, CW = this.CW;
+    const cr = this.cellRail, W = this.W, CW = this.CW, RT = this.lang ? G.LANG.rail : RAIL;
     // every cell a railway runs through gets the full speed-up; the cells one and two away a part of it
     cr.fill(1);
     const CH = this.CH;
@@ -90,7 +90,7 @@
         for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
           const nx = cx + dx, ny = cy + dy;
           if (nx < 0 || ny < 0 || nx >= CW || ny >= CH) continue;
-          const f = RAIL[Math.max(Math.abs(dx), Math.abs(dy))], k = ny * CW + nx;
+          const f = RT[Math.max(Math.abs(dx), Math.abs(dy))], k = ny * CW + nx;
           if (f < cr[k]) cr[k] = f;
         }
       }
@@ -158,13 +158,13 @@
   Game.prototype.postGain = function (p, t) {
     const post = p.post, id = this.cellOf(t);
     let c = post.cells.get(id);
-    if (!c) { c = { id: id, n: 0, u: 0, m: 1, want: 0, diff: 0, r: 0, d: 0, to: null, ec: 0, cut: false }; post.cells.set(id, c); post.cv = (post.cv | 0) + 1; }   // new ground starts empty
+    if (!c) { c = { id: id, n: 0, u: 0, m: 1, want: 0, diff: 0, r: 0, d: 0, to: null, ec: 0, cut: false }; if (this.lang) c.dig0 = this.ticks; post.cells.set(id, c); post.cv = (post.cv | 0) + 1; }   // new ground starts empty
     c.n++;
   };
   Game.prototype.postLose = function (p, t) {
     const post = p.post, id = this.cellOf(t), c = post.cells.get(id);
     if (!c) return;
-    if (--c.n > 0) return;
+    if (--c.n > 0) { if (this.lang) this.digLose(c); return; }
     post.cells.delete(id);
     post.cv = (post.cv | 0) + 1;
     if (!(c.u > 0)) return;
@@ -268,7 +268,7 @@
     let i = 0;
     for (const c of cells.values()) { c.d = 1e18; c.to = null; c.ec = 0; c.ix = i++; c.done = false; list.push(c); }
     for (let k = 0; k < from.length; k++) { from[k].d = 0; heap.push(0, from[k].ix); }
-    const cr = this.cellRail;
+    const cr = this.cellRail, base = this.lang ? G.LANG.march : BASE;
     while (heap.n > 0) {
       const c = list[heap.pop()];
       if (c.done) continue;
@@ -279,7 +279,7 @@
           if ((!dx && !dy) || cx + dx < 0 || cx + dx >= CW) continue;
           const nid = id + dy * CW + dx, o = cells.get(nid);
           if (!o || o.done) continue;
-          const e = BASE * (sc + this.cellSlow(nid) * cr[nid]) / 2 * (dx && dy ? 1.414 : 1);
+          const e = base * (sc + this.cellSlow(nid) * cr[nid]) / 2 * (dx && dy ? 1.414 : 1);
           const nd = c.d + e;
           if (nd < o.d) { o.d = nd; o.to = c; o.ec = e; heap.push(nd, o.ix); }
         }

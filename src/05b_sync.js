@@ -26,7 +26,7 @@
     'postHeap', 'postList', 'pocketQ', 'railHeap', 'thrustHeap', 'deferList', 'sg', 'cloakOk', 'opts', 'lv']);
   // a player: the border is sent for the person at this device only (the mirror works it out
   // for the others when asked); the posture of the others only as much as the shading needs
-  const SKIP_PLAYER = new Set(['border', 'ai', 'post', 'pocketFrom', 'pocketSeen']);
+  const SKIP_PLAYER = new Set(['border', 'ai', 'post', 'pocketFrom', 'pocketSeen', 'mass']);
   // attacks: only those on or by the person at this device (the page shows no others, and on
   // the Earth some 2500 of them change every tick)
   const SKIP_OTHER = new Set(Array.from(SKIP_PLAYER).concat(['out', 'inc']));

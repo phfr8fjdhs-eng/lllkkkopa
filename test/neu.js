@@ -4,11 +4,13 @@
 //   node test/neu.js [nummer]
 const path = require('path');
 const src = path.join(__dirname, '..', 'src');
-for (const f of ['00_util.js', '01_map.js', '02_path.js', '03_game.js', '03b_posture.js', '03d_level.js', '03e_neu.js', '04_units.js', '04b_rail.js', '05_ai.js']) require(path.join(src, f));
+for (const f of ['00_util.js', '01_map.js', '02_path.js', '03_game.js', '03b_posture.js', '03d_level.js', '03e_neu.js', '04_units.js', '04b_rail.js', '04c_lang.js', '05_ai.js']) require(path.join(src, f));
 const G = globalThis.G, UT = G.UT;
 const count = (g, type, p) => g.units.filter((u) => u.active && u.type === type && (!p || u.owner === p)).length;
 // what has to be seen in each scene, asked every second; seen once is enough
 const SEEN = {
+  123: (g) => (g.human.wearLost || 0) > 0 && g.ticks > 300,
+  122: (g) => { const m = g.human.mass; return !!m && Object.keys(m).some((k) => m[k].quiet > 0); },
   121: (g) => g.lang && g.nukes.some((n) => n.active && n.type === UT.ATOM && n.speed < 1.5) && g.units.some((u) => u.active && u.type === UT.TRADE),
   116: (g) => g.human.tiles > 0,
   120: (g) => { const u = g.human.units.find((x) => x.type === UT.SILO); return !!u && u.ready.length === 3 && u.ready.some((r) => r > g.ticks); },

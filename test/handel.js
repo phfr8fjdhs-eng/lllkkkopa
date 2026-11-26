@@ -3,7 +3,7 @@
 // node test/handel.js [ticks]
 const path = require('path');
 const root = path.join(__dirname, '..'), src = path.join(root, 'src');
-for (const f of ['00_util.js', '01_map.js', '02_path.js', '03_game.js', '03b_posture.js', '04_units.js', '04b_rail.js', '05_ai.js']) require(path.join(src, f));
+for (const f of ['00_util.js', '01_map.js', '02_path.js', '03_game.js', '03b_posture.js', '04_units.js', '04b_rail.js', '04c_lang.js', '05_ai.js']) require(path.join(src, f));
 const G = globalThis.G, loadMap = require(path.join(root, 'test/load.js')), UT = G.UT;
 (async () => {
   const ticks = +(process.argv[2] || 8000);

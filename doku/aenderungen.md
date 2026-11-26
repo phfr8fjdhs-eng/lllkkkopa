@@ -3,6 +3,10 @@ Was seit dem 13.11.2026 geändert wurde und warum. Den heutigen Stand der Regeln
 
 
 
+## Spielmodus «Langes Spiel», Paket 1b bis 1d: Marsch, Grenze, Abnutzung, Eingraben (26.11.2026)
+- **Wunsch:** Ein grosser Angriff braucht Vorbereitung, die der Gegner sieht; Drohen soll nicht gratis sein; Verteidigen billiger als Angreifen.
+- **Geändert (nur im Modus):** Marsch halb so schnell, Schienen etwas weniger stark; fremde Dichte nur nahe der eigenen Grenze sichtbar; Meldung «Truppen sammeln sich an deiner Grenze»; Abnutzung überdichter Frontzellen ab Minute 20, gemildert durch Versorgung; Eingraben in 2 Minuten (Angreifer braucht etwa das Dreifache); Verteidigungsposten grösser und stärker. Neue Datei `src/04c_lang.js`, Szenen 122 und 123, `node test/kampf.js lang`. Klassisches Spiel gleich (Prüfsumme 1139506161).
+
 ## Spielmodus «Langes Spiel», Paket 1a: die Welt wirkt grösser (26.11.2026)
 - **Wunsch:** Ein ruhigerer, taktischer Modus mit Runden von etwa 70 Minuten; das Meer und die Entfernungen sollen im Verhältnis zum Land grösser wirken.
 - **Geändert:** Dritter Spielmodus «Langes Spiel» (`opts.lang`). Darin Schiffe ×0.5, Bomben und Abwehrraketen ×0.4, Reichweiten von Flugabwehr, Kriegsschiffen und Häfen ×0.5 (`G.LANG`). Züge und Granaten haben ein eigenes Tempo (`pace0`), damit sie gleich bleiben. Das klassische Spiel bleibt gleich (Prüfsumme von `SUM=1 node test/stress.js welt 100` vorher und nachher 1139506161). Szene 121, Test `node test/lang.js`, Regeln in `doku/langes-spiel.md`.

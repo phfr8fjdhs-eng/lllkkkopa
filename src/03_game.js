@@ -57,7 +57,25 @@
   // pace. All numbers are first values for tuning by feel.
   //   world   speed of ships and reach of air defences, warships and ports
   //   air     speed of bombs, cruise missiles and interceptors
-  G.LANG = { world: 0.5, air: 0.4 };
+  //   march   ticks troops need to cross a cell of open ground (classic: 20, src/03b_posture.js)
+  //   rail    how much quicker a railway makes its cell and the cells one and two away (classic 0.2, 0.45, 0.75)
+  //   seeCells  how many cells (16 tiles) behind your own border you see a neighbour's density
+  //   mass*   the warning «Truppen sammeln sich»: over massSpan ticks the density of a neighbour
+  //           along the border rises by massRise (to at least 1 + massRise of his average) and
+  //           his troops there by massShare of your army; then quiet for him for massQuiet ticks
+  //   wear*   from tick wearFrom of the game, a front cell denser than wearOver times the
+  //           average of the own front loses `wear` of the surplus per minute (less with supply)
+  //   dig*    a cell digs in within digTicks; dug in fully, an attacker loses 1 + digLoss times
+  //           as many troops and needs 1 + digTime times as long; each lost tile takes digDrop
+  //   post*   defence posts: radius x postR, losses x (postLoss[0] + postLoss[1] x level), time
+  //           x (1 + postTime x level), and a tile they cover counts as at least postDens dense
+  G.LANG = {
+    world: 0.5, air: 0.4, march: 40, rail: [0.3, 0.5, 0.8], seeCells: 2,
+    massSpan: 600, massRise: 0.5, massShare: 0.03, massQuiet: 900,
+    wearFrom: 12000, wearOver: 2, wear: 0.01,
+    digTicks: 1200, digLoss: 2, digTime: 0.75, digDrop: 0.004,
+    postR: 1.5, postLoss: [5, 3], postTime: 3, postDens: 2
+  };
   // What the ground does to an attack, by what covers it (index: G.COVER). `speed` multiplies
   // what a tile costs in time, `loss` what it costs the attacker in troops. Height comes on top
   // (lowland, highland, mountains: the numbers of OpenFront). Forest and swamp give cover and
@@ -169,13 +187,14 @@
     this.pathNear = new G.Pathfinder(map, 260000); this.nearQ = []; this.nearJob = null;   // short hops: a window of at most 260 000 tiles
     this.lang = !!this.opts.lang;         // mode «Langes Spiel»
     const LW = this.lang ? G.LANG.world : 1, LA = this.lang ? G.LANG.air : 1;
+    this.wearFrom = G.LANG.wearFrom;     // «Langes Spiel»: from this tick of play on, over-dense fronts wear (a scene may move it)
     this.reach = LW;                      // share of the usual reach at sea and in the air
     this.pace0 = S * G.PACE.move;         // tiles a train or shell covers per tick
     this.pace = this.pace0 * LW;          // tiles a ship covers per tick
     this.attackPace = S * G.PACE.attack;  // share of OpenFront's tiles per tick a front takes
     this.R = {
       spawn: 4,
-      defense: Math.max(8, Math.round(30 * S)),
+      defense: Math.round(Math.max(8, Math.round(30 * S)) * (this.lang ? G.LANG.postR : 1)),
       structDist: Math.max(5, Math.round(15 * S)),
       atomIn: Math.max(5, Math.round(12 * S)), atomOut: Math.max(9, Math.round(30 * S)),
       hydroIn: Math.round(80 * S), hydroOut: Math.round(100 * S),
@@ -712,7 +731,7 @@
     if (map.cover) { const f = map.feat[tile]; if (f & 2) c *= G.TERRAIN.greatSpeed; else if (f & 1) c *= G.TERRAIN.riverSpeed; }
     if (dp && dp.length) {
       const x = tile % W, y = (tile - x) / W;
-      for (let i = 0; i < dp.length; i++) { const dx = dp[i].x - x, dy = dp[i].y - y; if (dx * dx + dy * dy <= dr2) { c *= 1 + 2 * dp[i].level; break; } }
+      for (let i = 0; i < dp.length; i++) { const dx = dp[i].x - x, dy = dp[i].y - y; if (dx * dx + dy * dy <= dr2) { c *= this.postSpd(dp[i].level); break; } }
     }
     return c;
   };
@@ -879,9 +898,11 @@
             if (!cs) { cs = { c: this.postDens(t, pc) * dAvg * pc.n, n: pc.n }; cells.set(pc.id, cs); }
             dens = cs.n > 0 && dAvg > 0 ? cs.c / cs.n / dAvg : 1;
           }
-          let mag = 80 * gl, speed = 16.5 * gs;
-          if (dp && dp.length) for (let i = 0; i < dp.length; i++) { const dx = dp[i].x - x, dy = dp[i].y - y; if (dx * dx + dy * dy <= dr2) { mag *= 3 + 2 * dp[i].level; speed *= 1 + 2 * dp[i].level; break; } }
-          const dk = pc ? Math.min(CB.densMax, dens) : 1, D = dAvg * Math.pow(dk, CB.dFall);
+          let mag = 80 * gl, speed = 16.5 * gs, inPost = false;
+          if (dp && dp.length) for (let i = 0; i < dp.length; i++) { const dx = dp[i].x - x, dy = dp[i].y - y; if (dx * dx + dy * dy <= dr2) { mag *= this.postMag(dp[i].level); speed *= this.postSpd(dp[i].level); inPost = true; break; } }
+          let dk = pc ? Math.min(CB.densMax, dens) : 1;
+          if (this.lang && pc) { if (inPost) dk = Math.max(dk, G.LANG.postDens); const e = this.digOf(pc); mag *= 1 + G.LANG.digLoss * e; speed *= 1 + G.LANG.digTime * e; }
+          const D = dAvg * Math.pow(dk, CB.dFall);
           const R = tT / Math.max(1, left);
           loss = this.tileLoss(mag, R, dAvg, dk, pc ? this.postHold(pc) : 1, p.type !== PT.BOT && t.type === PT.BOT, traitor);
           used = this.tileTime(speed, R, dk, traitor, front.size);
@@ -1192,11 +1213,11 @@
       // taken almost as fast in the mountains as on the plain (`TR.free`).
       const pc = tp ? tp.cells.get(this.cellOf(tile)) : null;
       const hold = t ? 1 : TR.free;
-      let mag = 80 * (1 + (gl - 1) * hold), speed = 16.5 * (1 + (gs - 1) * hold);
+      let mag = 80 * (1 + (gl - 1) * hold), speed = 16.5 * (1 + (gs - 1) * hold), inPost = false;
       if (dp && dp.length) {
         for (let i = 0; i < dp.length; i++) {
           const dx = dp[i].x - x, dy = dp[i].y - y;
-          if (dx * dx + dy * dy <= dr2) { mag *= 3 + 2 * dp[i].level; speed *= 1 + 2 * dp[i].level; break; }   // level 1: losses x5, speed cost x3
+          if (dx * dx + dy * dy <= dr2) { mag *= this.postMag(dp[i].level); speed *= this.postSpd(dp[i].level); inPost = true; break; }   // level 1: losses x5, speed cost x3
         }
       }
       if (fo[tile]) { const f = 5 - 2 * this.falloutCount / landTiles; mag *= f; speed *= f; }
@@ -1211,7 +1232,9 @@
         // R: the defender's whole army against this attack, as OpenFront. (For a few hours on
         // 23.11.2026 the attacker's whole realm counted instead: every attack, a counter-attack as
         // well, then came cheap, and land swung to and fro.)
-        const dk = pc ? Math.min(CB.densMax, this.postDens(t, pc)) : 1;
+        let dk = pc ? Math.min(CB.densMax, this.postDens(t, pc)) : 1;
+        // «Langes Spiel»: a post holds its ground even when thin, a quiet cell digs in (src/04c_lang.js)
+        if (this.lang && pc) { if (inPost) dk = Math.max(dk, G.LANG.postDens); const e = this.digOf(pc); mag *= 1 + G.LANG.digLoss * e; speed *= 1 + G.LANG.digTime * e; }
         const R = t.troops / Math.max(1, at.troops);
         loss = this.tileLoss(mag, R, dAvg, dk, pc ? this.postHold(pc) : 1, a.type !== PT.BOT && t.type === PT.BOT, traitor);
         used = this.tileTime(speed, R, dk, traitor, at.front.size);
@@ -1507,6 +1530,7 @@
     this.reap();
 
     if (this.postTick) this.postTick();
+    if (this.lang) this.langTick();
     this.pathStep();
     this.tickRail();
     const us = this.units;

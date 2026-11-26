@@ -1,5 +1,5 @@
 # Spielmodus «Langes Spiel» (seit 26.11.2026)
-Ein eigener Modus neben «Klassisch» und «Arsenal», auf dem Startbildschirm unter «Spielmodus». Er ist nicht mit «Arsenal» kombinierbar. Option `opts.lang`, im Spiel `game.lang`. Das klassische Spiel bleibt unverändert: Jede Regel des Modus steht im Code hinter `this.lang`, die Zahlen in `G.LANG` (`src/03_game.js`). Test: `node test/lang.js`, Gleichlauf `node test/det.js lang`.
+Ein eigener Modus neben «Klassisch» und «Arsenal», auf dem Startbildschirm unter «Spielmodus». Er ist nicht mit «Arsenal» kombinierbar. Option `opts.lang`, im Spiel `game.lang`. Das klassische Spiel bleibt unverändert: Jede Regel des Modus steht im Code hinter `this.lang`, die Zahlen in `G.LANG` (`src/03_game.js`). Code der eigenen Regeln: `src/04c_lang.js`. Test: `node test/lang.js`, Gleichlauf `node test/det.js lang`, Eingraben `node test/kampf.js lang`.
 
 ## Ziel
 Ruhiger, mehr Zeit zum Planen, taktischer. Runden von etwa **70 Minuten** (festgelegt am 26.11.2026). Bündnisse, Infrastruktur im eigenen Land und Abschreckung mit Atomwaffen sollen wichtig werden, und Heer, Marine und Luftwaffe sollen gleich gut möglich sein. Das späte Spiel soll nicht aus Stapeln bestehen (Flugabwehr, Truppen), und wer einmal nicht aufpasst, soll nicht sofort verloren haben.
@@ -36,9 +36,37 @@ Alles auf dem Meer und in der Luft ist langsamer und reicht weniger weit, der Bo
 - **Beobachten:** Mit der halben Hafenreichweite gibt es weniger Handelswege und damit weniger Seegold. Fehlt das spürbar, wird das Gold pro Fahrt erhöht, nicht die Reichweite (Paket 6 macht Seehandel ohnehin wertvoller).
 - Szene «Änderungen» 121.
 
+## 1b. Marsch und Grenze (26.11.2026)
+- **Marsch langsamer:** 4 s statt 2 s pro Zelle offenes Land (`G.LANG.march` = 40 Ticks). Schienen helfen weiter, aber weniger: in der Zelle der Schiene 0.3, eine daneben 0.5, zwei daneben 0.8 (klassisch 0.2 / 0.45 / 0.75, `G.LANG.rail`). Grosse Länder brauchen damit von selbst länger, um Truppen über weite Wege zu verlegen.
+- **Dichte des Nachbarn nur an der Grenze:** Die dunklere Schattierung dichter Truppen zeigt ein fremdes Reich nur bis 2 Zellen (32 Felder) hinter der eigenen Grenze (`G.LANG.seeCells`), ebenso die Angabe «Truppen … × so dicht» beim Darüberfahren. Verbündete ganz. Nur Anzeige (`shadeScan` in `src/06_view.js`, `shadeNear`); tiefer sieht man mit Aufklärung (Paket 3).
+- **Meldung «Truppen sammeln sich an deiner Grenze (X)»** (`langMass` in `src/04c_lang.js`): Alle 5 s misst die Simulation, wie dicht ein Nachbar entlang der gemeinsamen Grenze steht (1 = sein Schnitt). Gemeldet wird, wenn diese Dichte gegenüber dem dünnsten Moment der letzten Minute um mindestens 50 % steigt, über dem 1.5-Fachen seines Schnitts liegt und dort mindestens 3 % der eigenen Armee dazugekommen sind; dann 90 s Ruhe für diesen Nachbarn. Wachstum des ganzen Reichs zählt nicht, es hebt alle Zellen gleich. Nationen stehen gleichmässig und lösen sie darum nicht aus.
+- Szene 122.
+
+## 1c. Abnutzung bei Überdichte (26.11.2026)
+- `langWear` in `src/04c_lang.js`, alle 5 s je Reich mit Netz. **Front** sind die eigenen Zellen, die an das Land eines Menschen oder einer Nation grenzen, mit der man nicht verbündet ist.
+- Ab Minute 20 (`G.LANG.wearFrom`) verliert eine Frontzelle, die mehr als doppelt so dicht steht wie der Schnitt der eigenen Front (`wearOver`), 1 % des Überschusses pro Minute (`wear`):
+
+  Verlust pro Minute = 0.01 · (1 − Versorgung) · (Truppen der Zelle − 2 · Frontschnitt).
+- **Versorgung** 0 bis 1 (`langSupply`): Schiene in der Zelle 1, daneben 0.7, zwei daneben 0.3; eigene Stadt in derselben oder der Nachbarzelle 0.4 + 0.15 · Stufe (ab Stufe 4 voll), zwei Zellen weg die Hälfte; Hafen 0.6. Volle Versorgung heisst keine Abnutzung.
+- Eine Meldung sagt es, höchstens alle 5 Minuten.
+- Gleichmässige Dichte kostet nie etwas, ebenso alles bis zum Doppelten. Ein eigenes Versorgungsdepot kommt mit der Forschung (Ausbau «Infrastruktur», Paket 4).
+- Szene 123 (dort gilt die Abnutzung sofort).
+
+## 1d. Eingraben und Verteidigungsposten (26.11.2026)
+- **Eingraben** (`digOf`, `digLose`): Jede Zelle eines Reichs mit Netz gräbt sich in 2 Minuten ein (`digTicks`), neues Land beginnt bei 0. Ganz eingegraben verliert ein Angreifer dort 3-mal so viele Truppen (1 + `digLoss` 2) und braucht 1.75-mal so lange (1 + `digTime` 0.75). Jedes verlorene Feld nimmt der Zelle 0.4 % davon (`digDrop`): Ein Durchbruch gräbt die Verteidigung auf.
+- **Verteidigungsposten:** Radius 1.5-mal so gross (`postR`), Verluste des Angreifers × (5 + 3 · Stufe) statt × (3 + 2 · Stufe), Zeit × (1 + 3 · Stufe) statt × (1 + 2 · Stufe); ein Feld in seinem Umkreis zählt mindestens doppelt so dicht (`postDens`), auch wenn dort kaum Truppen stehen. Kosten wie bisher in Gold.
+- Beim Darüberfahren über eigenes Land steht «eingegraben X %».
+- **Gemessen** (`node test/kampf.js lang`, ganze Front mit allen Truppen gegen eine Nation mit 80K auf 3000 Feldern):
+
+| Angreifer | frisch | eingegraben |
+| --- | --- | --- |
+| 1.5-fach | erobert | steckt bei 23 % |
+| 2-fach | erobert | steckt bei 43 % |
+| 2.5-fach | erobert | steckt bei 71 % |
+| 3-fach | erobert | erobert |
+
+  Erste Fassung (Verluste × 2, Zeit × 1.5, 2 % pro verlorenem Feld): eingegraben reichte schon das Doppelte, weil die breite Front jede Zelle schnell aufgrub.
+
 ## Geplant für Paket 1 (abgesprochen 26.11.2026, noch nicht gebaut)
-- **1b Marsch und Grenze:** Truppen marschieren langsamer (`BASE` 20 → 40 Ticks pro Zelle), Schienen schneller, aber nicht sofort (Faktor 0.2 → 0.3). Die Dichte eines Nachbarn sieht man nur bis etwa 2 Zellen hinter der eigenen Grenze (nur Anzeige). Meldung «Truppen sammeln sich an deiner Grenze (X)», wenn die Truppen eines Nachbarn an der gemeinsamen Grenze in einer Minute um mindestens 50 % und um mindestens 10 % der eigenen Armee steigen; danach 90 s Ruhe pro Nachbar.
-- **1c Abnutzung bei Überdichte:** ab Minute 20 verliert eine Frontzelle mit mehr als der doppelten Dichte des Frontschnitts 1 % des Überschusses pro Minute, gemildert durch Versorgung (Stadt, Schiene, Hafen in der Nähe). Ein eigenes Versorgungsdepot gibt es erst mit der Forschung (Ausbau «Infrastruktur», Paket 4).
-- **1d Eingraben und Verteidigungsposten:** Eine ruhige Frontzelle gräbt sich in 2 Minuten ein (Verluste des Angreifers bis ×2, Zeit bis ×1.5, sichtbar als dunkler Saum). Verteidigungsposten mit grösserem Radius und stärker, Felder in ihrem Umkreis zählen mindestens mit Dichte 2. Ziel: Der Angreifer braucht gegen eingegrabene, normal dichte Truppen etwa die dreifache Stärke.
 - **1e Zwei Flugabwehren:** kleine Flugabwehr (Taste `6`, gegen Marschflugkörper, 2 Schüsse pro Stufe) und Raketenabwehr (Taste `J`, nur gegen Atombombe, Wasserstoffbombe, Sprengköpfe, 1 + ⌊Stufe / 4⌋ Schüsse, Nachladen 9 s · 8 / (Stufe + 7)). Abnehmender Schutz bei mehreren eigenen nahe beieinander: Nachladen ×1, ×2, ×4 …
 - **1f Evakuieren und Schutzräume:** Bombe auf eine Stadt nimmt ihr Stufen (Sprengkopf ¼, Atombombe ½, Wasserstoffbombe alle, mindestens eine), ihre Bevölkerung (ihr Anteil am Truppen-Limit, so voll wie das Land) stirbt. Evakuiert sterben nur 33 % der Bevölkerung der neuen Stufe; dafür wächst die Stadt 60 s nicht, danach kommt ihr Wachstum über 3 Minuten langsam zurück. Schutzräume (Ausbau der Stadt) halbieren verlorene Stufen und Tote.

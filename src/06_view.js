@@ -328,12 +328,23 @@
   // and painted at once: on the Earth a pause of up to 100 ms every second. Now the realms are
   // taken in turn, at most SHADE_MS per picture, and the painting goes with the next flush.
   const SHADE_MS = 1.5, SHADE_LO = 0.5, SHADE_W = (Math.log2(3) - SHADE_LO) / 3, SHADE_EASE = 0.15;
+  const CW0 = function (g) { return g.CW * g.CH; };
   View.prototype.shadeScan = function (now) {
     const g = this.game;
     if (!g || !g.aufstellung || !g.CW) return;
     if (this.shadeI === undefined || this.shadeI >= g.players.length) {
       if (now - (this.shadeAt || 0) < 1000) return;
       this.shadeAt = now; this.shadeI = 1;
+      // «Langes Spiel»: another realm's density shows only close to your own border, up to
+      // G.LANG.seeCells cells behind it (doku/langes-spiel.md); marked once per round of the scan
+      if (g.lang) {
+        const h = g.human, CH = g.CH, R = G.LANG.seeCells, nr = this.shadeNear && this.shadeNear.length === CW0(g) ? this.shadeNear : (this.shadeNear = new Uint8Array(CW0(g)));
+        nr.fill(0);
+        if (h && h.post) for (const id of h.post.cells.keys()) {
+          const cx = id % g.CW, cy = (id - cx) / g.CW;
+          for (let y = Math.max(0, cy - R); y <= Math.min(CH - 1, cy + R); y++) for (let x = Math.max(0, cx - R); x <= Math.min(g.CW - 1, cx + R); x++) nr[y * g.CW + x] = 1;
+        }
+      }
     }
     const S = this.shade || (this.shade = new Map()), A = this.shadeAvg || (this.shadeAvg = new Map()), W = g.W, H = g.H, CW = g.CW, CS = G.POST.cell, own = g.owner;
     const t0 = performance.now();
@@ -361,8 +372,9 @@
       // nations 24 % -> 8 %, changes per second 8 % -> 1 %.
       let av = A.get(i);
       if (!av) { av = new Map(); A.set(i, av); }
+      const hide = g.lang && p !== g.human && !(g.human && g.friendly(p, g.human)) ? this.shadeNear : null;
       for (const c of p.post.cells.values()) {
-        const d = c.n > 0 ? g.postDensSeen(p, c) : 1, l = Math.log2(Math.max(d, 1)), a0 = av.get(c.id);
+        const d = c.n > 0 && !(hide && !hide[c.id]) ? g.postDensSeen(p, c) : 1, l = Math.log2(Math.max(d, 1)), a0 = av.get(c.id);
         const a = a0 === undefined ? l : a0 + (l - a0) * SHADE_EASE;
         av.set(c.id, a);
         const old = (m.get(c.id) || 0) >> 1, raw = within((a - SHADE_LO) / SHADE_W + 1, 0, 3.999);

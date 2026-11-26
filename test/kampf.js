@@ -12,7 +12,7 @@
 //   node test/kampf.js gross      only scenarios whose name contains "gross"
 const fs = require('fs'), path = require('path');
 const src = path.join(__dirname, '..', 'src');
-for (const f of ['00_util.js', '01_map.js', '02_path.js', '03_game.js', '03b_posture.js', '04_units.js', '04b_rail.js', '05_ai.js']) require(path.join(src, f));
+for (const f of ['00_util.js', '01_map.js', '02_path.js', '03_game.js', '03b_posture.js', '04_units.js', '04b_rail.js', '04c_lang.js', '05_ai.js']) require(path.join(src, f));
 const G = globalThis.G;
 const sharp = require('/opt/npm-tools/node_modules/sharp');
 const K = (n) => (n / 1000).toFixed(1) + 'K';
@@ -396,6 +396,24 @@ function runThrustIn(g, h, foe, mode, share) {
     const pk = pocket(map);
     console.log('Kessel: ' + pk.cut + ' Zellen abgeschnitten, Truppen darin ' + K(pk.p0) + ' -> ' + K(pk.p1) + ' in 30 s, im Hauptland ' + K(pk.main0) + ' -> ' + K(pk.main1));
     if (!(pk.cut > 0 && pk.p1 < pk.p0 * 0.15 && pk.main1 > pk.main0 * 0.95)) { bad++; console.log('  FAIL: der Kessel fällt nicht oder das Hauptland leidet mit'); }
+  }
+  if (only === 'lang') {
+    // «Langes Spiel» (doku/langes-spiel.md): a whole-front click with all troops against a nation
+    // of 80K on 3000 tiles, the defender fresh (not dug in) or fully dug in. Dug in, the attacker
+    // should need about three times the defender's troops.
+    for (const dug of [false, true]) {
+      for (const k of [1.5, 2, 2.5, 3, 4]) {
+        const sc = { at: 3000, dt: 3000, aT: 80000 * k, dT: 80000 };
+        const A = arena(map, sc, false, { lang: true }), g = A.g, h = A.h, foe = A.foe;
+        for (const c of foe.post.cells.values()) c.dig0 = dug ? -1e9 : g.ticks;
+        const tiles0 = foe.tiles;
+        let tile = -1;
+        for (const b of h.border) { for (const n of [b - 1, b + 1, b - g.W, b + g.W]) if (g.owner[n] === foe.id) { tile = n; break; } if (tile >= 0) break; }
+        g.attack(h, foe.id, h.troops, -1, -1, 0);
+        for (let i = 0; i < LIMIT && foe.alive && h.out.some((a) => a.active); i++) { g.tick(); g.dirtyN = 0; g.dirtyFlag.fill(0); g.events.length = 0; }
+        console.log('  ' + (dug ? 'eingegraben' : 'frisch     ') + '  Angreifer ' + k + 'x  ' + (foe.alive ? 'steckt ' : 'erobert') + '  Land ' + ((1 - (foe.alive ? foe.tiles : 0) / tiles0) * 100).toFixed(0).padStart(3) + ' %');
+      }
+    }
   }
   console.log(bad ? bad + ' Abweichungen' : 'alle Szenarien wie erwartet');
   if (bad) process.exitCode = 1;

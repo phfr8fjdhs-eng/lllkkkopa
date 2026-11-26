@@ -1470,8 +1470,11 @@
     // the spot under the pointer: what the ground does to an attack, and how dense the troops stand
     // there (the net, drawn darker on the map)
     let here = 'Hier: ' + groundName(tile);
-    const cell = q.post && game.CW ? q.post.cells.get(game.cellOf(tile)) : null, dk = cell && cell.n > 0 ? game.postDensSeen(q, cell) : 1;
+    const cell = q.post && game.CW ? q.post.cells.get(game.cellOf(tile)) : null, hid = game.lang && view.shadeNear && q !== game.human && !(game.human && game.friendly(q, game.human)) && cell && !view.shadeNear[cell.id];
+    const dk = cell && cell.n > 0 && !hid ? game.postDensSeen(q, cell) : 1;
     if (dk >= 1.15) here += ' · Truppen ' + (Math.round(Math.min(dk, G.COMBAT.densMax) * 10) / 10).toLocaleString('de-CH') + '× so dicht: langsamer, dort fallen auch mehr';
+    // «Langes Spiel»: how far the own cell has dug in (src/04c_lang.js)
+    if (game.lang && cell && q === game.human && cell.dig0 !== undefined) { const e = Math.round(game.digOf(cell) * 100); if (e > 0) here += ' · eingegraben ' + e + ' %'; }
     s += '<div class="pkHere">' + esc(here) + '</div>';
     if (el.dataset.html !== s) { el.innerHTML = s; el.dataset.html = s; }
     el.hidden = false;

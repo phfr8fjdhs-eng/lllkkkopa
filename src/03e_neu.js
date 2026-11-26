@@ -29,7 +29,42 @@
     g.postPaint(me, ids, vals);
   }
 
+  // a realm's cells between columns x0 and x1 get weight v; a nation keeps it (its own evening out
+  // waits), so a scene can show a neighbour gathering troops
+  function gather(Q, p, x0, x1, v) {
+    const g = Q.g, CS = G.POST.cell, ids = [], vals = [];
+    if (!p.post) return;
+    p.post.autoAt = 1e12;
+    for (const c of p.post.cells.values()) { const x = (c.id % g.CW) * CS; if (x >= x0 && x < x1) { ids.push(c.id); vals.push(v); } else { ids.push(c.id); vals.push(1); } }
+    g.postPaint(p, ids, vals);
+  }
+
   G.NEUES = [
+    {
+      n: 123, date: '26.11.2026', title: 'Langes Spiel: Abnutzung und Eingraben', lang: true,
+      text: 'Wer an einem Abschnitt mehr als doppelt so dicht steht wie im Schnitt seiner Front, verliert dort laufend Truppen, ausser eine Stadt oder Schiene versorgt ihn (sonst erst ab Minute 20). Ruhige Grenzen graben sich ein, Verteidigungsposten halten auch mit wenigen Truppen.',
+      map: { w: 300, h: 200, seed: 923, shapes: [circ(150, 100, 92), rect(50, 35, 250, 165)] },
+      me: { x: 70, y: 100, box: [0, 0, 150, 200], troops: 80000, gold: 300000, build: [[UT.DEFENSE, 140, 60, 1]] },
+      foes: [{ name: 'Varnholm', x: 230, y: 100, box: [150, 0, 300, 200], troops: 90000, ai: 1 }],
+      allow: ALL, quest: none,
+      events: [[0, function (Q) {
+        // the north half of the own front stands six times as dense: more than twice the front's average
+        const g = Q.g, me = Q.me, CS = G.POST.cell, ids = [], vals = [];
+        g.wearFrom = 0;
+        for (const c of me.post.cells.values()) if ((c.id % g.CW) * CS >= 128 && Math.floor(c.id / g.CW) * CS < 96) { ids.push(c.id); vals.push(6); }
+        g.postPaint(me, ids, vals);
+      }]],
+      loop: [8, 20, function (Q) { Q.push(Q.foe[0], Q.me, 0.1, 150, 140); }]
+    },
+    {
+      n: 122, date: '26.11.2026', title: 'Langes Spiel: Truppen sammeln sich', lang: true,
+      text: 'Die Dichte des Nachbarn siehst du nur nahe an deiner Grenze. Sammelt er dort in kurzer Zeit viele Truppen, kommt die Meldung «Truppen sammeln sich an deiner Grenze». Truppen marschieren im Langen Spiel halb so schnell.',
+      map: { w: 300, h: 200, seed: 922, shapes: [circ(150, 100, 92), rect(50, 35, 250, 165)] },
+      me: { x: 70, y: 100, box: [0, 0, 150, 200], troops: 80000, gold: 300000 },
+      foes: [{ name: 'Varnholm', x: 230, y: 100, box: [150, 0, 300, 200], troops: 120000 }],
+      allow: ALL, quest: none,
+      loop: [6, 45, function (Q, k) { gather(Q, Q.foe[0], 128, 176, k % 2 ? 6 : 1); }]
+    },
     {
       n: 121, date: '26.11.2026', title: 'Langes Spiel: das Meer wirkt grösser', lang: true,
       text: 'Neuer Spielmodus «Langes Spiel»: Schiffe fahren halb so schnell, Bomben und Raketen fliegen langsamer, und Flugabwehr, Kriegsschiffe und Häfen reichen nur halb so weit. Der Bodenkampf bleibt im Tempo.',
