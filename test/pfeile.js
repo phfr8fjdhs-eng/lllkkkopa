@@ -77,7 +77,9 @@ const ok = (c, msg) => { if (!c) { console.log('FAIL', msg); process.exitCode = 
     for (let i = 0; i < g.N; i++) if (g.owner[i] === h.id && !before.has(i) && !pocket.has(i)) {
       got++;
       const vx = i % g.W - o % g.W, vy = ((i / g.W) | 0) - ((o / g.W) | 0);
-      if (Math.abs(vx * ddy - vy * ddx) > rad + 1.5 || vx * ddx + vy * ddy < -3) far++;
+      // the band opens forward like a fan (G.THRUST.fan) and has a ragged edge of up to 1.85 tiles
+      const ds = vx * ddx + vy * ddy;
+      if (Math.abs(vx * ddy - vy * ddx) > rad * 0.6 + Math.max(0, ds) * G.THRUST.fan + 1.85 + 1.5 || ds < -3) far++;
     }
     ok(why === '' && !!at, 'a direction attack starts: ' + (why || 'ok'));
     ok(got > 0 && far === 0, 'it takes land only in its band: ' + got + ' tiles, ' + far + ' outside (half width ' + rad.toFixed(1) + ')');

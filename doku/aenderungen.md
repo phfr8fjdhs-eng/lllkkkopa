@@ -1,6 +1,11 @@
 # Änderungsprotokoll
 Was seit dem 13.11.2026 geändert wurde und warum. Den heutigen Stand der Regeln beschreiben die anderen Dateien in `doku/`.
 
+
+## Prüfung: Test zum Richtungsangriff, Seite «Rohstoffe» (26.11.2026)
+- **Wunsch:** Den ganzen Code nach Fehlern und nach Zeug durchsuchen, das geladen wird, obwohl es im Spiel nicht vorkommt.
+- **Geändert:** `test/pfeile.js` prüfte beim Richtungsangriff einen geraden Streifen, der Angriff öffnet sich aber absichtlich als Fächer (`G.THRUST.fan`). Seit die Bots schneller wachsen, kam der Angriff weiter und der Test schlug fehl. Der Test rechnet jetzt mit dem Fächer. `docs/rohstoffe/index.html` war nicht neu gebaut (Bombenzeichen ohne Nieten fehlte) und ist jetzt aktuell.
+- **Nicht geändert:** Spielregeln.
 ## Neue Zeichen für Atom- und Wasserstoffbombe (25.11.2026)
 - **Wunsch:** Die Atombombe sah schlecht aus (runde Kugel), die Wasserstoffbombe als Stern komisch. Vorlage war ein Bild des Besitzers mit zwei historischen Bomben: oben die eiförmige für die Atombombe, unten die lange für die Wasserstoffbombe.
 - **Geändert:** Atombombe: dicker, eiförmiger Körper (wie Fat Man) mit vollem Kastenleitwerk, einer Naht in der Mitte und einer Kante an der Nase. Wasserstoffbombe: langer, massiver Körper mit runder Nase, zwei Ringen und einem Schwanzkegel mit zwei schräg nach hinten gezogenen Flossen; die dritte Flosse ragt hinten als Kante heraus (wie bei der Mk-17). Beide schräg im Fallen. Drei Entwürfe vom selben Tag (Zar-Bombe, beide als Little Boy, beide mit offenem Kastenleitwerk) sind damit ersetzt. Nieten auf beiden waren am 25.11.2026 kurz drin und sind auf Wunsch am 26.11. wieder weg. Gilt überall, wo die Zeichen vorkommen (Bauleiste, Baumenü, Zielen). Szene 116 in «Änderungen».
