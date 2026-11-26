@@ -156,3 +156,41 @@ Stand 24.11.2026: Punkt 2 (Worker) ist gebaut, dazu das Zeichnen der Karte auf d
 - Headless-Chrome schwankt von Lauf zu Lauf um etwa 20 %. Darum vorher und nachher abwechselnd mehrmals laufen lassen.
 - Seit dem Worker misst `prof.js` im Browser nur noch den Haupt-Thread. Die Simulation misst man in Node (`erde.js`, `stress.js`). Die Browser-Tests, die direkt ins Spiel greifen (`ui.js`, `stress_view.js` usw.), öffnen die Seite mit `?worker=0`.
 - WebGL lässt sich hier nur in Software messen (`?gl=1`). Echte Zahlen gibt es nur auf einem Gerät mit Grafikkarte, im Browser über die Entwicklerwerkzeuge (Leistung, GPU).
+
+## Nachgemessen am 26.11.2026: Handy
+Neue Messbank `test/handy.js`: Chrome wie ein Handy (Bildschirm 390 x 844, Touch, Schärfe `DPR`), der Prozessor der Seite 4-mal langsamer. Der Worker wird dabei nicht gebremst, die Simulation ist auf einem echten Handy also langsamer als hier. Ohne Grafikkarte (Server), darum zeichnet die Karte das 2D-Bild. Die Zahlen schwanken von Lauf zu Lauf um etwa 20 %, der Server hat nur 2 Kerne.
+
+**Simulation** (`phasen.js`, Node, 400 Bots, seit den schnelleren Bots vom 25.11.2026):
+| | Welt | Erde |
+| --- | --- | --- |
+| Tick im Mittel | 2.8 ms (vorher 1.7) | 17.0 ms (vorher 16.8) |
+| längster Tick | 17 ms | 64 ms |
+| Bots | 15 % (vorher 10) | 7 % |
+| längste Spitzen | `tickAttack` 11 ms | `tickAttack` 28, `tickRail` 29, `AI.tick` 22, `removeClusters` 22 ms |
+
+Auf einem Handy (3- bis 5-mal langsamer) braucht ein Tick auf der Erde 50 bis 85 ms von 100 ms, die Spitzen 200 bis 300 ms. Das Spiel läuft dann langsamer als 10 Ticks pro Sekunde, Befehle kommen verzögert an.
+
+**Bild auf der Seite** (`test/handy.js`, 20 bis 25 s, Bilder pro Sekunde = 1000 / Mittel):
+| | Abstand Mittel | 95 % unter | längster | Speicher der Seite |
+| --- | --- | --- | --- | --- |
+| Welt, Schärfe 1 | 20 ms (49 Bilder/s) | 33 ms | 83 ms | 32 MB |
+| Welt, Schärfe 2 (wie ein Handy, `dpr` ist auf 2 begrenzt) | 28 bis 38 ms | 67 bis 83 ms | 117 ms | 32 MB |
+| Erde, Schärfe 2 | 52 ms (19 Bilder/s) | 100 ms | 267 ms | 356 MB, dazu der Worker |
+| Laden der Erde | 7.8 s | | | |
+
+**Wohin die Zeit der Seite geht** (`PROF=1`):
+- Welt: zwei Drittel macht der Browser selbst (Bild zusammensetzen, Pixel). Das hängt an der Zahl der Pixel: mit Schärfe 1 statt 2 fast doppelt so viele Bilder pro Sekunde. Danach Namen auf der Karte (`drawNames`, `placeName`) 5 %, `View.color` 3 %, Spiegel (`markDirty`, `patch`, `apply`) 4 %.
+- Erde: Karte nachmalen 2D (`putImageData` 13 %, `View.color` 8 %, das verzögerte Kopieren der Karte, das sich in `setTransform` zeigt, 14 %), Spiegel 8 %, Namen 6 %.
+- Mit `?gl=1` (Grafikkarte in Software) ist es hier viel langsamer (7 Bilder/s). Das sagt nichts über ein echtes Handy mit Grafikkarte; dort fällt das Nachmalen der Karte fast ganz weg.
+
+**Speicher auf dem Handy:** Die Erde liegt zweimal vor (Worker und Spiegel), dazu das Kartenbild: hier 356 MB nur für die Seite, am 24.11.2026 gemessen 1.9 GB für alle Chrome-Prozesse. Wie viel ein iPhone einem Tab erlaubt, ist nicht veröffentlicht; Berichte nennen etwa 1 bis 1.5 GB. Hier nicht gemessen, darum Punkt 6. Die Erde ist auch auf dem Handy die Standardkarte (`cfg.map` in `src/07_ui.js`), das Spiel erkennt das Handy dafür nicht.
+
+## Liste vom 26.11.2026: was das Handy flüssiger macht, nach Wirkung
+| Nr. | Was | Wirkung | Art | Risiko |
+| --- | --- | --- | --- | --- |
+| 1 | Erde auf dem Handy: kleinere Standardkarte oder Erde in halber Auflösung, sobald `pointer: coarse` oder wenig Speicher (`navigator.deviceMemory`) | Absturz durch Speicher weg, Laden 4-mal schneller, Tick 4-mal billiger | echt | klein (nur Startwahl) bis mittel (halbe Erde: neue Kartendaten) |
+| 2 | Schärfe anpassen: Bild mit Schärfe 1 bis 1.5 zeichnen, wenn die Bilder langsam kommen (gemessen über die letzten Sekunden), Schrift scharf lassen | bis fast doppelt so viele Bilder pro Sekunde | echt (hier gemessen) | klein, Bild etwas weicher |
+| 3 | Namen platzieren verteilen: `placeNames` rechnet heute alle Reiche im selben Tick neu (alle 12 Ticks), neu versetzt über `(T + id) % 12`; Breite der Namen merken statt jedes Bild `measureText` | Spitzen alle 1.2 s weg, Namen 5 % auf 2 % | echt | klein |
+| 4 | Spitzen der Simulation verteilen: `tickRail` (29 ms), `AI.tick` (22 ms, Bots starten Angriffe im selben Tick), `removeClusters` (22 ms) | Erde: längster Tick 64 auf etwa 35 ms | echt | mittel, `det.js` muss gleich bleiben |
+| 5 | Kern der Eroberung (`tickAttack` 57 % der Erde) | grösster Hebel der Simulation | wahrscheinlich | gross, Gleichlauf und `kampf.js` |
+| 6 | Auf einem echten Handy messen (iPhone und Android, Safari-Entwicklermenü, Chrome Remote Debugging), vor allem mit Grafikkarte | zeigt, ob 1 bis 4 reichen | echt | keines |
