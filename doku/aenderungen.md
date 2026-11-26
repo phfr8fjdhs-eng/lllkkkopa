@@ -6,6 +6,11 @@ Was seit dem 13.11.2026 geändert wurde und warum. Den heutigen Stand der Regeln
 - **Geändert:** Atombombe: dicker, eiförmiger Körper (wie Fat Man) mit vollem Kastenleitwerk, einer Naht mit Nieten in der Mitte und einer Kante an der Nase. Wasserstoffbombe: langer, massiver Körper mit runder Nase, zwei Ringen, drei Nieten und einem Schwanzkegel mit zwei schräg nach hinten gezogenen Flossen; die dritte Flosse ragt hinten als Kante heraus (wie bei der Mk-17). Beide schräg im Fallen. Drei Entwürfe vom selben Tag (Zar-Bombe, beide als Little Boy, beide mit offenem Kastenleitwerk) sind damit ersetzt. Gilt überall, wo die Zeichen vorkommen (Bauleiste, Baumenü, Zielen). Szene 116 in «Änderungen».
 - **Nicht geändert:** Spielregeln, das Bild der fliegenden Bombe auf der Karte.
 
+
+## Bots breiten sich etwas schneller aus (25.11.2026)
+- **Wunsch:** Die Bots sollen sich ein bisschen schneller ausbreiten.
+- **Geändert:** Ein Bot handelt jetzt alle 21 bis 39 Ticks (vorher 28 bis 52) und schickt pro Zug 40 % statt 30 % seiner freien Truppen auf freies Land (`src/05_ai.js`, `bot`). Grösse des Bot-Reichs (`cap`) und Reserve sind gleich geblieben, sie wachsen nur früher dorthin.
+- **Nicht geändert:** Nationen, Angriffe der Bots auf Nachbarn, alle anderen Regeln.
 ## Leistung: Abgleich mit dem Auftrag, Dichte geprüft, Speicher (24.11.2026, Abend)
 - **Wunsch:** Den Auftrag «Leistung» mit dem heutigen Stand vergleichen und ergänzen, was fehlt; die Dichte besonders prüfen, ohne sie wegzunehmen.
 - **Gemessen:** Neue Messbank `test/phasen.js`. Auf der Erde geht ein Tick zu 77 % in die Eroberung, 14 % in die Dichte, 7 % in die Bots. Die Dichte bleibt (Urteil und Zahlen in `doku/leistung.md`).
