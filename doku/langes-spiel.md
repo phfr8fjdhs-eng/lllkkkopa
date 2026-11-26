@@ -10,7 +10,7 @@ Die Regel aus `doku/vision.md` (Runden höchstens etwa 40 bis 45 Minuten) gilt f
 1. Tempo, Vorbereitung, Verteidigung, Abwehr (gebaut 26.11.2026, Teile 1a bis 1f unten)
 2. Bomben, Raketen, Bedienung (gebaut 26.11.2026, unten)
 3. Nebel, Aufklärung, Bündnisse (gebaut 26.11.2026, unten)
-4. Forschung (Unis, Stufen, Doktrin; dazu ein Ausbau «Infrastruktur» für Versorgung und Schutz der Städte)
+4. Forschung (gebaut 26.11.2026, unten)
 5. Luftwaffe
 6. Marine
 7. Im eigenen Land
@@ -169,3 +169,37 @@ Code: `src/04c_lang.js` (Abschnitt «weapons»), Haken in `buildCheck`, `build`,
 - Der Flugplatz als Stützpunkt kommt mit Paket 5.
 - **Technik weitergeben** kommt mit der Forschung (Paket 4).
 - Szenen 128 (Nebel und Radar) und 129 (Bündnis, Stützpunkt, Spion).
+
+## Paket 4: Forschung (26.11.2026)
+Code: `G.TECH`, `research`, `langResearch`, `techWhy`, `techOffer` in `src/04c_lang.js`; das Fenster `showTech` in `src/07_ui.js` (Knopf mit dem Kolben oben).
+
+### Unis
+- Ein **Ausbau der Stadt** (`u.uni`), kein eigenes Gebäude: Für Gebäude ist im Spielkern keine Nummer mehr frei, und «nur in Städten ab einer bestimmten Grösse» passt dazu. Ab Stadtstufe 5 (`uniLevel`), höchstens 3 (`uniMax`), Bau 1M (`uniCost`), Unterhalt 50 Gold pro Tick (30K pro Minute, `uniUpkeep`). Ohne Gold steht sie still.
+- Jede Uni bringt 0.8 · (1 + Stufe der Stadt / 10) Punkte pro Sekunde (`uniRp`) und forscht an einer Sache. Stufen kosten Punkte, kein Gold: 120, 240, 420, 600, 900 je Stufe 1 bis 5 (`tierCost`).
+- Fällt die Stadt, ist die Uni weg; was sie für eine Stufe schon gesammelt hatte, bleibt für den nächsten Versuch (`techPts`), Erforschtes bleibt.
+- Stufe 1 und 2 ab dem Start, 3 ab Minute 15, 4 ab 30, 5 ab 45 (`tierFrom`).
+- Bei **«oder»** schliesst die Wahl die andere für das ganze Spiel aus (`techDone`).
+- **Sichtbar:** In der Info eines Nachbarn, Verbündeten oder Reichs unter Spionage steht «Forscht an: …».
+- **Technik weitergeben:** In der Info eines Verbündeten Stufe und Preis wählen («schenken», 500K, 1M, 3M). Geschenktes gilt sofort; ein Verkauf ist 2 Minuten lang ein Angebot, das der Käufer im Forschungsfenster annimmt. Nationen kaufen, wenn sie das Doppelte an Gold haben.
+- **Nationen** erhalten jede Stufe, sobald ihre Zeit da ist (bei «oder» die erste), damit sie weiter Flugabwehr und Waffen haben. Sie wählen nicht klug.
+- In den Szenen von «Änderungen» ist alles erforscht, ausser in der Szene zur Forschung (`research: true`).
+
+### Was die Forschung freischaltet oder verbessert
+Ohne Forschung baut man im Modus weder Flugabwehr noch Radar, feuert keinen Marschflugkörper und keine Atomwaffe und hat keine Schutzräume.
+
+| Zweig | 1 | 2 | 3 | 4 | 5 |
+| --- | --- | --- | --- | --- | --- |
+| Doktrin | Blitzkrieg ODER Tiefenverteidigung | | | | |
+| Aufklärung | Radarstation | Grösserer Radarkreis (×1.5); Bessere Spione (doppelt so lange, halber Preis) | Tarnung erkennen (wirkt ab Paket 5, Tarnbomber) | Frühwarnradar (Bomben im dreifachen Radarkreis sichtbar) | Satellit (jeder Start sichtbar) |
+| Abwehr | Flugabwehr und Raketenabwehr | Mehr Schüsse (3 pro Stufe); Schutzräume | Noch mehr Schüsse ODER Mehr Reichweite (×1.3); Raketenabwehr gegen Atombomben; Stärkere Schutzräume (30 % statt 50 %) | Schneller nachladen (×0.7); Raketenabwehr gegen Wasserstoffbomben; Zivilschutz (Städte evakuieren selbst) | Raketenabwehr gegen MIRV-Sprengköpfe |
+| Raketen | Marschflugkörper | Streubombe; Reichweite (×1.25) | Bunkerbrecher ODER Thermobare Bombe; Sprengkraft (35 % der Stufen) | Kurzstreckenrakete; Mehr Sprengkraft (50 %); Tempo (×1.3) | Hyperschall (×1.5 schneller, Flugabwehr erfasst nur in halber Weite) |
+| Atomwaffen | | | | Atombombe | Wasserstoffbombe, MIRV |
+| Heer | Eingraben (Angreifer bis × 4 Verluste) | Infrastruktur (Städte versorgen im doppelten Umkreis); Schienen (Marsch auf Schienen × 0.7) | Warthog (Keile 15 % billiger) ODER Apache (Feind hinter der Front × 1.3 langsamer); Stärkere Posten (× 1.3) | Panzerkeil (Schwung sinkt 30 % langsamer, braucht Blitzkrieg) | Stärkstes Eingraben (bis × 5, braucht Tiefenverteidigung); Pioniere (Gelände bremst den eigenen Angriff weniger) |
+
+- **Blitzkrieg:** Marsch × 0.8 der Zeit, Stösse starten mit 10 % mehr Schwung. **Tiefenverteidigung:** Eingraben in 72 statt 120 s, Verteidigungsposten × 1.2, halbe Abnutzung bei Überdichte.
+- Das «Infrastruktur» ist der besprochene Ausbau für Versorgung; die Schutzräume bleiben ein eigener Ausbau der Stadt.
+- Zu jeder Angriffsforschung gibt es eine Gegenforschung: Raketen gegen Abwehr, Hyperschall gegen Frühwarnradar, Eingraben gegen Pioniere und Panzerkeil.
+- Keine Forschung bringt mehr Gold.
+- Die Zweige **Marine** und **Luftwaffe** kommen mit Paket 5 und 6 (sie brauchen deren Einheiten).
+- **Gemessen** (`node test/kampf.js lang`): Nationen haben ab dem Start «Eingraben»; gegen eine ganz eingegrabene Nation braucht der Angreifer darum jetzt das 4-Fache (3-fach: steckt bei 65 %). Ohne diese Forschung bleibt es beim 3-Fachen (1d).
+- Szene 130.

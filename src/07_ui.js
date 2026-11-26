@@ -625,7 +625,7 @@
     $('hud').hidden = false; $('spawnBar').hidden = false; $('ctrl').hidden = true; $('lb').hidden = true; $('aimBar').hidden = true;
     netOn = false; stroke = null; netQueue.clear(); lastTile = -1; commitAt = -99; view.net.on = false; view.net.edit.clear(); view.net.w = 0; view.net.at = -1e9;
     $('peek').hidden = true; trainSeen = 0; shipSeen = 0; incAt = -99; incLog.length = 0; $('incLine').hidden = true; $('incLine').dataset.html = '';
-    $('bNet').hidden = true; $('bNet').setAttribute('aria-pressed', 'false'); $('netBar').hidden = true; $('commit').textContent = ''; quick = null; $('brushBtns').hidden = true; syncBrushBtns(); showKeys(false);
+    $('bTech').hidden = true; $('bNet').hidden = true; $('bNet').setAttribute('aria-pressed', 'false'); $('netBar').hidden = true; $('commit').textContent = ''; quick = null; $('brushBtns').hidden = true; syncBrushBtns(); showKeys(false);
     $('bRes').hidden = true;
     plans.length = 0; syncPlans();
     $('mPunkt').hidden = !game.punkt; setThrust(cfg.thrust);
@@ -734,7 +734,7 @@
         addAsk('r' + q.id, 'Die Allianz mit ' + q.name + ' läuft bald ab', 'Verlängern', 'Auslaufen lassen',
           function () { act({ k: 'renew', p: q.id }); }, function () { /* let it run out */ });
       } else if (e.k === 'start') {
-        $('spawnBar').hidden = true; $('ctrl').hidden = false; $('lb').hidden = false; $('bNet').hidden = !h.post || !game.netz; $('brushBtns').hidden = !h.post || !game.netz; $('bRes').hidden = !game.res;
+        $('spawnBar').hidden = true; $('ctrl').hidden = false; $('lb').hidden = false; $('bTech').hidden = !game.lang; $('bNet').hidden = !h.post || !game.netz; $('brushBtns').hidden = !h.post || !game.netz; $('bRes').hidden = !game.res;
         if (game.pfeile && !game.lv) addMsg('Pfeile mit der rechten Maustaste planen, dann «Angreifen».', 'info');
         const W = game.W;
         view.flyTo(h.spawnTile % W, (h.spawnTile / W) | 0, within(Math.min(view.cw, view.ch) / 70, 2.2, 6));
@@ -993,6 +993,13 @@
       if (game.lang) {
         s += '<button class="btn ghost" data-act="spy" type="button">' + (game.spying(h, p) ? 'Spion ist dort · ' + Math.ceil((h.spy[p.id] - T) / 600) + ' min' : 'Spion schicken (' + fmt(G.LANG.spyCost) + ')') + '</button>';
         if (al && p.type === PT.HUMAN) s += '<button class="btn ghost" data-act="host" type="button">' + (h.hostOk && h.hostOk[p.id] ? 'Stützpunkte verbieten' : 'Stützpunkte erlauben') + '</button>';
+        // research is seen by neighbours, allies and spies (a hydrogen bomb in the works warns everyone)
+        const rs = game.researching(p);
+        if (rs.length && (al || game.spying(h, p) || game.sharesBorder(h, p.id))) s += '<p class="notes">Forscht an: ' + rs.map(esc).join(', ') + '</p>';
+        if (al) {
+          const mine = G.TECH.filter(function (t) { return game.has(h, t.id) && !game.has(p, t.id) && !(p.tech && p.tech[t.id] === -1); });
+          if (mine.length) s += '<div class="acts"><select id="giveTech">' + mine.map(function (t) { return '<option value="' + t.id + '">' + esc(t.name) + '</option>'; }).join('') + '</select><select id="givePrice"><option value="0">schenken</option><option value="500000">für 500K</option><option value="1000000">für 1M</option><option value="3000000">für 3M</option></select><button class="btn ghost" data-act="give" type="button">Technik weitergeben</button></div>';
+        }
         if (al) { const age = game.allyAge(h, p), L = G.LANG; s += '<p class="notes">Bündnis seit ' + Math.floor(age / 600) + ' min: ' + (age >= L.allyRadar ? 'Sicht, Radar und Stützpunkte geteilt' : age >= L.allySight ? 'Sicht geteilt, Radar und Stützpunkte ab Minute ' + Math.round(L.allyRadar / 600) : 'Sicht ab Minute ' + Math.round(L.allySight / 600)) + '</p>'; }
       }
     }
@@ -1045,6 +1052,10 @@
     if (what === 'troops') { act({ k: 'don', p: p.id, g: 'troops', r: ratio, say: 'Truppen an ' + p.name + ' geschickt' }); return; }
     if (what === 'gold') { act({ k: 'don', p: p.id, g: 'gold', say: 'Gold an ' + p.name + ' geschickt' }); return; }
     if (what === 'renew') { act({ k: 'renew', p: p.id }); dropAsk('r' + p.id); return; }
+    if (what === 'tech') { showTech(); return; }
+    if (what.indexOf('tech:') === 0) { act({ k: 'research', id: what.slice(5), say: 'Forschung gestartet' }); setTimeout(function () { if (modalKind === 'tech') showTech(); }, 150); return; }
+    if (what.indexOf('take:') === 0) { const pr = what.split(':'); act({ k: 'techtake', p: +pr[2], id: pr[1], say: 'Gekauft' }); setTimeout(function () { if (modalKind === 'tech') showTech(); }, 150); return; }
+    if (what === 'give') { const sel = $('giveTech'), pr = $('givePrice'); if (sel && sel.value) act({ k: 'techoffer', p: p.id, id: sel.value, price: +pr.value, say: +pr.value ? 'Angebot an ' + p.name + ' geschickt' : 'An ' + p.name + ' geschenkt' }); return; }
     if (what === 'spy') { if (!game.spying(h, p)) act({ k: 'spy', p: p.id }); return; }
     if (what === 'host') { act({ k: 'host', p: p.id, on: h.hostOk && h.hostOk[p.id] ? 0 : 1, say: h.hostOk && h.hostOk[p.id] ? 'Keine Stützpunkte mehr für ' + p.name : p.name + ' darf Stützpunkte bei dir bauen' }); return; }
     if (what === 'embargo') { act({ k: 'emb', p: p.id, on: h.embargo.has(p.id) ? 0 : 1 }); return; }
@@ -1152,6 +1163,10 @@
         btns += '</div>';
       }
       // «Langes Spiel»: shelters, an upgrade of the city
+      if (game.lang && near.type === UT.CITY) {
+        if (near.uni) btns += '<div class="uprow"><small>Uni: ' + (near.res ? 'forscht an ' + esc(G.TECH_BY[near.res.id].name) + ' (' + Math.floor(100 * near.res.pts / game.techCost(near.res.id)) + ' %)' : 'frei, wähle unter «Forschung»') + ' · ' + (Math.round(game.uniRate(near) * 100) / 10).toLocaleString('de-CH') + ' Punkte/s</small></div>';
+        else btns += '<div class="uprow"><button class="upbtn" type="button" data-uni="1"' + (near.level >= G.LANG.uniLevel && (rich || h.gold >= G.LANG.uniCost) ? '' : ' disabled') + '><span>Uni bauen' + (near.level < G.LANG.uniLevel ? ' (ab Stufe ' + G.LANG.uniLevel + ')' : '') + '</span>' + coin(G.LANG.uniCost) + '</button></div>';
+      }
       if (game.lang && near.type === UT.CITY) btns += near.shelter ? '<div class="uprow"><small>Schutzräume: halb so viele Tote, halb so viele verlorene Stufen bei einem Treffer</small></div>' : '<div class="uprow"><button class="upbtn" type="button" data-shelter="1"' + (rich || h.gold >= G.LANG.shelterCost ? '' : ' disabled') + '><span>Schutzräume</span>' + coin(G.LANG.shelterCost) + '</button></div>';
       html += '<div class="scard"><div class="shead"><span class="ic big">' + svg(BUILD.find(function (b) { return b.t === near.type; }).icon, 30) + '</span>' +
         '<div class="sinfo"><b>' + G.UNAME[near.type] + ' · Stufe ' + near.level + (top > 10 ? ' von ' + top : '') + '</b>' + bar +
@@ -1223,6 +1238,37 @@
     if (el.dataset.html !== s) { el.innerHTML = s; el.dataset.html = s; }
     el.hidden = !s;
   }
+  // «Langes Spiel»: the research window (src/04c_lang.js, G.TECH). Five tiers in columns, the
+  // branches in rows; a tap on a step that can be started gives it to a free university.
+  function showTech() {
+    const h = game.human, T = game.ticks;
+    let unis = 0, free = 0, rate = 0;
+    for (const u of h.units) if (u.uni) { unis++; if (!u.res) free++; rate += game.uniRate(u) * 10; }
+    const run = {};
+    for (const u of h.units) if (u.res) run[u.res.id] = u.res.pts;
+    let s = '<div id="techCard"><h2>Forschung</h2><p>' + (unis ? unis + (unis === 1 ? ' Uni' : ' Unis') + ', ' + free + ' frei · ' + (Math.round(rate * 10) / 10).toLocaleString('de-CH') + ' Punkte/s' : 'Noch keine Uni: Baue eine in einer Stadt ab Stufe ' + G.LANG.uniLevel + ' (Ausbaukarte der Stadt).') + '</p>';
+    if (h.techOffers) for (const id in h.techOffers) { const o = h.techOffers[id], q = game.players[o.from]; if (o.until > T && q) s += '<p class="notes">' + esc(q.name) + ' bietet ' + esc(G.TECH_BY[id].name) + ' für ' + fmt(o.price) + ' <button class="btn ghost" data-act="take:' + id + ':' + q.id + '" type="button">Kaufen</button></p>'; }
+    const branches = [];
+    for (const t of G.TECH) if (branches.indexOf(t.br) < 0) branches.push(t.br);
+    for (const br of branches) {
+      s += '<h3>' + esc(br) + '</h3><div class="tb2">';
+      for (let tier = 1; tier <= 5; tier++) {
+        s += '<div>';
+        if (br === branches[0]) s += '';
+        for (const t of G.TECH) {
+          if (t.br !== br || t.tier !== tier) continue;
+          const done = game.has(h, t.id), gone = h.tech && h.tech[t.id] === -1, why = game.techWhy(h, t.id), pts = run[t.id];
+          const cls = done ? 'done' : gone ? 'gone' : pts !== undefined ? 'run' : !why && free ? 'can' : 'lock';
+          const state = done ? 'erforscht' : gone ? 'ausgeschlossen' : pts !== undefined ? Math.floor(100 * pts / game.techCost(t.id)) + ' %' : why ? why : free ? game.techCost(t.id) + ' Punkte · antippen' : 'keine Uni frei';
+          s += '<button type="button" class="tk ' + cls + '"' + (cls === 'can' ? ' data-act="tech:' + t.id + '"' : '') + ' title="' + esc(t.what) + '"><b>' + tier + ' · ' + esc(t.name) + (t.or ? ' (oder)' : '') + '</b><small>' + esc(t.what) + '</small><small>' + esc(state) + '</small></button>';
+        }
+        s += '</div>';
+      }
+      s += '</div>';
+    }
+    s += '<p class="hint">Stufe 1 und 2 ab dem Start, 3 ab Minute 15, 4 ab 30, 5 ab 45. Bei «oder» ist die andere Wahl danach für dieses Spiel weg.</p><button class="btn ghost" data-act="close" type="button">Schliessen</button></div>';
+    openModal(s, 'tech');
+  }
   function fireSalvo() {
     act({ k: 'salvo', list: salvoList.slice(), say: salvoList.length + ' Schläge gestartet: sie schlagen gleichzeitig ein' });
     salvoList.length = 0; view.salvo = salvoList;
@@ -1271,9 +1317,10 @@
   function closeBuild() { $('sheet').hidden = true; if (view) { view.mark = -1; view.selUnit = null; } }
   function onBuild(e) {
     if (performance.now() - sheetAt < 350) return;
-    const b = e.target.closest('[data-t],[data-up],[data-shelter]');
+    const b = e.target.closest('[data-t],[data-up],[data-shelter],[data-uni]');
     if (!b || b.disabled) return;
-    if (b.dataset.shelter) act({ k: 'shelter', t: buildTile, say: 'Schutzräume gebaut' });
+    if (b.dataset.uni) act({ k: 'uni', t: buildTile, say: 'Uni gebaut' });
+    else if (b.dataset.shelter) act({ k: 'shelter', t: buildTile, say: 'Schutzräume gebaut' });
     else if (b.dataset.up) doUpgrade(buildTile, +b.dataset.up);
     else {
       const t = +b.dataset.t;
@@ -2267,6 +2314,7 @@
     $('rS').addEventListener('click', function () { radialAct('S'); });
     $('rW').addEventListener('click', function () { radialAct('W'); });
     $('sheetBody').addEventListener('click', onBuild);
+    $('bTech').innerHTML = svg('flask', 20); $('bTech').addEventListener('click', function () { if (game && game.lang) showTech(); });
     $('evac').addEventListener('click', function (e) { const b = e.target.closest('[data-evac]'); if (b && !b.disabled) act({ k: 'evac', t: +b.dataset.evac, say: 'Stadt wird evakuiert' }); });
     // Closing the card of an air defence or factory with the cross keeps the rings of all of that
     // kind on the map (25.11.2026), until the next tap on the map or Escape.

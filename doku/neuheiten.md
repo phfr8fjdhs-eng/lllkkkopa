@@ -11,6 +11,7 @@ Ein eigener Bereich neben dem normalen Spiel und den Levels. Auf dem Startbildsc
 ## Die Szenen (Stand 26.11.2026)
 | Nr. | Datum | Name | Was passiert |
 | --- | --- | --- | --- |
+| 130 | 26.11. | Langes Spiel: Forschung | Zwei Städte bekommen eine Uni und forschen Blitzkrieg und Marschflugkörper; Tipp zeigt auf den Knopf «Forschung» |
 | 129 | 26.11. | Langes Spiel: Bündnisse, Stützpunkte, Spione | Bündnis mit Brenna seit 15 Minuten, nach 6 s ein eigenes Silo als Stützpunkt in Brennas Land und ein Spion in Ostmark |
 | 128 | 26.11. | Langes Spiel: Nebel und Radar | Vellmars Land liegt grösstenteils im Nebel; eigenes Radar; alle 30 s ein Marschflugkörper von Vellmar, dessen Silo sich dann zeigt |
 | 127 | 26.11. | Langes Spiel: Waffen für den Krieg | Ein eigenes Silo feuert alle 6 s reihum Streubombe, Marschflugkörper, Kurzstreckenrakete, thermobare Bombe und Bunkerbrecher auf Varnholm |

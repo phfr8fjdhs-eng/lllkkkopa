@@ -10,6 +10,8 @@
     defense: 'M12 2l8.5 3.2v6.3c0 5.2-3.6 9-8.5 10.5c-4.9-1.5-8.5-5.3-8.5-10.5V5.2z',
     port: 'M12 1.4a3.1 3.1 0 1 1 0 6.2a3.1 3.1 0 1 1 0-6.2zM12 3.1a1.4 1.4 0 1 0 0 2.8a1.4 1.4 0 1 0 0-2.8zM10.7 7.4h2.6V20h-2.6zM7 9.2h10v2.4H7zM20.8 13A8.8 8.8 0 0 1 3.2 13H6A6 6 0 0 0 18 13zM1.6 14.6L4.4 9.6L7.6 13.8zM22.4 14.6L16.4 13.8L19.6 9.6z',
     silo: 'M12 1c2 1.6 3 4 3 6.8V17H9V7.8C9 5 10 2.6 12 1zM9 12.2l-3.2 3.4V20L9 18zM15 12.2l3.2 3.4V20L15 18zM10 18h4v2l-2 2.2l-2-2.2z',
+    // «Langes Spiel»: research
+    flask: 'M9 2h6v2h-1v5.2l5.6 9.7A2 2 0 0 1 17.9 22H6.1a2 2 0 0 1-1.7-3.1L10 9.2V4H9zM8.2 15l-1.8 3.2V20h11.2v-1.8L15.8 15z',
     // «Langes Spiel»: the radar, a dish on a mast
     radar: 'M4 4a11 11 0 0 1 14 14zM7.5 7.5l5 5M12.5 12.5l2-2M11 15l-2 6h6l-2-6zM3 21h18v2H3z',
     // «Langes Spiel»: the conventional weapons
@@ -92,6 +94,8 @@
     const h = g.human;
     if (!g.lang || !FOG || !h || u.owner === h || g.friendly(u.owner, h)) return false;
     if (fogSeen(g, Math.round(u.y) * g.W + Math.round(u.x))) return false;
+    if (g.has(h, 'auf5')) return false;   // research Satellit: every launch on the world is seen
+    if (g.has(h, 'auf4')) for (const r of h.units) if (r.type === UT.SAM && r.cls === 2 && r.built) { const R3 = 3 * g.radarRange(r); if ((r.x - u.x) * (r.x - u.x) + (r.y - u.y) * (r.y - u.y) <= R3 * R3) return false; }   // early warning radar
     if (g.owner[u.dy * g.W + u.dx] === h.id && (1 - u.prog) * u.dist / Math.max(0.01, u.speed) <= 100) return false;
     return true;
   }

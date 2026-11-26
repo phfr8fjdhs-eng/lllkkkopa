@@ -344,6 +344,8 @@
     const me = this.addPlayer({ name: people[0].name, type: PT.HUMAN, color: people[0].color });
     this.humans.push(me); this.human = me; this.names.add(me.name);
     me.troops = def.me.troops; me.gold = def.me.gold;
+    // «Langes Spiel»: a scene shows its change at once, so the player has everything researched
+    if (this.lang && def.show && !def.research && G.TECH) { me.tech = {}; for (const t of G.TECH) me.tech[t.id] = 1; }
     // level maps are small, so S (and with it the pace of every front) sits at its floor of 0.4;
     // a level runs at the pace of the world map instead, else spreading out feels sluggish
     this.attackPace = Math.max(this.attackPace, G.LEVEL_PACE * G.PACE.attack);

@@ -516,6 +516,18 @@ body.placing #cv { cursor: crosshair; }
 #nwBar .nwBtns button { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 3px; padding: 6px 4px; border: 0; border-radius: 8px; font: 600 14px var(--display); color: var(--ink); background: rgba(255, 255, 255, 0.1); cursor: pointer; }
 #nwBar .nwBtns button:first-child svg { transform: scaleX(-1); }
 #nwBar .nwBtns button:disabled { opacity: .35; cursor: default; }
+#techCard .tb2 { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; margin: 4px 0 12px; }
+#techCard h3 { margin: 10px 0 4px; font: 600 13px var(--display); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+#techCard .tk { border-radius: 8px; padding: 6px 7px; background: rgba(255,255,255,.05); font-size: 12px; line-height: 1.25; text-align: left; border: 1px solid transparent; color: inherit; }
+#techCard .tk b { display: block; font: 600 12.5px var(--display); }
+#techCard .tk small { display: block; color: var(--muted); }
+#techCard .tk.done { background: rgba(99,211,145,.16); border-color: rgba(99,211,145,.5); }
+#techCard .tk.run { border-color: #f4b740; }
+#techCard .tk.gone { opacity: .35; text-decoration: line-through; }
+#techCard .tk.can { cursor: pointer; border-color: rgba(255,255,255,.25); }
+#techCard .tk.lock { opacity: .55; }
+#techCard .tierh { font: 600 11px var(--display); color: var(--muted); text-align: center; }
+@media (max-width: 640px) { #techCard .tb2 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 #evac { position: absolute; left: 50%; top: 56px; transform: translateX(-50%); padding: 6px 8px; display: flex; flex-direction: column; gap: 6px; z-index: 6; }
 #evac .ev { display: flex; align-items: center; gap: 10px; font: 600 13px var(--display); }
 #evac .ev b { color: #ff8a7a; }
@@ -604,6 +616,7 @@ body.placing #cv { cursor: crosshair; }
       <button id="bPause" data-key="P" class="tb" type="button" aria-label="Pause"></button>
       <button id="bSpeed" data-key=", ." class="tb" type="button" aria-label="Tempo">1×</button>
       <button id="bNet" data-key="N" class="tb" type="button" aria-label="Aufstellung bearbeiten" aria-pressed="false" hidden></button>
+      <button id="bTech" class="tb" type="button" aria-label="Forschung" hidden></button>
       <button id="bRes" class="tb" type="button" aria-label="Rohstoffe und Fabriken" hidden></button>
       <button id="bHome" data-key="C" class="tb" type="button" aria-label="Zu meinem Gebiet"></button>
       <button id="bSound" data-key="O" class="tb" type="button" aria-label="Ton aus" aria-pressed="true"></button>
@@ -1538,6 +1551,10 @@ body.placing #cv { cursor: crosshair; }
   //           build bases in his land after allyRadar ticks
   //   rent, baseLeave  a base pays its host `rent` gold per tick; when the alliance ends it goes
   //           to the host after baseLeave ticks
+  //   tier*, uni*  research: tiers open at tierFrom ticks of play and a step of a tier costs
+  //           tierCost points; a university (city upgrade from level uniLevel, at most uniMax,
+  //           price uniCost, upkeep uniUpkeep gold per tick) brings uniRp x (1 + level / 10)
+  //           points per tick. Stronger shelters (research) let shelter2 through
   //   post*   defence posts: radius x postR, losses x (postLoss[0] + postLoss[1] x level), time
   //           x (1 + postTime x level), and a tile they cover counts as at least postDens dense
   G.LANG = {
@@ -1556,7 +1573,10 @@ body.placing #cv { cursor: crosshair; }
     share: 0.25, cruiseHeat: 0.25, cruiseCool: 300, srbmSpeed: 4, srbmSeen: 0.25,
     // Paket 3: fog, reconnaissance, alliances, bases
     fogSee: 3, radarCost: 1000000, radarR: [140, 40], spyCost: 500000, spyTicks: 3000,
-    allySight: 3000, allyRadar: 9000, rent: 100, baseLeave: 300
+    allySight: 3000, allyRadar: 9000, rent: 100, baseLeave: 300,
+    // Paket 4: research (src/04c_lang.js, G.TECH)
+    tierFrom: [0, 0, 9000, 18000, 27000], tierCost: [120, 240, 420, 600, 900],
+    uniLevel: 5, uniMax: 3, uniCost: 1000000, uniUpkeep: 50, uniRp: 0.08, shelter2: 0.3
   };
   G.LANG_WEAPON = function (t) { return t >= UT.CLUSTER && t <= UT.SRBM; };
   // What the ground does to an attack, by what covers it (index: G.COVER). `speed` multiplies
@@ -2387,9 +2407,9 @@ body.placing #cv { cursor: crosshair; }
             dens = cs.n > 0 && dAvg > 0 ? cs.c / cs.n / dAvg : 1;
           }
           let mag = 80 * gl, speed = 16.5 * gs, inPost = false;
-          if (dp && dp.length) for (let i = 0; i < dp.length; i++) { const dx = dp[i].x - x, dy = dp[i].y - y; if (dx * dx + dy * dy <= dr2) { mag *= this.postMag(dp[i].level); speed *= this.postSpd(dp[i].level); inPost = true; break; } }
+          if (dp && dp.length) for (let i = 0; i < dp.length; i++) { const dx = dp[i].x - x, dy = dp[i].y - y; if (dx * dx + dy * dy <= dr2) { mag *= this.postMag(dp[i].level, t); speed *= this.postSpd(dp[i].level); inPost = true; break; } }
           let dk = pc ? Math.min(CB.densMax, dens) : 1;
-          if (this.lang && pc) { if (inPost) dk = Math.max(dk, G.LANG.postDens); const e = this.digOf(pc); mag *= 1 + G.LANG.digLoss * e; speed *= 1 + G.LANG.digTime * e; }
+          if (this.lang && pc) { if (inPost) dk = Math.max(dk, G.LANG.postDens); const e = this.digOf(pc, t); mag *= 1 + this.digLossOf(t) * e; speed *= 1 + G.LANG.digTime * e; }
           const D = dAvg * Math.pow(dk, CB.dFall);
           const R = tT / Math.max(1, left);
           loss = this.tileLoss(mag, R, dAvg, dk, pc ? this.postHold(pc) : 1, p.type !== PT.BOT && t.type === PT.BOT, traitor);
@@ -2450,7 +2470,7 @@ body.placing #cv { cursor: crosshair; }
       if (this.cellRail && this.CW) rail += MO.rail * (1 - this.cellRail[this.cellOf(t)]) / 0.8;
     }
     const n = spots.length;
-    return within((rest / n) * (1 + mass / n + rail / n), MO.min, MO.max);
+    return within((rest / n) * (1 + mass / n + rail / n + (this.lang && this.has(a, 'blitz') ? 0.1 : 0)), MO.min, MO.max);
   };
   // How many thrusts a player has under way.
   // Where a direction attack of p's toward `tile` starts and which way it goes: the own border
@@ -2701,11 +2721,12 @@ body.placing #cv { cursor: crosshair; }
       // taken almost as fast in the mountains as on the plain (`TR.free`).
       const pc = tp ? tp.cells.get(this.cellOf(tile)) : null;
       const hold = t ? 1 : TR.free;
-      let mag = 80 * (1 + (gl - 1) * hold), speed = 16.5 * (1 + (gs - 1) * hold), inPost = false;
+      const ph = this.lang && this.has(a, 'pionier') ? hold * 0.6 : hold;   // research Pioniere: the ground slows your attack less
+      let mag = 80 * (1 + (gl - 1) * ph), speed = 16.5 * (1 + (gs - 1) * ph), inPost = false;
       if (dp && dp.length) {
         for (let i = 0; i < dp.length; i++) {
           const dx = dp[i].x - x, dy = dp[i].y - y;
-          if (dx * dx + dy * dy <= dr2) { mag *= this.postMag(dp[i].level); speed *= this.postSpd(dp[i].level); inPost = true; break; }   // level 1: losses x5, speed cost x3
+          if (dx * dx + dy * dy <= dr2) { mag *= this.postMag(dp[i].level, t); speed *= this.postSpd(dp[i].level); inPost = true; break; }   // level 1: losses x5, speed cost x3
         }
       }
       if (fo[tile]) { const f = 5 - 2 * this.falloutCount / landTiles; mag *= f; speed *= f; }
@@ -2722,18 +2743,22 @@ body.placing #cv { cursor: crosshair; }
         // well, then came cheap, and land swung to and fro.)
         let dk = pc ? Math.min(CB.densMax, this.postDens(t, pc)) : 1;
         // «Langes Spiel»: a post holds its ground even when thin, a quiet cell digs in (src/04c_lang.js)
-        if (this.lang && pc) { if (inPost) dk = Math.max(dk, G.LANG.postDens); const e = this.digOf(pc); mag *= 1 + G.LANG.digLoss * e; speed *= 1 + G.LANG.digTime * e; }
+        if (this.lang && pc) { if (inPost) dk = Math.max(dk, G.LANG.postDens); const e = this.digOf(pc, t); mag *= 1 + this.digLossOf(t) * e; speed *= 1 + G.LANG.digTime * e; }
         const R = t.troops / Math.max(1, at.troops);
         loss = this.tileLoss(mag, R, dAvg, dk, pc ? this.postHold(pc) : 1, a.type !== PT.BOT && t.type === PT.BOT, traitor);
-        if (this.lang && t.outlawUntil > this.ticks) loss /= G.LANG.outlawHit;   // «Langes Spiel»: an outcast is fought harder
+        if (this.lang) {
+          if (t.outlawUntil > this.ticks) loss /= G.LANG.outlawHit;   // «Langes Spiel»: an outcast is fought harder
+          if (at.mom !== undefined && this.has(a, 'heer3a')) loss *= 0.85;   // research Warthog: narrow attacks are cheaper
+        }
         used = this.tileTime(speed, R, dk, traitor, at.front.size);
+        if (this.lang && pc && this.has(t, 'heer3b') && t.post && t.post.front && !t.post.front.has(pc.id)) used *= 1.3;   // research Apache: slow behind the front
         if (at.mom !== undefined) {
           // momentum (wedge, section, direction in «Grenzland»): fades with every tile, the more the
           // dearer the tile and the narrower the front, slower along a railway; with little of it
           // every tile is dearer and slower
           const MO = G.MOMENTUM, wide = Math.max(4, at.width || 0);
           const fade = this.cellRail && this.CW ? 1 - (1 - MO.railFade) * (1 - this.cellRail[this.cellOf(tile)]) / 0.8 : 1;
-          at.mom -= MO.decay * within(loss / (2 * CB.base), 0.25, 4) / wide * fade;
+          at.mom -= MO.decay * within(loss / (2 * CB.base), 0.25, 4) / wide * fade * (this.lang && this.has(a, 'heer4') ? 0.7 : 1);
           const k = Math.max(at.mom, MO.slow);   // at most half as fast (until 23.11.2026 down to a quarter: a tired wedge froze)
           loss /= Math.sqrt(k); used /= Math.min(1.25, k);
         }
@@ -3202,6 +3227,10 @@ body.placing #cv { cursor: crosshair; }
       case 'salvo': return this.lang ? this.salvo(p, c.list) : 'Nicht möglich';
       case 'spy': return this.lang && q && q !== p ? this.sendSpy(p, q) : 'Nicht möglich';
       case 'host': if (!this.lang || !q) return 'Nicht möglich'; (p.hostOk || (p.hostOk = {}))[q.id] = c.on ? 1 : 0; return '';
+      case 'uni': return tileOk && this.lang ? this.buildUni(p, c.t) : 'Nicht möglich';
+      case 'research': return this.lang && G.TECH_BY[c.id] ? this.research(p, c.id, tileOk ? c.t : -1) : 'Nicht möglich';
+      case 'techoffer': return this.lang && q && G.TECH_BY[c.id] ? this.techOffer(p, q, c.id, c.price) : 'Nicht möglich';
+      case 'techtake': return this.lang && q && G.TECH_BY[c.id] ? this.techTake(p, q, c.id) : 'Nicht möglich';
       case 'evac': return tileOk && this.lang ? this.evacuate(p, c.t) : 'Nicht möglich';
       case 'shelter': return tileOk && this.lang ? this.buildShelter(p, c.t) : 'Nicht möglich';
       case 'up': {
@@ -3522,18 +3551,18 @@ body.placing #cv { cursor: crosshair; }
     let i = 0;
     for (const c of cells.values()) { c.d = 1e18; c.to = null; c.ec = 0; c.ix = i++; c.done = false; list.push(c); }
     for (let k = 0; k < from.length; k++) { from[k].d = 0; heap.push(0, from[k].ix); }
-    const cr = this.cellRail, base = this.lang ? G.LANG.march : BASE;
+    const cr = this.cellRail, base = this.lang ? G.LANG.march * (this.has(p, 'blitz') ? 0.8 : 1) : BASE, rk = this.lang && this.has(p, 'heer2') ? 0.7 : 1;
     while (heap.n > 0) {
       const c = list[heap.pop()];
       if (c.done) continue;
       c.done = true;
-      const id = c.id, cx = id % CW, sc = this.cellSlow(id) * cr[id];
+      const id = c.id, cx = id % CW, sc = this.cellSlow(id) * (cr[id] < 1 ? cr[id] * rk : 1);
       for (let dy = -1; dy <= 1; dy++) {
         for (let dx = -1; dx <= 1; dx++) {
           if ((!dx && !dy) || cx + dx < 0 || cx + dx >= CW) continue;
           const nid = id + dy * CW + dx, o = cells.get(nid);
           if (!o || o.done) continue;
-          const e = base * (sc + this.cellSlow(nid) * cr[nid]) / 2 * (dx && dy ? 1.414 : 1);
+          const e = base * (sc + this.cellSlow(nid) * (cr[nid] < 1 ? cr[nid] * rk : 1)) / 2 * (dx && dy ? 1.414 : 1);
           const nd = c.d + e;
           if (nd < o.d) { o.d = nd; o.to = c; o.ec = e; heap.push(nd, o.ix); }
         }
@@ -4033,6 +4062,8 @@ body.placing #cv { cursor: crosshair; }
     const me = this.addPlayer({ name: people[0].name, type: PT.HUMAN, color: people[0].color });
     this.humans.push(me); this.human = me; this.names.add(me.name);
     me.troops = def.me.troops; me.gold = def.me.gold;
+    // «Langes Spiel»: a scene shows its change at once, so the player has everything researched
+    if (this.lang && def.show && !def.research && G.TECH) { me.tech = {}; for (const t of G.TECH) me.tech[t.id] = 1; }
     // level maps are small, so S (and with it the pace of every front) sits at its floor of 0.4;
     // a level runs at the pace of the world map instead, else spreading out feels sluggish
     this.attackPace = Math.max(this.attackPace, G.LEVEL_PACE * G.PACE.attack);
@@ -4227,7 +4258,8 @@ body.placing #cv { cursor: crosshair; }
   //   text   one or two sentences: what is new, said plainly (shown at the bottom while it runs)
   //   loop   [first second, every n seconds, function (Q, k)]: the part of the script that repeats
   //   arsenal  the scene needs the «Arsenal» mode
-  //   lang     the scene runs in the mode «Langes Spiel»
+  //   lang     the scene runs in the mode «Langes Spiel» (the player then has everything researched,
+  //            unless research: true)
   // A new change gets a scene here (at the top of the list), see CLAUDE.md.
   const S = G.levelShape, circ = S.circ, rect = S.rect;
   const hot = function (t) { return '#hotbar [data-t="' + t + '"]'; };
@@ -4254,6 +4286,20 @@ body.placing #cv { cursor: crosshair; }
   }
 
   G.NEUES = [
+    {
+      n: 130, date: '26.11.2026', title: 'Langes Spiel: Forschung', lang: true, research: true,
+      text: 'Im Langen Spiel wird geforscht: Baue in einer Stadt ab Stufe 5 eine Uni (Ausbaukarte der Stadt, höchstens 3). Jede Uni forscht an einer Sache, grosse Städte schneller. Der Knopf mit dem Kolben oben zeigt alle Stufen. Zuerst wählst du eine Doktrin: Blitzkrieg oder Tiefenverteidigung.',
+      map: { w: 300, h: 200, seed: 930, shapes: [circ(150, 100, 90)] },
+      me: { x: 150, y: 100, r: 92, troops: 60000, gold: 4000000, build: [[UT.CITY, 110, 90, 8], [UT.CITY, 190, 110, 5], [UT.CITY, 150, 150, 2]] },
+      foes: [], allow: ALL, quest: none,
+      events: [[2, function (Q) {
+        const g = Q.g, cs = Q.me.units.filter(function (u) { return u.type === UT.CITY && u.level >= 5; });
+        for (const c of cs) g.buildUni(Q.me, c.tile);
+        g.research(Q.me, 'blitz', cs[0] ? cs[0].tile : -1);
+        g.research(Q.me, 'rak1', cs[1] ? cs[1].tile : -1);
+      }]],
+      tips: [{ text: 'Hier ist die Forschung.', el: '#bTech' }]
+    },
     {
       n: 129, date: '26.11.2026', title: 'Langes Spiel: Bündnisse, Stützpunkte, Spione', lang: true,
       text: 'Ein Bündnis wird mit der Zeit wertvoller: nach 5 Minuten teilt ihr die Sicht, nach 15 Minuten auch das Radar, und du darfst im Land des Partners Stützpunkte bauen (Hafen, Silo, Flugabwehr). Du zahlst ihm dafür laufend Pacht. Ein Spion zeigt dir ein fremdes Land ein paar Minuten lang ganz.',
@@ -4365,7 +4411,7 @@ body.placing #cv { cursor: crosshair; }
       foes: [{ name: 'Ostmark', x: 250, y: 100, box: [175, 0, 300, 200], troops: 60000, build: [[UT.PORT, 180, 50, 2], [UT.PORT, 180, 150, 2], [UT.SAM, 200, 100, 1]] }],
       allow: ALL, quest: none,
       events: [[0, function (Q) { Q.g.langEarly = G.LANG.nukeFrom[UT.ATOM]; }]],   // nuclear weapons allowed at once (normally from minute 30)
-      loop: [6, 12, function (Q, k) { Q.fire(Q.me, UT.CRUISE, 200 + (k % 2) * 15, 60 + (k % 3) * 40); }]
+      loop: [6, 12, function (Q, k) { Q.fire(Q.me, UT.CRUISE, 235, 40 + (k % 2) * 120); }]
     },
     {
       n: 120, date: '25.11.2026', title: 'Schüsse bereit auf der Bauleiste',
@@ -4672,6 +4718,7 @@ body.placing #cv { cursor: crosshair; }
     if (i >= 0) o.units.splice(i, 1);
     o.cnt[u.type] -= u.level; np.cnt[u.type] += u.level;
     u.owner = np; np.units.push(u);
+    if (u.uni) { delete u.uni; u.res = null; }   // «Langes Spiel»: a fallen city loses its university; what was learnt stays
     if (u.type === UT.SAM && this.lang) this.samSig = (this.samSig | 0) + 1;
     if (u.type === UT.CITY) { o.cityLv -= u.level; np.cityLv += u.level; }
     else if (u.type === UT.DEFENSE) { this.refreshPosts(o); this.refreshPosts(np); this.dirtyDisc(u.tile); }
@@ -4838,7 +4885,7 @@ body.placing #cv { cursor: crosshair; }
   // reach (type), and the one the player picked (pick, a unit id) if it can.
   Game.prototype.readySilo = function (p, tile, type, pick) {
     const W = this.W, tx = tile % W, ty = (tile / W) | 0, T = this.ticks;
-    const reach = this.lang && type !== undefined ? this.weaponReach(type) : Infinity, r2 = reach * reach;
+    const reach = this.lang && type !== undefined ? this.weaponReach(type, p) : Infinity, r2 = reach * reach;
     let best = null, bd = Infinity, any = false, far = false;
     for (const u of p.units) {
       if (u.type !== UT.SILO || !u.built) continue;
@@ -4864,6 +4911,7 @@ body.placing #cv { cursor: crosshair; }
       if (type === UT.CLOAK && !this.opts.arsenal) { res.why = 'Nur im Arsenal-Modus'; return res; }
       // «Langes Spiel»: a base in an ally's land (src/04c_lang.js, baseHost)
       const host = this.owner[tile] !== p.id && this.lang ? this.baseHost(p, tile, type) : null;
+      if (this.lang && p.type === PT.HUMAN && type === UT.SAM && !this.has(p, this.techFor(UT.SAM, cls))) { res.why = 'Braucht Forschung: ' + G.TECH_BY[this.techFor(UT.SAM, cls)].name; return res; }
       if (this.owner[tile] !== p.id && !host) { res.why = this.lang && this.owner[tile] && p.allies.has(this.owner[tile]) ? this.baseWhy(p, tile, type) : 'Nur auf eigenem Gebiet'; return res; }
       res.base = host;
       if (type === UT.PORT) {
@@ -5641,7 +5689,7 @@ body.placing #cv { cursor: crosshair; }
     const u = this.newUnit(type, p, silo.tile);
     u.dst = tile; u.sx = u.x; u.sy = u.y; u.dx = tile % W; u.dy = (tile / W) | 0;
     u.dist = Math.max(1, Math.hypot(u.dx - u.sx, u.dy - u.sy));
-    u.prog = 0; u.speed = this.R.nukeSpeed * (type === UT.SRBM ? G.LANG.srbmSpeed : G.lowFly(type) ? 1.6 : 1); u.tid = this.owner[tile]; u.sam = false; u.delay = 0;
+    u.prog = 0; u.speed = this.R.nukeSpeed * (type === UT.SRBM ? G.LANG.srbmSpeed : G.lowFly(type) ? 1.6 : 1) * (this.lang ? this.weaponPace(p, type) : 1); u.tid = this.owner[tile]; u.sam = false; u.delay = 0;
     this.addUnit(u);
     this.fx.push({ k: 'launch', x: u.x, y: u.y, mine: p === this.human });
     if (this.lang) this.langLaunch(p, u);   // outcast after a nuclear weapon, the price of cruise missiles (src/04c_lang.js)
@@ -5722,7 +5770,7 @@ body.placing #cv { cursor: crosshair; }
         if (!v.active || !v.built || (levelRule ? v.type > UT.CLOAK : v.type !== UT.CITY)) continue;
         const vd2 = (v.x - cx) * (v.x - cx) + (v.y - cy) * (v.y - cy);
         if (vd2 > out2) continue;
-        if (levelRule) this.structHit(v); else this.cityHit(v, type, vd2 <= in2);
+        if (levelRule) this.structHitBy(v, u.owner); else this.cityHit(v, type, vd2 <= in2);
         if (v.active) (keep || (keep = new Set())).add(v.tile);
       }
     }
@@ -5799,7 +5847,7 @@ body.placing #cv { cursor: crosshair; }
   };
   // Reach of an air defence: 70 tiles at level 1, growing with every level towards 150 (scaled to the map).
   Game.prototype.samRange = function (u) {
-    return Math.round((150 - 480 / (u.level + 5)) * this.S * this.reach);
+    return Math.round((150 - 480 / (u.level + 5)) * this.S * this.reach * (this.lang && this.has(u.owner, 'abw3b') ? 1.3 : 1));
   };
   Game.prototype.sammSpeed = function () { return Math.max(5, 14 * this.S) * (this.lang ? G.LANG.air : 1); };
   // What an air defence may shoot at. The MIRV itself flies too high; its warheads do not, and
@@ -5865,7 +5913,7 @@ body.placing #cv { cursor: crosshair; }
       for (const n of this.nukes) {
         if (!n.active || n.sam || !(this.lang ? this.samCan(u, n.type) : G.canIntercept(n.type))) continue;
         if (n.owner === u.owner || this.friendly(n.owner, u.owner)) continue;
-        if (!this.samSolve(u, n, sr * G.seenAt(n.type))) continue;
+        if (!this.samSolve(u, n, sr * G.seenAt(n.type) * (this.lang && (n.type === UT.CRUISE || n.type === UT.SRBM) && this.has(n.owner, 'hyper') ? 0.5 : 1))) continue;
         n.sam = true; u.ready[s] = T + (this.lang ? this.samReload(u) : 90);
         const m = this.newUnit(UT.SAMM, u.owner, u.tile);
         m.target = n; m.src = u;
@@ -6321,7 +6369,13 @@ body.placing #cv { cursor: crosshair; }
     if (this.armed && this.armed.length) this.langArmTick();
     if (this.salvoQ && this.salvoQ.length) this.langSalvoTick();
     if (T % EVERY === 7) this.langBases();
-    if (T % EVERY === 0) for (let i = 0; i < this.humans.length; i++) { const h = this.humans[i]; if (h.evacW || h.units.some(function (u) { return u.evac !== undefined; })) this.langEvacW(h); }
+    if (T % 10 === 3) this.langResearch();
+    if (T % EVERY === 0) for (let i = 0; i < this.humans.length; i++) {
+      const h = this.humans[i];
+      // civil defence (research): threatened cities evacuate by themselves
+      if (this.has(h, 'zivil') && this.nukes.length) for (const u of h.units) if (u.type === UT.CITY && u.built && !this.evacuated(u) && this.cityThreat(u)) u.evac = T;
+      if (h.evacW || h.units.some(function (u) { return u.evac !== undefined; })) this.langEvacW(h);
+    }
     if (!ps) return;
     for (let i = 0; i < ps.length; i++) {
       const p = ps[i];
@@ -6401,9 +6455,9 @@ body.placing #cv { cursor: crosshair; }
     const CS = G.POST.cell;
     for (const u of p.units) {
       if (!u.active || !u.built || (u.type !== UT.CITY && u.type !== UT.PORT)) continue;
-      const d = Math.max(Math.abs(Math.floor(u.x / CS) - cx), Math.abs(Math.floor(u.y / CS) - cy));
-      if (d > 2) continue;
-      const w = (u.type === UT.CITY ? within(0.4 + 0.15 * u.level, 0, 1) : 0.6) * (d <= 1 ? 1 : 0.5);
+      const d = Math.max(Math.abs(Math.floor(u.x / CS) - cx), Math.abs(Math.floor(u.y / CS) - cy)), infra = this.has(p, 'infra');
+      if (d > (infra ? 4 : 2)) continue;
+      const w = (u.type === UT.CITY ? within(infra ? 0.5 * u.level : 0.4 + 0.15 * u.level, 0, 1) : 0.6) * (d <= (infra ? 2 : 1) ? 1 : 0.5);
       if (w > v) v = w;
       if (v >= 1) return 1;
     }
@@ -6418,7 +6472,7 @@ body.placing #cv { cursor: crosshair; }
     let sum = 0, n = 0;
     for (const id of front) { const c = post.cells.get(id); if (c && c.n > 0) { sum += this.postDens(p, c); n++; } }
     if (n < 2) return;
-    const avg = sum / n, line = L.wearOver * avg, per = post.H / p.tiles, rate = L.wear * EVERY / 600;
+    const avg = sum / n, line = L.wearOver * avg, per = post.H / p.tiles, rate = L.wear * EVERY / 600 * (this.has(p, 'tief') ? 0.5 : 1);
     let lost = 0;
     for (const id of front) {
       const c = post.cells.get(id);
@@ -6444,12 +6498,14 @@ body.placing #cv { cursor: crosshair; }
   // class 1 (missile defence) at atom and hydrogen bombs and MIRV warheads.
   Game.prototype.samCan = function (u, type) {
     if (u.cls === 2) return false;
-    return u.cls ? type === UT.ATOM || type === UT.HYDRO || type === UT.WARHEAD : type === UT.CRUISE || G.LANG_WEAPON(type);
+    if (u.cls) return (type === UT.ATOM && this.has(u.owner, 'abm3')) || (type === UT.HYDRO && this.has(u.owner, 'abm4')) || (type === UT.WARHEAD && this.has(u.owner, 'abm5'));
+    return type === UT.CRUISE || G.LANG_WEAPON(type);
   };
   // Shots per salvo: class 0 G.LANG.samShots per level, class 1 1 + floor(level / 4).
   Game.prototype.samShotsOf = function (u) {
     if (u.cls === 2) return 0;   // a radar only looks
-    return u.cls ? 1 + Math.floor(u.level / 4) : G.LANG.samShots * u.level;
+    const o = u.owner;
+    return u.cls ? 1 + Math.floor(u.level / 4) : (G.LANG.samShots + (this.has(o, 'abw2') ? 1 : 0) + (this.has(o, 'abw3a') ? 1 : 0)) * u.level;
   };
   Game.prototype.samSlots = function (u) {
     const n = this.samShotsOf(u), r = u.ready || (u.ready = []);
@@ -6470,7 +6526,7 @@ body.placing #cv { cursor: crosshair; }
       }
       u.stackF = Math.pow(L.abmStack, k);
     }
-    return Math.round(base / u.stackF);
+    return Math.round(base / u.stackF * (this.has(u.owner, 'abw4') ? 0.7 : 1));
   };
 
   // ---------- bombs on cities, evacuating, shelters ----------
@@ -6485,18 +6541,19 @@ body.placing #cv { cursor: crosshair; }
   Game.prototype.cityHit = function (u, type, inner) {
     const L = G.LANG, p = u.owner, L0 = u.level;
     let f = L.cityHit[type] * (inner ? 1 : 0.5);
-    if (u.shelter) f *= L.shelter;
+    if (u.shelter) f *= this.shelterF(p);
     const lost = f >= 1 ? L0 : Math.min(L0, Math.max(1, Math.round(L0 * f)));
     const L1 = L0 - lost, evac = this.evacuated(u);
     let dead = evac ? L.evacDie * this.cityPeople(p, L1 > 0 ? L1 : L0) : this.cityPeople(p, L0);
     if (!inner) dead *= 0.5;
-    if (u.shelter) dead *= L.shelter;
+    if (u.shelter) dead *= this.shelterF(p);
     dead = Math.min(dead, p.troops);
     p.troops -= dead;
     if (L1 <= 0) this.removeUnit(u);
     else { u.level = L1; p.cnt[UT.CITY] -= lost; p.cityLv -= lost; }
     if (p === this.human) this.say((L1 <= 0 ? 'Stadt zerstört' : 'Stadt verliert ' + lost + ' Stufe' + (lost === 1 ? '' : 'n')) + ', ' + G.fmtTroops(dead) + ' Tote' + (evac ? ' (evakuiert)' : ''), 'bad');
   };
+  Game.prototype.shelterF = function (p) { return this.has(p, 'schutz2') ? G.LANG.shelter2 : G.LANG.shelter; };
   // How far a bomb's blast reaches (outer ring).
   Game.prototype.blastOut = function (type) {
     const R = this.R;
@@ -6530,6 +6587,7 @@ body.placing #cv { cursor: crosshair; }
     const u = this.structNear(tile, 4), c = G.LANG.shelterCost;
     if (!u || u.owner !== p || u.type !== UT.CITY || !u.built) return 'Keine eigene Stadt';
     if (u.shelter) return 'Hat schon Schutzräume';
+    if (!this.has(p, 'schutz')) return 'Braucht Forschung: Schutzräume';
     if (p.gold < c && !(p.type === PT.HUMAN && this.opts.infiniteGold)) return 'Zu wenig Gold';
     p.gold -= c; u.shelter = 1;
     return '';
@@ -6554,12 +6612,14 @@ body.placing #cv { cursor: crosshair; }
   // Reach from the silo in tiles of this map: G.LANG.range is in tiles of the Earth (5600 wide),
   // scaled to the width of the map, but as if it were at least G.LANG.rangeW wide: on a small map
   // the weapons would otherwise reach only a few tiles.
-  Game.prototype.weaponReach = function (type) {
+  Game.prototype.weaponReach = function (type, p) {
     const r = G.LANG.range[type];
-    return r ? r / 5600 * Math.max(this.W, G.LANG.rangeW) : Infinity;
+    return r ? r / 5600 * Math.max(this.W, G.LANG.rangeW) * (p && G.LANG_WEAPON(type) || p && type === UT.CRUISE ? (this.has(p, 'rakR') ? 1.25 : 1) : 1) : Infinity;
   };
   // Why p may not fire this weapon now ('' if he may): nuclear weapons only late in the game.
   Game.prototype.weaponWhy = function (p, type) {
+    const need = this.techFor(type, 0);
+    if (need && p.type === PT.HUMAN && !this.has(p, need)) return 'Braucht Forschung: ' + G.TECH_BY[need].name;
     const from = G.LANG.nukeFrom[type];
     if (from && this.ticks - this.playStart + this.langEarly < from) return G.UNAME[type].replace('\u00AD', '') + ' erst ab Minute ' + Math.round(from / 600);
     return '';
@@ -6637,6 +6697,13 @@ body.placing #cv { cursor: crosshair; }
       if (!done && p === this.human) this.say('Geplanter Schlag: ' + G.UNAME[e.u].replace('\u00AD', '') + ' konnte nicht starten', 'warn');
     }
   };
+  // Research on the speed of weapons: Tempo (conventional x1.3), Hyperschall (cruise and short-range x1.5).
+  Game.prototype.weaponPace = function (p, type) {
+    let k = 1;
+    if ((G.LANG_WEAPON(type) || type === UT.CRUISE) && this.has(p, 'rakS')) k *= 1.3;
+    if ((type === UT.CRUISE || type === UT.SRBM) && this.has(p, 'hyper')) k *= 1.5;
+    return k;
+  };
   Game.prototype.cruiseHeatOf = function (p) {
     const l = p.cruiseT;
     if (!l) return 0;
@@ -6654,8 +6721,12 @@ body.placing #cv { cursor: crosshair; }
   // building on level 1 falls). Shelters of a city halve it.
   Game.prototype.structHit = function (v) {
     const o = v.owner, L0 = v.level;
-    let f = G.LANG.share;
-    if (v.shelter) f *= G.LANG.shelter;
+    return this.structHitBy(v, null);
+  };
+  Game.prototype.structHitBy = function (v, by) {
+    const o = v.owner, L0 = v.level;
+    let f = by && this.has(by, 'rakA2') ? 0.5 : by && this.has(by, 'rakA1') ? 0.35 : G.LANG.share;
+    if (v.shelter) f *= this.shelterF(o);
     const lost = L0 <= 1 ? 1 : Math.min(L0, Math.max(1, Math.round(L0 * f)));
     if (lost >= L0) { this.removeUnit(v); return; }
     v.level = L0 - lost; o.cnt[v.type] -= lost;
@@ -6676,14 +6747,14 @@ body.placing #cv { cursor: crosshair; }
   Game.prototype.allySees = function (a, b) { return this.allyAge(a, b) >= G.LANG.allySight; };
   Game.prototype.allyRadar = function (a, b) { return this.allyAge(a, b) >= G.LANG.allyRadar; };
   // Reach of a radar: (radarR[0] + radarR[1] x √level) x S tiles.
-  Game.prototype.radarRange = function (u) { return Math.round((G.LANG.radarR[0] + G.LANG.radarR[1] * Math.sqrt(u.level)) * this.S); };
+  Game.prototype.radarRange = function (u) { return Math.round((G.LANG.radarR[0] + G.LANG.radarR[1] * Math.sqrt(u.level)) * this.S * (this.has(u.owner, 'auf2') ? 1.5 : 1)); };
   // A spy (order spy): for G.LANG.spyTicks p sees q's troops, density and buildings.
   Game.prototype.sendSpy = function (p, q) {
-    const c = G.LANG.spyCost;
+    const better = this.has(p, 'spy2'), c = G.LANG.spyCost * (better ? 0.5 : 1);
     if (!q.alive) return 'Nicht möglich';
     if (p.gold < c && !this.opts.infiniteGold) return 'Zu wenig Gold';
     p.gold -= c;
-    (p.spy || (p.spy = {}))[q.id] = this.ticks + G.LANG.spyTicks;
+    (p.spy || (p.spy = {}))[q.id] = this.ticks + G.LANG.spyTicks * (better ? 2 : 1);
     if (p === this.human) this.say('Spion in ' + q.name + ': ' + Math.round(G.LANG.spyTicks / 600) + ' Minuten lang siehst du dort alles', 'good');
     return '';
   };
@@ -6726,19 +6797,183 @@ body.placing #cv { cursor: crosshair; }
     }
   };
 
+  // ---------- Paket 4: research ----------
+  // Universities are an upgrade of a city (u.uni), at most G.LANG.uniMax, only in cities of level
+  // uniLevel or more; they cost gold to build and keep, and every one brings research points (the
+  // larger the city, the more) for the one thing it works on (u.res). Steps cost points, not gold.
+  // Tiers 1 and 2 from the start, 3 from minute 15, 4 from 30, 5 from 45 (G.LANG.tierFrom). Steps
+  // with the same `or` exclude each other for the whole game. Nations get every step of their
+  // tier when it opens (the first of an `or`), so they keep working; they do not use the choice.
+  //   id, branch, tier, name, what it does (said on screen), needs (ids), or (group)
+  const T_ = function (id, br, tier, name, what, needs, or) { return { id: id, br: br, tier: tier, name: name, what: what, needs: needs || [], or: or || '' }; };
+  G.TECH = [
+    T_('blitz', 'Doktrin', 1, 'Blitzkrieg', 'Truppen marschieren schneller, Stösse starten mit mehr Schwung', [], 'doktrin'),
+    T_('tief', 'Doktrin', 1, 'Tiefenverteidigung', 'Eingraben schneller, Verteidigungsposten stärker, halbe Abnutzung bei Überdichte', [], 'doktrin'),
+    T_('auf1', 'Aufklärung', 1, 'Radarstation', 'Radar bauen (Taste X)'),
+    T_('auf2', 'Aufklärung', 2, 'Grösserer Radarkreis', 'Radare sehen 1.5-mal so weit', ['auf1']),
+    T_('spy2', 'Aufklärung', 2, 'Bessere Spione', 'Spione bleiben doppelt so lange, kosten die Hälfte'),
+    T_('auf3', 'Aufklärung', 3, 'Tarnung erkennen', 'Im Kreis eigener Radare sind getarnte Gebäude sichtbar', ['auf2']),
+    T_('auf4', 'Aufklärung', 4, 'Frühwarnradar', 'Bomben und Raketen siehst du im dreifachen Radarkreis', ['auf3']),
+    T_('auf5', 'Aufklärung', 5, 'Satellit', 'Jeder Raketenstart auf der Welt ist zu sehen', ['auf4']),
+    T_('abw1', 'Abwehr', 1, 'Flugabwehr', 'Kleine Flugabwehr und Raketenabwehr bauen'),
+    T_('abw2', 'Abwehr', 2, 'Mehr Schüsse', 'Kleine Flugabwehr: 3 statt 2 Schüsse pro Stufe', ['abw1']),
+    T_('schutz', 'Abwehr', 2, 'Schutzräume', 'Ausbau der Stadt: halber Schaden durch Bomben'),
+    T_('abw3a', 'Abwehr', 3, 'Noch mehr Schüsse', 'Kleine Flugabwehr: ein Schuss mehr pro Stufe', ['abw2'], 'abw3'),
+    T_('abw3b', 'Abwehr', 3, 'Mehr Reichweite', 'Flugabwehr reicht 1.3-mal so weit', ['abw2'], 'abw3'),
+    T_('abm3', 'Abwehr', 3, 'Raketenabwehr gegen Atombomben', 'Die Raketenabwehr fängt Atombomben ab', ['abw1']),
+    T_('schutz2', 'Abwehr', 3, 'Stärkere Schutzräume', 'Schutzräume lassen nur noch 30 % des Schadens durch', ['schutz']),
+    T_('abw4', 'Abwehr', 4, 'Schneller nachladen', 'Flugabwehr lädt 30 % schneller nach', ['abw2']),
+    T_('abm4', 'Abwehr', 4, 'Raketenabwehr gegen Wasserstoffbomben', 'Die Raketenabwehr fängt auch Wasserstoffbomben ab', ['abm3']),
+    T_('zivil', 'Abwehr', 4, 'Zivilschutz', 'Bedrohte Städte evakuieren von selbst', ['schutz']),
+    T_('abm5', 'Abwehr', 5, 'Raketenabwehr gegen MIRV', 'Die Raketenabwehr fängt einzelne MIRV-Sprengköpfe ab', ['abm4']),
+    T_('rak1', 'Raketen', 1, 'Marschflugkörper', 'Marschflugkörper abfeuern'),
+    T_('rak2', 'Raketen', 2, 'Streubombe', 'Streubombe gegen Truppen an der Front', ['rak1']),
+    T_('rakR', 'Raketen', 2, 'Reichweite', 'Alle konventionellen Waffen reichen 1.25-mal so weit', ['rak1']),
+    T_('rak3a', 'Raketen', 3, 'Bunkerbrecher', 'Zerstört Gebäude trotz Schutzräumen', ['rak2'], 'rak3'),
+    T_('rak3b', 'Raketen', 3, 'Thermobare Bombe', 'Mittleres Gebiet, Truppen und Gebäude, ohne Verstrahlung', ['rak2'], 'rak3'),
+    T_('rakA1', 'Raketen', 3, 'Sprengkraft', 'Marschflugkörper nimmt 35 % der Stufen', ['rak1']),
+    T_('rak4', 'Raketen', 4, 'Kurzstreckenrakete', 'Schnell, schwer abzufangen, kurze Reichweite', ['rak2']),
+    T_('rakA2', 'Raketen', 4, 'Mehr Sprengkraft', 'Marschflugkörper nimmt 50 % der Stufen', ['rakA1']),
+    T_('rakS', 'Raketen', 4, 'Tempo', 'Konventionelle Waffen fliegen 1.3-mal so schnell', ['rakR']),
+    T_('hyper', 'Raketen', 5, 'Hyperschall', 'Marschflugkörper und Kurzstreckenraketen: kaum abzufangen, kürzere Vorwarnzeit', ['rak4']),
+    T_('atom', 'Atomwaffen', 4, 'Atombombe', 'Atombombe bauen (nicht verbesserbar)'),
+    T_('hydro', 'Atomwaffen', 5, 'Wasserstoffbombe', 'Wasserstoffbombe bauen', ['atom']),
+    T_('mirv', 'Atomwaffen', 5, 'MIRV', 'MIRV bauen (ab Minute 60)', ['hydro']),
+    T_('heer1', 'Heer', 1, 'Eingraben', 'Eingegrabene Truppen verlieren noch weniger: Angreifer bis 4-mal so viele Verluste'),
+    T_('infra', 'Heer', 2, 'Infrastruktur', 'Städte versorgen im doppelten Umkreis, eine Stadt ab Stufe 2 voll'),
+    T_('heer2', 'Heer', 2, 'Schienen', 'Auf Schienen marschieren Truppen schneller', ['heer1']),
+    T_('heer3a', 'Heer', 3, 'Warthog', 'Keile und Abschnitte verlieren 15 % weniger Truppen', ['heer2'], 'heer3'),
+    T_('heer3b', 'Heer', 3, 'Apache', 'Feinde kommen hinter deiner Front 1.3-mal langsamer voran', ['heer2'], 'heer3'),
+    T_('posten', 'Heer', 3, 'Stärkere Posten', 'Verteidigungsposten 1.3-mal so stark', ['heer1']),
+    T_('heer4', 'Heer', 4, 'Panzerkeil', 'Deine Angriffe verlieren 30 % langsamer Schwung', ['heer2', 'blitz']),
+    T_('heer5', 'Heer', 5, 'Stärkstes Eingraben', 'Eingegrabene Truppen: Angreifer bis 5-mal so viele Verluste', ['heer1', 'tief']),
+    T_('pionier', 'Heer', 5, 'Pioniere', 'Gebirge, Wald und Flüsse bremsen deinen Angriff weniger', ['heer2'])
+  ];
+  const TECH = G.TECH_BY = {};
+  for (const t of G.TECH) TECH[t.id] = t;
+  // What a step costs in points, and from when its tier can be researched.
+  Game.prototype.techCost = function (id) { return G.LANG.tierCost[TECH[id].tier - 1]; };
+  Game.prototype.tierOpen = function (tier) { return this.ticks - this.playStart + this.langEarly >= G.LANG.tierFrom[tier - 1]; };
+  // Has p researched id? Bots have nothing; nations everything of the tiers open (src: langNationTech).
+  Game.prototype.has = function (p, id) { return !!p && !!p.tech && p.tech[id] === 1; };
+  // Can p start on id now: open tier, what it needs done, not done, not shut out by an `or`.
+  Game.prototype.techWhy = function (p, id) {
+    const t = TECH[id];
+    if (!t) return 'Gibt es nicht';
+    if (this.has(p, id)) return 'Schon erforscht';
+    if (p.tech && p.tech[id] === -1) return 'Durch eine andere Wahl ausgeschlossen';
+    if (!this.tierOpen(t.tier)) return 'Stufe ' + t.tier + ' ab Minute ' + Math.round(G.LANG.tierFrom[t.tier - 1] / 600);
+    for (const n of t.needs) if (!this.has(p, n)) return 'Braucht zuerst: ' + TECH[n].name;
+    return '';
+  };
+  // A step is done: the others of its `or` are gone for this game.
+  Game.prototype.techDone = function (p, id) {
+    const t = TECH[id], tech = p.tech || (p.tech = {});
+    tech[id] = 1;
+    if (t.or) for (const o of G.TECH) if (o.or === t.or && o.id !== id && tech[o.id] !== 1) tech[o.id] = -1;
+    for (const u of p.units) if (u.res && u.res.id === id) u.res = null;
+    if (p === this.human) this.say('Erforscht: ' + t.name, 'good');
+    if (t.id === 'auf2' || t.id === 'abw2' || t.id === 'abw3a') for (const u of p.units) if (u.type === UT.SAM) this.samSlots(u);
+  };
+  // Order: build a university in an own city.
+  Game.prototype.buildUni = function (p, tile) {
+    const u = this.structNear(tile, 4), L = G.LANG;
+    if (!u || u.owner !== p || u.type !== UT.CITY || !u.built) return 'Keine eigene Stadt';
+    if (u.uni) return 'Hat schon eine Uni';
+    if (u.level < L.uniLevel) return 'Erst ab Stadtstufe ' + L.uniLevel;
+    let n = 0;
+    for (const v of p.units) if (v.uni) n++;
+    if (n >= L.uniMax) return 'Höchstens ' + L.uniMax + ' Unis';
+    if (p.gold < L.uniCost && !this.opts.infiniteGold) return 'Zu wenig Gold';
+    p.gold -= L.uniCost; u.uni = 1; u.res = null;
+    return '';
+  };
+  // Order: a university (the free one, or the one asked for) works on id.
+  Game.prototype.research = function (p, id, tile) {
+    const why = this.techWhy(p, id);
+    if (why) return why;
+    for (const v of p.units) if (v.res && v.res.id === id) return 'Wird schon erforscht';
+    let uni = tile >= 0 ? this.structNear(tile, 4) : null;
+    if (uni && (uni.owner !== p || !uni.uni)) uni = null;
+    if (!uni) for (const v of p.units) if (v.uni && !v.res) { uni = v; break; }
+    if (!uni) return 'Keine freie Uni';
+    const kept = p.techPts && p.techPts[id] || 0;   // what a fallen university had done is kept
+    uni.res = { id: id, pts: kept };
+    return '';
+  };
+  // Points per tick of a university: uniRp x (1 + level / 10) of its city.
+  Game.prototype.uniRate = function (u) { return G.LANG.uniRp * (1 + u.level / 10); };
+  // Every 10 ticks: universities work and cost their upkeep; nations take what their time allows.
+  Game.prototype.langResearch = function () {
+    const L = G.LANG, ps = this.players;
+    for (let i = 1; i < ps.length; i++) {
+      const p = ps[i];
+      if (!p.alive) continue;
+      if (p.type === PT.NATION) { this.langNationTech(p); continue; }
+      for (const u of p.units) {
+        if (!u.uni || u.type !== UT.CITY) continue;
+        const pay = Math.min(p.gold, L.uniUpkeep * 10);
+        p.gold -= pay;
+        if (!u.res || pay < L.uniUpkeep * 10) continue;   // without gold a university stands still
+        u.res.pts += this.uniRate(u) * 10;
+        (p.techPts || (p.techPts = {}))[u.res.id] = u.res.pts;
+        if (u.res.pts >= this.techCost(u.res.id)) this.techDone(p, u.res.id);
+      }
+    }
+  };
+  Game.prototype.langNationTech = function (p) {
+    for (const t of G.TECH) if (!this.techWhy(p, t.id) && !(t.or && G.TECH.some((o) => o.or === t.or && o.id !== t.id && this.has(p, o.id)))) { const tech = p.tech || (p.tech = {}); tech[t.id] = 1; if (t.or) for (const o of G.TECH) if (o.or === t.or && o.id !== t.id && tech[o.id] !== 1) tech[o.id] = -1; }
+  };
+  // What p researches right now (for the screen: neighbours, allies and spies see it).
+  Game.prototype.researching = function (p) {
+    const out = [];
+    for (const u of p.units) if (u.res) out.push(TECH[u.res.id].name);
+    return out;
+  };
+  // Giving and selling technology to an ally: the giver offers (price 0 = a gift), the taker accepts.
+  Game.prototype.techOffer = function (p, q, id, price) {
+    if (!this.has(p, id) || !p.allies.has(q.id)) return 'Nicht möglich';
+    if (this.has(q, id) || (q.tech && q.tech[id] === -1)) return q.name + ' kann das nicht mehr erforschen';
+    price = Math.max(0, Math.min(1e9, Math.round(+price || 0)));
+    if (!price) { this.techDone(q, id); if (q === this.human) this.say(p.name + ' schenkt dir: ' + TECH[id].name, 'good'); return ''; }
+    (q.techOffers || (q.techOffers = {}))[id] = { from: p.id, price: price, until: this.ticks + 1200 };
+    if (q === this.human) this.say(p.name + ' bietet dir ' + TECH[id].name + ' für ' + G.fmt(price) + ' an (Forschung)', 'info');
+    if (q.type === PT.NATION && q.gold >= price * 2) return this.techTake(q, p, id);
+    return '';
+  };
+  Game.prototype.techTake = function (q, p, id) {
+    const o = q.techOffers && q.techOffers[id];
+    if (!o || o.from !== p.id || o.until < this.ticks || !p.allies.has(q.id)) return 'Kein Angebot';
+    if (q.gold < o.price) return 'Zu wenig Gold';
+    q.gold -= o.price; p.gold += o.price; delete q.techOffers[id];
+    this.techDone(q, id);
+    return '';
+  };
+  // The step a weapon or building needs (by UT, and class for the air defences).
+  Game.prototype.techFor = function (type, cls) {
+    switch (type) {
+      case UT.CRUISE: return 'rak1'; case UT.CLUSTER: return 'rak2'; case UT.BUNKER: return 'rak3a'; case UT.THERMO: return 'rak3b';
+      case UT.SRBM: return 'rak4'; case UT.ATOM: return 'atom'; case UT.HYDRO: return 'hydro'; case UT.MIRV: return 'mirv';
+      case UT.SAM: return cls === 2 ? 'auf1' : 'abw1';
+    }
+    return '';
+  };
+
   // ---------- digging in and defence posts ----------
   // A cell that loses nothing digs in: from 0 to 1 within G.LANG.digTicks. Every tile it loses
   // takes G.LANG.digDrop of it again. Fresh land starts at 0.
-  Game.prototype.digOf = function (c) {
+  Game.prototype.digOf = function (c, p) {
     if (!c || c.dig0 === undefined) return 0;
-    return within((this.ticks - c.dig0) / G.LANG.digTicks, 0, 1);
+    return within((this.ticks - c.dig0) / (G.LANG.digTicks * (p && this.has(p, 'tief') ? 0.6 : 1)), 0, 1);
   };
+  // How much more an attacker loses on fully dug-in ground of p: 1 + this.
+  Game.prototype.digLossOf = function (p) { return G.LANG.digLoss + (this.has(p, 'heer1') ? 1 : 0) + (this.has(p, 'heer5') ? 1 : 0); };
   Game.prototype.digLose = function (c) {
     const e = this.digOf(c), L = G.LANG;
     c.dig0 = this.ticks - Math.max(0, e - L.digDrop) * L.digTicks;
   };
   // What a defence post does to a tile it covers: [factor on losses, factor on time].
-  Game.prototype.postMag = function (level) { return this.lang ? G.LANG.postLoss[0] + G.LANG.postLoss[1] * level : 3 + 2 * level; };
+  Game.prototype.postMag = function (level, p) { return this.lang ? (G.LANG.postLoss[0] + G.LANG.postLoss[1] * level) * (p && this.has(p, 'tief') ? 1.2 : 1) * (p && this.has(p, 'posten') ? 1.3 : 1) : 3 + 2 * level; };
   Game.prototype.postSpd = function (level) { return this.lang ? 1 + G.LANG.postTime * level : 1 + 2 * level; };
 
 })(globalThis.G = globalThis.G || {});
@@ -8359,6 +8594,8 @@ void main() { outc = texture(uColor, vUV); }`;
     defense: 'M12 2l8.5 3.2v6.3c0 5.2-3.6 9-8.5 10.5c-4.9-1.5-8.5-5.3-8.5-10.5V5.2z',
     port: 'M12 1.4a3.1 3.1 0 1 1 0 6.2a3.1 3.1 0 1 1 0-6.2zM12 3.1a1.4 1.4 0 1 0 0 2.8a1.4 1.4 0 1 0 0-2.8zM10.7 7.4h2.6V20h-2.6zM7 9.2h10v2.4H7zM20.8 13A8.8 8.8 0 0 1 3.2 13H6A6 6 0 0 0 18 13zM1.6 14.6L4.4 9.6L7.6 13.8zM22.4 14.6L16.4 13.8L19.6 9.6z',
     silo: 'M12 1c2 1.6 3 4 3 6.8V17H9V7.8C9 5 10 2.6 12 1zM9 12.2l-3.2 3.4V20L9 18zM15 12.2l3.2 3.4V20L15 18zM10 18h4v2l-2 2.2l-2-2.2z',
+    // «Langes Spiel»: research
+    flask: 'M9 2h6v2h-1v5.2l5.6 9.7A2 2 0 0 1 17.9 22H6.1a2 2 0 0 1-1.7-3.1L10 9.2V4H9zM8.2 15l-1.8 3.2V20h11.2v-1.8L15.8 15z',
     // «Langes Spiel»: the radar, a dish on a mast
     radar: 'M4 4a11 11 0 0 1 14 14zM7.5 7.5l5 5M12.5 12.5l2-2M11 15l-2 6h6l-2-6zM3 21h18v2H3z',
     // «Langes Spiel»: the conventional weapons
@@ -8441,6 +8678,8 @@ void main() { outc = texture(uColor, vUV); }`;
     const h = g.human;
     if (!g.lang || !FOG || !h || u.owner === h || g.friendly(u.owner, h)) return false;
     if (fogSeen(g, Math.round(u.y) * g.W + Math.round(u.x))) return false;
+    if (g.has(h, 'auf5')) return false;   // research Satellit: every launch on the world is seen
+    if (g.has(h, 'auf4')) for (const r of h.units) if (r.type === UT.SAM && r.cls === 2 && r.built) { const R3 = 3 * g.radarRange(r); if ((r.x - u.x) * (r.x - u.x) + (r.y - u.y) * (r.y - u.y) <= R3 * R3) return false; }   // early warning radar
     if (g.owner[u.dy * g.W + u.dx] === h.id && (1 - u.prog) * u.dist / Math.max(0.01, u.speed) <= 100) return false;
     return true;
   }
@@ -12156,7 +12395,7 @@ void main() { outc = texture(uColor, vUV); }`;
     $('hud').hidden = false; $('spawnBar').hidden = false; $('ctrl').hidden = true; $('lb').hidden = true; $('aimBar').hidden = true;
     netOn = false; stroke = null; netQueue.clear(); lastTile = -1; commitAt = -99; view.net.on = false; view.net.edit.clear(); view.net.w = 0; view.net.at = -1e9;
     $('peek').hidden = true; trainSeen = 0; shipSeen = 0; incAt = -99; incLog.length = 0; $('incLine').hidden = true; $('incLine').dataset.html = '';
-    $('bNet').hidden = true; $('bNet').setAttribute('aria-pressed', 'false'); $('netBar').hidden = true; $('commit').textContent = ''; quick = null; $('brushBtns').hidden = true; syncBrushBtns(); showKeys(false);
+    $('bTech').hidden = true; $('bNet').hidden = true; $('bNet').setAttribute('aria-pressed', 'false'); $('netBar').hidden = true; $('commit').textContent = ''; quick = null; $('brushBtns').hidden = true; syncBrushBtns(); showKeys(false);
     $('bRes').hidden = true;
     plans.length = 0; syncPlans();
     $('mPunkt').hidden = !game.punkt; setThrust(cfg.thrust);
@@ -12265,7 +12504,7 @@ void main() { outc = texture(uColor, vUV); }`;
         addAsk('r' + q.id, 'Die Allianz mit ' + q.name + ' läuft bald ab', 'Verlängern', 'Auslaufen lassen',
           function () { act({ k: 'renew', p: q.id }); }, function () { /* let it run out */ });
       } else if (e.k === 'start') {
-        $('spawnBar').hidden = true; $('ctrl').hidden = false; $('lb').hidden = false; $('bNet').hidden = !h.post || !game.netz; $('brushBtns').hidden = !h.post || !game.netz; $('bRes').hidden = !game.res;
+        $('spawnBar').hidden = true; $('ctrl').hidden = false; $('lb').hidden = false; $('bTech').hidden = !game.lang; $('bNet').hidden = !h.post || !game.netz; $('brushBtns').hidden = !h.post || !game.netz; $('bRes').hidden = !game.res;
         if (game.pfeile && !game.lv) addMsg('Pfeile mit der rechten Maustaste planen, dann «Angreifen».', 'info');
         const W = game.W;
         view.flyTo(h.spawnTile % W, (h.spawnTile / W) | 0, within(Math.min(view.cw, view.ch) / 70, 2.2, 6));
@@ -12524,6 +12763,13 @@ void main() { outc = texture(uColor, vUV); }`;
       if (game.lang) {
         s += '<button class="btn ghost" data-act="spy" type="button">' + (game.spying(h, p) ? 'Spion ist dort · ' + Math.ceil((h.spy[p.id] - T) / 600) + ' min' : 'Spion schicken (' + fmt(G.LANG.spyCost) + ')') + '</button>';
         if (al && p.type === PT.HUMAN) s += '<button class="btn ghost" data-act="host" type="button">' + (h.hostOk && h.hostOk[p.id] ? 'Stützpunkte verbieten' : 'Stützpunkte erlauben') + '</button>';
+        // research is seen by neighbours, allies and spies (a hydrogen bomb in the works warns everyone)
+        const rs = game.researching(p);
+        if (rs.length && (al || game.spying(h, p) || game.sharesBorder(h, p.id))) s += '<p class="notes">Forscht an: ' + rs.map(esc).join(', ') + '</p>';
+        if (al) {
+          const mine = G.TECH.filter(function (t) { return game.has(h, t.id) && !game.has(p, t.id) && !(p.tech && p.tech[t.id] === -1); });
+          if (mine.length) s += '<div class="acts"><select id="giveTech">' + mine.map(function (t) { return '<option value="' + t.id + '">' + esc(t.name) + '</option>'; }).join('') + '</select><select id="givePrice"><option value="0">schenken</option><option value="500000">für 500K</option><option value="1000000">für 1M</option><option value="3000000">für 3M</option></select><button class="btn ghost" data-act="give" type="button">Technik weitergeben</button></div>';
+        }
         if (al) { const age = game.allyAge(h, p), L = G.LANG; s += '<p class="notes">Bündnis seit ' + Math.floor(age / 600) + ' min: ' + (age >= L.allyRadar ? 'Sicht, Radar und Stützpunkte geteilt' : age >= L.allySight ? 'Sicht geteilt, Radar und Stützpunkte ab Minute ' + Math.round(L.allyRadar / 600) : 'Sicht ab Minute ' + Math.round(L.allySight / 600)) + '</p>'; }
       }
     }
@@ -12576,6 +12822,10 @@ void main() { outc = texture(uColor, vUV); }`;
     if (what === 'troops') { act({ k: 'don', p: p.id, g: 'troops', r: ratio, say: 'Truppen an ' + p.name + ' geschickt' }); return; }
     if (what === 'gold') { act({ k: 'don', p: p.id, g: 'gold', say: 'Gold an ' + p.name + ' geschickt' }); return; }
     if (what === 'renew') { act({ k: 'renew', p: p.id }); dropAsk('r' + p.id); return; }
+    if (what === 'tech') { showTech(); return; }
+    if (what.indexOf('tech:') === 0) { act({ k: 'research', id: what.slice(5), say: 'Forschung gestartet' }); setTimeout(function () { if (modalKind === 'tech') showTech(); }, 150); return; }
+    if (what.indexOf('take:') === 0) { const pr = what.split(':'); act({ k: 'techtake', p: +pr[2], id: pr[1], say: 'Gekauft' }); setTimeout(function () { if (modalKind === 'tech') showTech(); }, 150); return; }
+    if (what === 'give') { const sel = $('giveTech'), pr = $('givePrice'); if (sel && sel.value) act({ k: 'techoffer', p: p.id, id: sel.value, price: +pr.value, say: +pr.value ? 'Angebot an ' + p.name + ' geschickt' : 'An ' + p.name + ' geschenkt' }); return; }
     if (what === 'spy') { if (!game.spying(h, p)) act({ k: 'spy', p: p.id }); return; }
     if (what === 'host') { act({ k: 'host', p: p.id, on: h.hostOk && h.hostOk[p.id] ? 0 : 1, say: h.hostOk && h.hostOk[p.id] ? 'Keine Stützpunkte mehr für ' + p.name : p.name + ' darf Stützpunkte bei dir bauen' }); return; }
     if (what === 'embargo') { act({ k: 'emb', p: p.id, on: h.embargo.has(p.id) ? 0 : 1 }); return; }
@@ -12683,6 +12933,10 @@ void main() { outc = texture(uColor, vUV); }`;
         btns += '</div>';
       }
       // «Langes Spiel»: shelters, an upgrade of the city
+      if (game.lang && near.type === UT.CITY) {
+        if (near.uni) btns += '<div class="uprow"><small>Uni: ' + (near.res ? 'forscht an ' + esc(G.TECH_BY[near.res.id].name) + ' (' + Math.floor(100 * near.res.pts / game.techCost(near.res.id)) + ' %)' : 'frei, wähle unter «Forschung»') + ' · ' + (Math.round(game.uniRate(near) * 100) / 10).toLocaleString('de-CH') + ' Punkte/s</small></div>';
+        else btns += '<div class="uprow"><button class="upbtn" type="button" data-uni="1"' + (near.level >= G.LANG.uniLevel && (rich || h.gold >= G.LANG.uniCost) ? '' : ' disabled') + '><span>Uni bauen' + (near.level < G.LANG.uniLevel ? ' (ab Stufe ' + G.LANG.uniLevel + ')' : '') + '</span>' + coin(G.LANG.uniCost) + '</button></div>';
+      }
       if (game.lang && near.type === UT.CITY) btns += near.shelter ? '<div class="uprow"><small>Schutzräume: halb so viele Tote, halb so viele verlorene Stufen bei einem Treffer</small></div>' : '<div class="uprow"><button class="upbtn" type="button" data-shelter="1"' + (rich || h.gold >= G.LANG.shelterCost ? '' : ' disabled') + '><span>Schutzräume</span>' + coin(G.LANG.shelterCost) + '</button></div>';
       html += '<div class="scard"><div class="shead"><span class="ic big">' + svg(BUILD.find(function (b) { return b.t === near.type; }).icon, 30) + '</span>' +
         '<div class="sinfo"><b>' + G.UNAME[near.type] + ' · Stufe ' + near.level + (top > 10 ? ' von ' + top : '') + '</b>' + bar +
@@ -12754,6 +13008,37 @@ void main() { outc = texture(uColor, vUV); }`;
     if (el.dataset.html !== s) { el.innerHTML = s; el.dataset.html = s; }
     el.hidden = !s;
   }
+  // «Langes Spiel»: the research window (src/04c_lang.js, G.TECH). Five tiers in columns, the
+  // branches in rows; a tap on a step that can be started gives it to a free university.
+  function showTech() {
+    const h = game.human, T = game.ticks;
+    let unis = 0, free = 0, rate = 0;
+    for (const u of h.units) if (u.uni) { unis++; if (!u.res) free++; rate += game.uniRate(u) * 10; }
+    const run = {};
+    for (const u of h.units) if (u.res) run[u.res.id] = u.res.pts;
+    let s = '<div id="techCard"><h2>Forschung</h2><p>' + (unis ? unis + (unis === 1 ? ' Uni' : ' Unis') + ', ' + free + ' frei · ' + (Math.round(rate * 10) / 10).toLocaleString('de-CH') + ' Punkte/s' : 'Noch keine Uni: Baue eine in einer Stadt ab Stufe ' + G.LANG.uniLevel + ' (Ausbaukarte der Stadt).') + '</p>';
+    if (h.techOffers) for (const id in h.techOffers) { const o = h.techOffers[id], q = game.players[o.from]; if (o.until > T && q) s += '<p class="notes">' + esc(q.name) + ' bietet ' + esc(G.TECH_BY[id].name) + ' für ' + fmt(o.price) + ' <button class="btn ghost" data-act="take:' + id + ':' + q.id + '" type="button">Kaufen</button></p>'; }
+    const branches = [];
+    for (const t of G.TECH) if (branches.indexOf(t.br) < 0) branches.push(t.br);
+    for (const br of branches) {
+      s += '<h3>' + esc(br) + '</h3><div class="tb2">';
+      for (let tier = 1; tier <= 5; tier++) {
+        s += '<div>';
+        if (br === branches[0]) s += '';
+        for (const t of G.TECH) {
+          if (t.br !== br || t.tier !== tier) continue;
+          const done = game.has(h, t.id), gone = h.tech && h.tech[t.id] === -1, why = game.techWhy(h, t.id), pts = run[t.id];
+          const cls = done ? 'done' : gone ? 'gone' : pts !== undefined ? 'run' : !why && free ? 'can' : 'lock';
+          const state = done ? 'erforscht' : gone ? 'ausgeschlossen' : pts !== undefined ? Math.floor(100 * pts / game.techCost(t.id)) + ' %' : why ? why : free ? game.techCost(t.id) + ' Punkte · antippen' : 'keine Uni frei';
+          s += '<button type="button" class="tk ' + cls + '"' + (cls === 'can' ? ' data-act="tech:' + t.id + '"' : '') + ' title="' + esc(t.what) + '"><b>' + tier + ' · ' + esc(t.name) + (t.or ? ' (oder)' : '') + '</b><small>' + esc(t.what) + '</small><small>' + esc(state) + '</small></button>';
+        }
+        s += '</div>';
+      }
+      s += '</div>';
+    }
+    s += '<p class="hint">Stufe 1 und 2 ab dem Start, 3 ab Minute 15, 4 ab 30, 5 ab 45. Bei «oder» ist die andere Wahl danach für dieses Spiel weg.</p><button class="btn ghost" data-act="close" type="button">Schliessen</button></div>';
+    openModal(s, 'tech');
+  }
   function fireSalvo() {
     act({ k: 'salvo', list: salvoList.slice(), say: salvoList.length + ' Schläge gestartet: sie schlagen gleichzeitig ein' });
     salvoList.length = 0; view.salvo = salvoList;
@@ -12802,9 +13087,10 @@ void main() { outc = texture(uColor, vUV); }`;
   function closeBuild() { $('sheet').hidden = true; if (view) { view.mark = -1; view.selUnit = null; } }
   function onBuild(e) {
     if (performance.now() - sheetAt < 350) return;
-    const b = e.target.closest('[data-t],[data-up],[data-shelter]');
+    const b = e.target.closest('[data-t],[data-up],[data-shelter],[data-uni]');
     if (!b || b.disabled) return;
-    if (b.dataset.shelter) act({ k: 'shelter', t: buildTile, say: 'Schutzräume gebaut' });
+    if (b.dataset.uni) act({ k: 'uni', t: buildTile, say: 'Uni gebaut' });
+    else if (b.dataset.shelter) act({ k: 'shelter', t: buildTile, say: 'Schutzräume gebaut' });
     else if (b.dataset.up) doUpgrade(buildTile, +b.dataset.up);
     else {
       const t = +b.dataset.t;
@@ -13798,6 +14084,7 @@ void main() { outc = texture(uColor, vUV); }`;
     $('rS').addEventListener('click', function () { radialAct('S'); });
     $('rW').addEventListener('click', function () { radialAct('W'); });
     $('sheetBody').addEventListener('click', onBuild);
+    $('bTech').innerHTML = svg('flask', 20); $('bTech').addEventListener('click', function () { if (game && game.lang) showTech(); });
     $('evac').addEventListener('click', function (e) { const b = e.target.closest('[data-evac]'); if (b && !b.disabled) act({ k: 'evac', t: +b.dataset.evac, say: 'Stadt wird evakuiert' }); });
     // Closing the card of an air defence or factory with the cross keeps the rings of all of that
     // kind on the map (25.11.2026), until the next tap on the map or Escape.

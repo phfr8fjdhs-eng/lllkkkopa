@@ -112,6 +112,7 @@
     if (i >= 0) o.units.splice(i, 1);
     o.cnt[u.type] -= u.level; np.cnt[u.type] += u.level;
     u.owner = np; np.units.push(u);
+    if (u.uni) { delete u.uni; u.res = null; }   // «Langes Spiel»: a fallen city loses its university; what was learnt stays
     if (u.type === UT.SAM && this.lang) this.samSig = (this.samSig | 0) + 1;
     if (u.type === UT.CITY) { o.cityLv -= u.level; np.cityLv += u.level; }
     else if (u.type === UT.DEFENSE) { this.refreshPosts(o); this.refreshPosts(np); this.dirtyDisc(u.tile); }
@@ -278,7 +279,7 @@
   // reach (type), and the one the player picked (pick, a unit id) if it can.
   Game.prototype.readySilo = function (p, tile, type, pick) {
     const W = this.W, tx = tile % W, ty = (tile / W) | 0, T = this.ticks;
-    const reach = this.lang && type !== undefined ? this.weaponReach(type) : Infinity, r2 = reach * reach;
+    const reach = this.lang && type !== undefined ? this.weaponReach(type, p) : Infinity, r2 = reach * reach;
     let best = null, bd = Infinity, any = false, far = false;
     for (const u of p.units) {
       if (u.type !== UT.SILO || !u.built) continue;
@@ -304,6 +305,7 @@
       if (type === UT.CLOAK && !this.opts.arsenal) { res.why = 'Nur im Arsenal-Modus'; return res; }
       // «Langes Spiel»: a base in an ally's land (src/04c_lang.js, baseHost)
       const host = this.owner[tile] !== p.id && this.lang ? this.baseHost(p, tile, type) : null;
+      if (this.lang && p.type === PT.HUMAN && type === UT.SAM && !this.has(p, this.techFor(UT.SAM, cls))) { res.why = 'Braucht Forschung: ' + G.TECH_BY[this.techFor(UT.SAM, cls)].name; return res; }
       if (this.owner[tile] !== p.id && !host) { res.why = this.lang && this.owner[tile] && p.allies.has(this.owner[tile]) ? this.baseWhy(p, tile, type) : 'Nur auf eigenem Gebiet'; return res; }
       res.base = host;
       if (type === UT.PORT) {
@@ -1081,7 +1083,7 @@
     const u = this.newUnit(type, p, silo.tile);
     u.dst = tile; u.sx = u.x; u.sy = u.y; u.dx = tile % W; u.dy = (tile / W) | 0;
     u.dist = Math.max(1, Math.hypot(u.dx - u.sx, u.dy - u.sy));
-    u.prog = 0; u.speed = this.R.nukeSpeed * (type === UT.SRBM ? G.LANG.srbmSpeed : G.lowFly(type) ? 1.6 : 1); u.tid = this.owner[tile]; u.sam = false; u.delay = 0;
+    u.prog = 0; u.speed = this.R.nukeSpeed * (type === UT.SRBM ? G.LANG.srbmSpeed : G.lowFly(type) ? 1.6 : 1) * (this.lang ? this.weaponPace(p, type) : 1); u.tid = this.owner[tile]; u.sam = false; u.delay = 0;
     this.addUnit(u);
     this.fx.push({ k: 'launch', x: u.x, y: u.y, mine: p === this.human });
     if (this.lang) this.langLaunch(p, u);   // outcast after a nuclear weapon, the price of cruise missiles (src/04c_lang.js)
@@ -1162,7 +1164,7 @@
         if (!v.active || !v.built || (levelRule ? v.type > UT.CLOAK : v.type !== UT.CITY)) continue;
         const vd2 = (v.x - cx) * (v.x - cx) + (v.y - cy) * (v.y - cy);
         if (vd2 > out2) continue;
-        if (levelRule) this.structHit(v); else this.cityHit(v, type, vd2 <= in2);
+        if (levelRule) this.structHitBy(v, u.owner); else this.cityHit(v, type, vd2 <= in2);
         if (v.active) (keep || (keep = new Set())).add(v.tile);
       }
     }
@@ -1239,7 +1241,7 @@
   };
   // Reach of an air defence: 70 tiles at level 1, growing with every level towards 150 (scaled to the map).
   Game.prototype.samRange = function (u) {
-    return Math.round((150 - 480 / (u.level + 5)) * this.S * this.reach);
+    return Math.round((150 - 480 / (u.level + 5)) * this.S * this.reach * (this.lang && this.has(u.owner, 'abw3b') ? 1.3 : 1));
   };
   Game.prototype.sammSpeed = function () { return Math.max(5, 14 * this.S) * (this.lang ? G.LANG.air : 1); };
   // What an air defence may shoot at. The MIRV itself flies too high; its warheads do not, and
@@ -1305,7 +1307,7 @@
       for (const n of this.nukes) {
         if (!n.active || n.sam || !(this.lang ? this.samCan(u, n.type) : G.canIntercept(n.type))) continue;
         if (n.owner === u.owner || this.friendly(n.owner, u.owner)) continue;
-        if (!this.samSolve(u, n, sr * G.seenAt(n.type))) continue;
+        if (!this.samSolve(u, n, sr * G.seenAt(n.type) * (this.lang && (n.type === UT.CRUISE || n.type === UT.SRBM) && this.has(n.owner, 'hyper') ? 0.5 : 1))) continue;
         n.sam = true; u.ready[s] = T + (this.lang ? this.samReload(u) : 90);
         const m = this.newUnit(UT.SAMM, u.owner, u.tile);
         m.target = n; m.src = u;

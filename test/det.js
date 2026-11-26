@@ -16,6 +16,8 @@ const KAMPF = process.argv[2] === 'grenzland' || process.argv[2] === 'grenzen' ?
 const seed = 4242, map = G.buildMap(480, 300, G.randomClassMap(480, 300, seed), seed, { id: 'zufall', name: 'Test', nations: [] });
 const make = () => { const g = new G.Game(map, { seed: 99, bots: 40, difficulty: 1, me: 0, arsenal: ARS, lang: LANG, kampf: KAMPF, pfeile: !!KAMPF }); g.setup([{ name: 'A' }, { name: 'B' }]); return g; };
 const a = make(), b = make();
+// in the mode both players have everything researched, so every weapon and building is tried
+if (LANG) for (const g of [a, b]) for (const p of g.players) if (p && p.type === G.PT.HUMAN) { p.tech = {}; for (const t of G.TECH) p.tech[t.id] = 1; }
 let r = 12345; const rnd = (n) => { r = (Math.imul(r, 1103515245) + 12345) >>> 0; return r % n; };
 const both = (id, c) => { const x = a.exec(id, c), y = b.exec(id, c); if (x !== y) throw new Error('order answered differently: ' + JSON.stringify(c) + ' ' + x + ' / ' + y); };
 let n = 0;

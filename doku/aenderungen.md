@@ -3,6 +3,10 @@ Was seit dem 13.11.2026 geändert wurde und warum. Den heutigen Stand der Regeln
 
 
 
+## Spielmodus «Langes Spiel», Paket 4: Forschung (26.11.2026)
+- **Wunsch:** Forschung mit Unis statt Gold, Stufen nach Spielzeit gegen das Davonrollen, Entweder-oder statt alles, Doktrin als erste Wahl, Technik an Verbündete weitergeben.
+- **Geändert (nur im Modus):** Uni als Ausbau der Stadt (ab Stufe 5, höchstens 3); Forschungsbaum mit Doktrin, Aufklärung, Abwehr, Raketen, Atomwaffen, Heer (`G.TECH`); Flugabwehr, Radar, Waffen und Schutzräume brauchen Forschung; Forschung der Nachbarn sichtbar; schenken und verkaufen an Verbündete; Nationen bekommen die Stufen nach Zeit. Szene 130.
+
 ## Spielmodus «Langes Spiel», Paket 3: Nebel, Aufklärung, Bündnisse (26.11.2026)
 - **Wunsch:** Wissen ist eine Ressource: Nebel, Radar, Spione; Bündnisse sollen mit der Zeit wertvoller werden; Stützpunkte beim Partner.
 - **Geändert (nur im Modus):** Nebel ab etwa 50 Feldern vom eigenen Land (nur Anzeige), Truppen dort als Schätzung; Radar (Taste X); Spion für 500K; Bündnis teilt nach 5 Minuten die Sicht, nach 15 Minuten Radar und Stützpunkte; Stützpunkte zahlen Pacht und gehen nach dem Bruch an das Gastland. Szenen 128, 129.

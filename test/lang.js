@@ -33,10 +33,13 @@ check('klassisch kein Eingraben', !a.lang && a.postMag(1) === 5);
 const shots = [1, 4, 8, 10].map((L) => b.samShotsOf({ cls: 1, level: L }));
 check('Raketenabwehr: Schüsse 1, 2, 3, 3', shots.join(',') === '1,2,3,3', shots.join(', '));
 check('kleine Flugabwehr: 2 Schüsse pro Stufe', b.samShotsOf({ cls: 0, level: 3 }) === 6);
-check('Raketenabwehr nur gegen Atomwaffen', b.samCan({ cls: 1 }, G.UT.ATOM) && b.samCan({ cls: 1 }, G.UT.WARHEAD) && !b.samCan({ cls: 1 }, G.UT.CRUISE));
+const wise = { tech: { abm3: 1, abm4: 1, abm5: 1 } };
+check('Raketenabwehr nur gegen Atomwaffen (mit Forschung)', b.samCan({ cls: 1, owner: wise }, G.UT.ATOM) && b.samCan({ cls: 1, owner: wise }, G.UT.WARHEAD) && !b.samCan({ cls: 1, owner: wise }, G.UT.CRUISE) && !b.samCan({ cls: 1, owner: {} }, G.UT.ATOM));
 check('kleine nur gegen Marschflugkörper', b.samCan({ cls: 0 }, G.UT.CRUISE) && !b.samCan({ cls: 0 }, G.UT.ATOM));
 // Paket 2: nuclear weapons late and dear, reach from the silo
 const pb = b.players[1];
+check('ohne Forschung kein Marschflugkörper', b.weaponWhy(pb, G.UT.CRUISE) !== '', b.weaponWhy(pb, G.UT.CRUISE));
+pb.tech = {}; for (const t of G.TECH) pb.tech[t.id] = 1;
 check('Atombombe erst ab Minute 30', b.weaponWhy(pb, G.UT.ATOM) !== '' && b.weaponWhy(pb, G.UT.CRUISE) === '', b.weaponWhy(pb, G.UT.ATOM));
 check('Atombombe teurer', b.cost(pb, G.UT.ATOM) === a.cost(a.players[1], G.UT.ATOM) * G.LANG.nukeCost[G.UT.ATOM], G.fmt(a.cost(a.players[1], G.UT.ATOM)) + ' -> ' + G.fmt(b.cost(pb, G.UT.ATOM)));
 const rs = [G.UT.SRBM, G.UT.CRUISE, G.UT.ATOM, G.UT.HYDRO, G.UT.MIRV].map((t) => b.weaponReach(t));

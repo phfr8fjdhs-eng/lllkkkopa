@@ -13,7 +13,8 @@
   //   text   one or two sentences: what is new, said plainly (shown at the bottom while it runs)
   //   loop   [first second, every n seconds, function (Q, k)]: the part of the script that repeats
   //   arsenal  the scene needs the «Arsenal» mode
-  //   lang     the scene runs in the mode «Langes Spiel»
+  //   lang     the scene runs in the mode «Langes Spiel» (the player then has everything researched,
+  //            unless research: true)
   // A new change gets a scene here (at the top of the list), see CLAUDE.md.
   const S = G.levelShape, circ = S.circ, rect = S.rect;
   const hot = function (t) { return '#hotbar [data-t="' + t + '"]'; };
@@ -40,6 +41,20 @@
   }
 
   G.NEUES = [
+    {
+      n: 130, date: '26.11.2026', title: 'Langes Spiel: Forschung', lang: true, research: true,
+      text: 'Im Langen Spiel wird geforscht: Baue in einer Stadt ab Stufe 5 eine Uni (Ausbaukarte der Stadt, höchstens 3). Jede Uni forscht an einer Sache, grosse Städte schneller. Der Knopf mit dem Kolben oben zeigt alle Stufen. Zuerst wählst du eine Doktrin: Blitzkrieg oder Tiefenverteidigung.',
+      map: { w: 300, h: 200, seed: 930, shapes: [circ(150, 100, 90)] },
+      me: { x: 150, y: 100, r: 92, troops: 60000, gold: 4000000, build: [[UT.CITY, 110, 90, 8], [UT.CITY, 190, 110, 5], [UT.CITY, 150, 150, 2]] },
+      foes: [], allow: ALL, quest: none,
+      events: [[2, function (Q) {
+        const g = Q.g, cs = Q.me.units.filter(function (u) { return u.type === UT.CITY && u.level >= 5; });
+        for (const c of cs) g.buildUni(Q.me, c.tile);
+        g.research(Q.me, 'blitz', cs[0] ? cs[0].tile : -1);
+        g.research(Q.me, 'rak1', cs[1] ? cs[1].tile : -1);
+      }]],
+      tips: [{ text: 'Hier ist die Forschung.', el: '#bTech' }]
+    },
     {
       n: 129, date: '26.11.2026', title: 'Langes Spiel: Bündnisse, Stützpunkte, Spione', lang: true,
       text: 'Ein Bündnis wird mit der Zeit wertvoller: nach 5 Minuten teilt ihr die Sicht, nach 15 Minuten auch das Radar, und du darfst im Land des Partners Stützpunkte bauen (Hafen, Silo, Flugabwehr). Du zahlst ihm dafür laufend Pacht. Ein Spion zeigt dir ein fremdes Land ein paar Minuten lang ganz.',
@@ -151,7 +166,7 @@
       foes: [{ name: 'Ostmark', x: 250, y: 100, box: [175, 0, 300, 200], troops: 60000, build: [[UT.PORT, 180, 50, 2], [UT.PORT, 180, 150, 2], [UT.SAM, 200, 100, 1]] }],
       allow: ALL, quest: none,
       events: [[0, function (Q) { Q.g.langEarly = G.LANG.nukeFrom[UT.ATOM]; }]],   // nuclear weapons allowed at once (normally from minute 30)
-      loop: [6, 12, function (Q, k) { Q.fire(Q.me, UT.CRUISE, 200 + (k % 2) * 15, 60 + (k % 3) * 40); }]
+      loop: [6, 12, function (Q, k) { Q.fire(Q.me, UT.CRUISE, 235, 40 + (k % 2) * 120); }]
     },
     {
       n: 120, date: '25.11.2026', title: 'Schüsse bereit auf der Bauleiste',

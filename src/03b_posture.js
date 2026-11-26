@@ -268,18 +268,18 @@
     let i = 0;
     for (const c of cells.values()) { c.d = 1e18; c.to = null; c.ec = 0; c.ix = i++; c.done = false; list.push(c); }
     for (let k = 0; k < from.length; k++) { from[k].d = 0; heap.push(0, from[k].ix); }
-    const cr = this.cellRail, base = this.lang ? G.LANG.march : BASE;
+    const cr = this.cellRail, base = this.lang ? G.LANG.march * (this.has(p, 'blitz') ? 0.8 : 1) : BASE, rk = this.lang && this.has(p, 'heer2') ? 0.7 : 1;
     while (heap.n > 0) {
       const c = list[heap.pop()];
       if (c.done) continue;
       c.done = true;
-      const id = c.id, cx = id % CW, sc = this.cellSlow(id) * cr[id];
+      const id = c.id, cx = id % CW, sc = this.cellSlow(id) * (cr[id] < 1 ? cr[id] * rk : 1);
       for (let dy = -1; dy <= 1; dy++) {
         for (let dx = -1; dx <= 1; dx++) {
           if ((!dx && !dy) || cx + dx < 0 || cx + dx >= CW) continue;
           const nid = id + dy * CW + dx, o = cells.get(nid);
           if (!o || o.done) continue;
-          const e = base * (sc + this.cellSlow(nid) * cr[nid]) / 2 * (dx && dy ? 1.414 : 1);
+          const e = base * (sc + this.cellSlow(nid) * (cr[nid] < 1 ? cr[nid] * rk : 1)) / 2 * (dx && dy ? 1.414 : 1);
           const nd = c.d + e;
           if (nd < o.d) { o.d = nd; o.to = c; o.ec = e; heap.push(nd, o.ix); }
         }

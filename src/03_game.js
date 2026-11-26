@@ -101,6 +101,10 @@
   //           build bases in his land after allyRadar ticks
   //   rent, baseLeave  a base pays its host `rent` gold per tick; when the alliance ends it goes
   //           to the host after baseLeave ticks
+  //   tier*, uni*  research: tiers open at tierFrom ticks of play and a step of a tier costs
+  //           tierCost points; a university (city upgrade from level uniLevel, at most uniMax,
+  //           price uniCost, upkeep uniUpkeep gold per tick) brings uniRp x (1 + level / 10)
+  //           points per tick. Stronger shelters (research) let shelter2 through
   //   post*   defence posts: radius x postR, losses x (postLoss[0] + postLoss[1] x level), time
   //           x (1 + postTime x level), and a tile they cover counts as at least postDens dense
   G.LANG = {
@@ -119,7 +123,10 @@
     share: 0.25, cruiseHeat: 0.25, cruiseCool: 300, srbmSpeed: 4, srbmSeen: 0.25,
     // Paket 3: fog, reconnaissance, alliances, bases
     fogSee: 3, radarCost: 1000000, radarR: [140, 40], spyCost: 500000, spyTicks: 3000,
-    allySight: 3000, allyRadar: 9000, rent: 100, baseLeave: 300
+    allySight: 3000, allyRadar: 9000, rent: 100, baseLeave: 300,
+    // Paket 4: research (src/04c_lang.js, G.TECH)
+    tierFrom: [0, 0, 9000, 18000, 27000], tierCost: [120, 240, 420, 600, 900],
+    uniLevel: 5, uniMax: 3, uniCost: 1000000, uniUpkeep: 50, uniRp: 0.08, shelter2: 0.3
   };
   G.LANG_WEAPON = function (t) { return t >= UT.CLUSTER && t <= UT.SRBM; };
   // What the ground does to an attack, by what covers it (index: G.COVER). `speed` multiplies
@@ -950,9 +957,9 @@
             dens = cs.n > 0 && dAvg > 0 ? cs.c / cs.n / dAvg : 1;
           }
           let mag = 80 * gl, speed = 16.5 * gs, inPost = false;
-          if (dp && dp.length) for (let i = 0; i < dp.length; i++) { const dx = dp[i].x - x, dy = dp[i].y - y; if (dx * dx + dy * dy <= dr2) { mag *= this.postMag(dp[i].level); speed *= this.postSpd(dp[i].level); inPost = true; break; } }
+          if (dp && dp.length) for (let i = 0; i < dp.length; i++) { const dx = dp[i].x - x, dy = dp[i].y - y; if (dx * dx + dy * dy <= dr2) { mag *= this.postMag(dp[i].level, t); speed *= this.postSpd(dp[i].level); inPost = true; break; } }
           let dk = pc ? Math.min(CB.densMax, dens) : 1;
-          if (this.lang && pc) { if (inPost) dk = Math.max(dk, G.LANG.postDens); const e = this.digOf(pc); mag *= 1 + G.LANG.digLoss * e; speed *= 1 + G.LANG.digTime * e; }
+          if (this.lang && pc) { if (inPost) dk = Math.max(dk, G.LANG.postDens); const e = this.digOf(pc, t); mag *= 1 + this.digLossOf(t) * e; speed *= 1 + G.LANG.digTime * e; }
           const D = dAvg * Math.pow(dk, CB.dFall);
           const R = tT / Math.max(1, left);
           loss = this.tileLoss(mag, R, dAvg, dk, pc ? this.postHold(pc) : 1, p.type !== PT.BOT && t.type === PT.BOT, traitor);
@@ -1013,7 +1020,7 @@
       if (this.cellRail && this.CW) rail += MO.rail * (1 - this.cellRail[this.cellOf(t)]) / 0.8;
     }
     const n = spots.length;
-    return within((rest / n) * (1 + mass / n + rail / n), MO.min, MO.max);
+    return within((rest / n) * (1 + mass / n + rail / n + (this.lang && this.has(a, 'blitz') ? 0.1 : 0)), MO.min, MO.max);
   };
   // How many thrusts a player has under way.
   // Where a direction attack of p's toward `tile` starts and which way it goes: the own border
@@ -1264,11 +1271,12 @@
       // taken almost as fast in the mountains as on the plain (`TR.free`).
       const pc = tp ? tp.cells.get(this.cellOf(tile)) : null;
       const hold = t ? 1 : TR.free;
-      let mag = 80 * (1 + (gl - 1) * hold), speed = 16.5 * (1 + (gs - 1) * hold), inPost = false;
+      const ph = this.lang && this.has(a, 'pionier') ? hold * 0.6 : hold;   // research Pioniere: the ground slows your attack less
+      let mag = 80 * (1 + (gl - 1) * ph), speed = 16.5 * (1 + (gs - 1) * ph), inPost = false;
       if (dp && dp.length) {
         for (let i = 0; i < dp.length; i++) {
           const dx = dp[i].x - x, dy = dp[i].y - y;
-          if (dx * dx + dy * dy <= dr2) { mag *= this.postMag(dp[i].level); speed *= this.postSpd(dp[i].level); inPost = true; break; }   // level 1: losses x5, speed cost x3
+          if (dx * dx + dy * dy <= dr2) { mag *= this.postMag(dp[i].level, t); speed *= this.postSpd(dp[i].level); inPost = true; break; }   // level 1: losses x5, speed cost x3
         }
       }
       if (fo[tile]) { const f = 5 - 2 * this.falloutCount / landTiles; mag *= f; speed *= f; }
@@ -1285,18 +1293,22 @@
         // well, then came cheap, and land swung to and fro.)
         let dk = pc ? Math.min(CB.densMax, this.postDens(t, pc)) : 1;
         // «Langes Spiel»: a post holds its ground even when thin, a quiet cell digs in (src/04c_lang.js)
-        if (this.lang && pc) { if (inPost) dk = Math.max(dk, G.LANG.postDens); const e = this.digOf(pc); mag *= 1 + G.LANG.digLoss * e; speed *= 1 + G.LANG.digTime * e; }
+        if (this.lang && pc) { if (inPost) dk = Math.max(dk, G.LANG.postDens); const e = this.digOf(pc, t); mag *= 1 + this.digLossOf(t) * e; speed *= 1 + G.LANG.digTime * e; }
         const R = t.troops / Math.max(1, at.troops);
         loss = this.tileLoss(mag, R, dAvg, dk, pc ? this.postHold(pc) : 1, a.type !== PT.BOT && t.type === PT.BOT, traitor);
-        if (this.lang && t.outlawUntil > this.ticks) loss /= G.LANG.outlawHit;   // «Langes Spiel»: an outcast is fought harder
+        if (this.lang) {
+          if (t.outlawUntil > this.ticks) loss /= G.LANG.outlawHit;   // «Langes Spiel»: an outcast is fought harder
+          if (at.mom !== undefined && this.has(a, 'heer3a')) loss *= 0.85;   // research Warthog: narrow attacks are cheaper
+        }
         used = this.tileTime(speed, R, dk, traitor, at.front.size);
+        if (this.lang && pc && this.has(t, 'heer3b') && t.post && t.post.front && !t.post.front.has(pc.id)) used *= 1.3;   // research Apache: slow behind the front
         if (at.mom !== undefined) {
           // momentum (wedge, section, direction in «Grenzland»): fades with every tile, the more the
           // dearer the tile and the narrower the front, slower along a railway; with little of it
           // every tile is dearer and slower
           const MO = G.MOMENTUM, wide = Math.max(4, at.width || 0);
           const fade = this.cellRail && this.CW ? 1 - (1 - MO.railFade) * (1 - this.cellRail[this.cellOf(tile)]) / 0.8 : 1;
-          at.mom -= MO.decay * within(loss / (2 * CB.base), 0.25, 4) / wide * fade;
+          at.mom -= MO.decay * within(loss / (2 * CB.base), 0.25, 4) / wide * fade * (this.lang && this.has(a, 'heer4') ? 0.7 : 1);
           const k = Math.max(at.mom, MO.slow);   // at most half as fast (until 23.11.2026 down to a quarter: a tired wedge froze)
           loss /= Math.sqrt(k); used /= Math.min(1.25, k);
         }
@@ -1765,6 +1777,10 @@
       case 'salvo': return this.lang ? this.salvo(p, c.list) : 'Nicht möglich';
       case 'spy': return this.lang && q && q !== p ? this.sendSpy(p, q) : 'Nicht möglich';
       case 'host': if (!this.lang || !q) return 'Nicht möglich'; (p.hostOk || (p.hostOk = {}))[q.id] = c.on ? 1 : 0; return '';
+      case 'uni': return tileOk && this.lang ? this.buildUni(p, c.t) : 'Nicht möglich';
+      case 'research': return this.lang && G.TECH_BY[c.id] ? this.research(p, c.id, tileOk ? c.t : -1) : 'Nicht möglich';
+      case 'techoffer': return this.lang && q && G.TECH_BY[c.id] ? this.techOffer(p, q, c.id, c.price) : 'Nicht möglich';
+      case 'techtake': return this.lang && q && G.TECH_BY[c.id] ? this.techTake(p, q, c.id) : 'Nicht möglich';
       case 'evac': return tileOk && this.lang ? this.evacuate(p, c.t) : 'Nicht möglich';
       case 'shelter': return tileOk && this.lang ? this.buildShelter(p, c.t) : 'Nicht möglich';
       case 'up': {

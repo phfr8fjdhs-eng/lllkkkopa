@@ -9,6 +9,7 @@ const G = globalThis.G, UT = G.UT;
 const count = (g, type, p) => g.units.filter((u) => u.active && u.type === type && (!p || u.owner === p)).length;
 // what has to be seen in each scene, asked every second; seen once is enough
 const SEEN = {
+  130: (g) => g.human.units.filter((u) => u.uni && u.res && u.res.pts > 0).length === 2,
   129: (g) => g.human.units.some((u) => u.type === UT.SILO && u.base) && g.spying(g.human, g.lv.foes[1]) && g.allyRadar(g.human, g.lv.foes[0]),
   128: (g) => g.human.units.some((u) => u.type === UT.SAM && u.cls === 2) && g.lv.foes[0].units.some((u) => u.type === UT.SILO && u.firedAt > 0),
   127: (g) => { const f = g.lv.foes[0], c = f.units.find((u) => u.type === UT.CITY); return g.ticks > 400 && (!c || c.level < 12) && (f.cruiseT || g.human.cruiseT || []).length >= 0 && !!g.human.cruiseT; },
@@ -17,7 +18,7 @@ const SEEN = {
   124: (g) => g.human.units.some((u) => u.type === UT.SAM && u.cls === 1 && u.ready.some((r) => r > g.ticks)) && g.human.units.some((u) => u.type === UT.SAM && !u.cls && u.ready.some((r) => r > g.ticks)),
   123: (g) => (g.human.wearLost || 0) > 0 && g.ticks > 300,
   122: (g) => { const m = g.human.mass; return !!m && Object.keys(m).some((k) => m[k].quiet > 0); },
-  121: (g) => g.lang && g.nukes.some((n) => n.active && n.type === UT.CRUISE && n.speed < 2) && g.units.some((u) => u.active && u.type === UT.TRADE),
+  121: (g) => g.lang && g.nukes.some((n) => n.active && n.type === UT.CRUISE && n.speed < 3.9) && g.units.some((u) => u.active && u.type === UT.TRADE),
   116: (g) => g.human.tiles > 0,
   120: (g) => { const u = g.human.units.find((x) => x.type === UT.SILO); return !!u && u.ready.length === 3 && u.ready.some((r) => r > g.ticks); },
   119: (g) => [30, 10, 5, 3].every((l) => g.human.units.some((u) => u.type === UT.CITY && u.level === l)),
