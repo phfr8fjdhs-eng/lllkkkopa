@@ -1596,6 +1596,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     planeRest: 200, stealthSeen: 0.25, stealthLock: 30, stealthHp: 2, reconR: 40, reconTicks: 600, fighterRest: 150,
     // Paket 6: the navy (doku/langes-spiel.md)
     shipHp: 1.5, shipUpkeep: 1.5, tradeGold: 1.5, sonarR: 60, subShow: 300, subQuiet: 0.6,
+    pushCity: 0.15, pushMass: 0.6, armNoFab: 2, armFab: 0.1, armFabMin: 0.5, armLost: 0.5, armSee: 0.25,
     mineCost: 150000, mineR: 120, mineMax: 30, mineHit: 3, mineDmg: 1500, mineClear: 25, carrierSlots: 2
   };
   G.isPlane = function (t) { return t >= UT.BOMBER && t <= UT.FIGHTER; };
@@ -2483,15 +2484,19 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   Game.prototype.momentumStart = function (a, spots) {
     const MO = G.MOMENTUM, T = this.ticks, tired = a.tired;
     if (!spots.length) return 1;
-    let rest = 0, mass = 0, rail = 0;
+    let rest = 0, mass = 0, rail = 0, city = 0;
     for (const t of spots) {
       const last = tired ? tired.get(this.zoneOf(t)) : undefined;
       rest += last === undefined ? 1 : within((T - last) / MO.rest, 0, 1);
-      if (a.post && this.CW) { const c = a.post.cells.get(this.cellOf(t)); if (c) mass += within((this.postDens(a, c) - 1) * MO.mass, 0, MO.max - 1); }
+      // «Langes Spiel», Paket 7: a thrust out of land a city supplies starts with more momentum, and
+      // massed troops count fully only there (src/04c_lang.js, langSupply)
+      const sup = this.lang && this.CW ? this.langSupply(a, this.cellOf(t)) : 1;
+      if (this.lang) city += G.LANG.pushCity * sup;
+      if (a.post && this.CW) { const c = a.post.cells.get(this.cellOf(t)); if (c) mass += within((this.postDens(a, c) - 1) * MO.mass, 0, MO.max - 1) * (this.lang ? G.LANG.pushMass + (1 - G.LANG.pushMass) * sup : 1); }
       if (this.cellRail && this.CW) rail += MO.rail * (1 - this.cellRail[this.cellOf(t)]) / 0.8;
     }
     const n = spots.length;
-    return within((rest / n) * (1 + mass / n + rail / n + (this.lang && this.has(a, 'blitz') ? 0.1 : 0)), MO.min, MO.max);
+    return within((rest / n) * (1 + mass / n + rail / n + city / n + (this.lang && this.has(a, 'blitz') ? 0.1 : 0)), MO.min, MO.max);
   };
   // How many thrusts a player has under way.
   // Where a direction attack of p's toward `tile` starts and which way it goes: the own border
@@ -4597,6 +4602,16 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   }
 
   G.NEUES = [
+    {
+      n: 134, date: '26.11.2026', title: 'Langes Spiel: Rüstungsindustrie', lang: true,
+      text: 'Atomwaffen baut die nächste eigene Fabrik; eine gestrichelte Spur zeigt den Weg zum Silo. Jede weitere Fabrikstufe macht es schneller, ohne Fabrik dauert es doppelt so lange. Fällt die Fabrik, kommt die Waffe später. Ein Stoss aus dem Umkreis einer grossen Stadt startet mit mehr Schwung.',
+      map: { w: 380, h: 200, seed: 934, shapes: [circ(90, 100, 70), circ(280, 100, 72)] },
+      me: { x: 90, y: 100, r: 72, troops: 80000, gold: 0, build: [[UT.FACTORY, 150, 100, 1], [UT.FACTORY, 50, 80, 2], [UT.SILO, 125, 135, 2], [UT.CITY, 85, 150, 8]] },
+      foes: [{ name: 'Ostmark', x: 280, y: 100, r: 74, troops: 120000, build: [[UT.CITY, 290, 100, 10], [UT.SILO, 214, 100, 2]] }],
+      allow: ALL, quest: none,
+      events: [[0, function (Q) { Q.g.langEarly = G.LANG.nukeFrom[UT.ATOM]; }], [50, function (Q) { Q.fire(Q.foe[0], UT.CRUISE, 150, 100); }]],
+      loop: [3, 45, function (Q) { Q.fire(Q.me, UT.ATOM, 290, 100); }]
+    },
     {
       n: 133, date: '26.11.2026', title: 'Langes Spiel: Marine', lang: true,
       text: 'Das U-Boot ist unsichtbar, bis es feuert, und versenkt Kriegs- und Handelsschiffe; finden kann es nur ein Zerstörer mit Sonar. Seeminen liegen unsichtbar vor dem eigenen Hafen und versenken Boote. Der Flugzeugträger ist ein Flugplatz auf See. Kriegsschiffe halten mehr aus und kosten mehr Unterhalt, Handelsschiffe bringen mehr Gold.',
@@ -7016,14 +7031,29 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     return '';
   };
   // A nuclear weapon is armed in the silo for G.LANG.arm ticks, then flies. Everybody sees it.
+  // Paket 7, arms industry: the weapon is made in the nearest own factory (fab) and goes to the
+  // silo; every further factory level makes it armFab faster (to armFabMin of the time), with no
+  // factory it takes armNoFab times as long. If that factory is lost while it works, the weapon
+  // is armLost of its time later.
+  Game.prototype.armFactory = function (p, silo) {
+    let f = null, bd = Infinity, lv = 0;
+    for (const u of p.units) {
+      if (u.type !== UT.FACTORY || !u.built) continue;
+      lv += u.level;
+      const d = (u.x - silo.x) * (u.x - silo.x) + (u.y - silo.y) * (u.y - silo.y);
+      if (d < bd) { bd = d; f = u; }
+    }
+    const L = G.LANG;
+    return { f: f, k: f ? Math.max(L.armFabMin, 1 / (1 + L.armFab * (lv - 1))) : L.armNoFab };
+  };
   Game.prototype.armSilo = function (p, type, silo, tile) {
-    const T = this.ticks;
-    for (let i = 0; i < silo.ready.length; i++) if (silo.ready[i] <= T) { silo.ready[i] = T + G.LANG.arm[type] + G.SILO_RELOAD; break; }
-    silo.arm = { type: type, tile: tile, at: T + G.LANG.arm[type], from: T };
+    const T = this.ticks, af = this.armFactory(p, silo), dur = Math.round(G.LANG.arm[type] * af.k);
+    for (let i = 0; i < silo.ready.length; i++) if (silo.ready[i] <= T) { silo.ready[i] = T + dur + G.SILO_RELOAD; break; }
+    silo.arm = { type: type, tile: tile, at: T + dur, from: T, fab: af.f, len: dur };
     (this.armed || (this.armed = [])).push(silo);
     const h = this.human;
     if (h && h !== p) this.say('Raketensilo von ' + p.name + ' macht eine ' + G.UNAME[type].replace('\u00AD', '') + ' scharf', 'bad');
-    else if (h === p) this.say(G.UNAME[type].replace('\u00AD', '') + ' wird scharfgemacht: Start in ' + Math.round(G.LANG.arm[type] / 10) + ' s', 'warn');
+    else if (h === p) this.say(G.UNAME[type].replace('\u00AD', '') + ' wird ' + (af.f ? 'in der Fabrik gebaut' : 'ohne Fabrik gebaut (langsam)') + ': Start in ' + Math.round(dur / 10) + ' s', 'warn');
     this.emit({ k: 'arm', p: p.id, s: silo.id });
     return silo;
   };
@@ -7032,6 +7062,13 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     for (let i = list.length - 1; i >= 0; i--) {
       const s = list[i], a = s.arm;
       if (!s.active || !a) { if (s.active) s.arm = null; list.splice(i, 1); continue; }
+      if (a.fab && (!a.fab.active || a.fab.owner !== s.owner)) {
+        // the factory that made it is gone: the work is set back
+        const late = Math.round(a.len * G.LANG.armLost);
+        a.fab = null; a.at += late;
+        for (let k = 0; k < s.ready.length; k++) if (s.ready[k] > T) s.ready[k] += late;
+        if (s.owner === this.human) this.say('Rüstungsfabrik verloren: ' + G.UNAME[a.type].replace('\u00AD', '') + ' kommt ' + Math.round(late / 10) + ' s später', 'bad');
+      }
       if (T < a.at) continue;
       s.arm = null; list.splice(i, 1);
       if (s.owner.alive) this.launch(s.owner, a.type, s, a.tile);
@@ -10550,11 +10587,21 @@ void main() { outc = texture(uColor, vUV); }`;
         ctx.strokeStyle = '#f4b740'; ctx.lineWidth = 2; ctx.stroke();
       } else if (u.level > 1) levelTag(ctx, u.level, x, y, side);
       if (u.built && u.type === UT.SILO && u.owner === h && u.ready && !u.cls) reloadRing(ctx, u, x, y, side, T);
-      if (u.arm) armRing(ctx, u, x, y, side, T);   // «Langes Spiel»: a nuclear weapon being armed, seen by all
+      if (u.arm) { if (u.arm.fab && u.arm.fab.active && !hid(g, u.arm.fab)) armHaul(ctx, u, x, y, z, T); armRing(ctx, u, x, y, side, T); }   // «Langes Spiel»: a nuclear weapon being armed, seen by all
     }
   };
   // A silo arming a nuclear weapon: a pulsing red ring that closes as the launch comes nearer, and
   // the seconds above the sign (src/04c_lang.js, armSilo).
+  // Paket 7: the weapon comes from its factory: a dashed track from there to the silo and a red
+  // dot on it, as far along as the work is.
+  function armHaul(ctx, u, x, y, z, T) {
+    const a = u.arm, f = a.fab, q = within((T - a.from) / Math.max(1, a.at - a.from), 0, 1);
+    const fx = x + (f.x - u.x) * z, fy = y + (f.y - u.y) * z;
+    ctx.setLineDash([4, 4]); ctx.beginPath(); ctx.moveTo(fx, fy); ctx.lineTo(x, y);
+    ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(255,90,60,.55)'; ctx.stroke(); ctx.setLineDash([]);
+    ctx.beginPath(); ctx.arc(fx + (x - fx) * q, fy + (y - fy) * q, 4, 0, 6.2832);
+    ctx.fillStyle = '#ff3c28'; ctx.fill(); ctx.lineWidth = 1.2; ctx.strokeStyle = '#0b1016'; ctx.stroke();
+  }
   function armRing(ctx, u, x, y, side, T) {
     const a = u.arm, all = Math.max(1, a.at - a.from), q = within((T - a.from) / all, 0, 1);
     const r = side * 0.5 + 9, pulse = 0.55 + 0.45 * Math.sin(T * 0.6);

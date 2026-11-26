@@ -1346,11 +1346,21 @@
         ctx.strokeStyle = '#f4b740'; ctx.lineWidth = 2; ctx.stroke();
       } else if (u.level > 1) levelTag(ctx, u.level, x, y, side);
       if (u.built && u.type === UT.SILO && u.owner === h && u.ready && !u.cls) reloadRing(ctx, u, x, y, side, T);
-      if (u.arm) armRing(ctx, u, x, y, side, T);   // «Langes Spiel»: a nuclear weapon being armed, seen by all
+      if (u.arm) { if (u.arm.fab && u.arm.fab.active && !hid(g, u.arm.fab)) armHaul(ctx, u, x, y, z, T); armRing(ctx, u, x, y, side, T); }   // «Langes Spiel»: a nuclear weapon being armed, seen by all
     }
   };
   // A silo arming a nuclear weapon: a pulsing red ring that closes as the launch comes nearer, and
   // the seconds above the sign (src/04c_lang.js, armSilo).
+  // Paket 7: the weapon comes from its factory: a dashed track from there to the silo and a red
+  // dot on it, as far along as the work is.
+  function armHaul(ctx, u, x, y, z, T) {
+    const a = u.arm, f = a.fab, q = within((T - a.from) / Math.max(1, a.at - a.from), 0, 1);
+    const fx = x + (f.x - u.x) * z, fy = y + (f.y - u.y) * z;
+    ctx.setLineDash([4, 4]); ctx.beginPath(); ctx.moveTo(fx, fy); ctx.lineTo(x, y);
+    ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(255,90,60,.55)'; ctx.stroke(); ctx.setLineDash([]);
+    ctx.beginPath(); ctx.arc(fx + (x - fx) * q, fy + (y - fy) * q, 4, 0, 6.2832);
+    ctx.fillStyle = '#ff3c28'; ctx.fill(); ctx.lineWidth = 1.2; ctx.strokeStyle = '#0b1016'; ctx.stroke();
+  }
   function armRing(ctx, u, x, y, side, T) {
     const a = u.arm, all = Math.max(1, a.at - a.from), q = within((T - a.from) / all, 0, 1);
     const r = side * 0.5 + 9, pulse = 0.55 + 0.45 * Math.sin(T * 0.6);

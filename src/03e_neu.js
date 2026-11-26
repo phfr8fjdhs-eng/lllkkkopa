@@ -42,6 +42,16 @@
 
   G.NEUES = [
     {
+      n: 134, date: '26.11.2026', title: 'Langes Spiel: Rüstungsindustrie', lang: true,
+      text: 'Atomwaffen baut die nächste eigene Fabrik; eine gestrichelte Spur zeigt den Weg zum Silo. Jede weitere Fabrikstufe macht es schneller, ohne Fabrik dauert es doppelt so lange. Fällt die Fabrik, kommt die Waffe später. Ein Stoss aus dem Umkreis einer grossen Stadt startet mit mehr Schwung.',
+      map: { w: 380, h: 200, seed: 934, shapes: [circ(90, 100, 70), circ(280, 100, 72)] },
+      me: { x: 90, y: 100, r: 72, troops: 80000, gold: 0, build: [[UT.FACTORY, 150, 100, 1], [UT.FACTORY, 50, 80, 2], [UT.SILO, 125, 135, 2], [UT.CITY, 85, 150, 8]] },
+      foes: [{ name: 'Ostmark', x: 280, y: 100, r: 74, troops: 120000, build: [[UT.CITY, 290, 100, 10], [UT.SILO, 214, 100, 2]] }],
+      allow: ALL, quest: none,
+      events: [[0, function (Q) { Q.g.langEarly = G.LANG.nukeFrom[UT.ATOM]; }], [50, function (Q) { Q.fire(Q.foe[0], UT.CRUISE, 150, 100); }]],
+      loop: [3, 45, function (Q) { Q.fire(Q.me, UT.ATOM, 290, 100); }]
+    },
+    {
       n: 133, date: '26.11.2026', title: 'Langes Spiel: Marine', lang: true,
       text: 'Das U-Boot ist unsichtbar, bis es feuert, und versenkt Kriegs- und Handelsschiffe; finden kann es nur ein Zerstörer mit Sonar. Seeminen liegen unsichtbar vor dem eigenen Hafen und versenken Boote. Der Flugzeugträger ist ein Flugplatz auf See. Kriegsschiffe halten mehr aus und kosten mehr Unterhalt, Handelsschiffe bringen mehr Gold.',
       map: STRAIT,

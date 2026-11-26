@@ -253,3 +253,20 @@ Code: Abschnitt «the navy» in `src/04c_lang.js` (`shipFull`, `shipSpeed`, `lan
   - 4 Flugzeugträger (braucht Flugplatz und Schnelle Zerstörer), 5 Geleitschutz.
 - **Noch nicht gebaut** (aus deiner Liste): U-Boot mit Marschflugkörpern, strategisches U-Boot mit Langstreckenraketen (Zweitschlag), Abwehr- und Radarschiff, Küstenbeschuss, Marineinfanterie. Nationen bauen noch keine U-Boote, Träger und Minen; sie bekommen aber die Forschung, ihre Zerstörer finden also mit Sonar U-Boote.
 - Szene 133 (Marine).
+
+## Paket 7: Im eigenen Land (26.11.2026)
+Code: `momentumStart` in `src/03_game.js`, `armFactory`, `armSilo`, `langArmTick` in `src/04c_lang.js`, `armHaul` in `src/06_view.js`. Zahlen in `G.LANG` (`pushCity`, `pushMass`, `armNoFab`, `armFab`, `armFabMin`, `armLost`).
+
+- **Städte stützen den Stoss:** Ein Stoss bekommt mehr Schwung, wenn er aus Land startet, das eine Stadt versorgt.
+  - Es zählt dieselbe Versorgung wie bei der Abnutzung (`langSupply`: Stadt, Hafen oder Schiene in der Nähe, grosse Städte mehr). Bei voller Versorgung sind es + 0.15 (`pushCity`).
+  - Eine Kaserne gibt es nicht: Die Stadt ist die Kaserne.
+  - Dichte Truppen geben ihren Schwung nur in versorgtem Land ganz, ohne Versorgung 60 % davon (`pushMass`).
+  - Gilt nur mit dem Schalter «Schwung», der im Kampfsystem «Grenzland» an ist.
+- **Rüstungsindustrie** (Atomwaffen, die im Silo scharfgemacht werden):
+  - Die Waffe baut die eigene Fabrik, die dem Silo am nächsten liegt.
+  - Eine gestrichelte Spur mit einem roten Punkt zeigt den Weg von der Fabrik zum Silo.
+  - Jede Fabrikstufe über der ersten macht es 10 % schneller, bis zur halben Zeit. Ohne Fabrik dauert es doppelt so lange.
+  - Fällt die Fabrik während der Arbeit, kommt die Waffe die halbe Zeit später. So werden Fabriken zu Zielen.
+  - Vereinfachung: Der Weg folgt nicht den Schienen, und ein Zug fährt nicht wirklich.
+  - Konventionelle Waffen starten wie bisher sofort.
+- Szene 134 (Rüstungsindustrie).

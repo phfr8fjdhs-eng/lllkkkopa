@@ -145,6 +145,7 @@
     planeRest: 200, stealthSeen: 0.25, stealthLock: 30, stealthHp: 2, reconR: 40, reconTicks: 600, fighterRest: 150,
     // Paket 6: the navy (doku/langes-spiel.md)
     shipHp: 1.5, shipUpkeep: 1.5, tradeGold: 1.5, sonarR: 60, subShow: 300, subQuiet: 0.6,
+    pushCity: 0.15, pushMass: 0.6, armNoFab: 2, armFab: 0.1, armFabMin: 0.5, armLost: 0.5, armSee: 0.25,
     mineCost: 150000, mineR: 120, mineMax: 30, mineHit: 3, mineDmg: 1500, mineClear: 25, carrierSlots: 2
   };
   G.isPlane = function (t) { return t >= UT.BOMBER && t <= UT.FIGHTER; };
@@ -1032,15 +1033,19 @@
   Game.prototype.momentumStart = function (a, spots) {
     const MO = G.MOMENTUM, T = this.ticks, tired = a.tired;
     if (!spots.length) return 1;
-    let rest = 0, mass = 0, rail = 0;
+    let rest = 0, mass = 0, rail = 0, city = 0;
     for (const t of spots) {
       const last = tired ? tired.get(this.zoneOf(t)) : undefined;
       rest += last === undefined ? 1 : within((T - last) / MO.rest, 0, 1);
-      if (a.post && this.CW) { const c = a.post.cells.get(this.cellOf(t)); if (c) mass += within((this.postDens(a, c) - 1) * MO.mass, 0, MO.max - 1); }
+      // «Langes Spiel», Paket 7: a thrust out of land a city supplies starts with more momentum, and
+      // massed troops count fully only there (src/04c_lang.js, langSupply)
+      const sup = this.lang && this.CW ? this.langSupply(a, this.cellOf(t)) : 1;
+      if (this.lang) city += G.LANG.pushCity * sup;
+      if (a.post && this.CW) { const c = a.post.cells.get(this.cellOf(t)); if (c) mass += within((this.postDens(a, c) - 1) * MO.mass, 0, MO.max - 1) * (this.lang ? G.LANG.pushMass + (1 - G.LANG.pushMass) * sup : 1); }
       if (this.cellRail && this.CW) rail += MO.rail * (1 - this.cellRail[this.cellOf(t)]) / 0.8;
     }
     const n = spots.length;
-    return within((rest / n) * (1 + mass / n + rail / n + (this.lang && this.has(a, 'blitz') ? 0.1 : 0)), MO.min, MO.max);
+    return within((rest / n) * (1 + mass / n + rail / n + city / n + (this.lang && this.has(a, 'blitz') ? 0.1 : 0)), MO.min, MO.max);
   };
   // How many thrusts a player has under way.
   // Where a direction attack of p's toward `tile` starts and which way it goes: the own border

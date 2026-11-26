@@ -58,6 +58,13 @@ check('kleine Flugabwehr gegen die neuen Waffen', b.samCan({ cls: 0 }, G.UT.SRBM
   check('Kriegsschiffe schwerer', b.shipFull({ cls: 1, owner: me }) === G.SHIP_CLASS[1].hp * G.LANG.shipHp);
   check('Seemine nur mit Hafen in der Nähe', b.mineWhy(pb, 0, {}) !== '', b.mineWhy(pb, 0, {}));
 }
+// Paket 7: arms industry
+{
+  const UT = G.UT, silo = { x: 0, y: 0 };
+  check('ohne Fabrik doppelt so lange', b.armFactory({ units: [] }, silo).k === G.LANG.armNoFab);
+  const two = b.armFactory({ units: [{ type: UT.FACTORY, built: true, level: 3, x: 5, y: 0 }, { type: UT.FACTORY, built: true, level: 2, x: 50, y: 0 }] }, silo);
+  check('mehr Fabrikstufen schneller', two.f.x === 5 && Math.abs(two.k - 1 / (1 + G.LANG.armFab * 4)) < 1e-9, 'Zeit x' + two.k.toFixed(2));
+}
 // on the Earth (a side scale S of 1): a ship over the Atlantic (about 80 tiles a minute today)
 console.log('Erde: Schiff ' + (1 * W) + ' Felder pro Tick, Atombombe ' + (6 * A).toFixed(1) + ' (heute 1 und 6)');
 if (bad) { console.log(bad + ' Fehler'); process.exit(1); }

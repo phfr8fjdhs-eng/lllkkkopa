@@ -279,14 +279,29 @@
     return '';
   };
   // A nuclear weapon is armed in the silo for G.LANG.arm ticks, then flies. Everybody sees it.
+  // Paket 7, arms industry: the weapon is made in the nearest own factory (fab) and goes to the
+  // silo; every further factory level makes it armFab faster (to armFabMin of the time), with no
+  // factory it takes armNoFab times as long. If that factory is lost while it works, the weapon
+  // is armLost of its time later.
+  Game.prototype.armFactory = function (p, silo) {
+    let f = null, bd = Infinity, lv = 0;
+    for (const u of p.units) {
+      if (u.type !== UT.FACTORY || !u.built) continue;
+      lv += u.level;
+      const d = (u.x - silo.x) * (u.x - silo.x) + (u.y - silo.y) * (u.y - silo.y);
+      if (d < bd) { bd = d; f = u; }
+    }
+    const L = G.LANG;
+    return { f: f, k: f ? Math.max(L.armFabMin, 1 / (1 + L.armFab * (lv - 1))) : L.armNoFab };
+  };
   Game.prototype.armSilo = function (p, type, silo, tile) {
-    const T = this.ticks;
-    for (let i = 0; i < silo.ready.length; i++) if (silo.ready[i] <= T) { silo.ready[i] = T + G.LANG.arm[type] + G.SILO_RELOAD; break; }
-    silo.arm = { type: type, tile: tile, at: T + G.LANG.arm[type], from: T };
+    const T = this.ticks, af = this.armFactory(p, silo), dur = Math.round(G.LANG.arm[type] * af.k);
+    for (let i = 0; i < silo.ready.length; i++) if (silo.ready[i] <= T) { silo.ready[i] = T + dur + G.SILO_RELOAD; break; }
+    silo.arm = { type: type, tile: tile, at: T + dur, from: T, fab: af.f, len: dur };
     (this.armed || (this.armed = [])).push(silo);
     const h = this.human;
     if (h && h !== p) this.say('Raketensilo von ' + p.name + ' macht eine ' + G.UNAME[type].replace('\u00AD', '') + ' scharf', 'bad');
-    else if (h === p) this.say(G.UNAME[type].replace('\u00AD', '') + ' wird scharfgemacht: Start in ' + Math.round(G.LANG.arm[type] / 10) + ' s', 'warn');
+    else if (h === p) this.say(G.UNAME[type].replace('\u00AD', '') + ' wird ' + (af.f ? 'in der Fabrik gebaut' : 'ohne Fabrik gebaut (langsam)') + ': Start in ' + Math.round(dur / 10) + ' s', 'warn');
     this.emit({ k: 'arm', p: p.id, s: silo.id });
     return silo;
   };
@@ -295,6 +310,13 @@
     for (let i = list.length - 1; i >= 0; i--) {
       const s = list[i], a = s.arm;
       if (!s.active || !a) { if (s.active) s.arm = null; list.splice(i, 1); continue; }
+      if (a.fab && (!a.fab.active || a.fab.owner !== s.owner)) {
+        // the factory that made it is gone: the work is set back
+        const late = Math.round(a.len * G.LANG.armLost);
+        a.fab = null; a.at += late;
+        for (let k = 0; k < s.ready.length; k++) if (s.ready[k] > T) s.ready[k] += late;
+        if (s.owner === this.human) this.say('Rüstungsfabrik verloren: ' + G.UNAME[a.type].replace('\u00AD', '') + ' kommt ' + Math.round(late / 10) + ' s später', 'bad');
+      }
       if (T < a.at) continue;
       s.arm = null; list.splice(i, 1);
       if (s.owner.alive) this.launch(s.owner, a.type, s, a.tile);

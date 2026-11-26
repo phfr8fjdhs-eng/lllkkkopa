@@ -3,6 +3,10 @@ Was seit dem 13.11.2026 geändert wurde und warum. Den heutigen Stand der Regeln
 
 
 
+## Spielmodus «Langes Spiel», Paket 7: Im eigenen Land (26.11.2026)
+- **Wunsch:** Stösse nahe grosser Städte stärker, dichte versorgte Abschnitte mit mehr Schwung; Waffen in Fabriken bauen, Fabriken werden Ziele.
+- **Geändert (nur im Modus):** Schwung + 0.15 aus versorgtem Land, Dichte zählt ohne Versorgung nur zu 60 %; Atomwaffen baut die nächste Fabrik (ohne doppelt so lange, Verlust kostet die halbe Zeit). Szene 134.
+
 ## Spielmodus «Langes Spiel», Paket 6: Marine (26.11.2026)
 - **Wunsch:** U-Boot, das man erst sieht, wenn es feuert; Sonar und Zerstörer dagegen; schwerere Kriegsschiffe mit klaren Rollen; mehr Gold aus dem Seehandel; Seeminen; Flugzeugträger; Forschungszweig Marine.
 - **Geändert (nur im Modus):** U-Boot (Schiffsklasse 2), Flugzeugträger (Klasse 3, ein Flugplatz auf See), Seeminen (`UT.MINE`), Sonar; Kriegsschiffe × 1.5 Punkte und Unterhalt, Handelsschiffe × 1.5 Gold; Forschungszweig Marine. Szene 133. Klassisches Spiel unverändert (Prüfsumme gleich).
