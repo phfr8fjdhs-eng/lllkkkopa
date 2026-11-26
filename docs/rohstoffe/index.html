@@ -1484,6 +1484,12 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   // gives the pace of the original. These three factors come on top, for tuning by feel:
   // move (ships, trains, shells), attack (how fast a front advances), growth (troops per tick).
   G.PACE = { move: 1, attack: 1, growth: 1 };
+  // Mode «Langes Spiel» (opts.lang, doku/langes-spiel.md): the world feels larger without more
+  // tiles. Everything at sea and in the air is slower and reaches less far, the ground keeps its
+  // pace. All numbers are first values for tuning by feel.
+  //   world   speed of ships and reach of air defences, warships and ports
+  //   air     speed of bombs, cruise missiles and interceptors
+  G.LANG = { world: 0.5, air: 0.4 };
   // What the ground does to an attack, by what covers it (index: G.COVER). `speed` multiplies
   // what a tile costs in time, `loss` what it costs the attacker in troops. Height comes on top
   // (lowland, highland, mountains: the numbers of OpenFront). Forest and swamp give cover and
@@ -1593,7 +1599,11 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     this.sea = map.sea || (map.sea = new G.SeaGraph(map));   // built once per map, shared by every game on it
     this.pathLeg = new G.Pathfinder(map, 160000); this.pathCache = new Map(); this.pathQ = []; this.pathJob = null;
     this.pathNear = new G.Pathfinder(map, 260000); this.nearQ = []; this.nearJob = null;   // short hops: a window of at most 260 000 tiles
-    this.pace = S * G.PACE.move;          // tiles a ship or train covers per tick
+    this.lang = !!this.opts.lang;         // mode «Langes Spiel»
+    const LW = this.lang ? G.LANG.world : 1, LA = this.lang ? G.LANG.air : 1;
+    this.reach = LW;                      // share of the usual reach at sea and in the air
+    this.pace0 = S * G.PACE.move;         // tiles a train or shell covers per tick
+    this.pace = this.pace0 * LW;          // tiles a ship covers per tick
     this.attackPace = S * G.PACE.attack;  // share of OpenFront's tiles per tick a front takes
     this.R = {
       spawn: 4,
@@ -1605,11 +1615,11 @@ globalThis.G = { VARIANT: 'rohstoffe' };
       cruiseIn: Math.max(3, Math.round(7 * S)), cruiseOut: Math.max(5, Math.round(11 * S)),
       laserIn: Math.max(4, Math.round(10 * S)), laserOut: Math.max(6, Math.round(16 * S)),
       cloak: Math.max(8, Math.round(26 * S)), reveal: Math.max(7, Math.round(22 * S)),
-      sam: Math.round(70 * S), warTarget: Math.round(70 * S), warPatrol: Math.round(100 * S),
+      sam: Math.round(70 * S * LW), warTarget: Math.round(70 * S * LW), warPatrol: Math.round(100 * S * LW),
       mirvRange: Math.round(1500 * S), mirvCount: Math.max(8, Math.round(120 * S * S)),
       botDist: Math.max(10, Math.round(30 * S)), boatBox: Math.round(150 * S),
       tnSearch: Math.max(60, Math.round(200 * S)), portSearch: Math.max(14, Math.round(40 * S)),
-      nukeSpeed: Math.max(2.5, 6 * S), rail: Math.max(30, Math.round(110 * S))
+      nukeSpeed: Math.max(2.5, 6 * S) * LA, rail: Math.max(30, Math.round(110 * S))
     };
   }
 
@@ -4413,6 +4423,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   //   text   one or two sentences: what is new, said plainly (shown at the bottom while it runs)
   //   loop   [first second, every n seconds, function (Q, k)]: the part of the script that repeats
   //   arsenal  the scene needs the «Arsenal» mode
+  //   lang     the scene runs in the mode «Langes Spiel»
   // A new change gets a scene here (at the top of the list), see CLAUDE.md.
   const S = G.levelShape, circ = S.circ, rect = S.rect;
   const hot = function (t) { return '#hotbar [data-t="' + t + '"]'; };
@@ -4429,6 +4440,15 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   }
 
   G.NEUES = [
+    {
+      n: 121, date: '26.11.2026', title: 'Langes Spiel: das Meer wirkt grösser', lang: true,
+      text: 'Neuer Spielmodus «Langes Spiel»: Schiffe fahren halb so schnell, Bomben und Raketen fliegen langsamer, und Flugabwehr, Kriegsschiffe und Häfen reichen nur halb so weit. Der Bodenkampf bleibt im Tempo.',
+      map: { w: 300, h: 200, seed: 921, rough: 4, shapes: [rect(0, 0, 120, 200), rect(180, 0, 300, 200)] },
+      me: { x: 50, y: 100, box: [0, 0, 125, 200], troops: 60000, gold: 500000, build: [[UT.PORT, 120, 60, 2], [UT.PORT, 120, 140, 2], [UT.SILO, 60, 100, 2], [UT.SAM, 100, 100, 2]] },
+      foes: [{ name: 'Ostmark', x: 250, y: 100, box: [175, 0, 300, 200], troops: 60000, build: [[UT.PORT, 180, 50, 2], [UT.PORT, 180, 150, 2], [UT.SAM, 200, 100, 1]] }],
+      allow: ALL, quest: none,
+      loop: [6, 12, function (Q, k) { Q.fire(Q.me, UT.ATOM, 240 + (k % 2) * 30, 60 + (k % 3) * 40); }]
+    },
     {
       n: 120, date: '25.11.2026', title: 'Schüsse bereit auf der Bauleiste',
       text: 'Auf den Bomben in der Bauleiste steht jetzt, wie viele du sofort abfeuern kannst (geladene Silo-Schüsse), rot 0, solange alles nachlädt. Bei der Flugabwehr steht die Zahl aller Abwehrschüsse zusammen (eine pro Stufe), nicht mehr die Anzahl Türme.',
@@ -5204,7 +5224,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     } else for (let i = 0; i < u.level && !go; i++) go = rng.chance(rate);
     if (!go) return;
     const p = u.owner, wc = this.map.wcomp, comp = wc[u.water], cand = [];
-    const reach = this.hafen ? this.portRange(u.level, kind) * this.S : 0, r2 = reach * reach;
+    const reach = this.hafen ? this.portRange(u.level, kind) * this.S * this.reach : 0, r2 = reach * reach;
     for (const v of ports) {
       if (v.owner === p || !v.owner.alive || !this.canTrade(p, v.owner) || wc[v.water] !== comp) continue;
       if (reach && (v.x - u.x) * (v.x - u.x) + (v.y - u.y) * (v.y - u.y) > r2) continue;   // out of this port's reach
@@ -5221,7 +5241,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
       if (p.allies.has(cand[i].owner.id)) pool.push(cand[i]);
     }
     const dst = rng.pick(pool), key = u.water * this.N + dst.water, cached = this.pathCache.get(key);
-    if (this.hafen) kind = this.shipFor(Math.sqrt((dst.x - u.x) * (dst.x - u.x) + (dst.y - u.y) * (dst.y - u.y)) / this.S, kind);
+    if (this.hafen) kind = this.shipFor(Math.sqrt((dst.x - u.x) * (dst.x - u.x) + (dst.y - u.y) * (dst.y - u.y)) / (this.S * this.reach), kind);
     if (cached) { this.spawnTrade(u, dst, cached, kind, extra); return; }
     if (cached === null || this.pathQ.length > 6) return;     // route still being worked out, or queue busy
     if (this.pathCache.size > 500) this.pathCache.clear();
@@ -5457,7 +5477,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
       }
       const hm = u.home && u.home.active && u.home.owner === p ? u.home : null;
       if (hm) {
-        const d2 = (hm.x - u.x) * (hm.x - u.x) + (hm.y - u.y) * (hm.y - u.y), heal = 150 * this.S, quay = Math.max(4, 5 * this.S);
+        const d2 = (hm.x - u.x) * (hm.x - u.x) + (hm.y - u.y) * (hm.y - u.y), heal = 150 * this.S * this.reach, quay = Math.max(4, 5 * this.S);
         if (d2 <= quay * quay) u.hp = Math.min(full, u.hp + 1 + 5 * hm.level);
         else if (d2 <= heal * heal) u.hp = Math.min(full, u.hp + 1);
       }
@@ -5472,7 +5492,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     // only counts while it is inside the patrol area, so the ship is not lured away from its post.
     if ((T + u.id) % 5 === 0) {
       let best = null, bs = Infinity, home;
-      const rr = C.range * this.S, r2 = rr * rr, p2 = R.warPatrol * R.warPatrol, pcx = u.patrol % W, pcy = (u.patrol / W) | 0;
+      const rr = C.range * this.S * this.reach, r2 = rr * rr, p2 = R.warPatrol * R.warPatrol, pcx = u.patrol % W, pcy = (u.patrol / W) | 0;
       // only the ships near this one (a grid of the sea, see seaNear), in the order of
       // this.units as before, so every device still picks the same target
       for (const v of this.seaNear(u.x, u.y, rr)) {
@@ -5628,7 +5648,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   Game.prototype.tickShell = function (u) {
     const tg = u.target;
     if (!tg || !tg.active) { this.removeUnit(u); return; }
-    const dx = tg.x - u.x, dy = tg.y - u.y, d = Math.hypot(dx, dy), sp = Math.max(2, (u.missile ? 2.5 : 4) * this.pace);
+    const dx = tg.x - u.x, dy = tg.y - u.y, d = Math.hypot(dx, dy), sp = Math.max(2, (u.missile ? 2.5 : 4) * this.pace0);
     if (d > sp) { u.x += dx / d * sp; u.y += dy / d * sp; return; }
     this.removeUnit(u);
     const by = u.owner, h = this.human, was = tg.owner;
@@ -5823,9 +5843,9 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   };
   // Reach of an air defence: 70 tiles at level 1, growing with every level towards 150 (scaled to the map).
   Game.prototype.samRange = function (u) {
-    return Math.round((150 - 480 / (u.level + 5)) * this.S);
+    return Math.round((150 - 480 / (u.level + 5)) * this.S * this.reach);
   };
-  Game.prototype.sammSpeed = function () { return Math.max(5, 14 * this.S); };
+  Game.prototype.sammSpeed = function () { return Math.max(5, 14 * this.S) * (this.lang ? G.LANG.air : 1); };
   // What an air defence may shoot at. The MIRV itself flies too high; its warheads do not, and
   // the satellite beam comes straight down from orbit (as in OpenFront).
   G.canIntercept = function (type) {
@@ -6240,7 +6260,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     if (!e.a.active || !e.b.active || !p.alive || !u.goal.active) { this.removeUnit(u); return; }
     const end = u.fwd ? e.path.length - 1 : 0;
     if (u.pi !== end) {
-      for (let n = this.stride(u); n > 0 && u.pi !== end; n--) {
+      for (let n = this.stride(u, this.pace0); n > 0 && u.pi !== end; n--) {
         u.pi += u.fwd ? 1 : -1;
         this.setPos(u, e.path[u.pi]);
         const o = this.owner[u.tile];
@@ -6274,7 +6294,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     if (!e.a.active || !e.b.active || !p.alive) { this.removeUnit(u); return; }
     const end = u.fwd ? e.path.length - 1 : 0;
     if (u.pi !== end) {
-      for (let n = this.stride(u); n > 0 && u.pi !== end; n--) {
+      for (let n = this.stride(u, this.pace0); n > 0 && u.pi !== end; n--) {
         u.pi += u.fwd ? 1 : -1;
         this.setPos(u, e.path[u.pi]);
         const o = this.owner[u.tile];
@@ -8698,7 +8718,7 @@ void main() { outc = texture(uColor, vUV); }`;
       if (u.type === UT.SAM) return g.samRange(u);
       if (u.type === UT.CLOAK) return g.R.cloak;
       if (u.type === UT.FACTORY) return g.R.rail;
-      if (u.type === UT.PORT && g.hafen) { let r = 0; G.HAFEN.ships.forEach(function (k) { if (u.level >= k.from) r = Math.max(r, k.range * g.S); }); return r; }
+      if (u.type === UT.PORT && g.hafen) { let r = 0; G.HAFEN.ships.forEach(function (k) { if (u.level >= k.from) r = Math.max(r, k.range * g.S * (g.reach || 1)); }); return r; }
       return 0;
     };
     const show = [];
@@ -8839,7 +8859,7 @@ void main() { outc = texture(uColor, vUV); }`;
       if (!bad && g.bahn !== undefined && G.isStation(t)) this.railPreview(ctx, g, z, ox, oy, gh);
       // what the building would cover: a defence post its stretch of border, an air defence its sky,
       // a cloaking tower the few buildings around it that it hides
-      const reach = t === UT.DEFENSE ? R.defense : t === UT.SAM ? g.samRange({ level: 1 }) : t === UT.CLOAK ? R.cloak : t === UT.PORT && g.hafen ? G.HAFEN.ships[0].range * g.S : 0;
+      const reach = t === UT.DEFENSE ? R.defense : t === UT.SAM ? g.samRange({ level: 1 }) : t === UT.CLOAK ? R.cloak : t === UT.PORT && g.hafen ? G.HAFEN.ships[0].range * g.S * (g.reach || 1) : 0;
       if (reach && !bad) {
         ctx.beginPath(); ctx.arc(x, y, reach * z, 0, 6.2832);
         ctx.fillStyle = 'rgba(255,255,255,.07)'; ctx.fill();
@@ -9534,7 +9554,7 @@ void main() { outc = texture(uColor, vUV); }`;
   View.prototype.drawTrain = function (ctx, g, u, z, ox, oy, alpha) {
     const n = u.edge.path.length, dir = u.fwd ? 1 : -1, p = u.owner, geo = railGeo(u.edge, g.W);
     // glide between tiles the way ships do: `mv` is the part of the next tile already covered
-    const head = within(u.pi + dir * ((u.mv || 0) + (u.st === g.ticks ? alpha * g.pace : 0)), 0, n - 1);
+    const head = within(u.pi + dir * ((u.mv || 0) + (u.st === g.ticks ? alpha * (u.sr || g.pace) : 0)), 0, n - 1);
     // Big enough to make out even on a map zoomed right out, where a train used to be three
     // specks melting into the track.
     const L = Math.max(7, z * 1.3), B = Math.max(3.4, z * 0.72);
@@ -11019,7 +11039,8 @@ void main() { outc = texture(uColor, vUV); }`;
     return { kampf: c.kampf === 'grenzen' ? 'grenzen' : 'grenzland', pfeile: true, bahn: true, hafen: true };
   }
   let plans = [];          // version «Pfeile»: arrows planned, not launched yet
-  const MODES = [['klassisch', 'Klassisch', 'Das Spiel wie gewohnt.'], ['arsenal', 'Arsenal', 'Zusätzlich: der Satellitenstrahl. Er kommt aus dem All, braucht kein Silo und lässt sich nicht abfangen. Und der Tarnturm: Er versteckt deine Gebäude ganz in seiner Nähe, bis die anderen nahe herankommen. Auch die Nationen setzen beides ein.']];
+  const MODES = [['klassisch', 'Klassisch', 'Das Spiel wie gewohnt.'], ['arsenal', 'Arsenal', 'Zusätzlich: der Satellitenstrahl. Er kommt aus dem All, braucht kein Silo und lässt sich nicht abfangen. Und der Tarnturm: Er versteckt deine Gebäude ganz in seiner Nähe, bis die anderen nahe herankommen. Auch die Nationen setzen beides ein.'], ['lang', 'Langes Spiel', 'Ruhiger und taktischer, gedacht für Runden von etwa 70 Minuten. Schiffe, Bomben und Raketen sind langsamer und reichen weniger weit, das Meer wirkt grösser. Der Bodenkampf bleibt im Tempo.']];
+  const MODE_TAG = { arsenal: ' · Arsenal', lang: ' · Langes Spiel' };
   let hoverX = -1, hoverY = -1;
   const RES = G.VARIANT === 'rohstoffe';   // this page is the game version «Rohstoffe» (src/03c_res.js)
   let ghost = null, ghostKey = '', shiftHeld = false;   // the thing a build key is about to place
@@ -11036,7 +11057,7 @@ void main() { outc = texture(uColor, vUV); }`;
     try { const k = new URLSearchParams(location.search).get('karte'); if (k) cfg.map = k; } catch (e) { /* no address to read */ }
     if (cfg.map !== 'zufall' && !special(cfg.map) && !MAPS.some(function (m) { return m.id === cfg.map; })) cfg.map = MAPS[0].id;
     G.Audio.on.music = cfg.music; G.Audio.on.sfx = cfg.sfx;
-    if (cfg.mode !== 'arsenal') cfg.mode = 'klassisch';
+    if (cfg.mode !== 'arsenal' && cfg.mode !== 'lang') cfg.mode = 'klassisch';
     botsTouched = cfg.bots >= 0;
     if (!s0.botsV3) { cfg.bots = -1; botsTouched = false; }   // the default rose: forget a count stored under the old one
   }
@@ -11228,7 +11249,7 @@ void main() { outc = texture(uColor, vUV); }`;
       // three ways to play, as rows: the free game (with the settings above), the levels, a room for friends
       const lv = !RES && G.Feldzug ? G.Feldzug.summary() : null;
       const mapName = (function () { const m = MAPS.find(function (x) { return x.id === cfg.map; }) || special(cfg.map); return m ? m.name : 'Zufallskarte'; })();
-      h += '<div class="goes">' + goRow('fStart', 'sword', 'Spiel starten', esc(mapName) + ' · ' + G.DIFF_NAMES[cfg.diff] + (cfg.mode === 'arsenal' ? ' · Arsenal' : ''), true);
+      h += '<div class="goes">' + goRow('fStart', 'sword', 'Spiel starten', esc(mapName) + ' · ' + G.DIFF_NAMES[cfg.diff] + (MODE_TAG[cfg.mode] || ''), true);
       if (lv) h += goRow('fCamp', 'flag', 'Levels', lv.n ? 'Level ' + lv.n + ' · ' + esc(lv.name) + ' · ' + lv.stars + ' von ' + lv.max + ' Sternen' : 'Alle Lern-Levels geschafft · ' + lv.stars + ' von ' + lv.max + ' Sternen', false);
       const nw = !RES && G.Neuheiten ? G.Neuheiten.summary() : null;
       if (nw) h += goRow('fNews', 'star', 'Änderungen', (nw.fresh ? nw.fresh + ' neu' : nw.count + ' Änderungen') + ' · zuletzt: ' + esc(nw.newest.title), false);
@@ -11281,7 +11302,7 @@ void main() { outc = texture(uColor, vUV); }`;
     $('fHost').addEventListener('click', function () { readForm(); openRoom(true); });
     function goSub() {
       const m = MAPS.find(function (x) { return x.id === cfg.map; }) || special(cfg.map);
-      $('fStart').querySelector('small').textContent = (m ? m.name : 'Zufallskarte') + ' · ' + G.DIFF_NAMES[cfg.diff] + (cfg.mode === 'arsenal' ? ' · Arsenal' : '');
+      $('fStart').querySelector('small').textContent = (m ? m.name : 'Zufallskarte') + ' · ' + G.DIFF_NAMES[cfg.diff] + (MODE_TAG[cfg.mode] || '');
     }
     if ($('fCamp')) $('fCamp').addEventListener('click', function () { readForm(); G.Feldzug.open(); });
     if ($('fNews')) $('fNews').addEventListener('click', function () { readForm(); G.Neuheiten.open(); });
@@ -11376,7 +11397,7 @@ void main() { outc = texture(uColor, vUV); }`;
       this.disabled = true;
       mp.begin({
         seed: (Math.random() * 2e9) | 0, map: cfg.map, mapSeed: (Math.random() * 2e9) | 0,
-        diff: cfg.diff, bots: Math.max(0, cfg.bots), nations: cfg.nations, arsenal: cfg.mode === 'arsenal', res: RES, opts: playOpts(cfg)
+        diff: cfg.diff, bots: Math.max(0, cfg.bots), nations: cfg.nations, arsenal: cfg.mode === 'arsenal', lang: cfg.mode === 'lang', res: RES, opts: playOpts(cfg)
       });
     });
   }
@@ -11385,7 +11406,7 @@ void main() { outc = texture(uColor, vUV); }`;
     turnLeft = 0;
     loadMap(m.map, m.mapSeed).then(function (map) {
       begin(map, {
-        seed: m.seed, difficulty: m.diff, bots: m.bots, nations: m.nations, arsenal: !!m.arsenal, res: !!m.res, kampf: m.opts ? m.opts.kampf : 'grenzland', pfeile: true, bahn: true, hafen: true, spawnTicks: 300, autoSpawn: true, me: me
+        seed: m.seed, difficulty: m.diff, bots: m.bots, nations: m.nations, arsenal: !!m.arsenal, lang: !!m.lang, res: !!m.res, kampf: m.opts ? m.opts.kampf : 'grenzland', pfeile: true, bahn: true, hafen: true, spawnTicks: 300, autoSpawn: true, me: me
       }, m.players.map(function (p) { return { name: p.name, color: COLORS[p.color % 6] }; }));
       $('bSpeed').hidden = true; $('bPause').hidden = !mp.host;
       addMsg(m.players.length > 1 ? m.players.length + ' Spieler sind dabei. Wählt eure Startpunkte.' : 'Du bist allein im Raum.', 'info');
@@ -11487,7 +11508,7 @@ void main() { outc = texture(uColor, vUV); }`;
     $('fStart').disabled = true; $('fStart').querySelector('small').textContent = 'Karte wird vorbereitet';
     loadMap(cfg.map).then(function (map) {
       begin(map, {
-        seed: (Math.random() * 2e9) | 0, difficulty: cfg.diff, bots: cfg.bots, nations: cfg.nations, arsenal: cfg.mode === 'arsenal', res: RES, kampf: playOpts(cfg).kampf, pfeile: playOpts(cfg).pfeile, bahn: playOpts(cfg).bahn, hafen: playOpts(cfg).hafen,
+        seed: (Math.random() * 2e9) | 0, difficulty: cfg.diff, bots: cfg.bots, nations: cfg.nations, arsenal: cfg.mode === 'arsenal', lang: cfg.mode === 'lang', res: RES, kampf: playOpts(cfg).kampf, pfeile: playOpts(cfg).pfeile, bahn: playOpts(cfg).bahn, hafen: playOpts(cfg).hafen,
         instantBuild: cfg.instant, infiniteGold: cfg.gold, infiniteTroops: cfg.troops
       }, { name: cfg.name, color: COLORS[cfg.color] });
     }).catch(function (e) {
@@ -11892,7 +11913,7 @@ void main() { outc = texture(uColor, vUV); }`;
 
   function showMenu() {
     if (!mp) setPaused(true);
-    openModal('<h2>' + (mp ? 'Menü' : 'Pause') + '</h2><p>' + (game.lv ? (game.lv.def.show ? 'Änderung · ' + esc(game.lv.def.title) : 'Level ' + game.lv.def.n + ' · ' + esc(game.lv.def.name)) : esc(game.map.name) + ' · ' + G.DIFF_NAMES[game.opts.difficulty] + (game.opts.arsenal ? ' · Arsenal' : '')) + '</p>' +
+    openModal('<h2>' + (mp ? 'Menü' : 'Pause') + '</h2><p>' + (game.lv ? (game.lv.def.show ? 'Änderung · ' + esc(game.lv.def.title) : 'Level ' + game.lv.def.n + ' · ' + esc(game.lv.def.name)) : esc(game.map.name) + ' · ' + G.DIFF_NAMES[game.opts.difficulty] + (game.opts.arsenal ? ' · Arsenal' : game.opts.lang ? ' · Langes Spiel' : '')) + '</p>' +
       '<button class="btn" data-act="resume" type="button">Weiterspielen</button>' +
       '<button class="btn ghost" data-act="help" type="button">So wird gespielt</button>' +
       '<label class="check wide" for="mMusic"><input id="mMusic" type="checkbox"' + (cfg.music ? ' checked' : '') + '>Musik</label>' +
@@ -13614,7 +13635,7 @@ void main() { outc = texture(uColor, vUV); }`;
     G.Feldzug.freshTips();
     mark(n);
     u.begin(mapOf(n), {
-      seed: 2000 + n, level: n, difficulty: 1, bots: 0, nations: false, arsenal: !!L.arsenal,
+      seed: 2000 + n, level: n, difficulty: 1, bots: 0, nations: false, arsenal: !!L.arsenal, lang: !!L.lang,
       kampf: c.kampf === 'grenzen' ? 'grenzen' : 'grenzland', pfeile: c.pfeile !== false
     }, { name: c.name, color: u.COLORS[c.color] });
   }

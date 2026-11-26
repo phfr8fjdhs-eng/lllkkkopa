@@ -1,5 +1,5 @@
 # Vision (15.11.2026)
-Ein Eroberungsspiel wie OpenFront, mit einfacher, klarer Grafik, aber mit Tiefe im späten Spiel. Früh schnell, spät wie im Kalten Krieg: dichte Fronten, Bündnisse, Abschreckung und Warten auf den richtigen Moment. Eine Runde dauert höchstens etwa 40 Minuten.
+Ein Eroberungsspiel wie OpenFront, mit einfacher, klarer Grafik, aber mit Tiefe im späten Spiel. Früh schnell, spät wie im Kalten Krieg: dichte Fronten, Bündnisse, Abschreckung und Warten auf den richtigen Moment. Eine Runde dauert höchstens etwa 40 Minuten. Der Spielmodus «Langes Spiel» ist bewusst länger (etwa 70 Minuten) und baut die Teile unten unter «Später» Paket für Paket: `doku/langes-spiel.md`.
 
 ## Leitsätze
 Jede neue Funktion muss mindestens einen davon erfüllen.
@@ -55,5 +55,5 @@ Kessel, Schwung (Angriffe verlieren mit der Tiefe Schwung, Vorbereitung gibt meh
 
 ## Was wir weglassen
 - Einzeleinheiten, die man von Hand über die Karte schiebt.
-- Runden über etwa 45 Minuten.
+- Runden über etwa 45 Minuten (im klassischen Spiel; «Langes Spiel» ist die Ausnahme).
 - Die Version «Rohstoffe» bleibt eingefroren, bis der Kampf steht.

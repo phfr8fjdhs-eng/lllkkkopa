@@ -582,7 +582,7 @@
     } else for (let i = 0; i < u.level && !go; i++) go = rng.chance(rate);
     if (!go) return;
     const p = u.owner, wc = this.map.wcomp, comp = wc[u.water], cand = [];
-    const reach = this.hafen ? this.portRange(u.level, kind) * this.S : 0, r2 = reach * reach;
+    const reach = this.hafen ? this.portRange(u.level, kind) * this.S * this.reach : 0, r2 = reach * reach;
     for (const v of ports) {
       if (v.owner === p || !v.owner.alive || !this.canTrade(p, v.owner) || wc[v.water] !== comp) continue;
       if (reach && (v.x - u.x) * (v.x - u.x) + (v.y - u.y) * (v.y - u.y) > r2) continue;   // out of this port's reach
@@ -599,7 +599,7 @@
       if (p.allies.has(cand[i].owner.id)) pool.push(cand[i]);
     }
     const dst = rng.pick(pool), key = u.water * this.N + dst.water, cached = this.pathCache.get(key);
-    if (this.hafen) kind = this.shipFor(Math.sqrt((dst.x - u.x) * (dst.x - u.x) + (dst.y - u.y) * (dst.y - u.y)) / this.S, kind);
+    if (this.hafen) kind = this.shipFor(Math.sqrt((dst.x - u.x) * (dst.x - u.x) + (dst.y - u.y) * (dst.y - u.y)) / (this.S * this.reach), kind);
     if (cached) { this.spawnTrade(u, dst, cached, kind, extra); return; }
     if (cached === null || this.pathQ.length > 6) return;     // route still being worked out, or queue busy
     if (this.pathCache.size > 500) this.pathCache.clear();
@@ -835,7 +835,7 @@
       }
       const hm = u.home && u.home.active && u.home.owner === p ? u.home : null;
       if (hm) {
-        const d2 = (hm.x - u.x) * (hm.x - u.x) + (hm.y - u.y) * (hm.y - u.y), heal = 150 * this.S, quay = Math.max(4, 5 * this.S);
+        const d2 = (hm.x - u.x) * (hm.x - u.x) + (hm.y - u.y) * (hm.y - u.y), heal = 150 * this.S * this.reach, quay = Math.max(4, 5 * this.S);
         if (d2 <= quay * quay) u.hp = Math.min(full, u.hp + 1 + 5 * hm.level);
         else if (d2 <= heal * heal) u.hp = Math.min(full, u.hp + 1);
       }
@@ -850,7 +850,7 @@
     // only counts while it is inside the patrol area, so the ship is not lured away from its post.
     if ((T + u.id) % 5 === 0) {
       let best = null, bs = Infinity, home;
-      const rr = C.range * this.S, r2 = rr * rr, p2 = R.warPatrol * R.warPatrol, pcx = u.patrol % W, pcy = (u.patrol / W) | 0;
+      const rr = C.range * this.S * this.reach, r2 = rr * rr, p2 = R.warPatrol * R.warPatrol, pcx = u.patrol % W, pcy = (u.patrol / W) | 0;
       // only the ships near this one (a grid of the sea, see seaNear), in the order of
       // this.units as before, so every device still picks the same target
       for (const v of this.seaNear(u.x, u.y, rr)) {
@@ -1006,7 +1006,7 @@
   Game.prototype.tickShell = function (u) {
     const tg = u.target;
     if (!tg || !tg.active) { this.removeUnit(u); return; }
-    const dx = tg.x - u.x, dy = tg.y - u.y, d = Math.hypot(dx, dy), sp = Math.max(2, (u.missile ? 2.5 : 4) * this.pace);
+    const dx = tg.x - u.x, dy = tg.y - u.y, d = Math.hypot(dx, dy), sp = Math.max(2, (u.missile ? 2.5 : 4) * this.pace0);
     if (d > sp) { u.x += dx / d * sp; u.y += dy / d * sp; return; }
     this.removeUnit(u);
     const by = u.owner, h = this.human, was = tg.owner;
@@ -1201,9 +1201,9 @@
   };
   // Reach of an air defence: 70 tiles at level 1, growing with every level towards 150 (scaled to the map).
   Game.prototype.samRange = function (u) {
-    return Math.round((150 - 480 / (u.level + 5)) * this.S);
+    return Math.round((150 - 480 / (u.level + 5)) * this.S * this.reach);
   };
-  Game.prototype.sammSpeed = function () { return Math.max(5, 14 * this.S); };
+  Game.prototype.sammSpeed = function () { return Math.max(5, 14 * this.S) * (this.lang ? G.LANG.air : 1); };
   // What an air defence may shoot at. The MIRV itself flies too high; its warheads do not, and
   // the satellite beam comes straight down from orbit (as in OpenFront).
   G.canIntercept = function (type) {

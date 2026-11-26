@@ -33,6 +33,7 @@ Alle Tests liegen in `test/` und laufen mit `node test/<name>.js`. Seit dem 24.1
 | `worker.js [karte] [sekunden]` | Browser: das Spiel im Worker, die Seite liest den Spiegel. Spielt in Echtzeit (angreifen, bauen mit unbegrenztem Gold) und prüft danach, dass der Spiegel Feld für Feld und Wert für Wert dem Worker gleicht; `HTML=build/rohstoffe.html` für die Version «Rohstoffe» |
 | `gl.js [karte] [sekunden]` | Browser: die Karte auf der Grafikkarte. Liest die Farbe jedes Felds zurück und vergleicht sie mit `View.color`, auch in Stücke geschnitten, dazu der Rückfall auf das 2D-Bild, wenn die Grafikkarte verloren geht. Läuft auch ohne Grafikkarte (`?gl=1`) |
 | `insel.js` | Tipp auf das Festland eines Gegners greift übers Land an, Tipp auf seine Insel schickt ein Boot, auch während der Landangriff läuft |
+| `lang.js` | Spielmodus «Langes Spiel»: Tempo und Reichweiten auf dem Meer und in der Luft gegenüber dem klassischen Spiel, Bodenkampf unverändert (`doku/langes-spiel.md`); Gleichlauf mit `node test/det.js lang` |
 | `load.js` | Hilfsdatei, lädt die Karten für die anderen Tests (kein Test) |
 - `node test/pfeile.js`: Schalter: Netz aus lässt nichts malen, Netz an wie bisher, mehrere Pfeile teilen den Anteil gleichmässig, zwei Läufe gleich. Punktangriff: nimmt nur Land im Ring um die Stelle.
 - `node test/pinsel.js`: schnelles Verdichten/Ausdünnen (Taste V, Knöpfe + und −, Doppelklick halten), Knopf «?» mit allen Kürzeln, Reihenfolge der Bauleiste (braucht den Build, Playwright und Chrome).

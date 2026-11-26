@@ -52,6 +52,12 @@
   // gives the pace of the original. These three factors come on top, for tuning by feel:
   // move (ships, trains, shells), attack (how fast a front advances), growth (troops per tick).
   G.PACE = { move: 1, attack: 1, growth: 1 };
+  // Mode «Langes Spiel» (opts.lang, doku/langes-spiel.md): the world feels larger without more
+  // tiles. Everything at sea and in the air is slower and reaches less far, the ground keeps its
+  // pace. All numbers are first values for tuning by feel.
+  //   world   speed of ships and reach of air defences, warships and ports
+  //   air     speed of bombs, cruise missiles and interceptors
+  G.LANG = { world: 0.5, air: 0.4 };
   // What the ground does to an attack, by what covers it (index: G.COVER). `speed` multiplies
   // what a tile costs in time, `loss` what it costs the attacker in troops. Height comes on top
   // (lowland, highland, mountains: the numbers of OpenFront). Forest and swamp give cover and
@@ -161,7 +167,11 @@
     this.sea = map.sea || (map.sea = new G.SeaGraph(map));   // built once per map, shared by every game on it
     this.pathLeg = new G.Pathfinder(map, 160000); this.pathCache = new Map(); this.pathQ = []; this.pathJob = null;
     this.pathNear = new G.Pathfinder(map, 260000); this.nearQ = []; this.nearJob = null;   // short hops: a window of at most 260 000 tiles
-    this.pace = S * G.PACE.move;          // tiles a ship or train covers per tick
+    this.lang = !!this.opts.lang;         // mode «Langes Spiel»
+    const LW = this.lang ? G.LANG.world : 1, LA = this.lang ? G.LANG.air : 1;
+    this.reach = LW;                      // share of the usual reach at sea and in the air
+    this.pace0 = S * G.PACE.move;         // tiles a train or shell covers per tick
+    this.pace = this.pace0 * LW;          // tiles a ship covers per tick
     this.attackPace = S * G.PACE.attack;  // share of OpenFront's tiles per tick a front takes
     this.R = {
       spawn: 4,
@@ -173,11 +183,11 @@
       cruiseIn: Math.max(3, Math.round(7 * S)), cruiseOut: Math.max(5, Math.round(11 * S)),
       laserIn: Math.max(4, Math.round(10 * S)), laserOut: Math.max(6, Math.round(16 * S)),
       cloak: Math.max(8, Math.round(26 * S)), reveal: Math.max(7, Math.round(22 * S)),
-      sam: Math.round(70 * S), warTarget: Math.round(70 * S), warPatrol: Math.round(100 * S),
+      sam: Math.round(70 * S * LW), warTarget: Math.round(70 * S * LW), warPatrol: Math.round(100 * S * LW),
       mirvRange: Math.round(1500 * S), mirvCount: Math.max(8, Math.round(120 * S * S)),
       botDist: Math.max(10, Math.round(30 * S)), boatBox: Math.round(150 * S),
       tnSearch: Math.max(60, Math.round(200 * S)), portSearch: Math.max(14, Math.round(40 * S)),
-      nukeSpeed: Math.max(2.5, 6 * S), rail: Math.max(30, Math.round(110 * S))
+      nukeSpeed: Math.max(2.5, 6 * S) * LA, rail: Math.max(30, Math.round(110 * S))
     };
   }
 

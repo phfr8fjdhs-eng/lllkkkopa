@@ -101,7 +101,8 @@
     return { kampf: c.kampf === 'grenzen' ? 'grenzen' : 'grenzland', pfeile: true, bahn: true, hafen: true };
   }
   let plans = [];          // version «Pfeile»: arrows planned, not launched yet
-  const MODES = [['klassisch', 'Klassisch', 'Das Spiel wie gewohnt.'], ['arsenal', 'Arsenal', 'Zusätzlich: der Satellitenstrahl. Er kommt aus dem All, braucht kein Silo und lässt sich nicht abfangen. Und der Tarnturm: Er versteckt deine Gebäude ganz in seiner Nähe, bis die anderen nahe herankommen. Auch die Nationen setzen beides ein.']];
+  const MODES = [['klassisch', 'Klassisch', 'Das Spiel wie gewohnt.'], ['arsenal', 'Arsenal', 'Zusätzlich: der Satellitenstrahl. Er kommt aus dem All, braucht kein Silo und lässt sich nicht abfangen. Und der Tarnturm: Er versteckt deine Gebäude ganz in seiner Nähe, bis die anderen nahe herankommen. Auch die Nationen setzen beides ein.'], ['lang', 'Langes Spiel', 'Ruhiger und taktischer, gedacht für Runden von etwa 70 Minuten. Schiffe, Bomben und Raketen sind langsamer und reichen weniger weit, das Meer wirkt grösser. Der Bodenkampf bleibt im Tempo.']];
+  const MODE_TAG = { arsenal: ' · Arsenal', lang: ' · Langes Spiel' };
   let hoverX = -1, hoverY = -1;
   const RES = G.VARIANT === 'rohstoffe';   // this page is the game version «Rohstoffe» (src/03c_res.js)
   let ghost = null, ghostKey = '', shiftHeld = false;   // the thing a build key is about to place
@@ -118,7 +119,7 @@
     try { const k = new URLSearchParams(location.search).get('karte'); if (k) cfg.map = k; } catch (e) { /* no address to read */ }
     if (cfg.map !== 'zufall' && !special(cfg.map) && !MAPS.some(function (m) { return m.id === cfg.map; })) cfg.map = MAPS[0].id;
     G.Audio.on.music = cfg.music; G.Audio.on.sfx = cfg.sfx;
-    if (cfg.mode !== 'arsenal') cfg.mode = 'klassisch';
+    if (cfg.mode !== 'arsenal' && cfg.mode !== 'lang') cfg.mode = 'klassisch';
     botsTouched = cfg.bots >= 0;
     if (!s0.botsV3) { cfg.bots = -1; botsTouched = false; }   // the default rose: forget a count stored under the old one
   }
@@ -310,7 +311,7 @@
       // three ways to play, as rows: the free game (with the settings above), the levels, a room for friends
       const lv = !RES && G.Feldzug ? G.Feldzug.summary() : null;
       const mapName = (function () { const m = MAPS.find(function (x) { return x.id === cfg.map; }) || special(cfg.map); return m ? m.name : 'Zufallskarte'; })();
-      h += '<div class="goes">' + goRow('fStart', 'sword', 'Spiel starten', esc(mapName) + ' · ' + G.DIFF_NAMES[cfg.diff] + (cfg.mode === 'arsenal' ? ' · Arsenal' : ''), true);
+      h += '<div class="goes">' + goRow('fStart', 'sword', 'Spiel starten', esc(mapName) + ' · ' + G.DIFF_NAMES[cfg.diff] + (MODE_TAG[cfg.mode] || ''), true);
       if (lv) h += goRow('fCamp', 'flag', 'Levels', lv.n ? 'Level ' + lv.n + ' · ' + esc(lv.name) + ' · ' + lv.stars + ' von ' + lv.max + ' Sternen' : 'Alle Lern-Levels geschafft · ' + lv.stars + ' von ' + lv.max + ' Sternen', false);
       const nw = !RES && G.Neuheiten ? G.Neuheiten.summary() : null;
       if (nw) h += goRow('fNews', 'star', 'Änderungen', (nw.fresh ? nw.fresh + ' neu' : nw.count + ' Änderungen') + ' · zuletzt: ' + esc(nw.newest.title), false);
@@ -363,7 +364,7 @@
     $('fHost').addEventListener('click', function () { readForm(); openRoom(true); });
     function goSub() {
       const m = MAPS.find(function (x) { return x.id === cfg.map; }) || special(cfg.map);
-      $('fStart').querySelector('small').textContent = (m ? m.name : 'Zufallskarte') + ' · ' + G.DIFF_NAMES[cfg.diff] + (cfg.mode === 'arsenal' ? ' · Arsenal' : '');
+      $('fStart').querySelector('small').textContent = (m ? m.name : 'Zufallskarte') + ' · ' + G.DIFF_NAMES[cfg.diff] + (MODE_TAG[cfg.mode] || '');
     }
     if ($('fCamp')) $('fCamp').addEventListener('click', function () { readForm(); G.Feldzug.open(); });
     if ($('fNews')) $('fNews').addEventListener('click', function () { readForm(); G.Neuheiten.open(); });
@@ -458,7 +459,7 @@
       this.disabled = true;
       mp.begin({
         seed: (Math.random() * 2e9) | 0, map: cfg.map, mapSeed: (Math.random() * 2e9) | 0,
-        diff: cfg.diff, bots: Math.max(0, cfg.bots), nations: cfg.nations, arsenal: cfg.mode === 'arsenal', res: RES, opts: playOpts(cfg)
+        diff: cfg.diff, bots: Math.max(0, cfg.bots), nations: cfg.nations, arsenal: cfg.mode === 'arsenal', lang: cfg.mode === 'lang', res: RES, opts: playOpts(cfg)
       });
     });
   }
@@ -467,7 +468,7 @@
     turnLeft = 0;
     loadMap(m.map, m.mapSeed).then(function (map) {
       begin(map, {
-        seed: m.seed, difficulty: m.diff, bots: m.bots, nations: m.nations, arsenal: !!m.arsenal, res: !!m.res, kampf: m.opts ? m.opts.kampf : 'grenzland', pfeile: true, bahn: true, hafen: true, spawnTicks: 300, autoSpawn: true, me: me
+        seed: m.seed, difficulty: m.diff, bots: m.bots, nations: m.nations, arsenal: !!m.arsenal, lang: !!m.lang, res: !!m.res, kampf: m.opts ? m.opts.kampf : 'grenzland', pfeile: true, bahn: true, hafen: true, spawnTicks: 300, autoSpawn: true, me: me
       }, m.players.map(function (p) { return { name: p.name, color: COLORS[p.color % 6] }; }));
       $('bSpeed').hidden = true; $('bPause').hidden = !mp.host;
       addMsg(m.players.length > 1 ? m.players.length + ' Spieler sind dabei. Wählt eure Startpunkte.' : 'Du bist allein im Raum.', 'info');
@@ -569,7 +570,7 @@
     $('fStart').disabled = true; $('fStart').querySelector('small').textContent = 'Karte wird vorbereitet';
     loadMap(cfg.map).then(function (map) {
       begin(map, {
-        seed: (Math.random() * 2e9) | 0, difficulty: cfg.diff, bots: cfg.bots, nations: cfg.nations, arsenal: cfg.mode === 'arsenal', res: RES, kampf: playOpts(cfg).kampf, pfeile: playOpts(cfg).pfeile, bahn: playOpts(cfg).bahn, hafen: playOpts(cfg).hafen,
+        seed: (Math.random() * 2e9) | 0, difficulty: cfg.diff, bots: cfg.bots, nations: cfg.nations, arsenal: cfg.mode === 'arsenal', lang: cfg.mode === 'lang', res: RES, kampf: playOpts(cfg).kampf, pfeile: playOpts(cfg).pfeile, bahn: playOpts(cfg).bahn, hafen: playOpts(cfg).hafen,
         instantBuild: cfg.instant, infiniteGold: cfg.gold, infiniteTroops: cfg.troops
       }, { name: cfg.name, color: COLORS[cfg.color] });
     }).catch(function (e) {
@@ -974,7 +975,7 @@
 
   function showMenu() {
     if (!mp) setPaused(true);
-    openModal('<h2>' + (mp ? 'Menü' : 'Pause') + '</h2><p>' + (game.lv ? (game.lv.def.show ? 'Änderung · ' + esc(game.lv.def.title) : 'Level ' + game.lv.def.n + ' · ' + esc(game.lv.def.name)) : esc(game.map.name) + ' · ' + G.DIFF_NAMES[game.opts.difficulty] + (game.opts.arsenal ? ' · Arsenal' : '')) + '</p>' +
+    openModal('<h2>' + (mp ? 'Menü' : 'Pause') + '</h2><p>' + (game.lv ? (game.lv.def.show ? 'Änderung · ' + esc(game.lv.def.title) : 'Level ' + game.lv.def.n + ' · ' + esc(game.lv.def.name)) : esc(game.map.name) + ' · ' + G.DIFF_NAMES[game.opts.difficulty] + (game.opts.arsenal ? ' · Arsenal' : game.opts.lang ? ' · Langes Spiel' : '')) + '</p>' +
       '<button class="btn" data-act="resume" type="button">Weiterspielen</button>' +
       '<button class="btn ghost" data-act="help" type="button">So wird gespielt</button>' +
       '<label class="check wide" for="mMusic"><input id="mMusic" type="checkbox"' + (cfg.music ? ' checked' : '') + '>Musik</label>' +

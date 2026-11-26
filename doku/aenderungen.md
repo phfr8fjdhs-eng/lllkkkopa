@@ -3,6 +3,10 @@ Was seit dem 13.11.2026 geändert wurde und warum. Den heutigen Stand der Regeln
 
 
 
+## Spielmodus «Langes Spiel», Paket 1a: die Welt wirkt grösser (26.11.2026)
+- **Wunsch:** Ein ruhigerer, taktischer Modus mit Runden von etwa 70 Minuten; das Meer und die Entfernungen sollen im Verhältnis zum Land grösser wirken.
+- **Geändert:** Dritter Spielmodus «Langes Spiel» (`opts.lang`). Darin Schiffe ×0.5, Bomben und Abwehrraketen ×0.4, Reichweiten von Flugabwehr, Kriegsschiffen und Häfen ×0.5 (`G.LANG`). Züge und Granaten haben ein eigenes Tempo (`pace0`), damit sie gleich bleiben. Das klassische Spiel bleibt gleich (Prüfsumme von `SUM=1 node test/stress.js welt 100` vorher und nachher 1139506161). Szene 121, Test `node test/lang.js`, Regeln in `doku/langes-spiel.md`.
+
 ## Unbenutzte Namen entfernt (26.11.2026)
 - **Wunsch:** Reste aus der Code-Prüfung entfernen.
 - **Geändert:** `G.CITY_MAX_LEVEL` (`src/04_units.js`), `G.TRAIN_GOLD` (`src/04b_rail.js`), `G.hidFromMe` und `G.shipArt` (`src/06_view.js`) sowie `G.SyncOut` (`src/05b_sync.js`) gelöscht. Kein Code und kein Test hat sie benutzt.

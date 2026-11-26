@@ -13,6 +13,7 @@
   //   text   one or two sentences: what is new, said plainly (shown at the bottom while it runs)
   //   loop   [first second, every n seconds, function (Q, k)]: the part of the script that repeats
   //   arsenal  the scene needs the «Arsenal» mode
+  //   lang     the scene runs in the mode «Langes Spiel»
   // A new change gets a scene here (at the top of the list), see CLAUDE.md.
   const S = G.levelShape, circ = S.circ, rect = S.rect;
   const hot = function (t) { return '#hotbar [data-t="' + t + '"]'; };
@@ -29,6 +30,15 @@
   }
 
   G.NEUES = [
+    {
+      n: 121, date: '26.11.2026', title: 'Langes Spiel: das Meer wirkt grösser', lang: true,
+      text: 'Neuer Spielmodus «Langes Spiel»: Schiffe fahren halb so schnell, Bomben und Raketen fliegen langsamer, und Flugabwehr, Kriegsschiffe und Häfen reichen nur halb so weit. Der Bodenkampf bleibt im Tempo.',
+      map: { w: 300, h: 200, seed: 921, rough: 4, shapes: [rect(0, 0, 120, 200), rect(180, 0, 300, 200)] },
+      me: { x: 50, y: 100, box: [0, 0, 125, 200], troops: 60000, gold: 500000, build: [[UT.PORT, 120, 60, 2], [UT.PORT, 120, 140, 2], [UT.SILO, 60, 100, 2], [UT.SAM, 100, 100, 2]] },
+      foes: [{ name: 'Ostmark', x: 250, y: 100, box: [175, 0, 300, 200], troops: 60000, build: [[UT.PORT, 180, 50, 2], [UT.PORT, 180, 150, 2], [UT.SAM, 200, 100, 1]] }],
+      allow: ALL, quest: none,
+      loop: [6, 12, function (Q, k) { Q.fire(Q.me, UT.ATOM, 240 + (k % 2) * 30, 60 + (k % 3) * 40); }]
+    },
     {
       n: 120, date: '25.11.2026', title: 'Schüsse bereit auf der Bauleiste',
       text: 'Auf den Bomben in der Bauleiste steht jetzt, wie viele du sofort abfeuern kannst (geladene Silo-Schüsse), rot 0, solange alles nachlädt. Bei der Flugabwehr steht die Zahl aller Abwehrschüsse zusammen (eine pro Stufe), nicht mehr die Anzahl Türme.',

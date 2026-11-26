@@ -9,6 +9,7 @@ const G = globalThis.G, UT = G.UT;
 const count = (g, type, p) => g.units.filter((u) => u.active && u.type === type && (!p || u.owner === p)).length;
 // what has to be seen in each scene, asked every second; seen once is enough
 const SEEN = {
+  121: (g) => g.lang && g.nukes.some((n) => n.active && n.type === UT.ATOM && n.speed < 1.5) && g.units.some((u) => u.active && u.type === UT.TRADE),
   116: (g) => g.human.tiles > 0,
   120: (g) => { const u = g.human.units.find((x) => x.type === UT.SILO); return !!u && u.ready.length === 3 && u.ready.some((r) => r > g.ticks); },
   119: (g) => [30, 10, 5, 3].every((l) => g.human.units.some((u) => u.type === UT.CITY && u.level === l)),
@@ -36,7 +37,7 @@ const fail = (n, what) => { bad++; console.log('FAILED', n, what); };
 for (const L of G.NEUES) {
   if (only && L.n !== only) continue;
   const map = G.levelMap(L);
-  const make = () => { const g = new G.Game(map, { seed: 2000 + L.n, level: L.n, bots: 0, nations: false, arsenal: !!L.arsenal, kampf: 'grenzland', pfeile: true }); g.setup({ name: 'Ich', color: [208, 92, 84] }); return g; };
+  const make = () => { const g = new G.Game(map, { seed: 2000 + L.n, level: L.n, bots: 0, nations: false, arsenal: !!L.arsenal, lang: !!L.lang, kampf: 'grenzland', pfeile: true }); g.setup({ name: 'Ich', color: [208, 92, 84] }); return g; };
   const g = make(), twin = make();
   if (G.levelDef(L.n) !== L) fail(L.n, 'not found by its number');
   if (!(g.human.tiles > 0)) fail(L.n, 'player starts without land');

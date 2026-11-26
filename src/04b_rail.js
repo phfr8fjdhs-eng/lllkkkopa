@@ -301,7 +301,7 @@
     if (!e.a.active || !e.b.active || !p.alive || !u.goal.active) { this.removeUnit(u); return; }
     const end = u.fwd ? e.path.length - 1 : 0;
     if (u.pi !== end) {
-      for (let n = this.stride(u); n > 0 && u.pi !== end; n--) {
+      for (let n = this.stride(u, this.pace0); n > 0 && u.pi !== end; n--) {
         u.pi += u.fwd ? 1 : -1;
         this.setPos(u, e.path[u.pi]);
         const o = this.owner[u.tile];
@@ -335,7 +335,7 @@
     if (!e.a.active || !e.b.active || !p.alive) { this.removeUnit(u); return; }
     const end = u.fwd ? e.path.length - 1 : 0;
     if (u.pi !== end) {
-      for (let n = this.stride(u); n > 0 && u.pi !== end; n--) {
+      for (let n = this.stride(u, this.pace0); n > 0 && u.pi !== end; n--) {
         u.pi += u.fwd ? 1 : -1;
         this.setPos(u, e.path[u.pi]);
         const o = this.owner[u.tile];

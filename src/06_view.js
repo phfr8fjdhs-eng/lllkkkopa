@@ -790,7 +790,7 @@
       if (u.type === UT.SAM) return g.samRange(u);
       if (u.type === UT.CLOAK) return g.R.cloak;
       if (u.type === UT.FACTORY) return g.R.rail;
-      if (u.type === UT.PORT && g.hafen) { let r = 0; G.HAFEN.ships.forEach(function (k) { if (u.level >= k.from) r = Math.max(r, k.range * g.S); }); return r; }
+      if (u.type === UT.PORT && g.hafen) { let r = 0; G.HAFEN.ships.forEach(function (k) { if (u.level >= k.from) r = Math.max(r, k.range * g.S * (g.reach || 1)); }); return r; }
       return 0;
     };
     const show = [];
@@ -931,7 +931,7 @@
       if (!bad && g.bahn !== undefined && G.isStation(t)) this.railPreview(ctx, g, z, ox, oy, gh);
       // what the building would cover: a defence post its stretch of border, an air defence its sky,
       // a cloaking tower the few buildings around it that it hides
-      const reach = t === UT.DEFENSE ? R.defense : t === UT.SAM ? g.samRange({ level: 1 }) : t === UT.CLOAK ? R.cloak : t === UT.PORT && g.hafen ? G.HAFEN.ships[0].range * g.S : 0;
+      const reach = t === UT.DEFENSE ? R.defense : t === UT.SAM ? g.samRange({ level: 1 }) : t === UT.CLOAK ? R.cloak : t === UT.PORT && g.hafen ? G.HAFEN.ships[0].range * g.S * (g.reach || 1) : 0;
       if (reach && !bad) {
         ctx.beginPath(); ctx.arc(x, y, reach * z, 0, 6.2832);
         ctx.fillStyle = 'rgba(255,255,255,.07)'; ctx.fill();
@@ -1626,7 +1626,7 @@
   View.prototype.drawTrain = function (ctx, g, u, z, ox, oy, alpha) {
     const n = u.edge.path.length, dir = u.fwd ? 1 : -1, p = u.owner, geo = railGeo(u.edge, g.W);
     // glide between tiles the way ships do: `mv` is the part of the next tile already covered
-    const head = within(u.pi + dir * ((u.mv || 0) + (u.st === g.ticks ? alpha * g.pace : 0)), 0, n - 1);
+    const head = within(u.pi + dir * ((u.mv || 0) + (u.st === g.ticks ? alpha * (u.sr || g.pace) : 0)), 0, n - 1);
     // Big enough to make out even on a map zoomed right out, where a train used to be three
     // specks melting into the track.
     const L = Math.max(7, z * 1.3), B = Math.max(3.4, z * 0.72);

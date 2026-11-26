@@ -7,10 +7,12 @@ for (const f of ['00_util.js', '01_map.js', '02_path.js', '03_game.js', '03b_pos
 const G = globalThis.G, UT = G.UT;
 // `node test/det.js arsenal`: the same with the Arsenal mode, cloaking towers included
 const ARS = process.argv[2] === 'arsenal';
+// `node test/det.js lang`: the same in the mode «Langes Spiel»
+const LANG = process.argv[2] === 'lang';
 // `node test/det.js grenzland` / `node test/det.js grenzen`: one of the two combat systems
 const KAMPF = process.argv[2] === 'grenzland' || process.argv[2] === 'grenzen' ? process.argv[2] : undefined;
 const seed = 4242, map = G.buildMap(480, 300, G.randomClassMap(480, 300, seed), seed, { id: 'zufall', name: 'Test', nations: [] });
-const make = () => { const g = new G.Game(map, { seed: 99, bots: 40, difficulty: 1, me: 0, arsenal: ARS, kampf: KAMPF, pfeile: !!KAMPF }); g.setup([{ name: 'A' }, { name: 'B' }]); return g; };
+const make = () => { const g = new G.Game(map, { seed: 99, bots: 40, difficulty: 1, me: 0, arsenal: ARS, lang: LANG, kampf: KAMPF, pfeile: !!KAMPF }); g.setup([{ name: 'A' }, { name: 'B' }]); return g; };
 const a = make(), b = make();
 let r = 12345; const rnd = (n) => { r = (Math.imul(r, 1103515245) + 12345) >>> 0; return r % n; };
 const both = (id, c) => { const x = a.exec(id, c), y = b.exec(id, c); if (x !== y) throw new Error('order answered differently: ' + JSON.stringify(c) + ' ' + x + ' / ' + y); };
@@ -48,5 +50,5 @@ for (let i = 0; i < 4000; i++) {
 }
 let same = true;
 for (let t = 0; t < map.N; t++) if (a.owner[t] !== b.owner[t] || a.fallout[t] !== b.fallout[t]) { same = false; break; }
-console.log(KAMPF || (ARS ? 'arsenal' : 'klassisch'), 'orders', orders, 'cloaking towers', a.units.filter((u) => u.active && u.type === UT.CLOAK).length, 'thrusts', thrusts, 'missiles ordered', cruise, 'tiles A/B', a.players[1].tiles, a.players[2].tiles, 'fallout', a.falloutCount, 'identical map:', same, 'checksum differences:', diff);
+console.log(KAMPF || (ARS ? 'arsenal' : LANG ? 'lang' : 'klassisch'), 'orders', orders, 'cloaking towers', a.units.filter((u) => u.active && u.type === UT.CLOAK).length, 'thrusts', thrusts, 'missiles ordered', cruise, 'tiles A/B', a.players[1].tiles, a.players[2].tiles, 'fallout', a.falloutCount, 'identical map:', same, 'checksum differences:', diff);
 process.exit(same && !diff ? 0 : 1);

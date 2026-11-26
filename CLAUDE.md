@@ -36,7 +36,7 @@ Ziel: grosse Karten, viele Spieler und Einheiten, später Mehrspieler über eine
 | `00_util.js` | 130 | RNG mit Startwert, `G.M` (Math, überall gleich), `G.fmt`, `G.within` |
 | `01_map.js` | 270 | Karten laden und erzeugen, `G.SPECIAL_MAPS`, `G.COVER`, Gelände, Klima (`G.CLIMATE`, `G.addClimate`, `G.rowLats`, `map.elevOf`, `map.tempOf`, `map.coldOf`) |
 | `02_path.js` | 270 | Seerouten (A*), `G.SeaGraph` |
-| `03_game.js` | 1100 | Spielkern `G.Game`, Spielertypen `PT`, Einheiten `UT` (Gebäude zuerst, `G.isStruct`), Eroberung und Angriff (`conquer`, `attack`, `tickAttack`), Konstanten `G.COMBAT` (Bodenkampf), `G.MOMENTUM` (Schwung), `G.KESSEL`, `G.TERRAIN`, `G.groundSpeed`, `G.groundLoss`, `G.PACE`, `G.START_GOLD`, `G.BOT_BOUNTY`, `G.LAND_GOLD`, `G.NUKE_PEACE`, `pathLane` |
+| `03_game.js` | 1100 | Spielkern `G.Game`, Spielertypen `PT`, Einheiten `UT` (Gebäude zuerst, `G.isStruct`), Eroberung und Angriff (`conquer`, `attack`, `tickAttack`), Konstanten `G.COMBAT` (Bodenkampf), `G.MOMENTUM` (Schwung), `G.KESSEL`, `G.TERRAIN`, `G.groundSpeed`, `G.groundLoss`, `G.PACE`, `G.LANG` (Modus «Langes Spiel»), `G.START_GOLD`, `G.BOT_BOUNTY`, `G.LAND_GOLD`, `G.NUKE_PEACE`, `pathLane` |
 | `03c_res.js` | 270 | nur Version «Rohstoffe» (eingefroren): `G.RAW`, `G.WARE`, `G.RES_ICON`, Ländertabelle, Vorkommen (`attachCountries`, `map.deposits`), Anlagen auf Vorkommen (`G.DIG`, `G.DIG_OF`, `digCheck`, `dig`, `digGold`, `digAuto`, Zustand `game.dg`), `resTick`, `wareOf`; im klassischen Build nicht enthalten |
 | `03b_posture.js` | 330 | Aufstellung (Truppen-Netz): `postEffect`, `HAND` |
 | `03d_level.js` | 440 | Feldzug: Levels als Daten `G.LEVELS`, `G.levelMap`, `levelSetup`, `levelTick`, `levelAllows`, Zustand `game.lv` |
@@ -75,6 +75,7 @@ Weitere Ordner: `tools/` (Bauen und Kartenerzeugung, Python), `test/` (Tests, No
 | Bereich «Änderungen»: Szenen, wie man eine neue einträgt | `neuheiten.md` |
 | Wohin das Spiel geht, Reihenfolge der nächsten Schritte | `vision.md` |
 | Leistung: Messungen, Engpässe, Plan | `leistung.md` |
+| Spielmodus «Langes Spiel»: Pakete, Regeln, Zahlen (`G.LANG`, `opts.lang`) | `langes-spiel.md` |
 
 ## Welcher Test
 - Regeln und Zahlen: `node test/sim.js`, `node test/all.js`
@@ -86,5 +87,6 @@ Weitere Ordner: `tools/` (Bauen und Kartenerzeugung, Python), `test/` (Tests, No
 - Feldzug (jedes Level baut sich, bleibt gleich, ist zu gewinnen): `node test/level.js`
 - «Änderungen» (jede Szene baut sich, bleibt gleich, zeigt ihre Änderung): `node test/neu.js`
 - Bedienung im Browser: `node test/ui.js` (braucht Playwright und Chrome), schnelles Verdichten, Kürzel, Bauleiste: `node test/pinsel.js`
+- Spielmodus «Langes Spiel»: `node test/lang.js`, Gleichlauf `node test/det.js lang`
 - Leistung: `node test/phasen.js` (wohin ein Tick geht: Eroberung, Dichte, Bots, mit Spitzen), `node test/stress.js` (Simulation mit 100 bis 10 000 Schiffen), `node test/stress_view.js` (Bild, nach dem Build)
 - Worker und Spiegel: `node test/worker.js [karte] [sekunden]`, Karte auf der Grafikkarte: `node test/gl.js` (beide nach dem Build). Browser-Tests, die direkt ins Spiel greifen, öffnen die Seite mit `?worker=0`.

@@ -42,7 +42,7 @@
     G.Feldzug.freshTips();
     mark(n);
     u.begin(mapOf(n), {
-      seed: 2000 + n, level: n, difficulty: 1, bots: 0, nations: false, arsenal: !!L.arsenal,
+      seed: 2000 + n, level: n, difficulty: 1, bots: 0, nations: false, arsenal: !!L.arsenal, lang: !!L.lang,
       kampf: c.kampf === 'grenzen' ? 'grenzen' : 'grenzland', pfeile: c.pfeile !== false
     }, { name: c.name, color: u.COLORS[c.color] });
   }
