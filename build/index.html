@@ -8994,7 +8994,10 @@ void main() { outc = texture(uColor, vUV); }`;
   // How many screen pixels a picture pixel is at OpenFront zoom zz: one tile, never so small that
   // the ship is lost, and never so large that a destroyer outgrows a building sign (24.11.2026:
   // zoomed in, ships grew with the map while the signs stay put, a large merchant twice a city)
-  function shipPx(zz) { return Math.max(1.4, Math.min(zz, ICON_PX * 0.9 * iconScaleAt(zz) / 11)); }
+  // In the first ten levels of the campaign every ship is drawn 1.6 times as large, so a beginner
+  // finds the boats easily (25.11.2026). Only the picture changes, the simulation does not.
+  let SHIP_BOOST = 1;
+  function shipPx(zz) { return Math.max(1.4, Math.min(zz, ICON_PX * 0.9 * iconScaleAt(zz) / 11)) * SHIP_BOOST; }
   // where the forward gun sits, as a share of the length from the middle (war0, war1)
   const GUN_FORE = 0.26;
   function warship(ctx, x, y, ang, s, p, aim, cls) { drawShip(ctx, cls === 1 ? 'war1' : 'war0', x, y, ang, s * 2 / HULLS[cls === 1 ? 'war1' : 'war0'][0], p); }
@@ -9084,6 +9087,7 @@ void main() { outc = texture(uColor, vUV); }`;
   }
 
   View.prototype.drawUnits = function (ctx, g, z, ox, oy, alpha, now) {
+    SHIP_BOOST = g.lv && g.lv.def && g.lv.def.n <= 10 ? 1.6 : 1;
     const cw = this.cw, ch = this.ch, us = g.units;
     const zz = z * (g.S || 1), ws = warSize(zz), bs = boatSize(zz);
     this.frame = (this.frame || 0) + 1;
