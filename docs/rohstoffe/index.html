@@ -1476,7 +1476,8 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   G.THRUST = { widths: [0, 30, 12], max: 4, pull: 1.2, ring: 0.6, speed: 0.5, flank: 3, deep: 4, hold: 1.5, fan: 0.45, nose: 1, crowd: 2, dirShare: 0.6, search: 250000 };
   G.UNAME = ['Stadt', 'Verteidigungs\u00ADposten', 'Hafen', 'Raketensilo', 'Flugabwehr', 'Fabrik', 'Tarnturm', 'Zerstörer', 'Boot',
     'Handelsschiff', 'Zug', 'Granate', 'Abwehrrakete', 'Atombombe', 'Wasserstoff\u00ADbombe', 'MIRV', 'Sprengkopf', 'Marschflug\u00ADkörper', 'Satelliten\u00ADstrahl'];
-  G.UNAME[7.5] = 'Schlachtschiff';   // the interface's own number for warship class 1 (src/07_ui.js, BS)
+  G.UNAME[7.5] = 'Schlachtschiff';
+  G.UNAME[4.5] = 'Raketenabwehr';    // «Langes Spiel»: air defence class 1 (src/07_ui.js, ABM)   // the interface's own number for warship class 1 (src/07_ui.js, BS)
   // Tempo. The numbers of the simulation are OpenFront's, but its maps have two million tiles and
   // ours are smaller (map.S is the scale of a side), so the same tiles per tick looked hectic:
   // a ship crossed our Atlantic in 0.6 of the time, a front rolled over a country in 0.6 of the
@@ -1499,6 +1500,11 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   //           average of the own front loses `wear` of the surplus per minute (less with supply)
   //   dig*    a cell digs in within digTicks; dug in fully, an attacker loses 1 + digLoss times
   //           as many troops and needs 1 + digTime times as long; each lost tile takes digDrop
+  //   sam*, abm*  two air defences: class 0 (key 6) only against cruise missiles, samShots per
+  //           level; class 1, missile defence (key J), only against atom and hydrogen bombs and
+  //           warheads, 1 + floor(level / 4) shots, reload abmReload x 8 / (level + 7), price x
+  //           abmCost. A second launcher of the same class within reach reloads 1 / abmStack
+  //           times as long, a third 1 / abmStack^2 (src/04c_lang.js)
   //   post*   defence posts: radius x postR, losses x (postLoss[0] + postLoss[1] x level), time
   //           x (1 + postTime x level), and a tile they cover counts as at least postDens dense
   G.LANG = {
@@ -1506,7 +1512,8 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     massSpan: 600, massRise: 0.5, massShare: 0.03, massQuiet: 900,
     wearFrom: 12000, wearOver: 2, wear: 0.01,
     digTicks: 1200, digLoss: 2, digTime: 0.75, digDrop: 0.004,
-    postR: 1.5, postLoss: [5, 3], postTime: 3, postDens: 2
+    postR: 1.5, postLoss: [5, 3], postTime: 3, postDens: 2,
+    samShots: 2, samReload: 90, abmCost: 1.5, abmReload: 90, abmStack: 0.5
   };
   // What the ground does to an attack, by what covers it (index: G.COVER). `speed` multiplies
   // what a tile costs in time, `loss` what it costs the attacker in troops. Height comes on top
@@ -3136,7 +3143,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
       case 'build': {
         if (!tileOk || !(c.u <= UT.WARSHIP || c.u === UT.ATOM || c.u === UT.HYDRO || c.u === UT.MIRV || c.u === UT.CRUISE || c.u === UT.LASER) || !(c.u >= 0)) return 'Nicht möglich';
         if (this.lv && !this.levelAllows(c.u)) return 'In diesem Level noch gesperrt';
-        const cls = c.u === UT.WARSHIP && c.cls === 1 ? 1 : 0;    // a battleship
+        const cls = (c.u === UT.WARSHIP || (c.u === UT.SAM && this.lang)) && c.cls === 1 ? 1 : 0;    // a battleship, a missile defence
         const chk = this.buildCheck(p, c.u, c.t, cls, !!c.fresh);
         if (!chk.ok) return chk.why || 'Nicht möglich';
         return this.build(p, c.u, c.t, cls, !!c.fresh) ? '' : 'Nicht möglich';
@@ -4235,15 +4242,20 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   };
   // A building that is already there when the level starts.
   Game.prototype.levelPlace = function (p, type, x, y, level) {
+    // 4.5: the missile defence of «Langes Spiel» (air defence class 1)
+    const cls = type === 4.5 ? 1 : 0;
+    if (cls) type = UT.SAM;
     let t = this.levelTile(x, y, p);
     if (t < 0) return null;
     if (type === UT.PORT) { t = this.portSite(p, t); if (t < 0) return null; }
     const u = this.newUnit(type, p, t);
     u.level = level || 1;
     if (type === UT.PORT) u.water = this.portWater(t);
+    if (type === UT.SAM && this.lang) u.cls = cls;
     this.addUnit(u);
     this.finishBuild(u);
     if (u.ready) { u.ready.length = 0; for (let i = 0; i < u.level; i++) u.ready.push(0); }
+    if (type === UT.SAM && this.lang) this.samSlots(u);
     return u;
   };
 
@@ -4474,6 +4486,15 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   }
 
   G.NEUES = [
+    {
+      n: 124, date: '26.11.2026', title: 'Langes Spiel: zwei Flugabwehren', lang: true,
+      text: 'Im Langen Spiel gibt es zwei Flugabwehren: die kleine (Taste 6) gegen Marschflugkörper, mit vielen Schüssen, und die Raketenabwehr (Taste J) gegen Atom- und Wasserstoffbomben, mit wenigen Schüssen. Stehen mehrere nahe beieinander, lädt die zweite halb so schnell nach, die dritte nur noch ein Viertel.',
+      map: { w: 320, h: 200, seed: 924, shapes: [circ(80, 100, 60), circ(235, 100, 72)] },
+      me: { x: 80, y: 100, r: 64, troops: 60000, gold: 0, build: [[UT.SAM, 100, 80, 5], [4.5, 100, 125, 4], [4.5, 70, 125, 4], [UT.CITY, 60, 90, 3]] },
+      foes: [{ name: 'Vellmar', x: 235, y: 100, r: 76, troops: 200000, build: [[UT.SILO, 230, 100, 5]] }],
+      allow: ALL, quest: none,
+      loop: [6, 7, function (Q, k) { if (k % 2) Q.fire(Q.foe[0], UT.CRUISE, 100, 88); else Q.fire(Q.foe[0], UT.ATOM, 85 + (k % 4) * 2, 118); }]
+    },
     {
       n: 123, date: '26.11.2026', title: 'Langes Spiel: Abnutzung und Eingraben', lang: true,
       text: 'Wer an einem Abschnitt mehr als doppelt so dicht steht wie im Schnitt seiner Front, verliert dort laufend Truppen, ausser eine Stadt oder Schiene versorgt ihn (sonst erst ab Minute 20). Ruhige Grenzen graben sich ein, Verteidigungsposten halten auch mit wenigen Truppen.',
@@ -4786,6 +4807,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     o.cnt[u.type] -= u.level;
     if (u.type <= UT.CLOAK) {
       this.structAt.delete(u.tile); this.cloakOk = false;
+      if (u.type === UT.SAM && this.lang) this.samSig = (this.samSig | 0) + 1;
       if (u.built) {
         if (u.type === UT.CITY) o.cityLv -= u.level;
         else if (u.type === UT.DEFENSE) { this.refreshPosts(o); this.dirtyDisc(u.tile); }
@@ -4811,6 +4833,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     if (i >= 0) o.units.splice(i, 1);
     o.cnt[u.type] -= u.level; np.cnt[u.type] += u.level;
     u.owner = np; np.units.push(u);
+    if (u.type === UT.SAM && this.lang) this.samSig = (this.samSig | 0) + 1;
     if (u.type === UT.CITY) { o.cityLv -= u.level; np.cityLv += u.level; }
     else if (u.type === UT.DEFENSE) { this.refreshPosts(o); this.refreshPosts(np); this.dirtyDisc(u.tile); }
     else if (u.type === UT.PORT) this.portList = null;
@@ -4890,6 +4913,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     else if (u.type === UT.PORT) this.portList = null;
     else if (u.type === UT.FACTORY) u.nextTrain = this.ticks + 50;
     else u.ready = [0];
+    if (u.type === UT.SAM && this.lang) { this.samSig = (this.samSig | 0) + 1; this.samSlots(u); }
     if (G.isStation(u.type)) this.railDirty = true;
   };
   Game.prototype.structNear = function (t, d) {
@@ -4989,6 +5013,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   Game.prototype.buildCheck = function (p, type, tile, cls, fresh) {
     const res = { ok: false, why: '', cost: this.cost(p, type), tile: tile, port: null, silo: null, stored: false };
     if (type === UT.WARSHIP && cls) res.cost = Math.round(res.cost * G.SHIP_CLASS[1].cost);
+    if (type === UT.SAM && cls && this.lang) res.cost = Math.round(res.cost * G.LANG.abmCost);
     const map = this.map, W = this.W;
     if (!p.alive || this.phase !== 'play') { res.why = 'Nicht möglich'; return res; }
     if (type <= UT.CLOAK) {
@@ -5040,7 +5065,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   };
 
   Game.prototype.build = function (p, type, tile, cls, fresh) {
-    cls = type === UT.WARSHIP && cls === 1 ? 1 : 0;
+    cls = (type === UT.WARSHIP || (type === UT.SAM && this.lang)) && cls === 1 ? 1 : 0;
     const c = this.buildCheck(p, type, tile, cls, fresh);
     if (!c.ok) return null;
     p.gold -= c.cost;
@@ -5050,6 +5075,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
       u.built = false; u.buildStart = this.ticks;
       u.buildEnd = this.ticks + (this.opts.instantBuild ? 0 : BUILD_TICKS[type]);
       if (type === UT.PORT) u.water = this.portWater(c.tile);
+      if (type === UT.SAM && this.lang) u.cls = cls;   // «Langes Spiel»: 0 air defence, 1 missile defence
       this.addUnit(u);
       if (this.opts.instantBuild) this.finishBuild(u);
     } else if (type === UT.WARSHIP) {
@@ -5076,7 +5102,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     p.gold -= cost; u.level++; p.cnt[u.type]++;
     if (u.type === UT.CITY) p.cityLv++;
     else if (u.type === UT.DEFENSE) this.dirtyDisc(u.tile);
-    else if (u.ready) u.ready.push(0);
+    else if (u.ready) { u.ready.push(0); if (u.type === UT.SAM && this.lang) this.samSlots(u); }
     return true;
   };
 
@@ -5948,10 +5974,10 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     for (let s = 0; s < u.ready.length; s++) {
       if (u.ready[s] > T) continue;
       for (const n of this.nukes) {
-        if (!n.active || n.sam || !G.canIntercept(n.type)) continue;
+        if (!n.active || n.sam || !(this.lang ? this.samCan(u, n.type) : G.canIntercept(n.type))) continue;
         if (n.owner === u.owner || this.friendly(n.owner, u.owner)) continue;
         if (!this.samSolve(u, n, n.type === UT.CRUISE ? sr * G.CRUISE_RANGE : sr)) continue;
-        n.sam = true; u.ready[s] = T + 90;
+        n.sam = true; u.ready[s] = T + (this.lang ? this.samReload(u) : 90);
         const m = this.newUnit(UT.SAMM, u.owner, u.tile);
         m.target = n; m.src = u;
         this.addUnit(m);
@@ -5987,6 +6013,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     if (type !== undefined && !G.canIntercept(type)) return out;
     const f = type === UT.CRUISE ? G.CRUISE_RANGE : 1;
     for (const u of this.structAt.values()) {
+      if (u.type === UT.SAM && this.lang && type !== undefined && !this.samCan(u, type)) continue;
       if (u.type !== UT.SAM || !u.built || u.owner === p || this.friendly(u.owner, p) || this.hiddenFrom(u, p)) continue;   // a hidden one is a surprise
       const sr = this.samRange(u) * f, r2 = sr * sr;
       for (let i = 0; i <= 40; i++) {
@@ -6517,6 +6544,38 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     if (p === this.human && this.ticks >= (p.wearSaid || 0)) { p.wearSaid = this.ticks + 3000; this.say('Deine Truppen an der überdichten Front nutzen sich ab. Eine Stadt oder Schiene in der Nähe versorgt sie.', 'warn'); }
   };
 
+  // ---------- two air defences ----------
+  // Class 0 (air defence) shoots at cruise missiles (later planes and short-range missiles),
+  // class 1 (missile defence) at atom and hydrogen bombs and MIRV warheads.
+  Game.prototype.samCan = function (u, type) {
+    return u.cls ? type === UT.ATOM || type === UT.HYDRO || type === UT.WARHEAD : type === UT.CRUISE;
+  };
+  // Shots per salvo: class 0 G.LANG.samShots per level, class 1 1 + floor(level / 4).
+  Game.prototype.samShotsOf = function (u) {
+    return u.cls ? 1 + Math.floor(u.level / 4) : G.LANG.samShots * u.level;
+  };
+  Game.prototype.samSlots = function (u) {
+    const n = this.samShotsOf(u), r = u.ready || (u.ready = []);
+    while (r.length < n) r.push(0);
+    if (r.length > n) r.length = n;
+  };
+  // Reload in ticks, times the stacking: the oldest of the own launchers of a class standing within
+  // reach of each other reloads at full speed, the next at half, the third at a quarter...
+  Game.prototype.samReload = function (u) {
+    const L = G.LANG, base = u.cls ? Math.round(L.abmReload * 8 / (u.level + 7)) : L.samReload;
+    if (u.stackSig !== this.samSig) {
+      u.stackSig = this.samSig;
+      const r = this.samRange(u), r2 = r * r;
+      let k = 0;
+      for (const v of u.owner.units) {
+        if (v === u || v.type !== UT.SAM || !v.built || !v.active || (v.cls || 0) !== (u.cls || 0) || v.id > u.id) continue;
+        if ((v.x - u.x) * (v.x - u.x) + (v.y - u.y) * (v.y - u.y) <= r2) k++;
+      }
+      u.stackF = Math.pow(L.abmStack, k);
+    }
+    return Math.round(base / u.stackF);
+  };
+
   // ---------- digging in and defence posts ----------
   // A cell that loses nothing digs in: from 0 to 1 within G.LANG.digTicks. Every tile it loses
   // takes G.LANG.digDrop of it again. Fresh land starts at 0.
@@ -6812,9 +6871,10 @@ globalThis.G = { VARIANT: 'rohstoffe' };
       const silo = p.units.find(function (u) { return u.type === UT.SILO && u.built && g.canUpgrade(p, u); });
       if (silo && g.upgrade(p, silo)) return;
     }
-    if (d >= 1 && c[UT.SAM] < 1 && c[UT.CITY] > 0 && can(UT.SAM, 1.2)) {
+    // «Langes Spiel»: a missile defence first, then an air defence against cruise missiles
+    if (d >= 1 && c[UT.SAM] < (g.lang ? 2 : 1) && c[UT.CITY] > 0 && can(UT.SAM, 1.2)) {
       const t = this.tileOf(p, true);
-      if (t >= 0 && g.build(p, UT.SAM, t)) return;
+      if (t >= 0 && g.build(p, UT.SAM, t, g.lang && c[UT.SAM] === 0 ? 1 : 0)) return;
     }
     // Arsenal mode: a cloaking tower right next to a silo or air defence that is still in plain sight
     if (g.opts.arsenal && d >= 1 && c[UT.CLOAK] < d && can(UT.CLOAK, 2) && r.chance(3)) {
@@ -8149,6 +8209,8 @@ void main() { outc = texture(uColor, vUV); }`;
     defense: 'M12 2l8.5 3.2v6.3c0 5.2-3.6 9-8.5 10.5c-4.9-1.5-8.5-5.3-8.5-10.5V5.2z',
     port: 'M12 1.4a3.1 3.1 0 1 1 0 6.2a3.1 3.1 0 1 1 0-6.2zM12 3.1a1.4 1.4 0 1 0 0 2.8a1.4 1.4 0 1 0 0-2.8zM10.7 7.4h2.6V20h-2.6zM7 9.2h10v2.4H7zM20.8 13A8.8 8.8 0 0 1 3.2 13H6A6 6 0 0 0 18 13zM1.6 14.6L4.4 9.6L7.6 13.8zM22.4 14.6L16.4 13.8L19.6 9.6z',
     silo: 'M12 1c2 1.6 3 4 3 6.8V17H9V7.8C9 5 10 2.6 12 1zM9 12.2l-3.2 3.4V20L9 18zM15 12.2l3.2 3.4V20L15 18zM10 18h4v2l-2 2.2l-2-2.2z',
+    // «Langes Spiel»: missile defence, two interceptors on a launcher
+    abm: 'M2.5 19.5h19V22h-19zM6.5 18V8.2L8.5 3l2 5.2V18zM13.5 18V8.2L15.5 3l2 5.2V18zM5 18l1.5-3.5V18zM12 18l1.5-3.5V18zM10.5 18v-3.5L12 18zM17.5 18v-3.5L19 18z',
     sam: 'M2.5 19.5h19V22h-19zM4.5 19L7 16.2L17.6 5.6L21.5 3.5L19.4 7.4L8.8 18zM6.2 13.4l3.2-.8l-2 2.2zM10.6 17.8l.8-3.2l1.4 2z',
     factory: 'M2.5 21V10l5.2 3.4V10l5.2 3.4V3.5h3.6V12h5v9zM5.2 15.5V18h2.4v-2.5zM10.4 15.5V18h2.4v-2.5zM15.6 15.5V18H18v-2.5z',
     battleship: 'M1 12L4 8.6h13.5L23 12l-5.5 3.4H4zM15.4 10.4a1.6 1.6 0 1 0 0 3.2a1.6 1.6 0 1 0 0-3.2zM11.4 10.4a1.6 1.6 0 1 0 0 3.2a1.6 1.6 0 1 0 0-3.2zM5.8 10.6a1.4 1.4 0 1 0 0 2.8a1.4 1.4 0 1 0 0-2.8z',
@@ -8189,6 +8251,7 @@ void main() { outc = texture(uColor, vUV); }`;
     target: 'M11 1h2v3.1a8 8 0 0 1 6.9 6.9H23v2h-3.1a8 8 0 0 1-6.9 6.9V23h-2v-3.1A8 8 0 0 1 4.1 13H1v-2h3.1A8 8 0 0 1 11 4.1zM12 6a6 6 0 1 0 0 12a6 6 0 0 0 0-12zM12 9.5a2.5 2.5 0 1 1 0 5a2.5 2.5 0 0 1 0-5z'
   };
   const STRUCT_ICON = ['city', 'defense', 'port', 'silo', 'sam', 'factory', 'cloak'];
+  STRUCT_ICON[4.5] = 'abm';   // missile defence, air defence class 1 (src/07_ui.js, ABM)
   // The sign of a kind of building, the same at every level (the level is a number above it)
   function signOf(type) { return STRUCT_ICON[type]; }
   // Is building u hidden from the player at this screen? Asked every frame, so kept for the tick.
@@ -9254,6 +9317,7 @@ void main() { outc = texture(uColor, vUV); }`;
     else if (type === UT.FACTORY) poly(ctx, x, y, r, 6, 0);
     else if (type === UT.DEFENSE) poly(ctx, x, y, r, 8, 0.3927);
     else if (type === UT.SAM) poly(ctx, x, y, r, 4, 0.7854);
+    else if (type === 4.5) poly(ctx, x, y, r, 6, 0.5236);   // «Langes Spiel»: missile defence
     else if (type === UT.CLOAK) poly(ctx, x, y, r, 4, 0);
     else poly(ctx, x, y + r * 0.15, r, 3, -1.5708);
   }
@@ -9299,7 +9363,7 @@ void main() { outc = texture(uColor, vUV); }`;
       // your own buildings under a cloaking tower are drawn faded, so you see that others do not see them
       const veil = !far && u.cloak && u.owner === h;
       if (veil) ctx.globalAlpha = 0.55;
-      const side = structIcon(ctx, u.type, x, y, k, u.owner, u.built, !far);
+      const side = structIcon(ctx, u.type === UT.SAM && u.cls ? 4.5 : u.type, x, y, k, u.owner, u.built, !far);
       if (veil) ctx.globalAlpha = 1;
       if (far) {
         // zoomed out (25.11.2026): the level of a building shows the sooner the higher it is, so
@@ -11182,6 +11246,7 @@ void main() { outc = texture(uColor, vUV); }`;
     { t: UT.DEFENSE, icon: 'defense', note: 'Grenze fünfmal zäher', key: '4' },
     { t: UT.SILO, icon: 'silo', note: 'Startet Bomben', key: '5' },
     { t: UT.SAM, icon: 'sam', note: 'Fängt Bomben ab', key: '6' },
+    { t: 4.5, icon: 'abm', note: 'Fängt Atom- und Wasserstoffbomben ab', key: 'j' },
     // the digits for what both modes have, the specials to the right (MIRV, and the Arsenal's two)
     { t: UT.WARSHIP, icon: 'warship', note: 'Schnell, kapert Handelsschiffe, wehrt Boote ab', key: '7' },
     { t: 7.5, icon: 'battleship', note: 'Gross, Raketen, sieht über Inseln, versenkt Schiffe', key: '8' },
@@ -11212,13 +11277,15 @@ void main() { outc = texture(uColor, vUV); }`;
   // what only the Arsenal mode has
   const armory = function (t) { return t === UT.LASER || t === UT.CLOAK; };
   // what can be built in this game: the Arsenal's two only in that mode, in a level only what it unlocks
-  const offered = function (t) { t = real(t).u; return (!armory(t) || game.opts.arsenal) && (!game.lv || game.levelAllows(t)); };
+  const offered = function (t) { if (t === ABM && !game.lang) return false; t = real(t).u; return (!armory(t) || game.opts.arsenal) && (!game.lv || game.levelAllows(t)); };
   // The battleship is warship class 1 in the game; the interface gives it a number of its own (BS,
   // between warship 7 and boat 8, so every test for 'a ship, not a bomb' holds) and turns it back
   // into the warship and its class wherever it talks to the game.
   const BS = 7.5;
-  function real(t) { return t === BS ? { u: UT.WARSHIP, cls: 1 } : { u: t, cls: 0 }; }
-  function costOf(h, t) { const r = real(t), c = game.cost(h, r.u); return r.cls ? Math.round(c * G.SHIP_CLASS[1].cost) : c; }
+  // «Langes Spiel»: the missile defence is air defence class 1 (ABM, between air defence 4 and factory 5)
+  const ABM = 4.5;
+  function real(t) { return t === BS ? { u: UT.WARSHIP, cls: 1 } : t === ABM ? { u: UT.SAM, cls: 1 } : { u: t, cls: 0 }; }
+  function costOf(h, t) { const r = real(t), c = game.cost(h, r.u); return r.cls ? Math.round(c * (r.u === UT.SAM ? G.LANG.abmCost : G.SHIP_CLASS[1].cost)) : c; }
   function shipsOf(h, cls) { let n = 0; for (const u of h.units) if (u.type === UT.WARSHIP && (u.cls || 0) === cls) n++; return n; }
   // how many of a kind of building you can see at player q (a cloaking tower hides some)
   const seen = function (q, t) { return game.seenCount(game.human, q, t); };
@@ -11228,6 +11295,7 @@ void main() { outc = texture(uColor, vUV); }`;
     if (type === UT.CITY) return 'Truppen-Limit +' + 25 * lv + 'K';
     if (type === UT.PORT) return lv === 1 ? 'Schickt Handelsschiffe' : 'Schickt ' + lv + '-mal so oft Handelsschiffe';
     if (type === UT.SILO) return lv === 1 ? '1 Rakete pro Ladung' : lv + ' Raketen pro Ladung';
+    if (type === UT.SAM && game.lang) return lv + ' Stufe' + (lv === 1 ? '' : 'n') + ', Reichweite ' + Math.round((150 - 480 / (lv + 5)) * G.LANG.world);
     if (type === UT.SAM) return (lv === 1 ? '1 Abwehrrakete' : lv + ' Abwehrraketen') + ' pro Ladung, Reichweite ' + Math.round(150 - 480 / (lv + 5));
     if (type === UT.DEFENSE) return 'Grenze ' + (3 + 2 * lv) + '-mal zäher';
     if (type === UT.CLOAK) return 'Versteckt deine Gebäude ganz in der Nähe vor den anderen, bis sie nahe herankommen';
@@ -11984,7 +12052,7 @@ void main() { outc = texture(uColor, vUV); }`;
   function ownBadge(h, t) {
     if (t === UT.WARSHIP || t === BS) return { n: shipsOf(h, real(t).cls), cls: '' };
     const T = game.ticks;
-    if (t === UT.SAM) { let n = 0; for (const u of h.units) if (u.type === UT.SAM && u.built) n += u.level || 1; return { n: n, cls: '' }; }
+    if (t === UT.SAM || t === ABM) { const k = t === ABM ? 1 : 0; let n = 0; for (const u of h.units) if (u.type === UT.SAM && u.built && (u.cls || 0) === k) n += game.lang ? game.samShotsOf(u) : u.level || 1; return { n: n, cls: '' }; }
     if (t === UT.ATOM || t === UT.HYDRO || t === UT.MIRV || t === UT.CRUISE) {
       let n = 0, silos = 0;
       for (const u of h.units) {

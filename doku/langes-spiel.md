@@ -67,6 +67,22 @@ Alles auf dem Meer und in der Luft ist langsamer und reicht weniger weit, der Bo
 
   Erste Fassung (Verluste × 2, Zeit × 1.5, 2 % pro verlorenem Feld): eingegraben reichte schon das Doppelte, weil die breite Front jede Zelle schnell aufgrub.
 
+## 1e. Zwei Flugabwehren (26.11.2026)
+Im klassischen Spiel gibt jede Stufe einer Flugabwehr einen Abfangschuss mehr: Eine einzelne der Stufe 10 hält alles auf, verteilte der Stufe 1 bringen nichts. Im Modus gibt es darum zwei Arten (`samCan`, `samShotsOf`, `samReload` in `src/04c_lang.js`; im Spiel Flugabwehr mit `u.cls` 0 oder 1, auf der Seite die Nummer 4.5 für die Raketenabwehr wie 7.5 für das Schlachtschiff):
+
+| | kleine Flugabwehr (Taste `6`) | Raketenabwehr (Taste `J`) |
+| --- | --- | --- |
+| trifft | Marschflugkörper (später Flugzeuge, Kurzstreckenraketen) | Atombombe, Wasserstoffbombe, MIRV-Sprengköpfe |
+| Schüsse pro Salve | 2 pro Stufe (`samShots`) | 1 + ⌊Stufe / 4⌋: Stufe 1: 1, 4: 2, 8: 3, 10: 3 |
+| Nachladen | 9 s | 9 s · 8 / (Stufe + 7): Stufe 1: 9 s, 10: 4.2 s |
+| Reichweite | wie bisher mit der Stufe, × 0.5 (1a) | ebenso |
+| Preis | wie bisher | × 1.5 (`abmCost`), teilt die Preisleiter mit der kleinen |
+
+- **Abnehmender Schutz:** Steht eine eigene Flugabwehr derselben Art schon in Reichweite, lädt die neuere halb so schnell nach, bei zwei älteren ein Viertel so schnell und so weiter (`abmStack` 0.5). Gerechnet nur, wenn eine gebaut, zerstört oder erobert wird (`samSig`).
+- Die kleine schiesst auf Bomber später nur auf das Flugzeug, nicht auf seine Bomben (kommt mit Paket 5).
+- Bauleiste: Die Zahl auf der Flugabwehr zeigt die Abwehrschüsse dieser Art zusammen. Auf der Karte ist die Raketenabwehr ein Sechseck mit zwei Raketen, die kleine bleibt die Raute.
+- Nationen bauen im Modus zuerst eine Raketenabwehr, dann eine kleine.
+- Szene 124.
+
 ## Geplant für Paket 1 (abgesprochen 26.11.2026, noch nicht gebaut)
-- **1e Zwei Flugabwehren:** kleine Flugabwehr (Taste `6`, gegen Marschflugkörper, 2 Schüsse pro Stufe) und Raketenabwehr (Taste `J`, nur gegen Atombombe, Wasserstoffbombe, Sprengköpfe, 1 + ⌊Stufe / 4⌋ Schüsse, Nachladen 9 s · 8 / (Stufe + 7)). Abnehmender Schutz bei mehreren eigenen nahe beieinander: Nachladen ×1, ×2, ×4 …
 - **1f Evakuieren und Schutzräume:** Bombe auf eine Stadt nimmt ihr Stufen (Sprengkopf ¼, Atombombe ½, Wasserstoffbombe alle, mindestens eine), ihre Bevölkerung (ihr Anteil am Truppen-Limit, so voll wie das Land) stirbt. Evakuiert sterben nur 33 % der Bevölkerung der neuen Stufe; dafür wächst die Stadt 60 s nicht, danach kommt ihr Wachstum über 3 Minuten langsam zurück. Schutzräume (Ausbau der Stadt) halbieren verlorene Stufen und Tote.

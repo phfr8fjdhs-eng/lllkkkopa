@@ -133,6 +133,38 @@
     if (p === this.human && this.ticks >= (p.wearSaid || 0)) { p.wearSaid = this.ticks + 3000; this.say('Deine Truppen an der überdichten Front nutzen sich ab. Eine Stadt oder Schiene in der Nähe versorgt sie.', 'warn'); }
   };
 
+  // ---------- two air defences ----------
+  // Class 0 (air defence) shoots at cruise missiles (later planes and short-range missiles),
+  // class 1 (missile defence) at atom and hydrogen bombs and MIRV warheads.
+  Game.prototype.samCan = function (u, type) {
+    return u.cls ? type === UT.ATOM || type === UT.HYDRO || type === UT.WARHEAD : type === UT.CRUISE;
+  };
+  // Shots per salvo: class 0 G.LANG.samShots per level, class 1 1 + floor(level / 4).
+  Game.prototype.samShotsOf = function (u) {
+    return u.cls ? 1 + Math.floor(u.level / 4) : G.LANG.samShots * u.level;
+  };
+  Game.prototype.samSlots = function (u) {
+    const n = this.samShotsOf(u), r = u.ready || (u.ready = []);
+    while (r.length < n) r.push(0);
+    if (r.length > n) r.length = n;
+  };
+  // Reload in ticks, times the stacking: the oldest of the own launchers of a class standing within
+  // reach of each other reloads at full speed, the next at half, the third at a quarter...
+  Game.prototype.samReload = function (u) {
+    const L = G.LANG, base = u.cls ? Math.round(L.abmReload * 8 / (u.level + 7)) : L.samReload;
+    if (u.stackSig !== this.samSig) {
+      u.stackSig = this.samSig;
+      const r = this.samRange(u), r2 = r * r;
+      let k = 0;
+      for (const v of u.owner.units) {
+        if (v === u || v.type !== UT.SAM || !v.built || !v.active || (v.cls || 0) !== (u.cls || 0) || v.id > u.id) continue;
+        if ((v.x - u.x) * (v.x - u.x) + (v.y - u.y) * (v.y - u.y) <= r2) k++;
+      }
+      u.stackF = Math.pow(L.abmStack, k);
+    }
+    return Math.round(base / u.stackF);
+  };
+
   // ---------- digging in and defence posts ----------
   // A cell that loses nothing digs in: from 0 to 1 within G.LANG.digTicks. Every tile it loses
   // takes G.LANG.digDrop of it again. Fresh land starts at 0.

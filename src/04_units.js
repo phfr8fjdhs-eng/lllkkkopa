@@ -85,6 +85,7 @@
     o.cnt[u.type] -= u.level;
     if (u.type <= UT.CLOAK) {
       this.structAt.delete(u.tile); this.cloakOk = false;
+      if (u.type === UT.SAM && this.lang) this.samSig = (this.samSig | 0) + 1;
       if (u.built) {
         if (u.type === UT.CITY) o.cityLv -= u.level;
         else if (u.type === UT.DEFENSE) { this.refreshPosts(o); this.dirtyDisc(u.tile); }
@@ -110,6 +111,7 @@
     if (i >= 0) o.units.splice(i, 1);
     o.cnt[u.type] -= u.level; np.cnt[u.type] += u.level;
     u.owner = np; np.units.push(u);
+    if (u.type === UT.SAM && this.lang) this.samSig = (this.samSig | 0) + 1;
     if (u.type === UT.CITY) { o.cityLv -= u.level; np.cityLv += u.level; }
     else if (u.type === UT.DEFENSE) { this.refreshPosts(o); this.refreshPosts(np); this.dirtyDisc(u.tile); }
     else if (u.type === UT.PORT) this.portList = null;
@@ -189,6 +191,7 @@
     else if (u.type === UT.PORT) this.portList = null;
     else if (u.type === UT.FACTORY) u.nextTrain = this.ticks + 50;
     else u.ready = [0];
+    if (u.type === UT.SAM && this.lang) { this.samSig = (this.samSig | 0) + 1; this.samSlots(u); }
     if (G.isStation(u.type)) this.railDirty = true;
   };
   Game.prototype.structNear = function (t, d) {
@@ -288,6 +291,7 @@
   Game.prototype.buildCheck = function (p, type, tile, cls, fresh) {
     const res = { ok: false, why: '', cost: this.cost(p, type), tile: tile, port: null, silo: null, stored: false };
     if (type === UT.WARSHIP && cls) res.cost = Math.round(res.cost * G.SHIP_CLASS[1].cost);
+    if (type === UT.SAM && cls && this.lang) res.cost = Math.round(res.cost * G.LANG.abmCost);
     const map = this.map, W = this.W;
     if (!p.alive || this.phase !== 'play') { res.why = 'Nicht möglich'; return res; }
     if (type <= UT.CLOAK) {
@@ -339,7 +343,7 @@
   };
 
   Game.prototype.build = function (p, type, tile, cls, fresh) {
-    cls = type === UT.WARSHIP && cls === 1 ? 1 : 0;
+    cls = (type === UT.WARSHIP || (type === UT.SAM && this.lang)) && cls === 1 ? 1 : 0;
     const c = this.buildCheck(p, type, tile, cls, fresh);
     if (!c.ok) return null;
     p.gold -= c.cost;
@@ -349,6 +353,7 @@
       u.built = false; u.buildStart = this.ticks;
       u.buildEnd = this.ticks + (this.opts.instantBuild ? 0 : BUILD_TICKS[type]);
       if (type === UT.PORT) u.water = this.portWater(c.tile);
+      if (type === UT.SAM && this.lang) u.cls = cls;   // «Langes Spiel»: 0 air defence, 1 missile defence
       this.addUnit(u);
       if (this.opts.instantBuild) this.finishBuild(u);
     } else if (type === UT.WARSHIP) {
@@ -375,7 +380,7 @@
     p.gold -= cost; u.level++; p.cnt[u.type]++;
     if (u.type === UT.CITY) p.cityLv++;
     else if (u.type === UT.DEFENSE) this.dirtyDisc(u.tile);
-    else if (u.ready) u.ready.push(0);
+    else if (u.ready) { u.ready.push(0); if (u.type === UT.SAM && this.lang) this.samSlots(u); }
     return true;
   };
 
@@ -1247,10 +1252,10 @@
     for (let s = 0; s < u.ready.length; s++) {
       if (u.ready[s] > T) continue;
       for (const n of this.nukes) {
-        if (!n.active || n.sam || !G.canIntercept(n.type)) continue;
+        if (!n.active || n.sam || !(this.lang ? this.samCan(u, n.type) : G.canIntercept(n.type))) continue;
         if (n.owner === u.owner || this.friendly(n.owner, u.owner)) continue;
         if (!this.samSolve(u, n, n.type === UT.CRUISE ? sr * G.CRUISE_RANGE : sr)) continue;
-        n.sam = true; u.ready[s] = T + 90;
+        n.sam = true; u.ready[s] = T + (this.lang ? this.samReload(u) : 90);
         const m = this.newUnit(UT.SAMM, u.owner, u.tile);
         m.target = n; m.src = u;
         this.addUnit(m);
@@ -1286,6 +1291,7 @@
     if (type !== undefined && !G.canIntercept(type)) return out;
     const f = type === UT.CRUISE ? G.CRUISE_RANGE : 1;
     for (const u of this.structAt.values()) {
+      if (u.type === UT.SAM && this.lang && type !== undefined && !this.samCan(u, type)) continue;
       if (u.type !== UT.SAM || !u.built || u.owner === p || this.friendly(u.owner, p) || this.hiddenFrom(u, p)) continue;   // a hidden one is a surprise
       const sr = this.samRange(u) * f, r2 = sr * sr;
       for (let i = 0; i <= 40; i++) {

@@ -44,7 +44,8 @@
   G.THRUST = { widths: [0, 30, 12], max: 4, pull: 1.2, ring: 0.6, speed: 0.5, flank: 3, deep: 4, hold: 1.5, fan: 0.45, nose: 1, crowd: 2, dirShare: 0.6, search: 250000 };
   G.UNAME = ['Stadt', 'Verteidigungs\u00ADposten', 'Hafen', 'Raketensilo', 'Flugabwehr', 'Fabrik', 'Tarnturm', 'Zerstörer', 'Boot',
     'Handelsschiff', 'Zug', 'Granate', 'Abwehrrakete', 'Atombombe', 'Wasserstoff\u00ADbombe', 'MIRV', 'Sprengkopf', 'Marschflug\u00ADkörper', 'Satelliten\u00ADstrahl'];
-  G.UNAME[7.5] = 'Schlachtschiff';   // the interface's own number for warship class 1 (src/07_ui.js, BS)
+  G.UNAME[7.5] = 'Schlachtschiff';
+  G.UNAME[4.5] = 'Raketenabwehr';    // «Langes Spiel»: air defence class 1 (src/07_ui.js, ABM)   // the interface's own number for warship class 1 (src/07_ui.js, BS)
   // Tempo. The numbers of the simulation are OpenFront's, but its maps have two million tiles and
   // ours are smaller (map.S is the scale of a side), so the same tiles per tick looked hectic:
   // a ship crossed our Atlantic in 0.6 of the time, a front rolled over a country in 0.6 of the
@@ -67,6 +68,11 @@
   //           average of the own front loses `wear` of the surplus per minute (less with supply)
   //   dig*    a cell digs in within digTicks; dug in fully, an attacker loses 1 + digLoss times
   //           as many troops and needs 1 + digTime times as long; each lost tile takes digDrop
+  //   sam*, abm*  two air defences: class 0 (key 6) only against cruise missiles, samShots per
+  //           level; class 1, missile defence (key J), only against atom and hydrogen bombs and
+  //           warheads, 1 + floor(level / 4) shots, reload abmReload x 8 / (level + 7), price x
+  //           abmCost. A second launcher of the same class within reach reloads 1 / abmStack
+  //           times as long, a third 1 / abmStack^2 (src/04c_lang.js)
   //   post*   defence posts: radius x postR, losses x (postLoss[0] + postLoss[1] x level), time
   //           x (1 + postTime x level), and a tile they cover counts as at least postDens dense
   G.LANG = {
@@ -74,7 +80,8 @@
     massSpan: 600, massRise: 0.5, massShare: 0.03, massQuiet: 900,
     wearFrom: 12000, wearOver: 2, wear: 0.01,
     digTicks: 1200, digLoss: 2, digTime: 0.75, digDrop: 0.004,
-    postR: 1.5, postLoss: [5, 3], postTime: 3, postDens: 2
+    postR: 1.5, postLoss: [5, 3], postTime: 3, postDens: 2,
+    samShots: 2, samReload: 90, abmCost: 1.5, abmReload: 90, abmStack: 0.5
   };
   // What the ground does to an attack, by what covers it (index: G.COVER). `speed` multiplies
   // what a tile costs in time, `loss` what it costs the attacker in troops. Height comes on top
@@ -1704,7 +1711,7 @@
       case 'build': {
         if (!tileOk || !(c.u <= UT.WARSHIP || c.u === UT.ATOM || c.u === UT.HYDRO || c.u === UT.MIRV || c.u === UT.CRUISE || c.u === UT.LASER) || !(c.u >= 0)) return 'Nicht möglich';
         if (this.lv && !this.levelAllows(c.u)) return 'In diesem Level noch gesperrt';
-        const cls = c.u === UT.WARSHIP && c.cls === 1 ? 1 : 0;    // a battleship
+        const cls = (c.u === UT.WARSHIP || (c.u === UT.SAM && this.lang)) && c.cls === 1 ? 1 : 0;    // a battleship, a missile defence
         const chk = this.buildCheck(p, c.u, c.t, cls, !!c.fresh);
         if (!chk.ok) return chk.why || 'Nicht möglich';
         return this.build(p, c.u, c.t, cls, !!c.fresh) ? '' : 'Nicht möglich';

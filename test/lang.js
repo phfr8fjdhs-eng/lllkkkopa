@@ -29,6 +29,12 @@ check('Eingraben nach 2 Minuten voll', b.digOf(c) === 1);
 b.digLose(c);
 check('ein verlorenes Feld nimmt etwas', Math.abs(b.digOf(c) - (1 - G.LANG.digDrop)) < 1e-9, b.digOf(c).toFixed(3));
 check('klassisch kein Eingraben', !a.lang && a.postMag(1) === 5);
+// two air defences: shots per salvo and reload of the missile defence by level
+const shots = [1, 4, 8, 10].map((L) => b.samShotsOf({ cls: 1, level: L }));
+check('Raketenabwehr: Schüsse 1, 2, 3, 3', shots.join(',') === '1,2,3,3', shots.join(', '));
+check('kleine Flugabwehr: 2 Schüsse pro Stufe', b.samShotsOf({ cls: 0, level: 3 }) === 6);
+check('Raketenabwehr nur gegen Atomwaffen', b.samCan({ cls: 1 }, G.UT.ATOM) && b.samCan({ cls: 1 }, G.UT.WARHEAD) && !b.samCan({ cls: 1 }, G.UT.CRUISE));
+check('kleine nur gegen Marschflugkörper', b.samCan({ cls: 0 }, G.UT.CRUISE) && !b.samCan({ cls: 0 }, G.UT.ATOM));
 // on the Earth (a side scale S of 1): a ship over the Atlantic (about 80 tiles a minute today)
 console.log('Erde: Schiff ' + (1 * W) + ' Felder pro Tick, Atombombe ' + (6 * A).toFixed(1) + ' (heute 1 und 6)');
 if (bad) { console.log(bad + ' Fehler'); process.exit(1); }

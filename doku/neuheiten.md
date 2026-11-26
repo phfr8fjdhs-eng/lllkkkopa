@@ -11,6 +11,7 @@ Ein eigener Bereich neben dem normalen Spiel und den Levels. Auf dem Startbildsc
 ## Die Szenen (Stand 26.11.2026)
 | Nr. | Datum | Name | Was passiert |
 | --- | --- | --- | --- |
+| 124 | 26.11. | Langes Spiel: zwei Flugabwehren | Kleine Flugabwehr Stufe 5 und zwei Raketenabwehren Stufe 4 nebeneinander; Vellmar schiesst abwechselnd Marschflugkörper und Atombomben, beide werden abgefangen |
 | 123 | 26.11. | Langes Spiel: Abnutzung und Eingraben | Nordhälfte der eigenen Front sechsfach dicht und ohne Versorgung, Abnutzung sofort; Varnholm greift alle 20 s an |
 | 122 | 26.11. | Langes Spiel: Truppen sammeln sich | Varnholm verdichtet alle 45 s seine Grenze (und wieder zurück), die Meldung kommt |
 | 121 | 26.11. | Langes Spiel: das Meer wirkt grösser | Modus «Langes Spiel»; enge Meerenge, Handel läuft, alle 12 s fliegt eine Atombombe langsam übers Meer |

@@ -276,9 +276,10 @@
       const silo = p.units.find(function (u) { return u.type === UT.SILO && u.built && g.canUpgrade(p, u); });
       if (silo && g.upgrade(p, silo)) return;
     }
-    if (d >= 1 && c[UT.SAM] < 1 && c[UT.CITY] > 0 && can(UT.SAM, 1.2)) {
+    // «Langes Spiel»: a missile defence first, then an air defence against cruise missiles
+    if (d >= 1 && c[UT.SAM] < (g.lang ? 2 : 1) && c[UT.CITY] > 0 && can(UT.SAM, 1.2)) {
       const t = this.tileOf(p, true);
-      if (t >= 0 && g.build(p, UT.SAM, t)) return;
+      if (t >= 0 && g.build(p, UT.SAM, t, g.lang && c[UT.SAM] === 0 ? 1 : 0)) return;
     }
     // Arsenal mode: a cloaking tower right next to a silo or air defence that is still in plain sight
     if (g.opts.arsenal && d >= 1 && c[UT.CLOAK] < d && can(UT.CLOAK, 2) && r.chance(3)) {

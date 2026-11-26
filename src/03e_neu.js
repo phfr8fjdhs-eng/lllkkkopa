@@ -41,6 +41,15 @@
 
   G.NEUES = [
     {
+      n: 124, date: '26.11.2026', title: 'Langes Spiel: zwei Flugabwehren', lang: true,
+      text: 'Im Langen Spiel gibt es zwei Flugabwehren: die kleine (Taste 6) gegen Marschflugkörper, mit vielen Schüssen, und die Raketenabwehr (Taste J) gegen Atom- und Wasserstoffbomben, mit wenigen Schüssen. Stehen mehrere nahe beieinander, lädt die zweite halb so schnell nach, die dritte nur noch ein Viertel.',
+      map: { w: 320, h: 200, seed: 924, shapes: [circ(80, 100, 60), circ(235, 100, 72)] },
+      me: { x: 80, y: 100, r: 64, troops: 60000, gold: 0, build: [[UT.SAM, 100, 80, 5], [4.5, 100, 125, 4], [4.5, 70, 125, 4], [UT.CITY, 60, 90, 3]] },
+      foes: [{ name: 'Vellmar', x: 235, y: 100, r: 76, troops: 200000, build: [[UT.SILO, 230, 100, 5]] }],
+      allow: ALL, quest: none,
+      loop: [6, 7, function (Q, k) { if (k % 2) Q.fire(Q.foe[0], UT.CRUISE, 100, 88); else Q.fire(Q.foe[0], UT.ATOM, 85 + (k % 4) * 2, 118); }]
+    },
+    {
       n: 123, date: '26.11.2026', title: 'Langes Spiel: Abnutzung und Eingraben', lang: true,
       text: 'Wer an einem Abschnitt mehr als doppelt so dicht steht wie im Schnitt seiner Front, verliert dort laufend Truppen, ausser eine Stadt oder Schiene versorgt ihn (sonst erst ab Minute 20). Ruhige Grenzen graben sich ein, Verteidigungsposten halten auch mit wenigen Truppen.',
       map: { w: 300, h: 200, seed: 923, shapes: [circ(150, 100, 92), rect(50, 35, 250, 165)] },

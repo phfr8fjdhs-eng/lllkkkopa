@@ -9,6 +9,7 @@ const G = globalThis.G, UT = G.UT;
 const count = (g, type, p) => g.units.filter((u) => u.active && u.type === type && (!p || u.owner === p)).length;
 // what has to be seen in each scene, asked every second; seen once is enough
 const SEEN = {
+  124: (g) => g.human.units.some((u) => u.type === UT.SAM && u.cls === 1 && u.ready.some((r) => r > g.ticks)) && g.human.units.some((u) => u.type === UT.SAM && !u.cls && u.ready.some((r) => r > g.ticks)),
   123: (g) => (g.human.wearLost || 0) > 0 && g.ticks > 300,
   122: (g) => { const m = g.human.mass; return !!m && Object.keys(m).some((k) => m[k].quiet > 0); },
   121: (g) => g.lang && g.nukes.some((n) => n.active && n.type === UT.ATOM && n.speed < 1.5) && g.units.some((u) => u.active && u.type === UT.TRADE),
@@ -44,8 +45,8 @@ for (const L of G.NEUES) {
   if (G.levelDef(L.n) !== L) fail(L.n, 'not found by its number');
   if (!(g.human.tiles > 0)) fail(L.n, 'player starts without land');
   for (const f of g.lv.foes) if (!(f.tiles > 0)) fail(L.n, (f.name || 'bot') + ' starts without land');
-  for (const f of L.foes) for (const b of f.build || []) if (!g.lv.foes[L.foes.indexOf(f)].units.some((u) => u.type === b[0])) fail(L.n, 'building ' + G.UNAME[b[0]] + ' of the opponent missing');
-  for (const b of L.me.build || []) if (!g.human.units.some((u) => u.type === b[0])) fail(L.n, 'own building ' + G.UNAME[b[0]] + ' missing');
+  for (const f of L.foes) for (const b of f.build || []) if (!g.lv.foes[L.foes.indexOf(f)].units.some((u) => u.type === (b[0] === 4.5 ? UT.SAM : b[0]))) fail(L.n, 'building ' + G.UNAME[b[0]] + ' of the opponent missing');
+  for (const b of L.me.build || []) if (!g.human.units.some((u) => u.type === (b[0] === 4.5 ? UT.SAM : b[0]))) fail(L.n, 'own building ' + G.UNAME[b[0]] + ' missing');
   const st = { tiles0: g.human.tiles, moved: 0, last: new Map() };
   let seen = false, ended = false, drift = false;
   for (let i = 0; i < 900; i++) {

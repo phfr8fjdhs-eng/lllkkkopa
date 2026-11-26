@@ -21,6 +21,7 @@
     { t: UT.DEFENSE, icon: 'defense', note: 'Grenze fünfmal zäher', key: '4' },
     { t: UT.SILO, icon: 'silo', note: 'Startet Bomben', key: '5' },
     { t: UT.SAM, icon: 'sam', note: 'Fängt Bomben ab', key: '6' },
+    { t: 4.5, icon: 'abm', note: 'Fängt Atom- und Wasserstoffbomben ab', key: 'j' },
     // the digits for what both modes have, the specials to the right (MIRV, and the Arsenal's two)
     { t: UT.WARSHIP, icon: 'warship', note: 'Schnell, kapert Handelsschiffe, wehrt Boote ab', key: '7' },
     { t: 7.5, icon: 'battleship', note: 'Gross, Raketen, sieht über Inseln, versenkt Schiffe', key: '8' },
@@ -51,13 +52,15 @@
   // what only the Arsenal mode has
   const armory = function (t) { return t === UT.LASER || t === UT.CLOAK; };
   // what can be built in this game: the Arsenal's two only in that mode, in a level only what it unlocks
-  const offered = function (t) { t = real(t).u; return (!armory(t) || game.opts.arsenal) && (!game.lv || game.levelAllows(t)); };
+  const offered = function (t) { if (t === ABM && !game.lang) return false; t = real(t).u; return (!armory(t) || game.opts.arsenal) && (!game.lv || game.levelAllows(t)); };
   // The battleship is warship class 1 in the game; the interface gives it a number of its own (BS,
   // between warship 7 and boat 8, so every test for 'a ship, not a bomb' holds) and turns it back
   // into the warship and its class wherever it talks to the game.
   const BS = 7.5;
-  function real(t) { return t === BS ? { u: UT.WARSHIP, cls: 1 } : { u: t, cls: 0 }; }
-  function costOf(h, t) { const r = real(t), c = game.cost(h, r.u); return r.cls ? Math.round(c * G.SHIP_CLASS[1].cost) : c; }
+  // «Langes Spiel»: the missile defence is air defence class 1 (ABM, between air defence 4 and factory 5)
+  const ABM = 4.5;
+  function real(t) { return t === BS ? { u: UT.WARSHIP, cls: 1 } : t === ABM ? { u: UT.SAM, cls: 1 } : { u: t, cls: 0 }; }
+  function costOf(h, t) { const r = real(t), c = game.cost(h, r.u); return r.cls ? Math.round(c * (r.u === UT.SAM ? G.LANG.abmCost : G.SHIP_CLASS[1].cost)) : c; }
   function shipsOf(h, cls) { let n = 0; for (const u of h.units) if (u.type === UT.WARSHIP && (u.cls || 0) === cls) n++; return n; }
   // how many of a kind of building you can see at player q (a cloaking tower hides some)
   const seen = function (q, t) { return game.seenCount(game.human, q, t); };
@@ -67,6 +70,7 @@
     if (type === UT.CITY) return 'Truppen-Limit +' + 25 * lv + 'K';
     if (type === UT.PORT) return lv === 1 ? 'Schickt Handelsschiffe' : 'Schickt ' + lv + '-mal so oft Handelsschiffe';
     if (type === UT.SILO) return lv === 1 ? '1 Rakete pro Ladung' : lv + ' Raketen pro Ladung';
+    if (type === UT.SAM && game.lang) return lv + ' Stufe' + (lv === 1 ? '' : 'n') + ', Reichweite ' + Math.round((150 - 480 / (lv + 5)) * G.LANG.world);
     if (type === UT.SAM) return (lv === 1 ? '1 Abwehrrakete' : lv + ' Abwehrraketen') + ' pro Ladung, Reichweite ' + Math.round(150 - 480 / (lv + 5));
     if (type === UT.DEFENSE) return 'Grenze ' + (3 + 2 * lv) + '-mal zäher';
     if (type === UT.CLOAK) return 'Versteckt deine Gebäude ganz in der Nähe vor den anderen, bis sie nahe herankommen';
@@ -823,7 +827,7 @@
   function ownBadge(h, t) {
     if (t === UT.WARSHIP || t === BS) return { n: shipsOf(h, real(t).cls), cls: '' };
     const T = game.ticks;
-    if (t === UT.SAM) { let n = 0; for (const u of h.units) if (u.type === UT.SAM && u.built) n += u.level || 1; return { n: n, cls: '' }; }
+    if (t === UT.SAM || t === ABM) { const k = t === ABM ? 1 : 0; let n = 0; for (const u of h.units) if (u.type === UT.SAM && u.built && (u.cls || 0) === k) n += game.lang ? game.samShotsOf(u) : u.level || 1; return { n: n, cls: '' }; }
     if (t === UT.ATOM || t === UT.HYDRO || t === UT.MIRV || t === UT.CRUISE) {
       let n = 0, silos = 0;
       for (const u of h.units) {

@@ -321,15 +321,20 @@
   };
   // A building that is already there when the level starts.
   Game.prototype.levelPlace = function (p, type, x, y, level) {
+    // 4.5: the missile defence of «Langes Spiel» (air defence class 1)
+    const cls = type === 4.5 ? 1 : 0;
+    if (cls) type = UT.SAM;
     let t = this.levelTile(x, y, p);
     if (t < 0) return null;
     if (type === UT.PORT) { t = this.portSite(p, t); if (t < 0) return null; }
     const u = this.newUnit(type, p, t);
     u.level = level || 1;
     if (type === UT.PORT) u.water = this.portWater(t);
+    if (type === UT.SAM && this.lang) u.cls = cls;
     this.addUnit(u);
     this.finishBuild(u);
     if (u.ready) { u.ready.length = 0; for (let i = 0; i < u.level; i++) u.ready.push(0); }
+    if (type === UT.SAM && this.lang) this.samSlots(u);
     return u;
   };
 

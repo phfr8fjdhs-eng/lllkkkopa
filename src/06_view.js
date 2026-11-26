@@ -10,6 +10,8 @@
     defense: 'M12 2l8.5 3.2v6.3c0 5.2-3.6 9-8.5 10.5c-4.9-1.5-8.5-5.3-8.5-10.5V5.2z',
     port: 'M12 1.4a3.1 3.1 0 1 1 0 6.2a3.1 3.1 0 1 1 0-6.2zM12 3.1a1.4 1.4 0 1 0 0 2.8a1.4 1.4 0 1 0 0-2.8zM10.7 7.4h2.6V20h-2.6zM7 9.2h10v2.4H7zM20.8 13A8.8 8.8 0 0 1 3.2 13H6A6 6 0 0 0 18 13zM1.6 14.6L4.4 9.6L7.6 13.8zM22.4 14.6L16.4 13.8L19.6 9.6z',
     silo: 'M12 1c2 1.6 3 4 3 6.8V17H9V7.8C9 5 10 2.6 12 1zM9 12.2l-3.2 3.4V20L9 18zM15 12.2l3.2 3.4V20L15 18zM10 18h4v2l-2 2.2l-2-2.2z',
+    // «Langes Spiel»: missile defence, two interceptors on a launcher
+    abm: 'M2.5 19.5h19V22h-19zM6.5 18V8.2L8.5 3l2 5.2V18zM13.5 18V8.2L15.5 3l2 5.2V18zM5 18l1.5-3.5V18zM12 18l1.5-3.5V18zM10.5 18v-3.5L12 18zM17.5 18v-3.5L19 18z',
     sam: 'M2.5 19.5h19V22h-19zM4.5 19L7 16.2L17.6 5.6L21.5 3.5L19.4 7.4L8.8 18zM6.2 13.4l3.2-.8l-2 2.2zM10.6 17.8l.8-3.2l1.4 2z',
     factory: 'M2.5 21V10l5.2 3.4V10l5.2 3.4V3.5h3.6V12h5v9zM5.2 15.5V18h2.4v-2.5zM10.4 15.5V18h2.4v-2.5zM15.6 15.5V18H18v-2.5z',
     battleship: 'M1 12L4 8.6h13.5L23 12l-5.5 3.4H4zM15.4 10.4a1.6 1.6 0 1 0 0 3.2a1.6 1.6 0 1 0 0-3.2zM11.4 10.4a1.6 1.6 0 1 0 0 3.2a1.6 1.6 0 1 0 0-3.2zM5.8 10.6a1.4 1.4 0 1 0 0 2.8a1.4 1.4 0 1 0 0-2.8z',
@@ -50,6 +52,7 @@
     target: 'M11 1h2v3.1a8 8 0 0 1 6.9 6.9H23v2h-3.1a8 8 0 0 1-6.9 6.9V23h-2v-3.1A8 8 0 0 1 4.1 13H1v-2h3.1A8 8 0 0 1 11 4.1zM12 6a6 6 0 1 0 0 12a6 6 0 0 0 0-12zM12 9.5a2.5 2.5 0 1 1 0 5a2.5 2.5 0 0 1 0-5z'
   };
   const STRUCT_ICON = ['city', 'defense', 'port', 'silo', 'sam', 'factory', 'cloak'];
+  STRUCT_ICON[4.5] = 'abm';   // missile defence, air defence class 1 (src/07_ui.js, ABM)
   // The sign of a kind of building, the same at every level (the level is a number above it)
   function signOf(type) { return STRUCT_ICON[type]; }
   // Is building u hidden from the player at this screen? Asked every frame, so kept for the tick.
@@ -1115,6 +1118,7 @@
     else if (type === UT.FACTORY) poly(ctx, x, y, r, 6, 0);
     else if (type === UT.DEFENSE) poly(ctx, x, y, r, 8, 0.3927);
     else if (type === UT.SAM) poly(ctx, x, y, r, 4, 0.7854);
+    else if (type === 4.5) poly(ctx, x, y, r, 6, 0.5236);   // «Langes Spiel»: missile defence
     else if (type === UT.CLOAK) poly(ctx, x, y, r, 4, 0);
     else poly(ctx, x, y + r * 0.15, r, 3, -1.5708);
   }
@@ -1160,7 +1164,7 @@
       // your own buildings under a cloaking tower are drawn faded, so you see that others do not see them
       const veil = !far && u.cloak && u.owner === h;
       if (veil) ctx.globalAlpha = 0.55;
-      const side = structIcon(ctx, u.type, x, y, k, u.owner, u.built, !far);
+      const side = structIcon(ctx, u.type === UT.SAM && u.cls ? 4.5 : u.type, x, y, k, u.owner, u.built, !far);
       if (veil) ctx.globalAlpha = 1;
       if (far) {
         // zoomed out (25.11.2026): the level of a building shows the sooner the higher it is, so

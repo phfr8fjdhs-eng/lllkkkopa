@@ -3,6 +3,10 @@ Was seit dem 13.11.2026 geändert wurde und warum. Den heutigen Stand der Regeln
 
 
 
+## Spielmodus «Langes Spiel», Paket 1e: zwei Flugabwehren (26.11.2026)
+- **Wunsch:** Nicht mehr eine Flugabwehr auf Stufe 10 stapeln, die alles aufhält.
+- **Geändert (nur im Modus):** kleine Flugabwehr (Taste 6) nur gegen Marschflugkörper, 2 Schüsse pro Stufe; Raketenabwehr (Taste J) nur gegen Atom- und Wasserstoffbomben und Sprengköpfe, 1 + ⌊Stufe / 4⌋ Schüsse, schnelleres Nachladen mit der Stufe; mehrere nahe beieinander laden langsamer nach. Szene 124.
+
 ## Spielmodus «Langes Spiel», Paket 1b bis 1d: Marsch, Grenze, Abnutzung, Eingraben (26.11.2026)
 - **Wunsch:** Ein grosser Angriff braucht Vorbereitung, die der Gegner sieht; Drohen soll nicht gratis sein; Verteidigen billiger als Angreifen.
 - **Geändert (nur im Modus):** Marsch halb so schnell, Schienen etwas weniger stark; fremde Dichte nur nahe der eigenen Grenze sichtbar; Meldung «Truppen sammeln sich an deiner Grenze»; Abnutzung überdichter Frontzellen ab Minute 20, gemildert durch Versorgung; Eingraben in 2 Minuten (Angreifer braucht etwa das Dreifache); Verteidigungsposten grösser und stärker. Neue Datei `src/04c_lang.js`, Szenen 122 und 123, `node test/kampf.js lang`. Klassisches Spiel gleich (Prüfsumme 1139506161).
