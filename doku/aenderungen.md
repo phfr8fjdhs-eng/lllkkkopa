@@ -7,6 +7,10 @@ Was seit dem 13.11.2026 geändert wurde und warum. Den heutigen Stand der Regeln
 - **Nicht geändert:** Spielregeln, das Bild der fliegenden Bombe auf der Karte.
 
 
+## Schiffe in den ersten 10 Levels grösser (25.11.2026)
+- **Wunsch:** Die Schiffe sollen besonders in den ersten 10 Levels grösser sein.
+- **Geändert:** In den Levels 1 bis 10 werden alle Schiffe 1.6-mal so gross gezeichnet (`SHIP_BOOST` in `src/06_view.js`, wirkt über `shipPx`). Nur das Bild ändert sich, nicht die Spielregeln. Im freien Spiel und ab Level 11 bleibt alles wie vorher.
+- **Keine Szene** in «Änderungen»: Die Szenen laufen als eigene Levels (ab 101), dort würde die Änderung nicht greifen.
 ## Bots breiten sich etwas schneller aus (25.11.2026)
 - **Wunsch:** Die Bots sollen sich ein bisschen schneller ausbreiten.
 - **Geändert:** Ein Bot handelt jetzt alle 21 bis 39 Ticks (vorher 28 bis 52) und schickt pro Zug 40 % statt 30 % seiner freien Truppen auf freies Land (`src/05_ai.js`, `bot`). Grösse des Bot-Reichs (`cap`) und Reserve sind gleich geblieben, sie wachsen nur früher dorthin.
