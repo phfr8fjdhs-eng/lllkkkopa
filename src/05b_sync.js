@@ -422,7 +422,7 @@
   };
   G.mapUnpack = function (o) { return G.addClimate(o, o.rowLat); };
 
-  G.SyncOut = Out; G.SyncIn = In;
+  G.SyncIn = In;
 
   // ---------- the worker ----------
   // Messages from the page, carried out in the order they come:

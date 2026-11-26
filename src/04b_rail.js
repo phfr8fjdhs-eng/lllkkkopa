@@ -7,7 +7,6 @@
   // Gold per station a train reaches: own station, a trade partner's, an ally's (as in OpenFront: 10K / 25K / 35K).
   // From the tenth station of its journey on a train pays 5K less per stop, but never under 5K.
   const TRAIN_OWN = 10000, TRAIN_FOREIGN = 25000, TRAIN_ALLY = 35000, TRAIN_EVERY = 200, HOPS = 4;
-  G.TRAIN_GOLD = [TRAIN_OWN, TRAIN_FOREIGN, TRAIN_ALLY];
 
   G.isStation = function (t) { return t === UT.CITY || t === UT.PORT || t === UT.FACTORY; };
 
