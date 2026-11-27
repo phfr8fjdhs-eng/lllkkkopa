@@ -1538,7 +1538,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     'Handelsschiff', 'Zug', 'Granate', 'Abwehrrakete', 'Atombombe', 'Wasserstoff\u00ADbombe', 'MIRV', 'Sprengkopf', 'Marschflug\u00ADkörper', 'Satelliten\u00ADstrahl',
     'Streubombe', 'Bunker\u00ADbrecher', 'Thermobare Bombe', 'Kurzstrecken\u00ADrakete', 'Bomber', 'Tarnbomber', 'Aufklärungs\u00ADflugzeug', 'Abfangjäger'];
   G.UNAME[7.5] = 'Schlachtschiff';
-  G.UNAME[7.2] = 'U-Boot'; G.UNAME[7.7] = 'Flugzeug\u00ADträger'; G.UNAME[7.9] = 'Seemine'; G.UNAME[27] = 'Seemine';   // «Langes Spiel», Paket 6 (src/07_ui.js)   // the interface's own number for warship class 1 (src/07_ui.js, BS)
+  G.UNAME[7.2] = 'U-Boot'; G.UNAME[7.7] = 'Flugzeug\u00ADträger'; G.UNAME[7.9] = 'Seemine'; G.UNAME[7.3] = 'Abwehrschiff'; G.UNAME[7.4] = 'Radarschiff'; G.UNAME[27] = 'Seemine';   // «Langes Spiel», Paket 6 (src/07_ui.js)   // the interface's own number for warship class 1 (src/07_ui.js, BS)
   G.UNAME[4.5] = 'Raketenabwehr';    // «Langes Spiel»: air defence class 1 (src/07_ui.js, ABM)
   G.UNAME[3.5] = 'Flugplatz';        // «Langes Spiel»: silo class 1 (src/07_ui.js, FIELD)
   G.UNAME[4.7] = 'Radar';            // «Langes Spiel»: air defence class 2 (src/07_ui.js, RADAR)
@@ -1632,7 +1632,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     // Paket 6: the navy (doku/langes-spiel.md)
     shipHp: 1.5, shipUpkeep: 1.5, tradeGold: 1.5, sonarR: 60, subShow: 300, subQuiet: 0.6,
     pushCity: 0.15, pushMass: 0.6, armNoFab: 2, armFab: 0.1, armFabMin: 0.5, armLost: 0.5, armSee: 0.25,
-    mineCost: 150000, mineR: 120, mineMax: 30, mineHit: 3, mineDmg: 1500, mineClear: 25, carrierSlots: 2
+    mineCost: 150000, mineR: 120, mineMax: 30, mineHit: 3, mineDmg: 1500, mineClear: 25, carrierSlots: 2, flakR: 60, flakEvery: 15, shoreEvery: 150, marines: 1.25, shipRadar: 80
   };
   G.isPlane = function (t) { return t >= UT.BOMBER && t <= UT.FIGHTER; };
   G.LANG_WEAPON = function (t) { return t >= UT.CLUSTER && t <= UT.SRBM; };
@@ -3279,7 +3279,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
       case 'build': {
         if (!tileOk || !(c.u <= UT.WARSHIP || c.u === UT.ATOM || c.u === UT.HYDRO || c.u === UT.MIRV || c.u === UT.CRUISE || c.u === UT.LASER || (this.lang && (G.LANG_WEAPON(c.u) || c.u === UT.MINE || (G.isPlane(c.u) && c.u !== UT.FIGHTER)))) || !(c.u >= 0)) return 'Nicht möglich';
         if (this.lv && !this.levelAllows(c.u)) return 'In diesem Level noch gesperrt';
-        const cls = (c.u === UT.WARSHIP && (c.cls === 1 || (this.lang && (c.cls === 2 || c.cls === 3)))) || (c.u === UT.SAM && this.lang && (c.cls === 1 || c.cls === 2)) || (c.u === UT.SILO && this.lang && c.cls === 1) ? c.cls : 0;    // a battleship; a missile defence, a radar
+        const cls = (c.u === UT.WARSHIP && (c.cls === 1 || (this.lang && c.cls >= 2 && c.cls <= 5))) || (c.u === UT.SAM && this.lang && (c.cls === 1 || c.cls === 2)) || (c.u === UT.SILO && this.lang && c.cls === 1) ? c.cls : 0;    // a battleship; a missile defence, a radar
         const pick = c.s | 0;   // the silo the player chose, 0 = the nearest (src/04c_lang.js)
         const chk = this.buildCheck(p, c.u, c.t, cls, !!c.fresh, pick);
         if (!chk.ok) return chk.why || 'Nicht möglich';
@@ -4638,6 +4638,21 @@ globalThis.G = { VARIANT: 'rohstoffe' };
 
   G.NEUES = [
     {
+      n: 135, date: '27.11.2026', title: 'Langes Spiel: Flotte', lang: true,
+      text: 'Das U-Boot feuert Marschflugkörper (mit «Strategisches U-Boot» auch Atombomben) und zeigt sich dabei. Das Schlachtschiff beschiesst mit «Küstenbeschuss» Gebäude an der Küste. Das Abwehrschiff holt Marschflugkörper und Flugzeuge bei der Flotte herunter, das Radarschiff hebt den Nebel um sich auf.',
+      map: { w: 300, h: 150, rough: 4, seed: 935, shapes: [rect(0, 0, 300, 40), rect(0, 100, 300, 150)] },
+      me: { x: 150, y: 18, box: [0, 0, 300, 40], troops: 60000, gold: 3000000, build: [[UT.PORT, 120, 39, 2], [UT.CITY, 200, 25, 6]] },
+      foes: [{ name: 'Südreich', x: 150, y: 130, box: [0, 100, 300, 150], troops: 90000, build: [[UT.CITY, 150, 125, 6], [UT.DEFENSE, 80, 106, 2], [UT.SILO, 200, 104, 2], [UT.PORT, 260, 101, 1]] }],
+      allow: ALL, quest: none,
+      events: [[0, function (Q) {
+        Q.ship(Q.me, 150, 80, 2); Q.ship(Q.me, 80, 80, 1); Q.ship(Q.me, 200, 62, 4); Q.ship(Q.me, 240, 70, 5);
+      }]],
+      loop: [3, 8, function (Q, k) {
+        if (k % 2 === 0) Q.fire(Q.me, UT.CRUISE, 150, 125);
+        else Q.fire(Q.foe[0], UT.CRUISE, 200, 39);
+      }]
+    },
+    {
       n: 134, date: '26.11.2026', title: 'Langes Spiel: Rüstungsindustrie', lang: true,
       text: 'Atomwaffen baut die nächste eigene Fabrik; eine gestrichelte Spur zeigt den Weg zum Silo. Jede weitere Fabrikstufe macht es schneller, ohne Fabrik dauert es doppelt so lange. Fällt die Fabrik, kommt die Waffe später. Ein Stoss aus dem Umkreis einer grossen Stadt startet mit mehr Schwung.',
       map: { w: 380, h: 200, seed: 934, shapes: [circ(90, 100, 70), circ(280, 100, 72)] },
@@ -5028,7 +5043,11 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     // destroyer with sonar is near; it sinks warships and merchants. The carrier is a floating
     // airfield and has no guns of its own.
     { name: 'U-Boot', hp: 600, speed: 0.8, range: 60, dmg: 400, rate: 40, land: 0, capture: false, cost: 2, upkeep: 30, patrol: 0.8, deep: 7, sub: true },
-    { name: 'Flugzeugträger', hp: 3000, speed: 0.5, range: 0, dmg: 0, rate: 999, land: 0, capture: false, cost: 5, upkeep: 100, patrol: 0.5, deep: 18, carrier: true }
+    { name: 'Flugzeugträger', hp: 3000, speed: 0.5, range: 0, dmg: 0, rate: 999, land: 0, capture: false, cost: 5, upkeep: 100, patrol: 0.5, deep: 18, carrier: true },
+    // the escort's two: the defence ship shoots down missiles and planes near the fleet, the radar
+    // ship lifts the fog around it; neither has guns
+    { name: 'Abwehrschiff', hp: 1500, speed: 0.7, range: 0, dmg: 0, rate: 999, land: 0, capture: false, cost: 2.5, upkeep: 50, patrol: 0.7, deep: 7, flak: true },
+    { name: 'Radarschiff', hp: 1200, speed: 0.8, range: 0, dmg: 0, rate: 999, land: 0, capture: false, cost: 2, upkeep: 40, patrol: 0.8, deep: 7, radar: true }
   ];
   // A port's store of laid-up warships, by class (port.store); `fresh` asks for a new one anyway.
   Game.prototype.storeOf = function (p, cls, w) {
@@ -5295,7 +5314,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     const reach = this.lang && type !== undefined ? this.weaponReach(type, p) : Infinity, r2 = reach * reach;
     let best = null, bd = Infinity, any = false, far = false;
     for (const u of p.units) {
-      if (u.type !== UT.SILO || !u.built || u.cls) continue;   // an airfield (class 1) is no silo
+      if (u.type === UT.WARSHIP ? !(this.lang && u.cls === 2 && u.ready && this.subCan(p, type)) : (u.type !== UT.SILO || !u.built || u.cls)) continue;   // an airfield (class 1) is no silo; «Langes Spiel»: a missile submarine is one
       any = true;
       let free = !u.arm;
       if (free) { free = false; for (let i = 0; i < u.ready.length; i++) if (u.ready[i] <= T) free = true; }
@@ -5334,7 +5353,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
       if (!res.why) res.ok = p.gold >= res.cost || !!(res.why = 'Zu wenig Gold');
       return res;
     } else if (type === UT.WARSHIP) {
-      if (cls >= 2 && (!this.lang || (p.type === PT.HUMAN && !this.has(p, cls === 2 ? 'ub1' : 'traeger')))) { res.why = this.lang ? 'Braucht Forschung: ' + G.TECH_BY[cls === 2 ? 'ub1' : 'traeger'].name : 'Nicht möglich'; return res; }
+      if (cls >= 2 && (!this.lang || (p.type === PT.HUMAN && !this.has(p, G.SHIP_TECH[cls])))) { res.why = this.lang ? 'Braucht Forschung: ' + G.TECH_BY[G.SHIP_TECH[cls]].name : 'Nicht möglich'; return res; }
       const w = map.land[tile] ? this.waterNear(tile, 8) : (map.wsize[map.wcomp[tile]] >= 150 ? tile : -1);
       let best = null, bd = Infinity, any = false;
       for (const u of p.units) {
@@ -5376,7 +5395,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   };
 
   Game.prototype.build = function (p, type, tile, cls, fresh, pick) {
-    cls = (type === UT.WARSHIP && (cls === 1 || (this.lang && (cls === 2 || cls === 3)))) || (type === UT.SAM && this.lang && (cls === 1 || cls === 2)) || (type === UT.SILO && this.lang && cls === 1) ? cls : 0;
+    cls = (type === UT.WARSHIP && (cls === 1 || (this.lang && cls >= 2 && cls <= 5))) || (type === UT.SAM && this.lang && (cls === 1 || cls === 2)) || (type === UT.SILO && this.lang && cls === 1) ? cls : 0;
     const c = this.buildCheck(p, type, tile, cls, fresh, pick);
     if (!c.ok) return null;
     p.gold -= c.cost;
@@ -5553,6 +5572,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     }
     if (u.pi < u.path.length - 1) { for (let n = this.stride(u); n > 0 && u.pi < u.path.length - 1; n--) { u.pi++; this.setPos(u, u.path[u.pi]); } return; }
     this.removeUnit(u);
+    if (this.lang && this.has(p, 'marinf')) u.troops *= G.LANG.marines;   // «Langes Spiel»: research Marineinfanterie
     this.landBoat(u);
   };
 
@@ -5843,7 +5863,8 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     let dock = u.repair;
     const C = G.SHIP_CLASS[u.cls || 0], full = this.lang ? this.shipFull(u) : C.hp, spd = this.lang ? this.shipSpeed(u) : C.speed;
     if (C.carrier) this.tickField(u);   // «Langes Spiel»: a carrier sends planes like an airfield
-    else if (this.lang && !u.cls) this.shipFlak(u);
+    else if (this.lang && (!u.cls || C.flak)) this.shipFlak(u);
+    else if (this.lang && u.cls === 1 && !u.target) this.shoreFire(u);   // research Küstenbeschuss
     // upkeep while at sea; without the gold for it the ship makes for port and is laid up there
     if (!(p.type === PT.HUMAN && this.opts.infiniteGold)) {
       p.gold -= this.lang ? C.upkeep * G.LANG.shipUpkeep : C.upkeep;
@@ -6118,7 +6139,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   Game.prototype.launch = function (p, type, silo, tile) {
     const T = this.ticks, W = this.W;
     for (let i = 0; i < silo.ready.length; i++) if (silo.ready[i] <= T) { silo.ready[i] = T + G.SILO_RELOAD; break; }
-    if (this.lang) silo.firedAt = T;   // «Langes Spiel»: a silo that fires gives itself away
+    if (this.lang) { silo.firedAt = T; if (silo.type === UT.WARSHIP) silo.shown = T + G.LANG.subShow; }   // «Langes Spiel»: a silo or submarine that fires gives itself away
     const u = this.newUnit(type, p, silo.tile);
     u.dst = tile; u.sx = u.x; u.sy = u.y; u.dx = tile % W; u.dy = (tile / W) | 0;
     u.dist = Math.max(1, Math.hypot(u.dx - u.sx, u.dy - u.sy));
@@ -7332,8 +7353,15 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     T_('ub2', 'Marine', 3, 'Leise U-Boote', 'Sonar findet deine U-Boote erst auf 60 % der Entfernung', ['ub1']),
     T_('ub4', 'Marine', 4, 'Stärkere Torpedos', 'U-Boote treffen 1.5-mal so hart', ['ub2']),
     T_('traeger', 'Marine', 4, 'Flugzeugträger', 'Flugzeugträger: ein Flugplatz auf See', ['luft1', 'mar2']),
-    T_('geleit', 'Marine', 5, 'Geleitschutz', 'Zu jedem Flugzeugträger fährt ein Zerstörer mit', ['traeger'])
+    T_('geleit', 'Marine', 5, 'Geleitschutz', 'Zu jedem Flugzeugträger fährt ein Zerstörer mit', ['traeger']),
+    T_('rads', 'Marine', 2, 'Radarschiff', 'Radarschiff bauen: hebt den Nebel um sich auf, auch über dem Meer', ['auf1']),
+    T_('abws', 'Marine', 3, 'Abwehrschiff', 'Abwehrschiff bauen: schiesst Marschflugkörper, Raketen und Flugzeuge in der Nähe ab', ['mar2']),
+    T_('marinf', 'Marine', 3, 'Marineinfanterie', 'Deine Boote landen mit 1.25-mal so vielen Truppen', ['mar2']),
+    T_('ub3', 'Marine', 4, 'Marschflugkörper-U-Boot', 'U-Boote feuern Marschflugkörper (ein Platz, wie ein kleines Silo)', ['ub2', 'rak1']),
+    T_('kuest', 'Marine', 4, 'Küstenbeschuss', 'Schlachtschiffe ohne Ziel auf See beschiessen Gebäude an der Küste', ['bs3']),
+    T_('ub5', 'Marine', 5, 'Strategisches U-Boot', 'U-Boote tragen auch Atom- und Wasserstoffbomben: der Zweitschlag, den keiner sieht', ['ub3', 'atom'])
   ];
+  G.SHIP_TECH = [0, 0, 'ub1', 'traeger', 'abws', 'rads'];
   const TECH = G.TECH_BY = {};
   for (const t of G.TECH) TECH[t.id] = t;
   // What a step costs in points, and from when its tier can be researched.
@@ -7578,6 +7606,31 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   Game.prototype.langShip = function (u) {
     u.hp = this.shipFull(u);
     if (u.cls === 3) { u.ready = []; for (let i = 0; i < G.LANG.carrierSlots; i++) u.ready.push(0); }
+    if (u.cls === 2) u.ready = [0];   // a launch tube, used with research Marschflugkörper-U-Boot
+  };
+  // What a submarine of p may fire: cruise missiles (ub3), the nuclear bombs too (ub5).
+  Game.prototype.subCan = function (p, type) {
+    if (type === undefined) return this.has(p, 'ub3');
+    if (type === UT.CRUISE) return this.has(p, 'ub3');
+    if (type === UT.ATOM || type === UT.HYDRO) return this.has(p, 'ub5');
+    return false;
+  };
+  // Research Küstenbeschuss: a battleship with nothing to shoot at sea shells the nearest enemy
+  // building in its gun range, every shoreEvery ticks; each hit takes levels as a cruise missile does.
+  Game.prototype.shoreFire = function (u) {
+    if ((this.ticks + u.id) % G.LANG.shoreEvery || !this.has(u.owner, 'kuest')) return;
+    const p = u.owner, r = G.SHIP_CLASS[1].range * this.S * this.reach * (this.has(p, 'bs3') ? 1.3 : 1), r2 = r * r;
+    let best = null, bd = Infinity;
+    for (const v of this.structAt.values()) {
+      if (!v.built || v.owner === p || this.friendly(v.owner, p)) continue;
+      const d = (v.x - u.x) * (v.x - u.x) + (v.y - u.y) * (v.y - u.y);
+      if (d <= r2 && d < bd) { bd = d; best = v; }
+    }
+    if (!best) return;
+    this.fx.push({ k: 'muzzle', x: u.x, y: u.y, tx: best.x, ty: best.y, ship: u });
+    this.fx.push({ k: 'pop', x: best.x, y: best.y, hit: true });
+    if (best.owner === this.human) this.say(G.UNAME[best.type].replace('\u00AD', '') + ' wird von einem Schlachtschiff von ' + p.name + ' beschossen', 'bad');
+    this.structHitBy(best, p);
   };
   // Research Geleitschutz: a destroyer sails with every new carrier and keeps to its waters.
   Game.prototype.escort = function (p, carrier, c) {
@@ -7637,11 +7690,13 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     }
   };
   // Research Flugabwehr an Bord: a destroyer shoots a bomber or cruise missile in its gun range.
+  // The defence ship (class 4) does the same further out and also takes short-range missiles and recon planes.
   Game.prototype.shipFlak = function (u) {
-    if (!this.nukes.length || (this.ticks + u.id) % 10 || !this.has(u.owner, 'mar4')) return;
-    const r = G.SHIP_CLASS[0].range * this.S * this.reach, r2 = r * r;
+    const big = u.cls === 4;
+    if (!this.nukes.length || (this.ticks + u.id) % (big ? G.LANG.flakEvery : 10) || (!big && !this.has(u.owner, 'mar4'))) return;
+    const r = (big ? G.LANG.flakR : G.SHIP_CLASS[0].range) * this.S * this.reach, r2 = r * r;
     for (const n of this.nukes) {
-      if (!n.active || n.sam || (n.type !== UT.BOMBER && n.type !== UT.CRUISE && !G.lowFly(n.type))) continue;
+      if (!n.active || n.sam || (n.type !== UT.BOMBER && n.type !== UT.CRUISE && !G.lowFly(n.type) && !(big && (n.type === UT.SRBM || n.type === UT.RECON)))) continue;
       if (n.owner === u.owner || this.friendly(n.owner, u.owner)) continue;
       if ((n.x - u.x) * (n.x - u.x) + (n.y - u.y) * (n.y - u.y) > r2) continue;
       this.fx.push({ k: 'pop', x: n.x, y: n.y, air: 0 });
@@ -7688,6 +7743,17 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     this.enemy = null;
   }
 
+  // A mine spot a little out from a port: open water some tiles from its quay, toward the sea.
+  AI.prototype.mineSpot = function (p, port) {
+    const g = this.g, map = g.map, W = g.W, x0 = port.water % W, y0 = (port.water / W) | 0, r = g.rng;
+    for (let k = 0; k < 12; k++) {
+      const a = r.next() * 6.2832, d = 4 + r.next() * 10 * g.S, x = Math.round(x0 + Math.cos(a) * d), y = Math.round(y0 + Math.sin(a) * d);
+      if (x < 0 || y < 0 || x >= W || y >= g.H) continue;
+      const t = y * W + x;
+      if (!map.land[t] && map.wcomp[t] === map.wcomp[port.water]) return t;
+    }
+    return port.water;
+  };
   AI.prototype.tick = function () {
     if ((this.g.ticks + this.off) % this.rate !== 0) return;
     if (this.p.type === PT.BOT) this.bot(); else this.nation();
@@ -7934,6 +8000,15 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     if (c[UT.WARSHIP] >= 2 && p.gold >= 3e6 && p.gold >= g.cost(p, UT.WARSHIP) * G.SHIP_CLASS[1].cost * 1.5 && r.chance(6)) {
       const ports = p.units.filter(function (u) { return u.type === UT.PORT && u.built; });
       if (ports.length && g.build(p, UT.WARSHIP, r.pick(ports).water, 1)) return;
+    }
+    // «Langes Spiel»: with a fleet afloat, now and then a submarine, and a few mines before the ports
+    if (g.lang && c[UT.WARSHIP] >= 2 && g.has(p, 'ub1') && p.gold >= g.cost(p, UT.WARSHIP) * G.SHIP_CLASS[2].cost && r.chance(4)) {
+      const ports = p.units.filter(function (u) { return u.type === UT.PORT && u.built; });
+      if (ports.length && g.build(p, UT.WARSHIP, r.pick(ports).water, 2)) return;
+    }
+    if (g.lang && c[UT.PORT] >= 1 && (c[UT.MINE] | 0) < 6 && g.has(p, 'mine') && p.gold >= 1e6 && r.chance(8)) {
+      const ports = p.units.filter(function (u) { return u.type === UT.PORT && u.built; });
+      if (ports.length && g.build(p, UT.MINE, this.mineSpot(p, r.pick(ports)))) return;
     }
     if (c[UT.PORT] >= 1 && c[UT.WARSHIP] < Math.min(3, c[UT.PORT]) && can(UT.WARSHIP, 1.5) && r.chance(3)) {
       const ports = p.units.filter(function (u) { return u.type === UT.PORT && u.built; });
@@ -9379,7 +9454,7 @@ void main() { outc = texture(uColor, vUV); }`;
     const h = g.human;
     if (!g.lang || !h || u.owner === h || g.friendly(u.owner, h)) return false;
     // a stealth bomber shows only inside an own radar with the research «Tarnung erkennen»
-    if (u.type === UT.STEALTH) { if (!g.has(h, 'auf3')) return true; for (const r of h.units) if (r.type === UT.SAM && r.cls === 2 && r.built) { const R = g.radarRange(r); if ((r.x - u.x) * (r.x - u.x) + (r.y - u.y) * (r.y - u.y) <= R * R) return false; } return true; }
+    if (u.type === UT.STEALTH) { if (!g.has(h, 'auf3')) return true; for (const r of h.units) if ((r.type === UT.SAM && r.cls === 2 && r.built) || (r.type === UT.WARSHIP && r.cls === 5)) { const R = r.type === UT.SAM ? g.radarRange(r) : G.LANG.shipRadar * g.S; if ((r.x - u.x) * (r.x - u.x) + (r.y - u.y) * (r.y - u.y) <= R * R) return false; } return true; }
     if (!FOG) return false;
     if (fogSeen(g, Math.round(u.y) * g.W + Math.round(u.x))) return false;
     if (g.has(h, 'auf5')) return false;   // research Satellit: every launch on the world is seen
@@ -9427,8 +9502,15 @@ void main() { outc = texture(uColor, vUV); }`;
         dist[k] = d + 1; grid[k] = 1; q[qt++] = k;
       }
     }
-    // radars: your own, and those of allies of fifteen minutes
+    // radars: your own, and those of allies of fifteen minutes; own radar ships at sea (Paket 6)
     const CS = G.POST.cell;
+    for (const u of h.units) {
+      if (u.type !== UT.WARSHIP || u.cls !== 5) continue;
+      const r = G.LANG.shipRadar * g.S / CS, cx = u.x / CS, cy = u.y / CS;
+      for (let y = Math.max(0, Math.floor(cy - r)); y <= Math.min(CH - 1, Math.ceil(cy + r)); y++)
+        for (let x = Math.max(0, Math.floor(cx - r)); x <= Math.min(CW - 1, Math.ceil(cx + r)); x++)
+          if ((x + 0.5 - cx) * (x + 0.5 - cx) + (y + 0.5 - cy) * (y + 0.5 - cy) <= r * r) grid[y * CW + x] = 1;
+    }
     for (const u of g.structAt.values()) {
       if (u.type !== UT.SAM || u.cls !== 2 || !u.built) continue;
       if (u.owner !== h && !(g.friendly(u.owner, h) && g.allyRadar(h, u.owner))) continue;
@@ -10798,6 +10880,8 @@ void main() { outc = texture(uColor, vUV); }`;
     war1: ['.kkkkkkkkkkkkkkk....', 'koooooowwwoooooook..', 'kogGGowwwwwoGGgoook.', 'kggGGowwwwwoGGggoook', 'kogGGowwwwwoGGgoook.', 'koooooowwwoooooook..', '.kkkkkkkkkkkkkkk....'],
     // «Langes Spiel»: submarine (low, a dark tower), carrier (a long grey flight deck, the island to starboard)
     war2: ['..kkkkkkkk...', '.kddddGGdddk.', 'kddddGGGddddk', '.kddddddddk..', '..kkkkkkkk...'],
+    war4: ['.kkkkkkkkkkkk...', 'kooooGowwoGoook.', 'kogrrGowwoGrrook', 'kooooGowwoGoook.', '.kkkkkkkkkkkk...'],
+    war5: ['.kkkkkkkkkkk...', 'kooooowwoooook.', 'kogoowwwwGgoook', 'kooooowwoooook.', '.kkkkkkkkkkk...'],
     war3: ['.kkkkkkkkkkkkkkkkkkk...', 'kooooooooooooooGGoook..', 'kogggggggggggggggggggok', 'kgwgggwgggwgggwggggggok', 'kogggggggggggggggggggok', 'kooooooooooooooooooook..', '.kkkkkkkkkkkkkkkkkkk...']
   };
   const HULLS = {};
@@ -10806,7 +10890,7 @@ void main() { outc = texture(uColor, vUV); }`;
   // than the destroyer, its pixels finer, and the large merchant the largest ship of all). The
   // order by length now: troop boat 6, merchants 11 / 12, destroyer 14, container ship 16 (long, but as slim
   // as the others), battleship 20.
-  const SCALE = { rkt: 1, boat: 0.8, trade0: 0.8, trade1: 0.8, trade2: 0.8, war0: 0.8, war1: 0.8, war2: 0.8, war3: 0.8 };
+  const SCALE = { rkt: 1, boat: 0.8, trade0: 0.8, trade1: 0.8, trade2: 0.8, war0: 0.8, war1: 0.8, war2: 0.8, war3: 0.8, war4: 0.8, war5: 0.8 };
   for (const k in ART) HULLS[k] = [ART[k][0].length * SCALE[k], ART[k].length * SCALE[k]];
   const BOXCOL = ['#e0793a', '#3d7fc4', '#c94a3f', '#4f9a5a', '#d8b23a'];
   function hullGrid(kind) { return ART[kind]; }
@@ -12561,6 +12645,8 @@ void main() { outc = texture(uColor, vUV); }`;
     { t: 7.2, icon: 'sub', note: 'Unsichtbar, bis es feuert; versenkt Kriegs- und Handelsschiffe', key: '' },
     { t: 7.7, icon: 'carrier', note: 'Ein Flugplatz auf See', key: '' },
     { t: 7.9, icon: 'mine', note: 'Unsichtbar, versenkt Boote und Handelsschiffe', key: '' },
+    { t: 7.3, icon: 'abm', note: 'Schiesst Marschflugkörper und Flugzeuge bei der Flotte ab', key: '' },
+    { t: 7.4, icon: 'radar', note: 'Hebt den Nebel um sich auf, auch auf dem Meer', key: '' },
     { t: UT.CRUISE, icon: 'cruise', note: 'Trifft genau, keine Verstrahlung', key: '9' },
     { t: UT.ATOM, icon: 'atom', note: 'Kleiner Krater', key: '0' },
     { t: UT.HYDRO, icon: 'hydro', note: 'Riesiger Krater', key: 'h' },
@@ -12607,7 +12693,7 @@ void main() { outc = texture(uColor, vUV); }`;
   const plain = function (t) { return G.UNAME[t].replace('\u00AD', ''); };
   // what only the Arsenal mode has
   const armory = function (t) { return t === UT.LASER || t === UT.CLOAK; };
-  const langOnly = function (t) { return t === 4.5 || t === 4.7 || t === 3.5 || t === 7.2 || t === 7.7 || t === 7.9 || G.LANG_WEAPON(t) || G.isPlane(t); };
+  const langOnly = function (t) { return t === 4.5 || t === 4.7 || t === 3.5 || t === 7.2 || t === 7.3 || t === 7.4 || t === 7.7 || t === 7.9 || G.LANG_WEAPON(t) || G.isPlane(t); };
   // what can be built in this game: the Arsenal's two only in that mode, in a level only what it unlocks
   const offered = function (t) { if (langOnly(t) && !game.lang) return false; t = real(t).u; return (!armory(t) || game.opts.arsenal) && (!game.lv || game.levelAllows(t)); };
   // The battleship is warship class 1 in the game; the interface gives it a number of its own (BS,
@@ -12617,7 +12703,7 @@ void main() { outc = texture(uColor, vUV); }`;
   // «Langes Spiel»: the missile defence is air defence class 1 (ABM, between air defence 4 and factory 5)
   const ABM = 4.5;
   const RADAR = 4.7;   // «Langes Spiel»: the radar is air defence class 2
-  function real(t) { return t === BS ? { u: UT.WARSHIP, cls: 1 } : t === 7.2 ? { u: UT.WARSHIP, cls: 2 } : t === 7.7 ? { u: UT.WARSHIP, cls: 3 } : t === 7.9 ? { u: UT.MINE, cls: 0 } : t === ABM ? { u: UT.SAM, cls: 1 } : t === RADAR ? { u: UT.SAM, cls: 2 } : t === 3.5 ? { u: UT.SILO, cls: 1 } : { u: t, cls: 0 }; }
+  function real(t) { return t === BS ? { u: UT.WARSHIP, cls: 1 } : t === 7.2 ? { u: UT.WARSHIP, cls: 2 } : t === 7.3 ? { u: UT.WARSHIP, cls: 4 } : t === 7.4 ? { u: UT.WARSHIP, cls: 5 } : t === 7.7 ? { u: UT.WARSHIP, cls: 3 } : t === 7.9 ? { u: UT.MINE, cls: 0 } : t === ABM ? { u: UT.SAM, cls: 1 } : t === RADAR ? { u: UT.SAM, cls: 2 } : t === 3.5 ? { u: UT.SILO, cls: 1 } : { u: t, cls: 0 }; }
   function costOf(h, t) { const r = real(t), c = game.cost(h, r.u); if (r.u === UT.MINE) return game.opts.infiniteGold ? 0 : G.LANG.mineCost; if (r.u === UT.SAM && r.cls === 2) return game.opts.infiniteGold ? 0 : G.LANG.radarCost;
     if (r.u === UT.SILO && r.cls) return game.opts.infiniteGold ? 0 : G.LANG.fieldCost;
     if (r.u === UT.STEALTH) return c + game.cost(h, game.has(h, 'hydro') ? UT.HYDRO : UT.ATOM); return r.cls ? Math.round(c * (r.u === UT.SAM ? G.LANG.abmCost : G.SHIP_CLASS[r.cls].cost)) : c; }
@@ -13391,7 +13477,7 @@ void main() { outc = texture(uColor, vUV); }`;
   // bombs and missiles how many can be fired right now (loaded silo slots), 0 in red while every
   // silo is reloading; other buildings how many there are.
   function ownBadge(h, t) {
-    if (t === UT.WARSHIP || t === BS || t === 7.2 || t === 7.7) return { n: shipsOf(h, real(t).cls), cls: '' };
+    if (t === UT.WARSHIP || t === BS || t === 7.2 || t === 7.3 || t === 7.4 || t === 7.7) return { n: shipsOf(h, real(t).cls), cls: '' };
     if (t === 7.9) return { n: h.cnt[UT.MINE] | 0, cls: '' };
     const T = game.ticks;
     if (game.lang && (t === UT.SILO || t === FIELD)) { const k = t === FIELD ? 1 : 0; let n = 0; for (const u of h.units) if (u.type === UT.SILO && (u.cls || 0) === k) n++; return { n: n, cls: '' }; }
@@ -13739,7 +13825,7 @@ void main() { outc = texture(uColor, vUV); }`;
       }
       const have = ownBadge(h, b.t);
       // a warship laid up in a port sails out first; a second button builds a new one all the same
-      const lager = b.t === UT.WARSHIP || b.t === BS || b.t === 7.2 || b.t === 7.7 ? game.stored(h, real(b.t).cls) : 0;
+      const lager = b.t === UT.WARSHIP || b.t === BS || b.t === 7.2 || b.t === 7.3 || b.t === 7.4 || b.t === 7.7 ? game.stored(h, real(b.t).cls) : 0;
       if (lager && ok) note = 'Aus dem Lager (' + lager + ' im Hafen), gratis';
       const extra = lager ? '<button class="item" type="button" data-t="' + b.t + '" data-fresh="1"><span class="ic">' + svg(b.icon, 24) + '</span><b>Neu bauen</b><small>' + esc(b.note) + '</small>' + coin(costOf(h, b.t)) + '</button>' : '';
       return extra + '<button class="item' + (nuke ? ' nuke' : '') + (!game.opts.infiniteGold && h.gold < cost ? ' poor' : '') + '" type="button" data-t="' + b.t + '"' + (ok ? '' : ' disabled') + '><kbd>' + b.key.toUpperCase() + '</kbd>' + badge(have) +

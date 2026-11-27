@@ -52,7 +52,7 @@
     'Handelsschiff', 'Zug', 'Granate', 'Abwehrrakete', 'Atombombe', 'Wasserstoff\u00ADbombe', 'MIRV', 'Sprengkopf', 'Marschflug\u00ADkörper', 'Satelliten\u00ADstrahl',
     'Streubombe', 'Bunker\u00ADbrecher', 'Thermobare Bombe', 'Kurzstrecken\u00ADrakete', 'Bomber', 'Tarnbomber', 'Aufklärungs\u00ADflugzeug', 'Abfangjäger'];
   G.UNAME[7.5] = 'Schlachtschiff';
-  G.UNAME[7.2] = 'U-Boot'; G.UNAME[7.7] = 'Flugzeug\u00ADträger'; G.UNAME[7.9] = 'Seemine'; G.UNAME[27] = 'Seemine';   // «Langes Spiel», Paket 6 (src/07_ui.js)   // the interface's own number for warship class 1 (src/07_ui.js, BS)
+  G.UNAME[7.2] = 'U-Boot'; G.UNAME[7.7] = 'Flugzeug\u00ADträger'; G.UNAME[7.9] = 'Seemine'; G.UNAME[7.3] = 'Abwehrschiff'; G.UNAME[7.4] = 'Radarschiff'; G.UNAME[27] = 'Seemine';   // «Langes Spiel», Paket 6 (src/07_ui.js)   // the interface's own number for warship class 1 (src/07_ui.js, BS)
   G.UNAME[4.5] = 'Raketenabwehr';    // «Langes Spiel»: air defence class 1 (src/07_ui.js, ABM)
   G.UNAME[3.5] = 'Flugplatz';        // «Langes Spiel»: silo class 1 (src/07_ui.js, FIELD)
   G.UNAME[4.7] = 'Radar';            // «Langes Spiel»: air defence class 2 (src/07_ui.js, RADAR)
@@ -146,7 +146,7 @@
     // Paket 6: the navy (doku/langes-spiel.md)
     shipHp: 1.5, shipUpkeep: 1.5, tradeGold: 1.5, sonarR: 60, subShow: 300, subQuiet: 0.6,
     pushCity: 0.15, pushMass: 0.6, armNoFab: 2, armFab: 0.1, armFabMin: 0.5, armLost: 0.5, armSee: 0.25,
-    mineCost: 150000, mineR: 120, mineMax: 30, mineHit: 3, mineDmg: 1500, mineClear: 25, carrierSlots: 2
+    mineCost: 150000, mineR: 120, mineMax: 30, mineHit: 3, mineDmg: 1500, mineClear: 25, carrierSlots: 2, flakR: 60, flakEvery: 15, shoreEvery: 150, marines: 1.25, shipRadar: 80
   };
   G.isPlane = function (t) { return t >= UT.BOMBER && t <= UT.FIGHTER; };
   G.LANG_WEAPON = function (t) { return t >= UT.CLUSTER && t <= UT.SRBM; };
@@ -1793,7 +1793,7 @@
       case 'build': {
         if (!tileOk || !(c.u <= UT.WARSHIP || c.u === UT.ATOM || c.u === UT.HYDRO || c.u === UT.MIRV || c.u === UT.CRUISE || c.u === UT.LASER || (this.lang && (G.LANG_WEAPON(c.u) || c.u === UT.MINE || (G.isPlane(c.u) && c.u !== UT.FIGHTER)))) || !(c.u >= 0)) return 'Nicht möglich';
         if (this.lv && !this.levelAllows(c.u)) return 'In diesem Level noch gesperrt';
-        const cls = (c.u === UT.WARSHIP && (c.cls === 1 || (this.lang && (c.cls === 2 || c.cls === 3)))) || (c.u === UT.SAM && this.lang && (c.cls === 1 || c.cls === 2)) || (c.u === UT.SILO && this.lang && c.cls === 1) ? c.cls : 0;    // a battleship; a missile defence, a radar
+        const cls = (c.u === UT.WARSHIP && (c.cls === 1 || (this.lang && c.cls >= 2 && c.cls <= 5))) || (c.u === UT.SAM && this.lang && (c.cls === 1 || c.cls === 2)) || (c.u === UT.SILO && this.lang && c.cls === 1) ? c.cls : 0;    // a battleship; a missile defence, a radar
         const pick = c.s | 0;   // the silo the player chose, 0 = the nearest (src/04c_lang.js)
         const chk = this.buildCheck(p, c.u, c.t, cls, !!c.fresh, pick);
         if (!chk.ok) return chk.why || 'Nicht möglich';

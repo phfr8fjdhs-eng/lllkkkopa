@@ -42,6 +42,21 @@
 
   G.NEUES = [
     {
+      n: 135, date: '27.11.2026', title: 'Langes Spiel: Flotte', lang: true,
+      text: 'Das U-Boot feuert Marschflugkörper (mit «Strategisches U-Boot» auch Atombomben) und zeigt sich dabei. Das Schlachtschiff beschiesst mit «Küstenbeschuss» Gebäude an der Küste. Das Abwehrschiff holt Marschflugkörper und Flugzeuge bei der Flotte herunter, das Radarschiff hebt den Nebel um sich auf.',
+      map: { w: 300, h: 150, rough: 4, seed: 935, shapes: [rect(0, 0, 300, 40), rect(0, 100, 300, 150)] },
+      me: { x: 150, y: 18, box: [0, 0, 300, 40], troops: 60000, gold: 3000000, build: [[UT.PORT, 120, 39, 2], [UT.CITY, 200, 25, 6]] },
+      foes: [{ name: 'Südreich', x: 150, y: 130, box: [0, 100, 300, 150], troops: 90000, build: [[UT.CITY, 150, 125, 6], [UT.DEFENSE, 80, 106, 2], [UT.SILO, 200, 104, 2], [UT.PORT, 260, 101, 1]] }],
+      allow: ALL, quest: none,
+      events: [[0, function (Q) {
+        Q.ship(Q.me, 150, 80, 2); Q.ship(Q.me, 80, 80, 1); Q.ship(Q.me, 200, 62, 4); Q.ship(Q.me, 240, 70, 5);
+      }]],
+      loop: [3, 8, function (Q, k) {
+        if (k % 2 === 0) Q.fire(Q.me, UT.CRUISE, 150, 125);
+        else Q.fire(Q.foe[0], UT.CRUISE, 200, 39);
+      }]
+    },
+    {
       n: 134, date: '26.11.2026', title: 'Langes Spiel: Rüstungsindustrie', lang: true,
       text: 'Atomwaffen baut die nächste eigene Fabrik; eine gestrichelte Spur zeigt den Weg zum Silo. Jede weitere Fabrikstufe macht es schneller, ohne Fabrik dauert es doppelt so lange. Fällt die Fabrik, kommt die Waffe später. Ein Stoss aus dem Umkreis einer grossen Stadt startet mit mehr Schwung.',
       map: { w: 380, h: 200, seed: 934, shapes: [circ(90, 100, 70), circ(280, 100, 72)] },

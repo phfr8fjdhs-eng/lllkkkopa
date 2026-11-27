@@ -46,7 +46,7 @@ for (let i = 0; i < 4000; i++) {
       both(id, { k: 'strike', t: goal, r: 0.6, w: w });
       if (w) thrusts++;
     }
-    else if (kind < 8 && LANG && rnd(3) === 0) { let w = rnd(map.N); for (let k = 0; k < 50 && map.land[w]; k++) w = rnd(map.N); both(id, rnd(4) ? { k: 'build', u: UT.WARSHIP, t: w, cls: rnd(4) } : { k: 'build', u: UT.MINE, t: w }); }
+    else if (kind < 8 && LANG && rnd(3) === 0) { let w = rnd(map.N); for (let k = 0; k < 50 && map.land[w]; k++) w = rnd(map.N); both(id, rnd(4) ? { k: 'build', u: UT.WARSHIP, t: w, cls: rnd(6) } : { k: 'build', u: UT.MINE, t: w }); }
     else if (kind < 8) both(id, { k: 'build', u: [UT.CITY, UT.SILO, UT.SAM, UT.FACTORY, UT.DEFENSE, UT.PORT, UT.CLOAK][rnd(ARS ? 7 : 6)], t: t0, cls: LANG ? rnd(2) : 0 });
     else if (kind < 9) both(id, { k: 'up', t: t0 });
     else { const foe = a.players[3 - id]; if (foe.alive && a.immuneUntil <= a.ticks) { const ft = Array.from(foe.border)[0]; both(id, LANG ? { k: 'build', u: [UT.CRUISE, UT.ATOM, UT.CLUSTER, UT.BUNKER, UT.THERMO, UT.SRBM, UT.BOMBER, UT.STEALTH, UT.RECON][rnd(9)], t: ft } : { k: 'build', u: rnd(2) ? UT.CRUISE : UT.ATOM, t: ft }); cruise++; } }

@@ -251,8 +251,26 @@ Code: Abschnitt «the navy» in `src/04c_lang.js` (`shipFull`, `shipSpeed`, `lan
   - Schlachtschiff: 2 Panzerung (× 1.3), 3 Weitreichende Geschütze (× 1.3), 4 Schwere Granaten (× 1.3).
   - U-Boot: 1 U-Boot, 2 Seeminen, 3 Leise U-Boote, 4 Stärkere Torpedos (× 1.5).
   - 4 Flugzeugträger (braucht Flugplatz und Schnelle Zerstörer), 5 Geleitschutz.
-- **Noch nicht gebaut** (aus deiner Liste): U-Boot mit Marschflugkörpern, strategisches U-Boot mit Langstreckenraketen (Zweitschlag), Abwehr- und Radarschiff, Küstenbeschuss, Marineinfanterie. Nationen bauen noch keine U-Boote, Träger und Minen; sie bekommen aber die Forschung, ihre Zerstörer finden also mit Sonar U-Boote.
 - Szene 133 (Marine).
+
+### 6b. Flotte (27.11.2026)
+- **Marschflugkörper-U-Boot** (Marine 4, `ub3`): Jedes U-Boot hat einen Startplatz und zählt für Marschflugkörper wie ein Silo (`readySilo`, `subCan`). Die Reichweite zählt ab dem U-Boot. Wer feuert, zeigt sich 30 s.
+- **Strategisches U-Boot** (Marine 5, `ub5`, braucht die Atombombe): Das U-Boot trägt auch Atom- und Wasserstoffbomben.
+  - Scharfgemacht wird wie im Silo, aber das sieht niemand: Den roten Ring gibt es nur bei Silos.
+  - Wird das eigene Land von einer Atomwaffe getroffen, startet die Bombe sofort. Das ist der Zweitschlag.
+- **Abwehrschiff** (Schiffsklasse 4, auf der Seite 7.3, Preis × 2.5, Marine 3):
+  - Es hat keine Geschütze.
+  - Alle 1.5 s schiesst es einen Marschflugkörper, eine Kurzstreckenrakete, einen Bomber oder ein Aufklärungsflugzeug in 60 Feldern ab (`flakR`, mal Reichweite des Modus).
+  - Gegen Atomwaffen hilft es nicht.
+- **Radarschiff** (Schiffsklasse 5, auf der Seite 7.4, Preis × 2, Marine 2, braucht «Radarstation»):
+  - Es hat keine Geschütze.
+  - Es hebt den Nebel in 80 Feldern um sich auf (`shipRadar`) und zeigt dort Tarnbomber.
+- **Küstenbeschuss** (Marine 4, `kuest`):
+  - Ein Schlachtschiff ohne Ziel auf See beschiesst alle 15 s das nächste feindliche Gebäude in seiner Geschützweite.
+  - Jeder Treffer nimmt Stufen wie ein Marschflugkörper.
+- **Marineinfanterie** (Marine 3, `marinf`): Eigene Boote landen mit 1.25-mal so vielen Truppen (`marines`).
+- **Nationen** bauen ab «U-Boot» mit einer Flotte ab und zu ein U-Boot und legen mit «Seeminen» bis zu 6 Minen vor ihre Häfen.
+- Szene 135 (Flotte).
 
 ## Paket 7: Im eigenen Land (26.11.2026)
 Code: `momentumStart` in `src/03_game.js`, `armFactory`, `armSilo`, `langArmTick` in `src/04c_lang.js`, `armHaul` in `src/06_view.js`. Zahlen in `G.LANG` (`pushCity`, `pushMass`, `armNoFab`, `armFab`, `armFabMin`, `armLost`).

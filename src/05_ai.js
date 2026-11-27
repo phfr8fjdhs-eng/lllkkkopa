@@ -16,6 +16,17 @@
     this.enemy = null;
   }
 
+  // A mine spot a little out from a port: open water some tiles from its quay, toward the sea.
+  AI.prototype.mineSpot = function (p, port) {
+    const g = this.g, map = g.map, W = g.W, x0 = port.water % W, y0 = (port.water / W) | 0, r = g.rng;
+    for (let k = 0; k < 12; k++) {
+      const a = r.next() * 6.2832, d = 4 + r.next() * 10 * g.S, x = Math.round(x0 + Math.cos(a) * d), y = Math.round(y0 + Math.sin(a) * d);
+      if (x < 0 || y < 0 || x >= W || y >= g.H) continue;
+      const t = y * W + x;
+      if (!map.land[t] && map.wcomp[t] === map.wcomp[port.water]) return t;
+    }
+    return port.water;
+  };
   AI.prototype.tick = function () {
     if ((this.g.ticks + this.off) % this.rate !== 0) return;
     if (this.p.type === PT.BOT) this.bot(); else this.nation();
@@ -262,6 +273,15 @@
     if (c[UT.WARSHIP] >= 2 && p.gold >= 3e6 && p.gold >= g.cost(p, UT.WARSHIP) * G.SHIP_CLASS[1].cost * 1.5 && r.chance(6)) {
       const ports = p.units.filter(function (u) { return u.type === UT.PORT && u.built; });
       if (ports.length && g.build(p, UT.WARSHIP, r.pick(ports).water, 1)) return;
+    }
+    // «Langes Spiel»: with a fleet afloat, now and then a submarine, and a few mines before the ports
+    if (g.lang && c[UT.WARSHIP] >= 2 && g.has(p, 'ub1') && p.gold >= g.cost(p, UT.WARSHIP) * G.SHIP_CLASS[2].cost && r.chance(4)) {
+      const ports = p.units.filter(function (u) { return u.type === UT.PORT && u.built; });
+      if (ports.length && g.build(p, UT.WARSHIP, r.pick(ports).water, 2)) return;
+    }
+    if (g.lang && c[UT.PORT] >= 1 && (c[UT.MINE] | 0) < 6 && g.has(p, 'mine') && p.gold >= 1e6 && r.chance(8)) {
+      const ports = p.units.filter(function (u) { return u.type === UT.PORT && u.built; });
+      if (ports.length && g.build(p, UT.MINE, this.mineSpot(p, r.pick(ports)))) return;
     }
     if (c[UT.PORT] >= 1 && c[UT.WARSHIP] < Math.min(3, c[UT.PORT]) && can(UT.WARSHIP, 1.5) && r.chance(3)) {
       const ports = p.units.filter(function (u) { return u.type === UT.PORT && u.built; });

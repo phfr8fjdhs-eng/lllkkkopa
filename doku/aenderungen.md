@@ -3,6 +3,10 @@ Was seit dem 13.11.2026 geändert wurde und warum. Den heutigen Stand der Regeln
 
 
 
+## Spielmodus «Langes Spiel», Paket 6b: Flotte (27.11.2026)
+- **Wunsch:** Das U-Boot mit Raketen fehlte noch, dazu der Rest der Marine.
+- **Geändert (nur im Modus):** U-Boot mit Marschflugkörpern, strategisches U-Boot mit Atombomben (Zweitschlag), Abwehrschiff, Radarschiff, Küstenbeschuss, Marineinfanterie; Nationen bauen U-Boote und Minen. Szene 135.
+
 ## Spielmodus «Langes Spiel», Paket 8: Inseln als Stützpunkte (26.11.2026)
 - **Wunsch:** Wichtige kleine Inseln (deine Liste von 25) bleiben auf der Erde, mindestens so gross, dass Hafen und Flugplatz Platz haben; Nationen starten nicht dort.
 - **Geändert (nur im Modus, nur auf der Erde):** eigene Erde mit den Inseln, Scheibe von 4 Feldern Halbmesser, Nationen weichen aus. Klassische Erde unverändert.

@@ -545,8 +545,15 @@
     T_('ub2', 'Marine', 3, 'Leise U-Boote', 'Sonar findet deine U-Boote erst auf 60 % der Entfernung', ['ub1']),
     T_('ub4', 'Marine', 4, 'Stärkere Torpedos', 'U-Boote treffen 1.5-mal so hart', ['ub2']),
     T_('traeger', 'Marine', 4, 'Flugzeugträger', 'Flugzeugträger: ein Flugplatz auf See', ['luft1', 'mar2']),
-    T_('geleit', 'Marine', 5, 'Geleitschutz', 'Zu jedem Flugzeugträger fährt ein Zerstörer mit', ['traeger'])
+    T_('geleit', 'Marine', 5, 'Geleitschutz', 'Zu jedem Flugzeugträger fährt ein Zerstörer mit', ['traeger']),
+    T_('rads', 'Marine', 2, 'Radarschiff', 'Radarschiff bauen: hebt den Nebel um sich auf, auch über dem Meer', ['auf1']),
+    T_('abws', 'Marine', 3, 'Abwehrschiff', 'Abwehrschiff bauen: schiesst Marschflugkörper, Raketen und Flugzeuge in der Nähe ab', ['mar2']),
+    T_('marinf', 'Marine', 3, 'Marineinfanterie', 'Deine Boote landen mit 1.25-mal so vielen Truppen', ['mar2']),
+    T_('ub3', 'Marine', 4, 'Marschflugkörper-U-Boot', 'U-Boote feuern Marschflugkörper (ein Platz, wie ein kleines Silo)', ['ub2', 'rak1']),
+    T_('kuest', 'Marine', 4, 'Küstenbeschuss', 'Schlachtschiffe ohne Ziel auf See beschiessen Gebäude an der Küste', ['bs3']),
+    T_('ub5', 'Marine', 5, 'Strategisches U-Boot', 'U-Boote tragen auch Atom- und Wasserstoffbomben: der Zweitschlag, den keiner sieht', ['ub3', 'atom'])
   ];
+  G.SHIP_TECH = [0, 0, 'ub1', 'traeger', 'abws', 'rads'];
   const TECH = G.TECH_BY = {};
   for (const t of G.TECH) TECH[t.id] = t;
   // What a step costs in points, and from when its tier can be researched.
@@ -791,6 +798,31 @@
   Game.prototype.langShip = function (u) {
     u.hp = this.shipFull(u);
     if (u.cls === 3) { u.ready = []; for (let i = 0; i < G.LANG.carrierSlots; i++) u.ready.push(0); }
+    if (u.cls === 2) u.ready = [0];   // a launch tube, used with research Marschflugkörper-U-Boot
+  };
+  // What a submarine of p may fire: cruise missiles (ub3), the nuclear bombs too (ub5).
+  Game.prototype.subCan = function (p, type) {
+    if (type === undefined) return this.has(p, 'ub3');
+    if (type === UT.CRUISE) return this.has(p, 'ub3');
+    if (type === UT.ATOM || type === UT.HYDRO) return this.has(p, 'ub5');
+    return false;
+  };
+  // Research Küstenbeschuss: a battleship with nothing to shoot at sea shells the nearest enemy
+  // building in its gun range, every shoreEvery ticks; each hit takes levels as a cruise missile does.
+  Game.prototype.shoreFire = function (u) {
+    if ((this.ticks + u.id) % G.LANG.shoreEvery || !this.has(u.owner, 'kuest')) return;
+    const p = u.owner, r = G.SHIP_CLASS[1].range * this.S * this.reach * (this.has(p, 'bs3') ? 1.3 : 1), r2 = r * r;
+    let best = null, bd = Infinity;
+    for (const v of this.structAt.values()) {
+      if (!v.built || v.owner === p || this.friendly(v.owner, p)) continue;
+      const d = (v.x - u.x) * (v.x - u.x) + (v.y - u.y) * (v.y - u.y);
+      if (d <= r2 && d < bd) { bd = d; best = v; }
+    }
+    if (!best) return;
+    this.fx.push({ k: 'muzzle', x: u.x, y: u.y, tx: best.x, ty: best.y, ship: u });
+    this.fx.push({ k: 'pop', x: best.x, y: best.y, hit: true });
+    if (best.owner === this.human) this.say(G.UNAME[best.type].replace('\u00AD', '') + ' wird von einem Schlachtschiff von ' + p.name + ' beschossen', 'bad');
+    this.structHitBy(best, p);
   };
   // Research Geleitschutz: a destroyer sails with every new carrier and keeps to its waters.
   Game.prototype.escort = function (p, carrier, c) {
@@ -850,11 +882,13 @@
     }
   };
   // Research Flugabwehr an Bord: a destroyer shoots a bomber or cruise missile in its gun range.
+  // The defence ship (class 4) does the same further out and also takes short-range missiles and recon planes.
   Game.prototype.shipFlak = function (u) {
-    if (!this.nukes.length || (this.ticks + u.id) % 10 || !this.has(u.owner, 'mar4')) return;
-    const r = G.SHIP_CLASS[0].range * this.S * this.reach, r2 = r * r;
+    const big = u.cls === 4;
+    if (!this.nukes.length || (this.ticks + u.id) % (big ? G.LANG.flakEvery : 10) || (!big && !this.has(u.owner, 'mar4'))) return;
+    const r = (big ? G.LANG.flakR : G.SHIP_CLASS[0].range) * this.S * this.reach, r2 = r * r;
     for (const n of this.nukes) {
-      if (!n.active || n.sam || (n.type !== UT.BOMBER && n.type !== UT.CRUISE && !G.lowFly(n.type))) continue;
+      if (!n.active || n.sam || (n.type !== UT.BOMBER && n.type !== UT.CRUISE && !G.lowFly(n.type) && !(big && (n.type === UT.SRBM || n.type === UT.RECON)))) continue;
       if (n.owner === u.owner || this.friendly(n.owner, u.owner)) continue;
       if ((n.x - u.x) * (n.x - u.x) + (n.y - u.y) * (n.y - u.y) > r2) continue;
       this.fx.push({ k: 'pop', x: n.x, y: n.y, air: 0 });

@@ -56,6 +56,7 @@ check('kleine Flugabwehr gegen die neuen Waffen', b.samCan({ cls: 0 }, G.UT.SRBM
   sub.shown = b.ticks + 10;
   check('wer feuert, zeigt sich', b.subSeen(sub, { id: 79, tech: {}, units: [] }));
   check('Kriegsschiffe schwerer', b.shipFull({ cls: 1, owner: me }) === G.SHIP_CLASS[1].hp * G.LANG.shipHp);
+  check('U-Boot feuert erst mit Forschung', !b.subCan({ tech: {} }, UT.CRUISE) && b.subCan({ tech: { ub3: 1 } }, UT.CRUISE) && !b.subCan({ tech: { ub3: 1 } }, UT.ATOM) && b.subCan({ tech: { ub5: 1 } }, UT.HYDRO));
   check('Seemine nur mit Hafen in der Nähe', b.mineWhy(pb, 0, {}) !== '', b.mineWhy(pb, 0, {}));
 }
 // Paket 7: arms industry

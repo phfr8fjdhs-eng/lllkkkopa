@@ -21,7 +21,11 @@
     // destroyer with sonar is near; it sinks warships and merchants. The carrier is a floating
     // airfield and has no guns of its own.
     { name: 'U-Boot', hp: 600, speed: 0.8, range: 60, dmg: 400, rate: 40, land: 0, capture: false, cost: 2, upkeep: 30, patrol: 0.8, deep: 7, sub: true },
-    { name: 'Flugzeugträger', hp: 3000, speed: 0.5, range: 0, dmg: 0, rate: 999, land: 0, capture: false, cost: 5, upkeep: 100, patrol: 0.5, deep: 18, carrier: true }
+    { name: 'Flugzeugträger', hp: 3000, speed: 0.5, range: 0, dmg: 0, rate: 999, land: 0, capture: false, cost: 5, upkeep: 100, patrol: 0.5, deep: 18, carrier: true },
+    // the escort's two: the defence ship shoots down missiles and planes near the fleet, the radar
+    // ship lifts the fog around it; neither has guns
+    { name: 'Abwehrschiff', hp: 1500, speed: 0.7, range: 0, dmg: 0, rate: 999, land: 0, capture: false, cost: 2.5, upkeep: 50, patrol: 0.7, deep: 7, flak: true },
+    { name: 'Radarschiff', hp: 1200, speed: 0.8, range: 0, dmg: 0, rate: 999, land: 0, capture: false, cost: 2, upkeep: 40, patrol: 0.8, deep: 7, radar: true }
   ];
   // A port's store of laid-up warships, by class (port.store); `fresh` asks for a new one anyway.
   Game.prototype.storeOf = function (p, cls, w) {
@@ -288,7 +292,7 @@
     const reach = this.lang && type !== undefined ? this.weaponReach(type, p) : Infinity, r2 = reach * reach;
     let best = null, bd = Infinity, any = false, far = false;
     for (const u of p.units) {
-      if (u.type !== UT.SILO || !u.built || u.cls) continue;   // an airfield (class 1) is no silo
+      if (u.type === UT.WARSHIP ? !(this.lang && u.cls === 2 && u.ready && this.subCan(p, type)) : (u.type !== UT.SILO || !u.built || u.cls)) continue;   // an airfield (class 1) is no silo; «Langes Spiel»: a missile submarine is one
       any = true;
       let free = !u.arm;
       if (free) { free = false; for (let i = 0; i < u.ready.length; i++) if (u.ready[i] <= T) free = true; }
@@ -327,7 +331,7 @@
       if (!res.why) res.ok = p.gold >= res.cost || !!(res.why = 'Zu wenig Gold');
       return res;
     } else if (type === UT.WARSHIP) {
-      if (cls >= 2 && (!this.lang || (p.type === PT.HUMAN && !this.has(p, cls === 2 ? 'ub1' : 'traeger')))) { res.why = this.lang ? 'Braucht Forschung: ' + G.TECH_BY[cls === 2 ? 'ub1' : 'traeger'].name : 'Nicht möglich'; return res; }
+      if (cls >= 2 && (!this.lang || (p.type === PT.HUMAN && !this.has(p, G.SHIP_TECH[cls])))) { res.why = this.lang ? 'Braucht Forschung: ' + G.TECH_BY[G.SHIP_TECH[cls]].name : 'Nicht möglich'; return res; }
       const w = map.land[tile] ? this.waterNear(tile, 8) : (map.wsize[map.wcomp[tile]] >= 150 ? tile : -1);
       let best = null, bd = Infinity, any = false;
       for (const u of p.units) {
@@ -369,7 +373,7 @@
   };
 
   Game.prototype.build = function (p, type, tile, cls, fresh, pick) {
-    cls = (type === UT.WARSHIP && (cls === 1 || (this.lang && (cls === 2 || cls === 3)))) || (type === UT.SAM && this.lang && (cls === 1 || cls === 2)) || (type === UT.SILO && this.lang && cls === 1) ? cls : 0;
+    cls = (type === UT.WARSHIP && (cls === 1 || (this.lang && cls >= 2 && cls <= 5))) || (type === UT.SAM && this.lang && (cls === 1 || cls === 2)) || (type === UT.SILO && this.lang && cls === 1) ? cls : 0;
     const c = this.buildCheck(p, type, tile, cls, fresh, pick);
     if (!c.ok) return null;
     p.gold -= c.cost;
@@ -546,6 +550,7 @@
     }
     if (u.pi < u.path.length - 1) { for (let n = this.stride(u); n > 0 && u.pi < u.path.length - 1; n--) { u.pi++; this.setPos(u, u.path[u.pi]); } return; }
     this.removeUnit(u);
+    if (this.lang && this.has(p, 'marinf')) u.troops *= G.LANG.marines;   // «Langes Spiel»: research Marineinfanterie
     this.landBoat(u);
   };
 
@@ -836,7 +841,8 @@
     let dock = u.repair;
     const C = G.SHIP_CLASS[u.cls || 0], full = this.lang ? this.shipFull(u) : C.hp, spd = this.lang ? this.shipSpeed(u) : C.speed;
     if (C.carrier) this.tickField(u);   // «Langes Spiel»: a carrier sends planes like an airfield
-    else if (this.lang && !u.cls) this.shipFlak(u);
+    else if (this.lang && (!u.cls || C.flak)) this.shipFlak(u);
+    else if (this.lang && u.cls === 1 && !u.target) this.shoreFire(u);   // research Küstenbeschuss
     // upkeep while at sea; without the gold for it the ship makes for port and is laid up there
     if (!(p.type === PT.HUMAN && this.opts.infiniteGold)) {
       p.gold -= this.lang ? C.upkeep * G.LANG.shipUpkeep : C.upkeep;
@@ -1111,7 +1117,7 @@
   Game.prototype.launch = function (p, type, silo, tile) {
     const T = this.ticks, W = this.W;
     for (let i = 0; i < silo.ready.length; i++) if (silo.ready[i] <= T) { silo.ready[i] = T + G.SILO_RELOAD; break; }
-    if (this.lang) silo.firedAt = T;   // «Langes Spiel»: a silo that fires gives itself away
+    if (this.lang) { silo.firedAt = T; if (silo.type === UT.WARSHIP) silo.shown = T + G.LANG.subShow; }   // «Langes Spiel»: a silo or submarine that fires gives itself away
     const u = this.newUnit(type, p, silo.tile);
     u.dst = tile; u.sx = u.x; u.sy = u.y; u.dx = tile % W; u.dy = (tile / W) | 0;
     u.dist = Math.max(1, Math.hypot(u.dx - u.sx, u.dy - u.sy));

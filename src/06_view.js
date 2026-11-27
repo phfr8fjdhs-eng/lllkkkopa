@@ -103,7 +103,7 @@
     const h = g.human;
     if (!g.lang || !h || u.owner === h || g.friendly(u.owner, h)) return false;
     // a stealth bomber shows only inside an own radar with the research «Tarnung erkennen»
-    if (u.type === UT.STEALTH) { if (!g.has(h, 'auf3')) return true; for (const r of h.units) if (r.type === UT.SAM && r.cls === 2 && r.built) { const R = g.radarRange(r); if ((r.x - u.x) * (r.x - u.x) + (r.y - u.y) * (r.y - u.y) <= R * R) return false; } return true; }
+    if (u.type === UT.STEALTH) { if (!g.has(h, 'auf3')) return true; for (const r of h.units) if ((r.type === UT.SAM && r.cls === 2 && r.built) || (r.type === UT.WARSHIP && r.cls === 5)) { const R = r.type === UT.SAM ? g.radarRange(r) : G.LANG.shipRadar * g.S; if ((r.x - u.x) * (r.x - u.x) + (r.y - u.y) * (r.y - u.y) <= R * R) return false; } return true; }
     if (!FOG) return false;
     if (fogSeen(g, Math.round(u.y) * g.W + Math.round(u.x))) return false;
     if (g.has(h, 'auf5')) return false;   // research Satellit: every launch on the world is seen
@@ -151,8 +151,15 @@
         dist[k] = d + 1; grid[k] = 1; q[qt++] = k;
       }
     }
-    // radars: your own, and those of allies of fifteen minutes
+    // radars: your own, and those of allies of fifteen minutes; own radar ships at sea (Paket 6)
     const CS = G.POST.cell;
+    for (const u of h.units) {
+      if (u.type !== UT.WARSHIP || u.cls !== 5) continue;
+      const r = G.LANG.shipRadar * g.S / CS, cx = u.x / CS, cy = u.y / CS;
+      for (let y = Math.max(0, Math.floor(cy - r)); y <= Math.min(CH - 1, Math.ceil(cy + r)); y++)
+        for (let x = Math.max(0, Math.floor(cx - r)); x <= Math.min(CW - 1, Math.ceil(cx + r)); x++)
+          if ((x + 0.5 - cx) * (x + 0.5 - cx) + (y + 0.5 - cy) * (y + 0.5 - cy) <= r * r) grid[y * CW + x] = 1;
+    }
     for (const u of g.structAt.values()) {
       if (u.type !== UT.SAM || u.cls !== 2 || !u.built) continue;
       if (u.owner !== h && !(g.friendly(u.owner, h) && g.allyRadar(h, u.owner))) continue;
@@ -1522,6 +1529,8 @@
     war1: ['.kkkkkkkkkkkkkkk....', 'koooooowwwoooooook..', 'kogGGowwwwwoGGgoook.', 'kggGGowwwwwoGGggoook', 'kogGGowwwwwoGGgoook.', 'koooooowwwoooooook..', '.kkkkkkkkkkkkkkk....'],
     // «Langes Spiel»: submarine (low, a dark tower), carrier (a long grey flight deck, the island to starboard)
     war2: ['..kkkkkkkk...', '.kddddGGdddk.', 'kddddGGGddddk', '.kddddddddk..', '..kkkkkkkk...'],
+    war4: ['.kkkkkkkkkkkk...', 'kooooGowwoGoook.', 'kogrrGowwoGrrook', 'kooooGowwoGoook.', '.kkkkkkkkkkkk...'],
+    war5: ['.kkkkkkkkkkk...', 'kooooowwoooook.', 'kogoowwwwGgoook', 'kooooowwoooook.', '.kkkkkkkkkkk...'],
     war3: ['.kkkkkkkkkkkkkkkkkkk...', 'kooooooooooooooGGoook..', 'kogggggggggggggggggggok', 'kgwgggwgggwgggwggggggok', 'kogggggggggggggggggggok', 'kooooooooooooooooooook..', '.kkkkkkkkkkkkkkkkkkk...']
   };
   const HULLS = {};
@@ -1530,7 +1539,7 @@
   // than the destroyer, its pixels finer, and the large merchant the largest ship of all). The
   // order by length now: troop boat 6, merchants 11 / 12, destroyer 14, container ship 16 (long, but as slim
   // as the others), battleship 20.
-  const SCALE = { rkt: 1, boat: 0.8, trade0: 0.8, trade1: 0.8, trade2: 0.8, war0: 0.8, war1: 0.8, war2: 0.8, war3: 0.8 };
+  const SCALE = { rkt: 1, boat: 0.8, trade0: 0.8, trade1: 0.8, trade2: 0.8, war0: 0.8, war1: 0.8, war2: 0.8, war3: 0.8, war4: 0.8, war5: 0.8 };
   for (const k in ART) HULLS[k] = [ART[k][0].length * SCALE[k], ART[k].length * SCALE[k]];
   const BOXCOL = ['#e0793a', '#3d7fc4', '#c94a3f', '#4f9a5a', '#d8b23a'];
   function hullGrid(kind) { return ART[kind]; }

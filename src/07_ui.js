@@ -31,6 +31,8 @@
     { t: 7.2, icon: 'sub', note: 'Unsichtbar, bis es feuert; versenkt Kriegs- und Handelsschiffe', key: '' },
     { t: 7.7, icon: 'carrier', note: 'Ein Flugplatz auf See', key: '' },
     { t: 7.9, icon: 'mine', note: 'Unsichtbar, versenkt Boote und Handelsschiffe', key: '' },
+    { t: 7.3, icon: 'abm', note: 'Schiesst Marschflugkörper und Flugzeuge bei der Flotte ab', key: '' },
+    { t: 7.4, icon: 'radar', note: 'Hebt den Nebel um sich auf, auch auf dem Meer', key: '' },
     { t: UT.CRUISE, icon: 'cruise', note: 'Trifft genau, keine Verstrahlung', key: '9' },
     { t: UT.ATOM, icon: 'atom', note: 'Kleiner Krater', key: '0' },
     { t: UT.HYDRO, icon: 'hydro', note: 'Riesiger Krater', key: 'h' },
@@ -77,7 +79,7 @@
   const plain = function (t) { return G.UNAME[t].replace('\u00AD', ''); };
   // what only the Arsenal mode has
   const armory = function (t) { return t === UT.LASER || t === UT.CLOAK; };
-  const langOnly = function (t) { return t === 4.5 || t === 4.7 || t === 3.5 || t === 7.2 || t === 7.7 || t === 7.9 || G.LANG_WEAPON(t) || G.isPlane(t); };
+  const langOnly = function (t) { return t === 4.5 || t === 4.7 || t === 3.5 || t === 7.2 || t === 7.3 || t === 7.4 || t === 7.7 || t === 7.9 || G.LANG_WEAPON(t) || G.isPlane(t); };
   // what can be built in this game: the Arsenal's two only in that mode, in a level only what it unlocks
   const offered = function (t) { if (langOnly(t) && !game.lang) return false; t = real(t).u; return (!armory(t) || game.opts.arsenal) && (!game.lv || game.levelAllows(t)); };
   // The battleship is warship class 1 in the game; the interface gives it a number of its own (BS,
@@ -87,7 +89,7 @@
   // «Langes Spiel»: the missile defence is air defence class 1 (ABM, between air defence 4 and factory 5)
   const ABM = 4.5;
   const RADAR = 4.7;   // «Langes Spiel»: the radar is air defence class 2
-  function real(t) { return t === BS ? { u: UT.WARSHIP, cls: 1 } : t === 7.2 ? { u: UT.WARSHIP, cls: 2 } : t === 7.7 ? { u: UT.WARSHIP, cls: 3 } : t === 7.9 ? { u: UT.MINE, cls: 0 } : t === ABM ? { u: UT.SAM, cls: 1 } : t === RADAR ? { u: UT.SAM, cls: 2 } : t === 3.5 ? { u: UT.SILO, cls: 1 } : { u: t, cls: 0 }; }
+  function real(t) { return t === BS ? { u: UT.WARSHIP, cls: 1 } : t === 7.2 ? { u: UT.WARSHIP, cls: 2 } : t === 7.3 ? { u: UT.WARSHIP, cls: 4 } : t === 7.4 ? { u: UT.WARSHIP, cls: 5 } : t === 7.7 ? { u: UT.WARSHIP, cls: 3 } : t === 7.9 ? { u: UT.MINE, cls: 0 } : t === ABM ? { u: UT.SAM, cls: 1 } : t === RADAR ? { u: UT.SAM, cls: 2 } : t === 3.5 ? { u: UT.SILO, cls: 1 } : { u: t, cls: 0 }; }
   function costOf(h, t) { const r = real(t), c = game.cost(h, r.u); if (r.u === UT.MINE) return game.opts.infiniteGold ? 0 : G.LANG.mineCost; if (r.u === UT.SAM && r.cls === 2) return game.opts.infiniteGold ? 0 : G.LANG.radarCost;
     if (r.u === UT.SILO && r.cls) return game.opts.infiniteGold ? 0 : G.LANG.fieldCost;
     if (r.u === UT.STEALTH) return c + game.cost(h, game.has(h, 'hydro') ? UT.HYDRO : UT.ATOM); return r.cls ? Math.round(c * (r.u === UT.SAM ? G.LANG.abmCost : G.SHIP_CLASS[r.cls].cost)) : c; }
@@ -861,7 +863,7 @@
   // bombs and missiles how many can be fired right now (loaded silo slots), 0 in red while every
   // silo is reloading; other buildings how many there are.
   function ownBadge(h, t) {
-    if (t === UT.WARSHIP || t === BS || t === 7.2 || t === 7.7) return { n: shipsOf(h, real(t).cls), cls: '' };
+    if (t === UT.WARSHIP || t === BS || t === 7.2 || t === 7.3 || t === 7.4 || t === 7.7) return { n: shipsOf(h, real(t).cls), cls: '' };
     if (t === 7.9) return { n: h.cnt[UT.MINE] | 0, cls: '' };
     const T = game.ticks;
     if (game.lang && (t === UT.SILO || t === FIELD)) { const k = t === FIELD ? 1 : 0; let n = 0; for (const u of h.units) if (u.type === UT.SILO && (u.cls || 0) === k) n++; return { n: n, cls: '' }; }
@@ -1209,7 +1211,7 @@
       }
       const have = ownBadge(h, b.t);
       // a warship laid up in a port sails out first; a second button builds a new one all the same
-      const lager = b.t === UT.WARSHIP || b.t === BS || b.t === 7.2 || b.t === 7.7 ? game.stored(h, real(b.t).cls) : 0;
+      const lager = b.t === UT.WARSHIP || b.t === BS || b.t === 7.2 || b.t === 7.3 || b.t === 7.4 || b.t === 7.7 ? game.stored(h, real(b.t).cls) : 0;
       if (lager && ok) note = 'Aus dem Lager (' + lager + ' im Hafen), gratis';
       const extra = lager ? '<button class="item" type="button" data-t="' + b.t + '" data-fresh="1"><span class="ic">' + svg(b.icon, 24) + '</span><b>Neu bauen</b><small>' + esc(b.note) + '</small>' + coin(costOf(h, b.t)) + '</button>' : '';
       return extra + '<button class="item' + (nuke ? ' nuke' : '') + (!game.opts.infiniteGold && h.gold < cost ? ' poor' : '') + '" type="button" data-t="' + b.t + '"' + (ok ? '' : ' disabled') + '><kbd>' + b.key.toUpperCase() + '</kbd>' + badge(have) +
