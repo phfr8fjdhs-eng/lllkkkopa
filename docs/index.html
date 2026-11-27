@@ -1609,7 +1609,8 @@ body.placing #cv { cursor: crosshair; }
   //           the airfield needs the flight there and back plus planeRest ticks. The stealth
   //           bomber: a launcher sees it only inside stealthSeen of its reach, must hold it there
   //           stealthLock ticks, and it takes stealthHp hits. A recon flight shows reconR tiles
-  //           around its target for reconTicks; a fighter rests fighterRest ticks after a hunt
+  //           around its target for reconTicks; a fighter rests fighterRest ticks after a hunt;
+  //           an own plane in the air lifts the fog planeSee x S tiles around it (only for the eye)
   //   post*   defence posts: radius x postR, losses x (postLoss[0] + postLoss[1] x level), time
   //           x (1 + postTime x level), and a tile they cover counts as at least postDens dense
   G.LANG = {
@@ -1635,7 +1636,7 @@ body.placing #cv { cursor: crosshair; }
     uniLevel: 5, uniMax: 3, uniCost: 1000000, uniUpkeep: 50, uniRp: 0.08, shelter2: 0.3,
     // Paket 5: the air force (src/04c_lang.js, planes)
     fieldCost: 2000000, airR: 250, planeSpeed: { 23: 0.6, 24: 0.6, 25: 0.9, 26: 1.5 }, planeCost: { 23: 600000, 24: 2000000, 25: 200000 },
-    planeRest: 200, stealthSeen: 0.25, stealthLock: 30, stealthHp: 2, reconR: 40, reconTicks: 600, fighterRest: 150,
+    planeRest: 200, planeSee: 15, stealthSeen: 0.25, stealthLock: 30, stealthHp: 2, reconR: 40, reconTicks: 600, fighterRest: 150,
     // Paket 6: the navy (doku/langes-spiel.md)
     // 27.11.2026: the carrier holds carrierHp times more again; ships cost shipCost times the
     // price of their class (by class: destroyer, battleship, submarine, carrier, defence ship, radar ship)
@@ -4395,6 +4396,15 @@ body.placing #cv { cursor: crosshair; }
   }
 
   G.NEUES = [
+    {
+      n: 142, date: '27.11.2026', title: 'Langes Spiel: Flugzeuge decken auf', lang: true,
+      text: 'Jedes eigene Flugzeug (Bomber, Tarnbomber, Jäger, Aufklärer) hebt den Nebel um sich auf, rund 15 Felder, solange es dort ist. So siehst du auf dem Weg zum Ziel Gebäude und Schiffe im Nebel. Hier fliegen deine Bomber tief über das Land von Ostmark.',
+      map: { w: 380, h: 200, seed: 942, shapes: [circ(60, 100, 50), circ(250, 100, 115)] },
+      me: { x: 60, y: 100, r: 52, troops: 80000, gold: 0, build: [[3.5, 80, 100, 3]] },
+      foes: [{ name: 'Ostmark', x: 250, y: 100, r: 117, troops: 150000, build: [[UT.CITY, 230, 80, 6], [UT.FACTORY, 250, 120, 2], [UT.SILO, 270, 95, 1], [UT.PORT, 362, 100, 1]] }],
+      allow: ALL, quest: none,
+      loop: [6, 8, function (Q, k) { Q.fire(Q.me, k % 2 ? UT.RECON : UT.BOMBER, k % 2 ? 275 : 255, k % 2 ? 110 : 90); }]
+    },
     {
       n: 141, date: '27.11.2026', title: 'Langes Spiel: Abschussort wählen, auch ein U-Boot', lang: true,
       text: 'Mit einer Waffe in der Hand ein eigenes Silo oder U-Boot antippen wählt es als Abschussort (weisser Ring). Gestrichelte Kreise zeigen, wie weit jeder Abschussort reicht. Beim Planen mit Shift + Klick merkt sich jedes Ziel seinen Abschussort. Ein U-Boot hat ein Rohr: Zwei Ziele vom selben U-Boot schlagen nicht gleichzeitig ein, das spätere Ziel ist orange mit «+27 s».',
@@ -9621,6 +9631,9 @@ void main() {
     if (now - (this.fogAt || 0) < 1000) return;
     this.fogAt = now;
     let sig = h.lastChange + ':' + ((g.ticks / 100) | 0) + ':' + (h.recon ? h.recon.length : 0);
+    // own planes in the air lift the fog around them: their cells go into the signature
+    const CS0 = G.POST.cell;
+    for (const u of h.units) if (u.active && G.isPlane(u.type)) sig += ';' + ((u.x / CS0) | 0) + '.' + ((u.y / CS0) | 0);
     for (const id of h.allies.keys()) { const q = g.players[id]; sig += ',' + id + ':' + q.lastChange; }
     if (sig === this.fogSig && FOG) return;
     this.fogSig = sig;
@@ -9658,6 +9671,14 @@ void main() {
       if (u.type !== UT.SAM || u.cls !== 2 || !u.built) continue;
       if (u.owner !== h && !(g.friendly(u.owner, h) && g.allyRadar(h, u.owner))) continue;
       const r = g.radarRange(u) / CS, cx = u.x / CS, cy = u.y / CS;
+      for (let y = Math.max(0, Math.floor(cy - r)); y <= Math.min(CH - 1, Math.ceil(cy + r)); y++)
+        for (let x = Math.max(0, Math.floor(cx - r)); x <= Math.min(CW - 1, Math.ceil(cx + r)); x++)
+          if ((x + 0.5 - cx) * (x + 0.5 - cx) + (y + 0.5 - cy) * (y + 0.5 - cy) <= r * r) grid[y * CW + x] = 1;
+    }
+    // own planes in flight (bomber, stealth bomber, fighter, recon): G.LANG.planeSee tiles around them
+    for (const u of h.units) {
+      if (!u.active || !G.isPlane(u.type)) continue;
+      const r = Math.max(1, G.LANG.planeSee * g.S / CS), cx = u.x / CS, cy = u.y / CS;   // at least one cell round it (the fog's grain)
       for (let y = Math.max(0, Math.floor(cy - r)); y <= Math.min(CH - 1, Math.ceil(cy + r)); y++)
         for (let x = Math.max(0, Math.floor(cx - r)); x <= Math.min(CW - 1, Math.ceil(cx + r)); x++)
           if ((x + 0.5 - cx) * (x + 0.5 - cx) + (y + 0.5 - cy) * (y + 0.5 - cy) <= r * r) grid[y * CW + x] = 1;

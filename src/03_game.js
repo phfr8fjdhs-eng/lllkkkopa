@@ -123,7 +123,8 @@
   //           the airfield needs the flight there and back plus planeRest ticks. The stealth
   //           bomber: a launcher sees it only inside stealthSeen of its reach, must hold it there
   //           stealthLock ticks, and it takes stealthHp hits. A recon flight shows reconR tiles
-  //           around its target for reconTicks; a fighter rests fighterRest ticks after a hunt
+  //           around its target for reconTicks; a fighter rests fighterRest ticks after a hunt;
+  //           an own plane in the air lifts the fog planeSee x S tiles around it (only for the eye)
   //   post*   defence posts: radius x postR, losses x (postLoss[0] + postLoss[1] x level), time
   //           x (1 + postTime x level), and a tile they cover counts as at least postDens dense
   G.LANG = {
@@ -149,7 +150,7 @@
     uniLevel: 5, uniMax: 3, uniCost: 1000000, uniUpkeep: 50, uniRp: 0.08, shelter2: 0.3,
     // Paket 5: the air force (src/04c_lang.js, planes)
     fieldCost: 2000000, airR: 250, planeSpeed: { 23: 0.6, 24: 0.6, 25: 0.9, 26: 1.5 }, planeCost: { 23: 600000, 24: 2000000, 25: 200000 },
-    planeRest: 200, stealthSeen: 0.25, stealthLock: 30, stealthHp: 2, reconR: 40, reconTicks: 600, fighterRest: 150,
+    planeRest: 200, planeSee: 15, stealthSeen: 0.25, stealthLock: 30, stealthHp: 2, reconR: 40, reconTicks: 600, fighterRest: 150,
     // Paket 6: the navy (doku/langes-spiel.md)
     // 27.11.2026: the carrier holds carrierHp times more again; ships cost shipCost times the
     // price of their class (by class: destroyer, battleship, submarine, carrier, defence ship, radar ship)

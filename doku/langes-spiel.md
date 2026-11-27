@@ -353,3 +353,9 @@ Code: `salvoPlan`, `salvo`, `launcherFree`, `langSalvoTick` in `src/04c_lang.js`
 - Ein geplanter Schlag wartet auf seinen Abschussort (höchstens 60 s), statt von einem anderen zu starten. Ist der Abschussort weg, startet er vom nächsten.
 - Nach `Enter` bleiben die Fadenkreuze stehen, bis die Waffe startet (die Warteschlange `salvoQ` geht dafür jetzt auch zur Seite).
 - Szene 141.
+
+### A8. Flugzeuge decken auf
+Code: `fogScan` in `src/06_view.js`, Zahl `planeSee` in `G.LANG`.
+- Jedes eigene Flugzeug in der Luft (Bomber, Tarnbomber, Jäger, Aufklärer) hebt den Nebel im Kreis von 15 · S Feldern um sich auf (`planeSee`), mindestens eine Nebelzelle rundum (auf kleinen Karten wäre der Kreis sonst kleiner als eine Zelle). Nur Anzeige, wie der übrige Nebel.
+- Solange eigene Flugzeuge fliegen, rechnet der Nebel einmal pro Sekunde neu, wenn eines in eine andere Zelle kommt (ihre Zellen stehen in der Signatur). Kosten: höchstens ein Neurechnen pro Sekunde, wie bei jeder anderen Änderung.
+- Szene 142.

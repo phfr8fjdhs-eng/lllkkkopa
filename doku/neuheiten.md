@@ -11,6 +11,7 @@ Ein eigener Bereich neben dem normalen Spiel und den Levels. Auf dem Startbildsc
 ## Die Szenen (Stand 26.11.2026)
 | Nr. | Datum | Name | Was passiert |
 | --- | --- | --- | --- |
+| 142 | 27.11. | Langes Spiel: Flugzeuge decken auf | Alle 8 s abwechselnd ein Bomber und ein Aufklärer über das Land von Ostmark; um jedes Flugzeug ist der Nebel weg |
 | 141 | 27.11. | Langes Spiel: Abschussort wählen, auch ein U-Boot | Alle 40 s ein geplanter Schlag: das Silo auf die Fabrik, das U-Boot auf zwei Städte; das zweite Ziel des U-Boots ist orange mit «+27 s»; gestrichelte Kreise um Silo und U-Boot |
 | 140 | 27.11. | Langes Spiel: Träger stärker, Schiffe teurer | Zwei Schlachtschiffe der Südküste beschiessen den eigenen Flugzeugträger, er hält lange; Tipp zeigt auf die Schiffe in der Bauleiste |
 | 139 | 27.11. | Langes Spiel: Bomber mit Sprengbomben | Der eigene Flugplatz schickt alle 9 s abwechselnd einen Bomber mit Sprengbomben und einen mit Streubombe auf die Stadt von Varnholm; die Stadt verliert Stufen |

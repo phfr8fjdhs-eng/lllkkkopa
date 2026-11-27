@@ -127,6 +127,9 @@
     if (now - (this.fogAt || 0) < 1000) return;
     this.fogAt = now;
     let sig = h.lastChange + ':' + ((g.ticks / 100) | 0) + ':' + (h.recon ? h.recon.length : 0);
+    // own planes in the air lift the fog around them: their cells go into the signature
+    const CS0 = G.POST.cell;
+    for (const u of h.units) if (u.active && G.isPlane(u.type)) sig += ';' + ((u.x / CS0) | 0) + '.' + ((u.y / CS0) | 0);
     for (const id of h.allies.keys()) { const q = g.players[id]; sig += ',' + id + ':' + q.lastChange; }
     if (sig === this.fogSig && FOG) return;
     this.fogSig = sig;
@@ -164,6 +167,14 @@
       if (u.type !== UT.SAM || u.cls !== 2 || !u.built) continue;
       if (u.owner !== h && !(g.friendly(u.owner, h) && g.allyRadar(h, u.owner))) continue;
       const r = g.radarRange(u) / CS, cx = u.x / CS, cy = u.y / CS;
+      for (let y = Math.max(0, Math.floor(cy - r)); y <= Math.min(CH - 1, Math.ceil(cy + r)); y++)
+        for (let x = Math.max(0, Math.floor(cx - r)); x <= Math.min(CW - 1, Math.ceil(cx + r)); x++)
+          if ((x + 0.5 - cx) * (x + 0.5 - cx) + (y + 0.5 - cy) * (y + 0.5 - cy) <= r * r) grid[y * CW + x] = 1;
+    }
+    // own planes in flight (bomber, stealth bomber, fighter, recon): G.LANG.planeSee tiles around them
+    for (const u of h.units) {
+      if (!u.active || !G.isPlane(u.type)) continue;
+      const r = Math.max(1, G.LANG.planeSee * g.S / CS), cx = u.x / CS, cy = u.y / CS;   // at least one cell round it (the fog's grain)
       for (let y = Math.max(0, Math.floor(cy - r)); y <= Math.min(CH - 1, Math.ceil(cy + r)); y++)
         for (let x = Math.max(0, Math.floor(cx - r)); x <= Math.min(CW - 1, Math.ceil(cx + r)); x++)
           if ((x + 0.5 - cx) * (x + 0.5 - cx) + (y + 0.5 - cy) * (y + 0.5 - cy) <= r * r) grid[y * CW + x] = 1;

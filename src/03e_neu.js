@@ -42,6 +42,15 @@
 
   G.NEUES = [
     {
+      n: 142, date: '27.11.2026', title: 'Langes Spiel: Flugzeuge decken auf', lang: true,
+      text: 'Jedes eigene Flugzeug (Bomber, Tarnbomber, Jäger, Aufklärer) hebt den Nebel um sich auf, rund 15 Felder, solange es dort ist. So siehst du auf dem Weg zum Ziel Gebäude und Schiffe im Nebel. Hier fliegen deine Bomber tief über das Land von Ostmark.',
+      map: { w: 380, h: 200, seed: 942, shapes: [circ(60, 100, 50), circ(250, 100, 115)] },
+      me: { x: 60, y: 100, r: 52, troops: 80000, gold: 0, build: [[3.5, 80, 100, 3]] },
+      foes: [{ name: 'Ostmark', x: 250, y: 100, r: 117, troops: 150000, build: [[UT.CITY, 230, 80, 6], [UT.FACTORY, 250, 120, 2], [UT.SILO, 270, 95, 1], [UT.PORT, 362, 100, 1]] }],
+      allow: ALL, quest: none,
+      loop: [6, 8, function (Q, k) { Q.fire(Q.me, k % 2 ? UT.RECON : UT.BOMBER, k % 2 ? 275 : 255, k % 2 ? 110 : 90); }]
+    },
+    {
       n: 141, date: '27.11.2026', title: 'Langes Spiel: Abschussort wählen, auch ein U-Boot', lang: true,
       text: 'Mit einer Waffe in der Hand ein eigenes Silo oder U-Boot antippen wählt es als Abschussort (weisser Ring). Gestrichelte Kreise zeigen, wie weit jeder Abschussort reicht. Beim Planen mit Shift + Klick merkt sich jedes Ziel seinen Abschussort. Ein U-Boot hat ein Rohr: Zwei Ziele vom selben U-Boot schlagen nicht gleichzeitig ein, das spätere Ziel ist orange mit «+27 s».',
       map: { w: 300, h: 150, rough: 4, seed: 941, shapes: [rect(0, 0, 300, 40), rect(0, 100, 300, 150)] },
