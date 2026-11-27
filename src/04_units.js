@@ -374,7 +374,7 @@
   };
 
   Game.prototype.build = function (p, type, tile, cls, fresh, pick) {
-    cls = (type === UT.WARSHIP && (cls === 1 || (this.lang && cls >= 2 && cls <= 5))) || (type === UT.SAM && this.lang && (cls === 1 || cls === 2)) || (type === UT.SILO && this.lang && cls === 1) ? cls : 0;
+    cls = (type === UT.WARSHIP && (cls === 1 || (this.lang && cls >= 2 && cls <= 5))) || (type === UT.SAM && this.lang && (cls === 1 || cls === 2)) || (type === UT.SILO && this.lang && cls === 1) || (type === UT.BOMBER && this.lang && cls === 1) ? cls : 0;
     const c = this.buildCheck(p, type, tile, cls, fresh, pick);
     if (!c.ok) return null;
     p.gold -= c.cost;
@@ -402,7 +402,7 @@
     } else if (type === UT.MINE) {
       u = this.newUnit(type, p, c.tile); this.addUnit(u);
     } else if (this.lang && G.isPlane(type)) {
-      u = this.launchPlane(p, type, c.silo, c.tile);
+      u = this.launchPlane(p, type, c.silo, c.tile, cls);
     } else if (this.lang && G.LANG.arm[type]) {
       u = this.armSilo(p, type, c.silo, c.tile);   // «Langes Spiel»: the silo arms it first, seen by all
     } else {

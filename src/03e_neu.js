@@ -42,6 +42,20 @@
 
   G.NEUES = [
     {
+      n: 139, date: '27.11.2026', title: 'Langes Spiel: Bomber mit Sprengbomben', lang: true,
+      text: 'Beim Bomber wählst du die Last: Streubombe gegen Truppen wie bisher, oder Sprengbomben (Waffenleiste, gleich daneben): Jedes Gebäude im Zielgebiet verliert ein Viertel seiner Stufen, Stufe 1 fällt, Schutzräume halbieren. Dein Flugplatz schickt abwechselnd beide auf Varnholm.',
+      map: { w: 320, h: 200, seed: 939, shapes: [circ(70, 100, 62), circ(235, 100, 80)] },
+      me: { x: 70, y: 100, r: 64, troops: 80000, gold: 0, build: [[3.5, 95, 100, 3]] },
+      foes: [{ name: 'Varnholm', x: 235, y: 100, r: 82, troops: 150000, build: [[UT.CITY, 205, 95, 8], [UT.FACTORY, 212, 108, 3], [UT.PORT, 160, 100, 2], [UT.CITY, 250, 80, 4]] }],
+      allow: ALL, quest: none,
+      loop: [6, 9, function (Q, k) {
+        const g = Q.g, t = g.levelTile(208, 100);
+        Q.me.gold += g.cost(Q.me, UT.BOMBER);
+        g.build(Q.me, UT.BOMBER, t, k % 2 ? 0 : 1);
+      }],
+      tips: [{ text: 'Sprengbomben nehmen diesen Gebäuden Stufen.', pins: function (Q) { return Q.units(Q.foe[0], UT.CITY, 1).concat(Q.units(Q.foe[0], UT.FACTORY, 1)); } }]
+    },
+    {
       n: 138, date: '27.11.2026', title: 'Langes Spiel: Flugabwehr gegen Flugzeuge', lang: true,
       text: 'Die kleine Flugabwehr trifft keine Flugzeuge mehr, nur noch Marschflugkörper und Raketen. Bomber und Aufklärer holt nur die Raketenabwehr ab Stufe 3 herunter (dazu Abwehrschiffe und Abfangjäger), Tarnbomber erst die Raketenabwehr ab Stufe 5 mit «Gegen Tarnbomber». Deine Bomber fliegen über die kleinen Flugabwehren von Varnholm hinweg; erst die Raketenabwehr bei der Stadt schiesst.',
       map: { w: 340, h: 200, seed: 938, shapes: [circ(70, 100, 62), circ(250, 100, 85)] },

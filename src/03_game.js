@@ -53,6 +53,7 @@
     'Streubombe', 'Bunker\u00ADbrecher', 'Thermobare Bombe', 'Kurzstrecken\u00ADrakete', 'Bomber', 'Tarnbomber', 'Aufklärungs\u00ADflugzeug', 'Abfangjäger'];
   G.UNAME[7.5] = 'Schlachtschiff';
   G.UNAME[7.2] = 'U-Boot'; G.UNAME[7.7] = 'Flugzeug\u00ADträger'; G.UNAME[7.9] = 'Seemine'; G.UNAME[7.3] = 'Abwehrschiff'; G.UNAME[7.4] = 'Radarschiff'; G.UNAME[27] = 'Seemine';   // «Langes Spiel», Paket 6 (src/07_ui.js)   // the interface's own number for warship class 1 (src/07_ui.js, BS)
+  G.UNAME[23.5] = 'Sprengbomber';   // «Langes Spiel»: the bomber with explosive bombs (bomber, cls 1, src/07_ui.js)
   G.UNAME[4.5] = 'Raketenabwehr';    // «Langes Spiel»: air defence class 1 (src/07_ui.js, ABM)
   G.UNAME[3.5] = 'Flugplatz';        // «Langes Spiel»: silo class 1 (src/07_ui.js, FIELD)
   G.UNAME[4.7] = 'Radar';            // «Langes Spiel»: air defence class 2 (src/07_ui.js, RADAR)
@@ -84,6 +85,7 @@
   //           abmCost. A second launcher of the same class within reach reloads 1 / abmStack
   //           times as long, a third 1 / abmStack^2 (src/04c_lang.js)
   //           abmPlane, abmStealth: from which level the missile defence takes planes, stealth bombers
+  //           bombShare: share of their levels buildings lose to a bomber with explosive bombs
   //   cityHit  share of its levels a city loses to a bomb in the inner ring (by UT: atom bomb,
   //           hydrogen bomb, warhead), half that in the outer ring, at least one level; its people
   //           (its share of the troop limit, as full as the realm) die. Evacuated (an order given
@@ -130,7 +132,7 @@
     wearFrom: 12000, wearOver: 2, wear: 0.01,
     digTicks: 1200, digLoss: 2, digTime: 0.75, digDrop: 0.004,
     postR: 1.5, postLoss: [5, 3], postTime: 3, postDens: 2,
-    samShots: 2, samReload: 90, abmCost: 1.5, abmReload: 90, abmStack: 0.5, abmPlane: 3, abmStealth: 5,
+    samShots: 2, samReload: 90, abmCost: 1.5, abmReload: 90, abmStack: 0.5, abmPlane: 3, abmStealth: 5, bombShare: 0.25,
     cityHit: { 13: 0.5, 14: 1, 16: 0.25, 21: 0.35 }, evacDie: 0.33, evacStop: 600, evacBack: 1800, evacHold: 900, shelterCost: 250000, shelter: 0.5,
     // Paket 2: nuclear weapons deter, conventional ones fight the war
     nukeCost: { 13: 8, 14: 8, 15: 4 }, nukeFrom: { 13: 18000, 14: 27000, 15: 36000 }, arm: { 13: 300, 14: 450, 15: 600 },
@@ -1828,7 +1830,7 @@
       case 'build': {
         if (!tileOk || !(c.u <= UT.WARSHIP || c.u === UT.ATOM || c.u === UT.HYDRO || c.u === UT.MIRV || c.u === UT.CRUISE || c.u === UT.LASER || (this.lang && (G.LANG_WEAPON(c.u) || c.u === UT.MINE || (G.isPlane(c.u) && c.u !== UT.FIGHTER)))) || !(c.u >= 0)) return 'Nicht möglich';
         if (this.lv && !this.levelAllows(c.u)) return 'In diesem Level noch gesperrt';
-        const cls = (c.u === UT.WARSHIP && (c.cls === 1 || (this.lang && c.cls >= 2 && c.cls <= 5))) || (c.u === UT.SAM && this.lang && (c.cls === 1 || c.cls === 2)) || (c.u === UT.SILO && this.lang && c.cls === 1) ? c.cls : 0;    // a battleship; a missile defence, a radar
+        const cls = (c.u === UT.WARSHIP && (c.cls === 1 || (this.lang && c.cls >= 2 && c.cls <= 5))) || (c.u === UT.SAM && this.lang && (c.cls === 1 || c.cls === 2)) || (c.u === UT.SILO && this.lang && c.cls === 1) || (c.u === UT.BOMBER && this.lang && c.cls === 1) ? c.cls : 0;    // a battleship; a missile defence, a radar; explosive bombs
         const pick = c.s | 0;   // the silo the player chose, 0 = the nearest (src/04c_lang.js)
         const chk = this.buildCheck(p, c.u, c.t, cls, !!c.fresh, pick);
         if (!chk.ok) return chk.why || 'Nicht möglich';

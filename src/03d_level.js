@@ -498,7 +498,9 @@
   };
 
   // Is this kind of thing unlocked in the level being played?
-  Game.prototype.levelAllows = function (type) { return !this.lv || this.lv.def.allow.indexOf(type) >= 0; };
+  // A scene of «Änderungen» in the mode «Langes Spiel» allows everything (its weapons, planes and
+  // ships are many and new; the player is meant to try them).
+  Game.prototype.levelAllows = function (type) { return !this.lv || this.lv.def.allow.indexOf(type) >= 0 || (this.lang && !!this.lv.def.show); };
 
   // Every half second while a level runs: the script, the quest, the end.
   Game.prototype.levelTick = function () {

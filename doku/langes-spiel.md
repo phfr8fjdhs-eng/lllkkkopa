@@ -208,7 +208,7 @@ Code: Abschnitt «the air force» in `src/04c_lang.js` (`planeCheck`, `launchPla
 
 - **Flugplatz** (Taste `9` in der Bauleiste, 2M, Forschung «Flugplatz»): im Spiel ein Silo der Klasse 1 (`u.cls` = 1, auf der Seite 3.5), weil im Spielkern keine Gebäudenummer mehr frei ist; gezeichnet als Quadrat mit Flugzeug. Er schickt so viele Flüge gleichzeitig, wie er Stufen hat. Reichweite 250 Felder der Erde, wie die Waffen auf die Karte umgerechnet, +5 % pro Stufe, mit «Luftbetankung» × 1.5 (`airRange`). Kann als Stützpunkt bei einem Verbündeten stehen (3d).
 - **Flugzeuge fliegen selbst** hin und zurück (`tickPlane`); niemand steuert sie. Nach der Landung braucht der Flugplatz den Hin- und Rückflug plus 20 s, bis derselbe Platz wieder startet. Fällt der Flugplatz, ist das Flugzeug bei der Rückkehr weg.
-- **Bomber** (Waffenleiste `9`, 600K, Forschung «Bomber»): wirft am Ziel eine Streubombe (Truppen, kein Land, keine Gebäude). Auf ihn schiesst nur die Raketenabwehr ab Stufe 3, sobald sie ihn in Reichweite hat, dazu Abwehrschiffe und Abfangjäger (seit 27.11.2026; vorher die kleine Flugabwehr).
+- **Bomber** (Waffenleiste `9`, 600K, Forschung «Bomber»): wirft am Ziel eine Streubombe (Truppen, kein Land, keine Gebäude), oder Sprengbomben gegen Gebäude (seit 27.11.2026, A4). Auf ihn schiesst nur die Raketenabwehr ab Stufe 3, sobald sie ihn in Reichweite hat, dazu Abwehrschiffe und Abfangjäger (seit 27.11.2026; vorher die kleine Flugabwehr).
 - **Tarnbomber** (Waffenleiste `0`, 2M plus der Preis der Bombe, Forschung «Tarnbomber», erst ab Minute 30): trägt eine Atombombe, mit der Forschung «Wasserstoffbombe» eine Wasserstoffbombe (feste Nutzlast). Wirkt wie die Bombe aus dem Silo, auf Truppen und Gebäude, mit Ächtung. Reicht doppelt so weit wie der Flugplatz. **Schutz gegen das Abschiessen** (deine Vorgabe: nicht von einer Flugabwehr der Stufe 2 sofort weg):
   - Nur die Raketenabwehr ab Stufe 5 mit der Forschung «Gegen Tarnbomber» (Abwehr 5) kann überhaupt auf ihn schiessen (bis 27.11.2026 die kleine Flugabwehr).
   - Sie sieht ihn erst in einem Viertel ihrer Reichweite (`stealthSeen`) und muss ihn dort 3 s halten, bevor sie schiesst (`stealthLock`).
@@ -317,3 +317,11 @@ Code: `samCan` in `src/04c_lang.js`, Zahlen `abmPlane` (3), `abmStealth` (5) in 
 - **Tarnbomber** trifft nur die Raketenabwehr ab Stufe 5 (`abmStealth`) mit «Gegen Tarnbomber» (Abwehr 5, umgehängt von der kleinen Flugabwehr). Erfassen in einem Viertel der Reichweite, 3 s Zielzeit, 2 Treffer bleiben.
 - Gegen Flugzeuge schiesst jede Abwehr nur im Krieg (A2).
 - Szene 138.
+
+### A4. Bomber mit Sprengbomben
+Code: `bombHit` und `launchPlane(…, cls)` in `src/04c_lang.js`, `structHitBy(v, by, share)`, Zahl `bombShare` in `G.LANG`. In der Bedienung die Nummer 23.5 («Sprengbomber», wie 4.5 für die Raketenabwehr), im Spiel der Bomber mit `cls` 1 (`u.load` = 1).
+- In der Waffenleiste stehen zwei Bomber: `9` Streubombe (Truppen, wie bisher) und gleich daneben ohne Taste Sprengbomben. Gleicher Preis (600K).
+- **Sprengbomben:** Jedes fremde Gebäude im Gebiet der Streubombe (`R.clusterOut`) verliert 25 % seiner Stufen (mindestens 1, Stufe 1 fällt), Schutzräume halbieren wie beim Marschflugkörper. Keine Truppen tot, kein Land. Die Forschung «Sprengkraft» gilt nur für Marschflugkörper.
+- Geht auch beim Schläge planen (Shift + Klick, `salvo` merkt sich die Last).
+- Szenen des Modus erlauben jetzt alles zum Bauen und Feuern (`levelAllows`), wie es `doku/neuheiten.md` verspricht.
+- Szene 139.

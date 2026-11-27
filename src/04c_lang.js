@@ -352,16 +352,16 @@
     for (const e of list) {
       const t = e && e.t | 0, u = e && e.u | 0;
       if (!(t >= 0 && t < this.N) || !(u >= UT.ATOM) || u === UT.LASER || u === UT.WARHEAD) return 'Nicht möglich';
-      const c = this.buildCheck(p, u, t, 0, false, e.s | 0);
+      const c = this.buildCheck(p, u, t, e.c === 1 ? 1 : 0, false, e.s | 0);
       if (!c.silo) return c.why || 'Nicht möglich';
       const d = Math.max(1, Math.hypot(t % W - c.silo.x, ((t / W) | 0) - c.silo.y));
       const sp = this.R.nukeSpeed * (u === UT.SRBM ? G.LANG.srbmSpeed : G.lowFly(u) ? 1.6 : 1);
       const need = Math.ceil(d / sp) + (G.LANG.arm[u] || 0);
       if (need > top) top = need;
-      plan.push({ u: u, t: t, s: c.silo.id, need: need });
+      plan.push({ u: u, t: t, s: c.silo.id, need: need, c: e.c === 1 ? 1 : 0 });
     }
     const q = this.salvoQ || (this.salvoQ = []);
-    for (const e of plan) q.push({ p: p.id, u: e.u, t: e.t, s: e.s, at: T + top - e.need });
+    for (const e of plan) q.push({ p: p.id, u: e.u, t: e.t, s: e.s, c: e.c, at: T + top - e.need });
     return '';
   };
   Game.prototype.langSalvoTick = function () {
@@ -372,7 +372,7 @@
       q.splice(i--, 1);
       const p = this.players[e.p];
       if (!p || !p.alive) continue;
-      const done = this.build(p, e.u, e.t, 0, false, e.s);
+      const done = this.build(p, e.u, e.t, e.c || 0, false, e.s);
       if (!done && p === this.human) this.say('Geplanter Schlag: ' + G.UNAME[e.u].replace('\u00AD', '') + ' konnte nicht starten', 'warn');
     }
   };
@@ -403,9 +403,9 @@
     const o = v.owner, L0 = v.level;
     return this.structHitBy(v, null);
   };
-  Game.prototype.structHitBy = function (v, by) {
+  Game.prototype.structHitBy = function (v, by, share) {
     const o = v.owner, L0 = v.level;
-    let f = by && this.has(by, 'rakA2') ? 0.5 : by && this.has(by, 'rakA1') ? 0.35 : G.LANG.share;
+    let f = share || (by && this.has(by, 'rakA2') ? 0.5 : by && this.has(by, 'rakA1') ? 0.35 : G.LANG.share);
     if (v.shelter) f *= this.shelterF(o);
     const lost = L0 <= 1 ? 1 : Math.min(L0, Math.max(1, Math.round(L0 * f)));
     if (lost >= L0) { this.removeUnit(v); return; }
@@ -770,9 +770,10 @@
     u.home = field.id; u.leg = 0; u.hp = type === UT.STEALTH ? G.LANG.stealthHp : 0;
     return u;
   };
-  Game.prototype.launchPlane = function (p, type, field, tile) {
+  Game.prototype.launchPlane = function (p, type, field, tile, cls) {
     const T = this.ticks, W = this.W, tx = tile % W, ty = (tile / W) | 0;
     const u = this.newPlane(p, type, field, tx, ty);
+    if (type === UT.BOMBER && cls === 1) u.load = 1;   // explosive bombs instead of the cluster bomb
     if (type === UT.STEALTH) u.pay = this.has(p, 'hydro') ? UT.HYDRO : UT.ATOM;
     for (let i = 0; i < field.ready.length; i++) if (field.ready[i] <= T) { field.ready[i] = T + Math.ceil(2 * u.dist / u.speed) + G.LANG.planeRest; break; }
     this.addUnit(u);
@@ -790,10 +791,24 @@
     u.x = u.dx; u.y = u.dy;
     if (u.leg === 1) { this.removeUnit(u); return; }
     // over the target
-    if (u.type === UT.BOMBER) this.detonate({ type: UT.CLUSTER, dx: u.dx, dy: u.dy, owner: u.owner, x: u.dx, y: u.dy });
+    if (u.type === UT.BOMBER && u.load) this.bombHit(u);
+    else if (u.type === UT.BOMBER) this.detonate({ type: UT.CLUSTER, dx: u.dx, dy: u.dy, owner: u.owner, x: u.dx, y: u.dy });
     else if (u.type === UT.STEALTH && u.pay) { this.detonate({ type: u.pay, dx: u.dx, dy: u.dy, owner: u.owner, x: u.dx, y: u.dy }); u.pay = 0; }
     else if (u.type === UT.RECON) { const l = u.owner.recon || (u.owner.recon = []); for (let i = l.length - 1; i >= 0; i--) if (l[i].until <= this.ticks) l.splice(i, 1); l.push({ x: u.dx, y: u.dy, until: this.ticks + G.LANG.reconTicks }); }
     this.planeHome(u);
+  };
+  // Explosive bombs (27.11.2026): every building in the area of a cluster bomb loses
+  // G.LANG.bombShare of its levels, as from a cruise missile (level 1 falls, shelters halve it).
+  // No troops die, no land changes hands.
+  Game.prototype.bombHit = function (u) {
+    const cx = u.dx, cy = u.dy, r = this.R.clusterOut, r2 = r * r, hit = [];
+    for (const v of this.units) {
+      if (!v.active || !v.built || v.type > UT.CLOAK || v.owner === u.owner || this.friendly(v.owner, u.owner)) continue;
+      if ((v.x - cx) * (v.x - cx) + (v.y - cy) * (v.y - cy) <= r2) hit.push(v);
+    }
+    for (const v of hit) this.structHitBy(v, u.owner, G.LANG.bombShare);
+    this.fx.push({ k: 'boom', x: cx, y: cy, r: this.R.clusterIn, bombs: true });
+    if (u.owner === this.human) this.say('Sprengbomben: ' + (hit.length ? hit.length + ' Gebäude getroffen' : 'kein Gebäude getroffen'), hit.length ? 'good' : 'info');
   };
   Game.prototype.planeHome = function (u) {
     let f = null;

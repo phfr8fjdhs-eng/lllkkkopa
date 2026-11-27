@@ -1539,6 +1539,7 @@ body.placing #cv { cursor: crosshair; }
     'Streubombe', 'Bunker\u00ADbrecher', 'Thermobare Bombe', 'Kurzstrecken\u00ADrakete', 'Bomber', 'Tarnbomber', 'Aufklärungs\u00ADflugzeug', 'Abfangjäger'];
   G.UNAME[7.5] = 'Schlachtschiff';
   G.UNAME[7.2] = 'U-Boot'; G.UNAME[7.7] = 'Flugzeug\u00ADträger'; G.UNAME[7.9] = 'Seemine'; G.UNAME[7.3] = 'Abwehrschiff'; G.UNAME[7.4] = 'Radarschiff'; G.UNAME[27] = 'Seemine';   // «Langes Spiel», Paket 6 (src/07_ui.js)   // the interface's own number for warship class 1 (src/07_ui.js, BS)
+  G.UNAME[23.5] = 'Sprengbomber';   // «Langes Spiel»: the bomber with explosive bombs (bomber, cls 1, src/07_ui.js)
   G.UNAME[4.5] = 'Raketenabwehr';    // «Langes Spiel»: air defence class 1 (src/07_ui.js, ABM)
   G.UNAME[3.5] = 'Flugplatz';        // «Langes Spiel»: silo class 1 (src/07_ui.js, FIELD)
   G.UNAME[4.7] = 'Radar';            // «Langes Spiel»: air defence class 2 (src/07_ui.js, RADAR)
@@ -1570,6 +1571,7 @@ body.placing #cv { cursor: crosshair; }
   //           abmCost. A second launcher of the same class within reach reloads 1 / abmStack
   //           times as long, a third 1 / abmStack^2 (src/04c_lang.js)
   //           abmPlane, abmStealth: from which level the missile defence takes planes, stealth bombers
+  //           bombShare: share of their levels buildings lose to a bomber with explosive bombs
   //   cityHit  share of its levels a city loses to a bomb in the inner ring (by UT: atom bomb,
   //           hydrogen bomb, warhead), half that in the outer ring, at least one level; its people
   //           (its share of the troop limit, as full as the realm) die. Evacuated (an order given
@@ -1616,7 +1618,7 @@ body.placing #cv { cursor: crosshair; }
     wearFrom: 12000, wearOver: 2, wear: 0.01,
     digTicks: 1200, digLoss: 2, digTime: 0.75, digDrop: 0.004,
     postR: 1.5, postLoss: [5, 3], postTime: 3, postDens: 2,
-    samShots: 2, samReload: 90, abmCost: 1.5, abmReload: 90, abmStack: 0.5, abmPlane: 3, abmStealth: 5,
+    samShots: 2, samReload: 90, abmCost: 1.5, abmReload: 90, abmStack: 0.5, abmPlane: 3, abmStealth: 5, bombShare: 0.25,
     cityHit: { 13: 0.5, 14: 1, 16: 0.25, 21: 0.35 }, evacDie: 0.33, evacStop: 600, evacBack: 1800, evacHold: 900, shelterCost: 250000, shelter: 0.5,
     // Paket 2: nuclear weapons deter, conventional ones fight the war
     nukeCost: { 13: 8, 14: 8, 15: 4 }, nukeFrom: { 13: 18000, 14: 27000, 15: 36000 }, arm: { 13: 300, 14: 450, 15: 600 },
@@ -3314,7 +3316,7 @@ body.placing #cv { cursor: crosshair; }
       case 'build': {
         if (!tileOk || !(c.u <= UT.WARSHIP || c.u === UT.ATOM || c.u === UT.HYDRO || c.u === UT.MIRV || c.u === UT.CRUISE || c.u === UT.LASER || (this.lang && (G.LANG_WEAPON(c.u) || c.u === UT.MINE || (G.isPlane(c.u) && c.u !== UT.FIGHTER)))) || !(c.u >= 0)) return 'Nicht möglich';
         if (this.lv && !this.levelAllows(c.u)) return 'In diesem Level noch gesperrt';
-        const cls = (c.u === UT.WARSHIP && (c.cls === 1 || (this.lang && c.cls >= 2 && c.cls <= 5))) || (c.u === UT.SAM && this.lang && (c.cls === 1 || c.cls === 2)) || (c.u === UT.SILO && this.lang && c.cls === 1) ? c.cls : 0;    // a battleship; a missile defence, a radar
+        const cls = (c.u === UT.WARSHIP && (c.cls === 1 || (this.lang && c.cls >= 2 && c.cls <= 5))) || (c.u === UT.SAM && this.lang && (c.cls === 1 || c.cls === 2)) || (c.u === UT.SILO && this.lang && c.cls === 1) || (c.u === UT.BOMBER && this.lang && c.cls === 1) ? c.cls : 0;    // a battleship; a missile defence, a radar; explosive bombs
         const pick = c.s | 0;   // the silo the player chose, 0 = the nearest (src/04c_lang.js)
         const chk = this.buildCheck(p, c.u, c.t, cls, !!c.fresh, pick);
         if (!chk.ok) return chk.why || 'Nicht möglich';
@@ -4314,7 +4316,9 @@ body.placing #cv { cursor: crosshair; }
   };
 
   // Is this kind of thing unlocked in the level being played?
-  Game.prototype.levelAllows = function (type) { return !this.lv || this.lv.def.allow.indexOf(type) >= 0; };
+  // A scene of «Änderungen» in the mode «Langes Spiel» allows everything (its weapons, planes and
+  // ships are many and new; the player is meant to try them).
+  Game.prototype.levelAllows = function (type) { return !this.lv || this.lv.def.allow.indexOf(type) >= 0 || (this.lang && !!this.lv.def.show); };
 
   // Every half second while a level runs: the script, the quest, the end.
   Game.prototype.levelTick = function () {
@@ -4388,6 +4392,20 @@ body.placing #cv { cursor: crosshair; }
   }
 
   G.NEUES = [
+    {
+      n: 139, date: '27.11.2026', title: 'Langes Spiel: Bomber mit Sprengbomben', lang: true,
+      text: 'Beim Bomber wählst du die Last: Streubombe gegen Truppen wie bisher, oder Sprengbomben (Waffenleiste, gleich daneben): Jedes Gebäude im Zielgebiet verliert ein Viertel seiner Stufen, Stufe 1 fällt, Schutzräume halbieren. Dein Flugplatz schickt abwechselnd beide auf Varnholm.',
+      map: { w: 320, h: 200, seed: 939, shapes: [circ(70, 100, 62), circ(235, 100, 80)] },
+      me: { x: 70, y: 100, r: 64, troops: 80000, gold: 0, build: [[3.5, 95, 100, 3]] },
+      foes: [{ name: 'Varnholm', x: 235, y: 100, r: 82, troops: 150000, build: [[UT.CITY, 205, 95, 8], [UT.FACTORY, 212, 108, 3], [UT.PORT, 160, 100, 2], [UT.CITY, 250, 80, 4]] }],
+      allow: ALL, quest: none,
+      loop: [6, 9, function (Q, k) {
+        const g = Q.g, t = g.levelTile(208, 100);
+        Q.me.gold += g.cost(Q.me, UT.BOMBER);
+        g.build(Q.me, UT.BOMBER, t, k % 2 ? 0 : 1);
+      }],
+      tips: [{ text: 'Sprengbomben nehmen diesen Gebäuden Stufen.', pins: function (Q) { return Q.units(Q.foe[0], UT.CITY, 1).concat(Q.units(Q.foe[0], UT.FACTORY, 1)); } }]
+    },
     {
       n: 138, date: '27.11.2026', title: 'Langes Spiel: Flugabwehr gegen Flugzeuge', lang: true,
       text: 'Die kleine Flugabwehr trifft keine Flugzeuge mehr, nur noch Marschflugkörper und Raketen. Bomber und Aufklärer holt nur die Raketenabwehr ab Stufe 3 herunter (dazu Abwehrschiffe und Abfangjäger), Tarnbomber erst die Raketenabwehr ab Stufe 5 mit «Gegen Tarnbomber». Deine Bomber fliegen über die kleinen Flugabwehren von Varnholm hinweg; erst die Raketenabwehr bei der Stadt schiesst.',
@@ -5191,7 +5209,7 @@ body.placing #cv { cursor: crosshair; }
   };
 
   Game.prototype.build = function (p, type, tile, cls, fresh, pick) {
-    cls = (type === UT.WARSHIP && (cls === 1 || (this.lang && cls >= 2 && cls <= 5))) || (type === UT.SAM && this.lang && (cls === 1 || cls === 2)) || (type === UT.SILO && this.lang && cls === 1) ? cls : 0;
+    cls = (type === UT.WARSHIP && (cls === 1 || (this.lang && cls >= 2 && cls <= 5))) || (type === UT.SAM && this.lang && (cls === 1 || cls === 2)) || (type === UT.SILO && this.lang && cls === 1) || (type === UT.BOMBER && this.lang && cls === 1) ? cls : 0;
     const c = this.buildCheck(p, type, tile, cls, fresh, pick);
     if (!c.ok) return null;
     p.gold -= c.cost;
@@ -5219,7 +5237,7 @@ body.placing #cv { cursor: crosshair; }
     } else if (type === UT.MINE) {
       u = this.newUnit(type, p, c.tile); this.addUnit(u);
     } else if (this.lang && G.isPlane(type)) {
-      u = this.launchPlane(p, type, c.silo, c.tile);
+      u = this.launchPlane(p, type, c.silo, c.tile, cls);
     } else if (this.lang && G.LANG.arm[type]) {
       u = this.armSilo(p, type, c.silo, c.tile);   // «Langes Spiel»: the silo arms it first, seen by all
     } else {
@@ -6964,16 +6982,16 @@ body.placing #cv { cursor: crosshair; }
     for (const e of list) {
       const t = e && e.t | 0, u = e && e.u | 0;
       if (!(t >= 0 && t < this.N) || !(u >= UT.ATOM) || u === UT.LASER || u === UT.WARHEAD) return 'Nicht möglich';
-      const c = this.buildCheck(p, u, t, 0, false, e.s | 0);
+      const c = this.buildCheck(p, u, t, e.c === 1 ? 1 : 0, false, e.s | 0);
       if (!c.silo) return c.why || 'Nicht möglich';
       const d = Math.max(1, Math.hypot(t % W - c.silo.x, ((t / W) | 0) - c.silo.y));
       const sp = this.R.nukeSpeed * (u === UT.SRBM ? G.LANG.srbmSpeed : G.lowFly(u) ? 1.6 : 1);
       const need = Math.ceil(d / sp) + (G.LANG.arm[u] || 0);
       if (need > top) top = need;
-      plan.push({ u: u, t: t, s: c.silo.id, need: need });
+      plan.push({ u: u, t: t, s: c.silo.id, need: need, c: e.c === 1 ? 1 : 0 });
     }
     const q = this.salvoQ || (this.salvoQ = []);
-    for (const e of plan) q.push({ p: p.id, u: e.u, t: e.t, s: e.s, at: T + top - e.need });
+    for (const e of plan) q.push({ p: p.id, u: e.u, t: e.t, s: e.s, c: e.c, at: T + top - e.need });
     return '';
   };
   Game.prototype.langSalvoTick = function () {
@@ -6984,7 +7002,7 @@ body.placing #cv { cursor: crosshair; }
       q.splice(i--, 1);
       const p = this.players[e.p];
       if (!p || !p.alive) continue;
-      const done = this.build(p, e.u, e.t, 0, false, e.s);
+      const done = this.build(p, e.u, e.t, e.c || 0, false, e.s);
       if (!done && p === this.human) this.say('Geplanter Schlag: ' + G.UNAME[e.u].replace('\u00AD', '') + ' konnte nicht starten', 'warn');
     }
   };
@@ -7015,9 +7033,9 @@ body.placing #cv { cursor: crosshair; }
     const o = v.owner, L0 = v.level;
     return this.structHitBy(v, null);
   };
-  Game.prototype.structHitBy = function (v, by) {
+  Game.prototype.structHitBy = function (v, by, share) {
     const o = v.owner, L0 = v.level;
-    let f = by && this.has(by, 'rakA2') ? 0.5 : by && this.has(by, 'rakA1') ? 0.35 : G.LANG.share;
+    let f = share || (by && this.has(by, 'rakA2') ? 0.5 : by && this.has(by, 'rakA1') ? 0.35 : G.LANG.share);
     if (v.shelter) f *= this.shelterF(o);
     const lost = L0 <= 1 ? 1 : Math.min(L0, Math.max(1, Math.round(L0 * f)));
     if (lost >= L0) { this.removeUnit(v); return; }
@@ -7382,9 +7400,10 @@ body.placing #cv { cursor: crosshair; }
     u.home = field.id; u.leg = 0; u.hp = type === UT.STEALTH ? G.LANG.stealthHp : 0;
     return u;
   };
-  Game.prototype.launchPlane = function (p, type, field, tile) {
+  Game.prototype.launchPlane = function (p, type, field, tile, cls) {
     const T = this.ticks, W = this.W, tx = tile % W, ty = (tile / W) | 0;
     const u = this.newPlane(p, type, field, tx, ty);
+    if (type === UT.BOMBER && cls === 1) u.load = 1;   // explosive bombs instead of the cluster bomb
     if (type === UT.STEALTH) u.pay = this.has(p, 'hydro') ? UT.HYDRO : UT.ATOM;
     for (let i = 0; i < field.ready.length; i++) if (field.ready[i] <= T) { field.ready[i] = T + Math.ceil(2 * u.dist / u.speed) + G.LANG.planeRest; break; }
     this.addUnit(u);
@@ -7402,10 +7421,24 @@ body.placing #cv { cursor: crosshair; }
     u.x = u.dx; u.y = u.dy;
     if (u.leg === 1) { this.removeUnit(u); return; }
     // over the target
-    if (u.type === UT.BOMBER) this.detonate({ type: UT.CLUSTER, dx: u.dx, dy: u.dy, owner: u.owner, x: u.dx, y: u.dy });
+    if (u.type === UT.BOMBER && u.load) this.bombHit(u);
+    else if (u.type === UT.BOMBER) this.detonate({ type: UT.CLUSTER, dx: u.dx, dy: u.dy, owner: u.owner, x: u.dx, y: u.dy });
     else if (u.type === UT.STEALTH && u.pay) { this.detonate({ type: u.pay, dx: u.dx, dy: u.dy, owner: u.owner, x: u.dx, y: u.dy }); u.pay = 0; }
     else if (u.type === UT.RECON) { const l = u.owner.recon || (u.owner.recon = []); for (let i = l.length - 1; i >= 0; i--) if (l[i].until <= this.ticks) l.splice(i, 1); l.push({ x: u.dx, y: u.dy, until: this.ticks + G.LANG.reconTicks }); }
     this.planeHome(u);
+  };
+  // Explosive bombs (27.11.2026): every building in the area of a cluster bomb loses
+  // G.LANG.bombShare of its levels, as from a cruise missile (level 1 falls, shelters halve it).
+  // No troops die, no land changes hands.
+  Game.prototype.bombHit = function (u) {
+    const cx = u.dx, cy = u.dy, r = this.R.clusterOut, r2 = r * r, hit = [];
+    for (const v of this.units) {
+      if (!v.active || !v.built || v.type > UT.CLOAK || v.owner === u.owner || this.friendly(v.owner, u.owner)) continue;
+      if ((v.x - cx) * (v.x - cx) + (v.y - cy) * (v.y - cy) <= r2) hit.push(v);
+    }
+    for (const v of hit) this.structHitBy(v, u.owner, G.LANG.bombShare);
+    this.fx.push({ k: 'boom', x: cx, y: cy, r: this.R.clusterIn, bombs: true });
+    if (u.owner === this.human) this.say('Sprengbomben: ' + (hit.length ? hit.length + ' Gebäude getroffen' : 'kein Gebäude getroffen'), hit.length ? 'good' : 'info');
   };
   Game.prototype.planeHome = function (u) {
     let f = null;
@@ -12746,14 +12779,15 @@ void main() {
     { t: UT.BUNKER, icon: 'bunker', note: 'Zerstört ein Gebäude, auch mit Schutzräumen', key: '' },
     { t: UT.THERMO, icon: 'thermo', note: 'Mittleres Gebiet, Truppen und Gebäude, keine Verstrahlung', key: '' },
     { t: UT.SRBM, icon: 'srbm', note: 'Schnell, schwer abzufangen, kurze Reichweite', key: '' },
-    { t: UT.BOMBER, icon: 'bomber', note: 'Wirft vom Flugplatz aus eine Streubombe auf die Front', key: '' },
+    { t: UT.BOMBER, icon: 'bomber', note: 'Streubombe vom Flugplatz aus: tötet Truppen an der Front', key: '' },
+    { t: 23.5, icon: 'bomber', note: 'Sprengbomben vom Flugplatz aus: Gebäude im Zielgebiet verlieren ¼ ihrer Stufen', key: '' },
     { t: UT.STEALTH, icon: 'stealth', note: 'Atombombe, kaum zu erfassen, fliegt zurück', key: '' },
     { t: UT.RECON, icon: 'recon', note: 'Deckt kurz ein Gebiet auf', key: '' }
   ];
   // «Langes Spiel»: key R turns the bar to the weapons, then 1, 2, 3 ... pick one (the digits are the
   // buildings' otherwise). The order of the weapon bar:
-  const WEAPONS = [UT.CRUISE, UT.CLUSTER, UT.BUNKER, UT.THERMO, UT.SRBM, UT.ATOM, UT.HYDRO, UT.MIRV, UT.BOMBER, UT.STEALTH, UT.RECON];
-  const WKEY = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', ''];
+  const WEAPONS = [UT.CRUISE, UT.CLUSTER, UT.BUNKER, UT.THERMO, UT.SRBM, UT.ATOM, UT.HYDRO, UT.MIRV, UT.BOMBER, 23.5, UT.STEALTH, UT.RECON];
+  const WKEY = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', ''];
   let weaponBar = false, siloSel = 0;
   const salvoList = [];   // planned strikes (Shift + click), fired together with Enter
   function barItems() {
@@ -12791,10 +12825,13 @@ void main() {
   // «Langes Spiel»: the missile defence is air defence class 1 (ABM, between air defence 4 and factory 5)
   const ABM = 4.5;
   const RADAR = 4.7;   // «Langes Spiel»: the radar is air defence class 2
-  function real(t) { return t === BS ? { u: UT.WARSHIP, cls: 1 } : t === 7.2 ? { u: UT.WARSHIP, cls: 2 } : t === 7.3 ? { u: UT.WARSHIP, cls: 4 } : t === 7.4 ? { u: UT.WARSHIP, cls: 5 } : t === 7.7 ? { u: UT.WARSHIP, cls: 3 } : t === 7.9 ? { u: UT.MINE, cls: 0 } : t === ABM ? { u: UT.SAM, cls: 1 } : t === RADAR ? { u: UT.SAM, cls: 2 } : t === 3.5 ? { u: UT.SILO, cls: 1 } : { u: t, cls: 0 }; }
+  const BOMB2 = 23.5;  // «Langes Spiel»: the bomber with explosive bombs (bomber, cls 1)
+  function real(t) { return t === BS ? { u: UT.WARSHIP, cls: 1 } : t === 7.2 ? { u: UT.WARSHIP, cls: 2 } : t === 7.3 ? { u: UT.WARSHIP, cls: 4 } : t === 7.4 ? { u: UT.WARSHIP, cls: 5 } : t === 7.7 ? { u: UT.WARSHIP, cls: 3 } : t === 7.9 ? { u: UT.MINE, cls: 0 } : t === ABM ? { u: UT.SAM, cls: 1 } : t === RADAR ? { u: UT.SAM, cls: 2 } : t === 3.5 ? { u: UT.SILO, cls: 1 } : t === BOMB2 ? { u: UT.BOMBER, cls: 1 } : { u: t, cls: 0 }; }
   function costOf(h, t) { const r = real(t), c = game.cost(h, r.u); if (r.u === UT.MINE) return game.opts.infiniteGold ? 0 : G.LANG.mineCost; if (r.u === UT.SAM && r.cls === 2) return game.opts.infiniteGold ? 0 : G.LANG.radarCost;
     if (r.u === UT.SILO && r.cls) return game.opts.infiniteGold ? 0 : G.LANG.fieldCost;
-    if (r.u === UT.STEALTH) return c + game.cost(h, game.has(h, 'hydro') ? UT.HYDRO : UT.ATOM); return r.cls ? Math.round(c * (r.u === UT.SAM ? G.LANG.abmCost : G.SHIP_CLASS[r.cls].cost)) : c; }
+    if (r.u === UT.STEALTH) return c + game.cost(h, game.has(h, 'hydro') ? UT.HYDRO : UT.ATOM);
+    if (r.u === UT.BOMBER) return c;   // explosive or cluster, the same price
+    return r.cls ? Math.round(c * (r.u === UT.SAM ? G.LANG.abmCost : G.SHIP_CLASS[r.cls].cost)) : c; }
   function shipsOf(h, cls) { let n = 0; for (const u of h.units) if (u.type === UT.WARSHIP && (u.cls || 0) === cls) n++; return n; }
   // how many of a kind of building you can see at player q (a cloaking tower hides some)
   // «Langes Spiel»: in the fog only what the player can see counts (src/06_view.js, fogHides)
@@ -14154,8 +14191,8 @@ void main() {
     }
     const c = game.buildCheck(h, real(ghost.t).u, tile, real(ghost.t).cls, false, siloSel);
     // for a bomb: the silo it would start from (or, while all are reloading, any silo), so the flight path can be shown
-    const silo = ghost.t >= UT.ATOM && ghost.t !== UT.LASER ? c.silo || game.readySilo(h, tile, game.lang ? ghost.t : undefined, siloSel).silo || h.units.find(function (u) { return u.type === UT.SILO && u.built; }) || null : null;
-    view.ghost = { type: ghost.t, icon: icon, tile: tile, ok: c.ok, silo: silo,
+    const silo = ghost.t >= UT.ATOM && ghost.t !== UT.LASER ? c.silo || game.readySilo(h, tile, game.lang ? real(ghost.t).u : undefined, siloSel).silo || h.units.find(function (u) { return u.type === UT.SILO && u.built; }) || null : null;
+    view.ghost = { type: ghost.t === BOMB2 ? UT.BOMBER : ghost.t, icon: icon, tile: tile, ok: c.ok, silo: silo,
       text: c.ok && c.stored ? plain(ghost.t) + ' · aus dem Lager, gratis' : c.ok || c.why === 'Zu wenig Gold' ? plain(ghost.t) + ' · ' + G.fmt(costOf(h, ghost.t)) + (ghost.t === UT.FACTORY || (game.bahn && (ghost.t === UT.CITY || ghost.t === UT.PORT)) ? railHint(tile, ghost.t) : '') : c.why || 'Hier nicht möglich' };   // too little gold: the price stays, in red
   }
   // The player's own finished building of the kind being placed, if the pointer is on it.
@@ -14177,17 +14214,17 @@ void main() {
       const s = game.structNear(tile, 3);
       if (s && s.owner === h && s.type === UT.SILO && s.built) { siloSel = siloSel === s.id ? 0 : s.id; view.siloSel = siloSel; toast(siloSel ? 'Silo gewählt' : 'Wieder das nächste Silo'); ghostKey = ''; return; }
       if (shiftHeld) {
-        const pc = game.buildCheck(h, t, tile, 0, false, siloSel);
+        const pc = game.buildCheck(h, real(t).u, tile, real(t).cls, false, siloSel);
         if (!pc.silo) { toast(plain(t) + ': ' + (pc.why || 'Hier nicht möglich')); snd('deny'); return; }
         if (salvoList.length >= 12) { toast('Höchstens 12 Ziele'); return; }
-        salvoList.push({ u: t, t: tile, s: pc.silo.id }); view.salvo = salvoList;
+        salvoList.push({ u: real(t).u, c: real(t).cls || undefined, t: tile, s: pc.silo.id }); view.salvo = salvoList;
         toast('Ziel ' + salvoList.length + ' geplant · Enter feuert alle zusammen');
         return;
       }
     }
     const c = game.buildCheck(h, real(t).u, tile, real(t).cls, false, siloSel);
     if (!c.ok) { toast(plain(t) + ': ' + (c.why || 'Hier nicht möglich')); snd('deny'); return; }
-    if (t >= UT.ATOM) act({ k: 'build', u: t, t: tile, s: siloSel || undefined, say: plain(t) + (game.lang && G.LANG.arm[t] ? ' wird scharfgemacht' : ' gestartet') });
+    if (t >= UT.ATOM) act({ k: 'build', u: real(t).u, cls: real(t).cls || undefined, t: tile, s: siloSel || undefined, say: plain(t) + (game.lang && G.LANG.arm[t] ? ' wird scharfgemacht' : ' gestartet') });
     else doBuild(t, tile);
     if (!shiftHeld) setGhost(null);   // hold Shift to place several in a row
   }

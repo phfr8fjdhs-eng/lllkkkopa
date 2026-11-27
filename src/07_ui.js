@@ -44,14 +44,15 @@
     { t: UT.BUNKER, icon: 'bunker', note: 'Zerstört ein Gebäude, auch mit Schutzräumen', key: '' },
     { t: UT.THERMO, icon: 'thermo', note: 'Mittleres Gebiet, Truppen und Gebäude, keine Verstrahlung', key: '' },
     { t: UT.SRBM, icon: 'srbm', note: 'Schnell, schwer abzufangen, kurze Reichweite', key: '' },
-    { t: UT.BOMBER, icon: 'bomber', note: 'Wirft vom Flugplatz aus eine Streubombe auf die Front', key: '' },
+    { t: UT.BOMBER, icon: 'bomber', note: 'Streubombe vom Flugplatz aus: tötet Truppen an der Front', key: '' },
+    { t: 23.5, icon: 'bomber', note: 'Sprengbomben vom Flugplatz aus: Gebäude im Zielgebiet verlieren ¼ ihrer Stufen', key: '' },
     { t: UT.STEALTH, icon: 'stealth', note: 'Atombombe, kaum zu erfassen, fliegt zurück', key: '' },
     { t: UT.RECON, icon: 'recon', note: 'Deckt kurz ein Gebiet auf', key: '' }
   ];
   // «Langes Spiel»: key R turns the bar to the weapons, then 1, 2, 3 ... pick one (the digits are the
   // buildings' otherwise). The order of the weapon bar:
-  const WEAPONS = [UT.CRUISE, UT.CLUSTER, UT.BUNKER, UT.THERMO, UT.SRBM, UT.ATOM, UT.HYDRO, UT.MIRV, UT.BOMBER, UT.STEALTH, UT.RECON];
-  const WKEY = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', ''];
+  const WEAPONS = [UT.CRUISE, UT.CLUSTER, UT.BUNKER, UT.THERMO, UT.SRBM, UT.ATOM, UT.HYDRO, UT.MIRV, UT.BOMBER, 23.5, UT.STEALTH, UT.RECON];
+  const WKEY = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', ''];
   let weaponBar = false, siloSel = 0;
   const salvoList = [];   // planned strikes (Shift + click), fired together with Enter
   function barItems() {
@@ -89,10 +90,13 @@
   // «Langes Spiel»: the missile defence is air defence class 1 (ABM, between air defence 4 and factory 5)
   const ABM = 4.5;
   const RADAR = 4.7;   // «Langes Spiel»: the radar is air defence class 2
-  function real(t) { return t === BS ? { u: UT.WARSHIP, cls: 1 } : t === 7.2 ? { u: UT.WARSHIP, cls: 2 } : t === 7.3 ? { u: UT.WARSHIP, cls: 4 } : t === 7.4 ? { u: UT.WARSHIP, cls: 5 } : t === 7.7 ? { u: UT.WARSHIP, cls: 3 } : t === 7.9 ? { u: UT.MINE, cls: 0 } : t === ABM ? { u: UT.SAM, cls: 1 } : t === RADAR ? { u: UT.SAM, cls: 2 } : t === 3.5 ? { u: UT.SILO, cls: 1 } : { u: t, cls: 0 }; }
+  const BOMB2 = 23.5;  // «Langes Spiel»: the bomber with explosive bombs (bomber, cls 1)
+  function real(t) { return t === BS ? { u: UT.WARSHIP, cls: 1 } : t === 7.2 ? { u: UT.WARSHIP, cls: 2 } : t === 7.3 ? { u: UT.WARSHIP, cls: 4 } : t === 7.4 ? { u: UT.WARSHIP, cls: 5 } : t === 7.7 ? { u: UT.WARSHIP, cls: 3 } : t === 7.9 ? { u: UT.MINE, cls: 0 } : t === ABM ? { u: UT.SAM, cls: 1 } : t === RADAR ? { u: UT.SAM, cls: 2 } : t === 3.5 ? { u: UT.SILO, cls: 1 } : t === BOMB2 ? { u: UT.BOMBER, cls: 1 } : { u: t, cls: 0 }; }
   function costOf(h, t) { const r = real(t), c = game.cost(h, r.u); if (r.u === UT.MINE) return game.opts.infiniteGold ? 0 : G.LANG.mineCost; if (r.u === UT.SAM && r.cls === 2) return game.opts.infiniteGold ? 0 : G.LANG.radarCost;
     if (r.u === UT.SILO && r.cls) return game.opts.infiniteGold ? 0 : G.LANG.fieldCost;
-    if (r.u === UT.STEALTH) return c + game.cost(h, game.has(h, 'hydro') ? UT.HYDRO : UT.ATOM); return r.cls ? Math.round(c * (r.u === UT.SAM ? G.LANG.abmCost : G.SHIP_CLASS[r.cls].cost)) : c; }
+    if (r.u === UT.STEALTH) return c + game.cost(h, game.has(h, 'hydro') ? UT.HYDRO : UT.ATOM);
+    if (r.u === UT.BOMBER) return c;   // explosive or cluster, the same price
+    return r.cls ? Math.round(c * (r.u === UT.SAM ? G.LANG.abmCost : G.SHIP_CLASS[r.cls].cost)) : c; }
   function shipsOf(h, cls) { let n = 0; for (const u of h.units) if (u.type === UT.WARSHIP && (u.cls || 0) === cls) n++; return n; }
   // how many of a kind of building you can see at player q (a cloaking tower hides some)
   // «Langes Spiel»: in the fog only what the player can see counts (src/06_view.js, fogHides)
@@ -1452,8 +1456,8 @@
     }
     const c = game.buildCheck(h, real(ghost.t).u, tile, real(ghost.t).cls, false, siloSel);
     // for a bomb: the silo it would start from (or, while all are reloading, any silo), so the flight path can be shown
-    const silo = ghost.t >= UT.ATOM && ghost.t !== UT.LASER ? c.silo || game.readySilo(h, tile, game.lang ? ghost.t : undefined, siloSel).silo || h.units.find(function (u) { return u.type === UT.SILO && u.built; }) || null : null;
-    view.ghost = { type: ghost.t, icon: icon, tile: tile, ok: c.ok, silo: silo,
+    const silo = ghost.t >= UT.ATOM && ghost.t !== UT.LASER ? c.silo || game.readySilo(h, tile, game.lang ? real(ghost.t).u : undefined, siloSel).silo || h.units.find(function (u) { return u.type === UT.SILO && u.built; }) || null : null;
+    view.ghost = { type: ghost.t === BOMB2 ? UT.BOMBER : ghost.t, icon: icon, tile: tile, ok: c.ok, silo: silo,
       text: c.ok && c.stored ? plain(ghost.t) + ' · aus dem Lager, gratis' : c.ok || c.why === 'Zu wenig Gold' ? plain(ghost.t) + ' · ' + G.fmt(costOf(h, ghost.t)) + (ghost.t === UT.FACTORY || (game.bahn && (ghost.t === UT.CITY || ghost.t === UT.PORT)) ? railHint(tile, ghost.t) : '') : c.why || 'Hier nicht möglich' };   // too little gold: the price stays, in red
   }
   // The player's own finished building of the kind being placed, if the pointer is on it.
@@ -1475,17 +1479,17 @@
       const s = game.structNear(tile, 3);
       if (s && s.owner === h && s.type === UT.SILO && s.built) { siloSel = siloSel === s.id ? 0 : s.id; view.siloSel = siloSel; toast(siloSel ? 'Silo gewählt' : 'Wieder das nächste Silo'); ghostKey = ''; return; }
       if (shiftHeld) {
-        const pc = game.buildCheck(h, t, tile, 0, false, siloSel);
+        const pc = game.buildCheck(h, real(t).u, tile, real(t).cls, false, siloSel);
         if (!pc.silo) { toast(plain(t) + ': ' + (pc.why || 'Hier nicht möglich')); snd('deny'); return; }
         if (salvoList.length >= 12) { toast('Höchstens 12 Ziele'); return; }
-        salvoList.push({ u: t, t: tile, s: pc.silo.id }); view.salvo = salvoList;
+        salvoList.push({ u: real(t).u, c: real(t).cls || undefined, t: tile, s: pc.silo.id }); view.salvo = salvoList;
         toast('Ziel ' + salvoList.length + ' geplant · Enter feuert alle zusammen');
         return;
       }
     }
     const c = game.buildCheck(h, real(t).u, tile, real(t).cls, false, siloSel);
     if (!c.ok) { toast(plain(t) + ': ' + (c.why || 'Hier nicht möglich')); snd('deny'); return; }
-    if (t >= UT.ATOM) act({ k: 'build', u: t, t: tile, s: siloSel || undefined, say: plain(t) + (game.lang && G.LANG.arm[t] ? ' wird scharfgemacht' : ' gestartet') });
+    if (t >= UT.ATOM) act({ k: 'build', u: real(t).u, cls: real(t).cls || undefined, t: tile, s: siloSel || undefined, say: plain(t) + (game.lang && G.LANG.arm[t] ? ' wird scharfgemacht' : ' gestartet') });
     else doBuild(t, tile);
     if (!shiftHeld) setGhost(null);   // hold Shift to place several in a row
   }

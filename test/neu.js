@@ -9,6 +9,7 @@ const G = globalThis.G, UT = G.UT;
 const count = (g, type, p) => g.units.filter((u) => u.active && u.type === type && (!p || u.owner === p)).length;
 // what has to be seen in each scene, asked every second; seen once is enough
 const SEEN = {
+  139: (g) => { const c = g.lv.foes[0].units.find((u) => u.type === UT.CITY && u.x < 220); return !!c && c.level < 8 && g.units.some((u) => u.active && u.type === UT.BOMBER && !u.load); },
   138: (g, s) => {
     // the missile defence fires (at the bombers, nothing else flies), the small air defence never does
     for (const u of g.lv.foes[0].units) if (u.type === UT.SAM && u.ready && u.ready.some((r) => r > g.ticks)) { if (u.cls === 1) s.abm = true; else s.small = true; }
