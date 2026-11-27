@@ -452,6 +452,28 @@
     if (o === this.human) this.say(G.UNAME[v.type].replace('\u00AD', '') + ' verliert ' + lost + ' Stufe' + (lost === 1 ? '' : 'n'), 'bad');
   };
 
+  // ---------- who shot it down (27.11.2026) ----------
+  // A message to both sides: «Dein Bomber wurde von der Raketenabwehr von X abgeschossen».
+  // by: the launcher (air defence), ship or fighter; q its owner.
+  const SHOOTER = function (by) {
+    if (by.type === UT.SAM) return by.cls === 1 ? 'der Raketenabwehr' : 'der Flugabwehr';
+    if (by.type === UT.FIGHTER) return 'einem Abfangjäger';
+    if (by.type === UT.WARSHIP) return by.cls === 4 ? 'einem Abwehrschiff' : 'einem Zerstörer';
+    return 'der Abwehr';
+  };
+  const SHOOTER_OWN = function (by) {
+    if (by.type === UT.SAM) return by.cls === 1 ? 'Deine Raketenabwehr' : 'Deine Flugabwehr';
+    if (by.type === UT.FIGHTER) return 'Dein Abfangjäger';
+    if (by.type === UT.WARSHIP) return by.cls === 4 ? 'Dein Abwehrschiff' : 'Dein Zerstörer';
+    return 'Deine Abwehr';
+  };
+  Game.prototype.shotDown = function (n, by, q) {
+    const h = this.human, name = G.UNAME[n.type].replace('\u00AD', ''), plane = G.isPlane(n.type);
+    const fem = /(bombe|rakete|Bombe)$/.test(name), verb = plane ? 'abgeschossen' : 'abgefangen';
+    if (n.owner === h) this.say((fem ? 'Deine ' : 'Dein ') + name + ' wurde von ' + SHOOTER(by) + ' von ' + q.name + ' ' + verb, 'warn');
+    else if (q === h) this.say(SHOOTER_OWN(by) + ' hat ' + (fem ? 'eine ' : n.type === UT.RECON || n.type === UT.MIRV ? 'ein ' : 'einen ') + name + ' von ' + n.owner.name + ' ' + verb, 'good');
+  };
+
   // ---------- war (27.11.2026) ----------
   // In the mode two realms are at war once one of them has attacked the other: on the ground, by
   // boat, with a bomb, missile or bomber (a recon flight and a spy are no attack). Both sides alike,
@@ -865,6 +887,7 @@
       if ((n.x - f.x) * (n.x - f.x) + (n.y - f.y) * (n.y - f.y) > r2) continue;
       const j = this.newPlane(f.owner, UT.FIGHTER, f, Math.round(n.x), Math.round(n.y));
       j.target = n; n.sam = true;
+      this.fx.push({ k: 'tracer', x: f.x, y: f.y, tx: n.x, ty: n.y, slow: true });   // the fighter goes up: who hunts is seen
       f.ready[slot] = T + G.LANG.fighterRest;
       this.addUnit(j);
       return;
@@ -875,10 +898,8 @@
     if (!n || !n.active) { this.planeHome(u); return; }
     const dx = n.x - u.x, dy = n.y - u.y, d = Math.hypot(dx, dy), sp = u.speed;
     if (d > sp) { u.x += dx / d * sp; u.y += dy / d * sp; return; }
-    if (n.hp > 1) { n.hp--; n.sam = false; } else this.removeUnit(n);
     this.fx.push({ k: 'pop', x: n.x, y: n.y, air: 0 });
-    if (u.owner === this.human) this.say('Abfangjäger hat ' + G.UNAME[n.type].replace('\u00AD', '') + ' von ' + n.owner.name + ' abgeschossen', 'good');
-    else if (n.owner === this.human) this.say('Dein ' + G.UNAME[n.type].replace('\u00AD', '') + ' wurde von einem Jäger abgeschossen', 'warn');
+    if (n.hp > 1) { n.hp--; n.sam = false; } else { this.removeUnit(n); this.shotDown(n, u, u.owner); }
     this.planeHome(u);
   };
   // A launcher has to hold a stealth bomber inside a quarter of its reach for stealthLock ticks.
@@ -993,8 +1014,9 @@
       if (n.owner === u.owner || (G.isPlane(n.type) ? !this.hostile(n.owner, u.owner) : this.friendly(n.owner, u.owner))) continue;   // planes only at war
       if ((n.x - u.x) * (n.x - u.x) + (n.y - u.y) * (n.y - u.y) > r2) continue;
       this.fx.push({ k: 'pop', x: n.x, y: n.y, air: 0 });
-      if (n.owner === this.human) this.say('Dein ' + G.UNAME[n.type].replace('\u00AD', '') + ' wurde über dem Meer abgeschossen', 'warn');
+      this.fx.push({ k: 'tracer', x: u.x, y: u.y, tx: n.x, ty: n.y });
       this.removeUnit(n);
+      this.shotDown(n, u, u.owner);
       return;
     }
   };

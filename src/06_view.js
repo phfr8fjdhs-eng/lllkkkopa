@@ -2151,7 +2151,7 @@
     const list = this.fxList;
     for (let i = list.length - 1; i >= 0; i--) {
       const f = list[i];
-      const dur = f.k === 'shipboom' ? 2000 : f.k === 'boom' ? (f.big ? 2600 : 1100) : f.k === 'text' ? 2500 : f.k === 'coin' ? 1500 : f.k === 'flag' ? 700 : f.k === 'muzzle' ? 170 : f.air ? 750 : 420, k = (now - f.t0) / dur;
+      const dur = f.k === 'shipboom' ? 2000 : f.k === 'boom' ? (f.big ? 2600 : 1100) : f.k === 'text' ? 2500 : f.k === 'coin' ? 1500 : f.k === 'flag' ? 700 : f.k === 'muzzle' ? 170 : f.k === 'tracer' ? (f.slow ? 1400 : 800) : f.air ? 750 : 420, k = (now - f.t0) / dur;
       if (k >= 1 || (f.k === 'coin' && !f.mine)) { list.splice(i, 1); continue; }
       const x = (f.x + 0.5) * z + ox, y = (f.y + 0.5) * z + oy, e = k * (2 - k);
       if (f.k === 'boom') {
@@ -2211,6 +2211,15 @@
           ctx.fillStyle = '#ffffff'; ctx.fillText(label, x, y - 10 - 18 * k);
           ctx.globalAlpha = 1;
         }
+      } else if (f.k === 'tracer') {
+        // «Langes Spiel»: a shot at a plane or missile, a bright streak from the shooter that fades
+        const tx = (f.tx + 0.5) * z + ox, ty = (f.ty + 0.5) * z + oy, a1 = 1 - k;
+        ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(tx, ty);
+        ctx.lineWidth = within(z * 0.6, 1.2, 3); ctx.strokeStyle = 'rgba(150,235,255,' + (0.85 * a1).toFixed(3) + ')';
+        if (f.slow) ctx.setLineDash([5, 4]);
+        ctx.stroke();
+        if (f.slow) ctx.setLineDash([]);
+        ctx.beginPath(); ctx.arc(x, y, within(z * 1.2, 2.5, 6), 0, 6.2832); ctx.fillStyle = 'rgba(220,250,255,' + a1.toFixed(3) + ')'; ctx.fill();
       } else if (f.k === 'muzzle') {
         // gun flash at the muzzle, towards the target
         let a = Math.atan2(f.ty - f.y, f.tx - f.x), mx, my;

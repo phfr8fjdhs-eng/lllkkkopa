@@ -9,6 +9,7 @@ const G = globalThis.G, UT = G.UT;
 const count = (g, type, p) => g.units.filter((u) => u.active && u.type === type && (!p || u.owner === p)).length;
 // what has to be seen in each scene, asked every second; seen once is enough
 const SEEN = {
+  143: (g, s) => { for (const f of g.fx) if (f.k === 'tracer') s.n = (s.n || 0) + 1; return s.n >= 2; },
   142: (g) => g.human.units.some((u) => u.active && G.isPlane(u.type) && u.x > 200),
   141: (g, s) => {
     // the submarine fires twice, one after the other, the silo once

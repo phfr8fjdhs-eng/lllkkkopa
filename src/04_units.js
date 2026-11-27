@@ -1361,6 +1361,7 @@
         const m = this.newUnit(UT.SAMM, u.owner, u.tile);
         m.target = n; m.src = u;
         this.addUnit(m);
+        if (this.lang) this.fx.push({ k: 'tracer', x: u.x, y: u.y, tx: n.x, ty: n.y });   // «Langes Spiel»: who fires is seen
         break;
       }
     }
@@ -1383,6 +1384,7 @@
     // `air`: how high the picture shows the bomb at this point of its arc, so the flash is drawn there
     this.fx.push({ k: 'pop', x: n.x, y: n.y, air: Math.min(n.dist * 0.28, 70) * (n.type === UT.CRUISE ? 0.12 : 1) * Math.sin(Math.PI * Math.min(1, n.prog)) });
     const h = this.human;
+    if (this.lang) { this.fx.push({ k: 'tracer', x: u.src ? u.src.x : u.x, y: u.src ? u.src.y : u.y, tx: n.x, ty: n.y }); this.shotDown(n, u.src || u, u.owner); return; }   // who shot (src/04c_lang.js)
     if (u.owner === h) this.say(G.UNAME[n.type] + ' von ' + n.owner.name + ' abgefangen', 'good');
     else if (n.owner === h) this.say('Deine ' + G.UNAME[n.type] + ' wurde abgefangen', 'warn');
   };

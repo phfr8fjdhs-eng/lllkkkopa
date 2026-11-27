@@ -359,3 +359,10 @@ Code: `fogScan` in `src/06_view.js`, Zahl `planeSee` in `G.LANG`.
 - Jedes eigene Flugzeug in der Luft (Bomber, Tarnbomber, Jäger, Aufklärer) hebt den Nebel im Kreis von 15 · S Feldern um sich auf (`planeSee`), mindestens eine Nebelzelle rundum (auf kleinen Karten wäre der Kreis sonst kleiner als eine Zelle). Nur Anzeige, wie der übrige Nebel.
 - Solange eigene Flugzeuge fliegen, rechnet der Nebel einmal pro Sekunde neu, wenn eines in eine andere Zelle kommt (ihre Zellen stehen in der Signatur). Kosten: höchstens ein Neurechnen pro Sekunde, wie bei jeder anderen Änderung.
 - Szene 142.
+
+### A9. Sichtbar machen, wer schiesst
+Code: `shotDown` in `src/04c_lang.js` (aus `tickSamMissile`, `tickFighter`, `shipFlak`), Spur `fx` `tracer` in `drawFx` (`src/06_view.js`).
+- **Spur:** Jeder Schuss auf ein Flugzeug oder eine Rakete zeigt kurz (0.8 s) eine helle Linie vom Schützen zum Ziel: beim Start der Abwehrrakete und beim Treffer (Flugabwehr, Raketenabwehr), beim Abschuss durch ein Abwehrschiff oder einen Zerstörer mit «Flugabwehr an Bord». Steigt ein Abfangjäger auf, zeigt eine gestrichelte Linie (1.4 s) vom Flugplatz zum gejagten Ziel.
+- **Meldung** beim Besitzer: «Dein Bomber wurde von der Raketenabwehr von X abgeschossen» (Flugzeuge «abgeschossen», Raketen und Bomben «abgefangen»; Schützen: Flugabwehr, Raketenabwehr, Abwehrschiff, Zerstörer, Abfangjäger). Beim Schützen: «Deine Raketenabwehr hat einen Bomber von X abgeschossen».
+- Nur im Modus; das klassische Spiel behält seine Meldungen.
+- Szene 143.

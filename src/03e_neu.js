@@ -42,6 +42,21 @@
 
   G.NEUES = [
     {
+      n: 143, date: '27.11.2026', title: 'Langes Spiel: Wer schiesst?', lang: true,
+      text: 'Jeder Schuss auf ein Flugzeug oder eine Rakete zeigt kurz eine helle Spur vom Schützen: Flugabwehr, Raketenabwehr, Abwehrschiff, Abfangjäger (gestrichelt, wenn er aufsteigt). Wer etwas verliert, liest, wer es war: «Dein Bomber wurde von der Raketenabwehr von X abgeschossen».',
+      map: STRAIT,
+      me: { x: 150, y: 20, box: [0, 0, 300, 46], troops: 60000, gold: 3000000, build: [[UT.PORT, 150, 44, 2], [4.5, 110, 25, 4], [UT.SAM, 185, 30, 6], [UT.CITY, 150, 15, 5]] },
+      foes: [{ name: 'Südküste', x: 150, y: 180, box: [0, 154, 300, 200], troops: 90000, build: [[3.5, 150, 185, 3], [UT.SILO, 230, 180, 3], [UT.PORT, 150, 156, 1]] }],
+      allow: ALL, quest: none,
+      events: [[0, function (Q) { Q.ship(Q.me, 207, 56, 4); const f = Q.foe[0]; f.tech = {}; for (const t of G.TECH) f.tech[t.id] = 1; }]],
+      loop: [6, 7, function (Q, k) {
+        const f = Q.foe[0];
+        if (k % 3 === 0) Q.fire(f, UT.BOMBER, 110, 30);
+        else if (k % 3 === 1) Q.fire(f, UT.CRUISE, 205, 32);
+        else Q.fire(f, UT.BOMBER, 160, 40);
+      }]
+    },
+    {
       n: 142, date: '27.11.2026', title: 'Langes Spiel: Flugzeuge decken auf', lang: true,
       text: 'Jedes eigene Flugzeug (Bomber, Tarnbomber, Jäger, Aufklärer) hebt den Nebel um sich auf, rund 15 Felder, solange es dort ist. So siehst du auf dem Weg zum Ziel Gebäude und Schiffe im Nebel. Hier fliegen deine Bomber tief über das Land von Ostmark.',
       map: { w: 380, h: 200, seed: 942, shapes: [circ(60, 100, 50), circ(250, 100, 115)] },
