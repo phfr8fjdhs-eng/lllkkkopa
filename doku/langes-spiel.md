@@ -135,7 +135,7 @@ Code: `src/04c_lang.js` (Abschnitt «weapons»), Haken in `buildCheck`, `build`,
 ### 2c. Reichweite ab dem Silo
 - Jede Waffe reicht nur so weit vom Silo (`range`, in Feldern der 5600 Felder breiten Erde, umgerechnet auf die Breite der Karte, aber mindestens wie auf einer 2400 breiten Karte, `rangeW`, sonst reicht auf kleinen Karten kaum etwas). Auf einer 320 breiten Karte: Kurzstrecke 64, Marschflugkörper 129, Atombombe 343, Wasserstoffbombe 643 Felder.
 - Gewählt wird das nächste geladene Silo in Reichweite; sonst «Kein Silo in Reichweite». Beim Zielen zeigen gestrichelte weisse Kreise die Reichweite jedes eigenen Silos.
-- **Silo wählen:** Mit einer Waffe am Mauszeiger ein eigenes Silo antippen wählt es für die nächsten Schüsse (weisser Ring), nochmals antippen nimmt die Wahl zurück. Befehl `build` mit `s` (Silo).
+- **Silo wählen:** Mit einer Waffe am Mauszeiger ein eigenes Silo (seit 27.11.2026 auch ein U-Boot, A7) antippen wählt es für die nächsten Schüsse (weisser Ring), nochmals antippen nimmt die Wahl zurück. Befehl `build` mit `s` (Silo).
 - Ein Silo, das feuert, verrät seinen Standort: gilt mit dem Nebel (Paket 3).
 
 ### 2d. Bedienung
@@ -342,3 +342,14 @@ Code: `shipFull` in `src/04c_lang.js`, Preis in `buildCheck` (`src/04_units.js`)
 
 - Schiffe aus dem Lager eines Hafens bleiben gratis. Unterhalt unverändert.
 - Szene 140.
+
+### A7. Abschussort wählen (Silo oder U-Boot)
+Code: `salvoPlan`, `salvo`, `launcherFree`, `langSalvoTick` in `src/04c_lang.js`; `subAt`, `salvoLate`, `placeGhost` in `src/07_ui.js`; `drawSalvo` in `src/06_view.js`.
+- **Geprüft:** Das Feuern vom U-Boot ging schon (mit «Raketen-U-Boot»; `readySilo` zählt es als Abschussort). Nur antippen liess es sich nicht, und die Kreise zeigten nur Silos.
+- **Antippen:** Mit einer Waffe am Mauszeiger ein eigenes Silo oder U-Boot (in 4 Feldern) antippen wählt es als Abschussort (weisser Ring), nochmals antippen nimmt die Wahl zurück. Es gilt immer nur einer. Bei Flugzeugen wählt man so einen Flugplatz.
+- **Kreise:** Beim Zielen zeigen gestrichelte Kreise die Reichweite aller eigenen Silos und U-Boote, die diese Waffe feuern können.
+- **Schläge planen:** Jedes Ziel merkt sich seinen Abschussort (den gewählten, sonst den nächsten geeigneten in Reichweite); die Linie startet dort.
+- **Ein Rohr:** Jeder Abschussort hat so viele Plätze wie Stufen, ein U-Boot einen. `salvoPlan` rechnet die Starts wie bisher auf gleichzeitiges Einschlagen und gibt dabei jedem Abschussort seine Plätze: Wer nicht rechtzeitig starten kann, weil der Platz nachlädt (27 s, bei Atomwaffen dazu das Scharfmachen), startet, sobald er frei ist, und schlägt später ein. Das ist bei einem Rohr fast immer so, denn alle Starts hängen am gemeinsamen Einschlag. Beim Planen ist so ein Ziel orange mit «+X s», und die Meldung sagt, wie viele später kommen.
+- Ein geplanter Schlag wartet auf seinen Abschussort (höchstens 60 s), statt von einem anderen zu starten. Ist der Abschussort weg, startet er vom nächsten.
+- Nach `Enter` bleiben die Fadenkreuze stehen, bis die Waffe startet (die Warteschlange `salvoQ` geht dafür jetzt auch zur Seite).
+- Szene 141.

@@ -4396,6 +4396,23 @@ body.placing #cv { cursor: crosshair; }
 
   G.NEUES = [
     {
+      n: 141, date: '27.11.2026', title: 'Langes Spiel: Abschussort wählen, auch ein U-Boot', lang: true,
+      text: 'Mit einer Waffe in der Hand ein eigenes Silo oder U-Boot antippen wählt es als Abschussort (weisser Ring). Gestrichelte Kreise zeigen, wie weit jeder Abschussort reicht. Beim Planen mit Shift + Klick merkt sich jedes Ziel seinen Abschussort. Ein U-Boot hat ein Rohr: Zwei Ziele vom selben U-Boot schlagen nicht gleichzeitig ein, das spätere Ziel ist orange mit «+27 s».',
+      map: { w: 300, h: 150, rough: 4, seed: 941, shapes: [rect(0, 0, 300, 40), rect(0, 100, 300, 150)] },
+      me: { x: 150, y: 18, box: [0, 0, 300, 40], troops: 60000, gold: 3000000, build: [[UT.PORT, 120, 39, 2], [UT.SILO, 60, 20, 1]] },
+      foes: [{ name: 'Südreich', x: 150, y: 130, box: [0, 100, 300, 150], troops: 90000, build: [[UT.CITY, 150, 125, 6], [UT.CITY, 230, 120, 4], [UT.FACTORY, 70, 125, 2]] }],
+      allow: ALL, quest: none,
+      events: [[0, function (Q) { Q.ship(Q.me, 190, 70, 2); }]],
+      loop: [6, 40, function (Q) {
+        const g = Q.g, me = Q.me, sub = me.units.find(function (u) { return u.type === UT.WARSHIP && u.cls === 2; }), silo = me.units.find(function (u) { return u.type === UT.SILO; });
+        if (!sub || !silo) return;
+        me.gold += 3e6;
+        g.salvo(me, [{ u: UT.CRUISE, t: g.levelTile(70, 125), s: silo.id }, { u: UT.CRUISE, t: g.levelTile(150, 125), s: sub.id }, { u: UT.CRUISE, t: g.levelTile(230, 120), s: sub.id }]);
+      }],
+      // only for the eye: the reach of both launchers (the strikes still waiting show by themselves)
+      look: function (v) { v.reachType = UT.CRUISE; }
+    },
+    {
       n: 140, date: '27.11.2026', title: 'Langes Spiel: Träger stärker, Schiffe teurer', lang: true,
       text: 'Der Flugzeugträger hält doppelt so viel aus. Schiffe kosten mehr: U-Boot und Flugzeugträger das Doppelte, Zerstörer, Schlachtschiff, Abwehr- und Radarschiff das 1.3-Fache. Hier beschiessen die Schlachtschiffe der Südküste deinen Träger; er hält lange durch.',
       map: STRAIT,
@@ -6989,35 +7006,71 @@ body.placing #cv { cursor: crosshair; }
     for (const id of Array.from(p.allies.keys())) { const q = this.players[id]; if (q) this.breakAlliance(p, q); }
     this.say(p === this.human ? 'Du hast eine Atomwaffe eingesetzt: Bündnisse gebrochen, ' + Math.round(G.LANG.outlaw / 600) + ' Minuten kein Handel, alle kämpfen härter gegen dich' : p.name + ' hat eine Atomwaffe eingesetzt und ist geächtet', 'bad');
   };
-  // A planned strike (command salvo): several targets, each with its weapon and silo, timed so that
-  // all land at once. The one that takes longest (arming included) starts now, the others later.
-  // Each start is checked and paid for when it comes, like a single order.
-  Game.prototype.salvo = function (p, list) {
-    if (!Array.isArray(list) || !list.length || list.length > 12) return 'Nicht möglich';
+  // A planned strike (command salvo): several targets, each with its weapon and launcher (silo,
+  // submarine or airfield), timed so that all land at once. The one that takes longest (arming
+  // included) starts now, the others later. Each start is checked and paid for when it comes, like
+  // a single order.
+  // A launcher has as many slots as levels (a submarine one tube): one used twice has to reload in
+  // between, so a target that cannot start in time starts as soon as the slot is free and lands
+  // `late` ticks after the others (salvoPlan; the interface shows it while planning).
+  Game.prototype.salvoPlan = function (p, list) {
+    if (!Array.isArray(list) || !list.length || list.length > 12) return { why: 'Nicht möglich' };
     const T = this.ticks, W = this.W, plan = [];
     let top = 0;
     for (const e of list) {
-      const t = e && e.t | 0, u = e && e.u | 0;
-      if (!(t >= 0 && t < this.N) || !(u >= UT.ATOM) || u === UT.LASER || u === UT.WARHEAD) return 'Nicht möglich';
-      const c = this.buildCheck(p, u, t, e.c === 1 ? 1 : 0, false, e.s | 0);
-      if (!c.silo) return c.why || 'Nicht möglich';
-      const d = Math.max(1, Math.hypot(t % W - c.silo.x, ((t / W) | 0) - c.silo.y));
-      const sp = this.R.nukeSpeed * (u === UT.SRBM ? G.LANG.srbmSpeed : G.lowFly(u) ? 1.6 : 1);
-      const need = Math.ceil(d / sp) + (G.LANG.arm[u] || 0);
+      const t = e && e.t | 0, u = e && e.u | 0, c1 = e && e.c === 1 ? 1 : 0;
+      if (!(t >= 0 && t < this.N) || !(u >= UT.ATOM) || u === UT.LASER || u === UT.WARHEAD || u === UT.FIGHTER) return { why: 'Nicht möglich' };
+      const c = this.buildCheck(p, u, t, c1, false, e.s | 0);
+      if (!c.silo) return { why: c.why || 'Nicht möglich' };
+      const L = c.silo, d = Math.max(1, Math.hypot(t % W - L.x, ((t / W) | 0) - L.y));
+      const plane = G.isPlane(u);
+      const sp = plane ? this.R.nukeSpeed * G.LANG.planeSpeed[u] : this.R.nukeSpeed * (u === UT.SRBM ? G.LANG.srbmSpeed : G.lowFly(u) ? 1.6 : 1) * this.weaponPace(p, u);
+      const arm = G.LANG.arm[u] ? Math.round(G.LANG.arm[u] * this.armFactory(p, L).k) : 0;
+      const need = Math.ceil(d / sp) + arm;
+      // how long the slot stays taken: the flight there and back for a plane, else arming and reloading
+      const busy = plane ? Math.ceil(2 * d / sp) + G.LANG.planeRest : arm + G.SILO_RELOAD;
       if (need > top) top = need;
-      plan.push({ u: u, t: t, s: c.silo.id, need: need, c: e.c === 1 ? 1 : 0 });
+      plan.push({ u: u, t: t, s: L.id, c: c1, need: need, busy: busy, at: 0, late: 0, L: L });
     }
+    // per launcher, in the order the starts are wanted: the slot free first
+    const free = new Map();
+    const order = plan.slice().sort(function (a, b) { return (b.need - a.need) || (a.t - b.t); });
+    for (const e of order) {
+      let f = free.get(e.s);
+      if (!f) { f = e.L.ready.map(function (r) { return Math.max(T, r); }); if (e.L.arm) for (let i = 0; i < f.length; i++) f[i] = Math.max(f[i], e.L.arm.at); free.set(e.s, f); }
+      let k = 0;
+      for (let i = 1; i < f.length; i++) if (f[i] < f[k]) k = i;
+      const want = T + top - e.need, at = Math.max(want, f[k]);
+      e.at = at; e.late = at - want; f[k] = at + e.busy;
+    }
+    for (const e of plan) delete e.L;
+    return { why: '', plan: plan };
+  };
+  Game.prototype.salvo = function (p, list) {
+    const r = this.salvoPlan(p, list);
+    if (r.why) return r.why;
     const q = this.salvoQ || (this.salvoQ = []);
-    for (const e of plan) q.push({ p: p.id, u: e.u, t: e.t, s: e.s, c: e.c, at: T + top - e.need });
+    for (const e of r.plan) q.push({ p: p.id, u: e.u, t: e.t, s: e.s, c: e.c, at: e.at, wait: e.at + 600, late: e.late });
+    if (p === this.human) { const late = r.plan.filter(function (e) { return e.late > 0; }).length; if (late) this.say(late + ' Ziel' + (late === 1 ? '' : 'e') + ' später: derselbe Abschussort muss nachladen', 'warn'); }
     return '';
+  };
+  // Is this launcher (by id) of p ready to fire now? (true if it is gone: then the nearest one fires)
+  Game.prototype.launcherFree = function (p, id) {
+    let L = null;
+    for (const u of p.units) if (u.id === id) { L = u; break; }
+    if (!L || !L.active || !L.ready || L.arm) return !L || !L.active || !L.ready;
+    for (let i = 0; i < L.ready.length; i++) if (L.ready[i] <= this.ticks) return true;
+    return false;
   };
   Game.prototype.langSalvoTick = function () {
     const q = this.salvoQ, T = this.ticks;
     for (let i = 0; i < q.length; i++) {
       const e = q[i];
       if (e.at > T) continue;
-      q.splice(i--, 1);
       const p = this.players[e.p];
+      // the launcher it was planned from fires it, once it is free (a submarine has one tube)
+      if (p && p.alive && e.s && T < (e.wait || 0) && !this.launcherFree(p, e.s)) continue;
+      q.splice(i--, 1);
       if (!p || !p.alive) continue;
       const done = this.build(p, e.u, e.t, e.c || 0, false, e.s);
       if (!done && p === this.human) this.say('Geplanter Schlag: ' + G.UNAME[e.u].replace('\u00AD', '') + ' konnte nicht starten', 'warn');
@@ -8157,7 +8210,7 @@ body.placing #cv { cursor: crosshair; }
   // ---------- what does not go across, or goes another way ----------
   // the game: tile arrays have their own channel, lists of objects too, the rest is the worker's
   // own working memory
-  const SKIP_GAME = new Set(['armed', 'salvoQ', 'map', 'sea', 'rng', 'owner', 'fallout', 'stamp', 'sid', 'q', 'dirty', 'dirtyN', 'dirtyFlag', 'edge',
+  const SKIP_GAME = new Set(['armed', 'map', 'sea', 'rng', 'owner', 'fallout', 'stamp', 'sid', 'q', 'dirty', 'dirtyN', 'dirtyFlag', 'edge',
     'players', 'units', 'attacks', 'rails', 'events', 'fx', 'pathLeg', 'pathNear', 'pathCache', 'pathQ', 'pathJob', 'nearQ', 'nearJob',
     'postHeap', 'postList', 'pocketQ', 'railHeap', 'thrustHeap', 'deferList', 'sg', 'cloakOk', 'opts', 'lv']);
   // a player: the border is sent for the person at this device only (the mirror works it out
@@ -10521,14 +10574,19 @@ void main() {
   // silo), the silo picked by a tap (a white ring), and while aiming a weapon the reach of every
   // own silo for it (src/07_ui.js, salvoList; src/04c_lang.js, weaponReach)
   View.prototype.drawSalvo = function (ctx, g, z, ox, oy, now) {
-    const W = g.W, h = g.human, list = this.salvo;
+    const W = g.W, h = g.human;
     if (!h) return;
-    const gh = this.ghost, ty = gh && gh.type >= UT.ATOM && gh.type !== UT.LASER ? gh.type : -1;
+    // the planned list, or once fired the strikes still waiting for their start (g.salvoQ)
+    let list = this.salvo;
+    if ((!list || !list.length) && g.salvoQ && g.salvoQ.length) { list = this.salvoWait || (this.salvoWait = []); list.length = 0; for (const e of g.salvoQ) if (e.p === h.id) list.push(e); }
+    const gh = this.ghost, ty = gh && gh.type >= UT.ATOM && gh.type !== UT.LASER ? gh.type : this.reachType || -1;   // reachType: a scene shows the circles without a weapon in hand
     if (ty >= 0) {
       const reach = g.weaponReach(ty);
       if (reach < Infinity) {
         ctx.setLineDash([6, 6]); ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(255,255,255,0.45)';
-        for (const u of h.units) if (u.type === UT.SILO && u.built) { ctx.beginPath(); ctx.arc((u.x + 0.5) * z + ox, (u.y + 0.5) * z + oy, reach * z, 0, 6.2832); ctx.stroke(); }
+        // every own launcher that can fire it: silos, and submarines with the research for it
+        const sub = g.subCan(h, ty);
+        for (const u of h.units) if ((u.type === UT.SILO && u.built && !u.cls) || (sub && u.type === UT.WARSHIP && u.cls === 2 && u.ready)) { ctx.beginPath(); ctx.arc((u.x + 0.5) * z + ox, (u.y + 0.5) * z + oy, reach * z, 0, 6.2832); ctx.stroke(); }
         ctx.setLineDash([]);
       }
     }
@@ -10542,9 +10600,13 @@ void main() {
       const e = list[i], x = (e.t % W + 0.5) * z + ox, y = (((e.t / W) | 0) + 0.5) * z + oy, r = 10;
       const s = h.units.find((u) => u.id === e.s);
       if (s) { ctx.beginPath(); ctx.moveTo((s.x + 0.5) * z + ox, (s.y + 0.5) * z + oy); ctx.lineTo(x, y); ctx.setLineDash([4, 5]); ctx.strokeStyle = 'rgba(255,220,120,0.7)'; ctx.lineWidth = 1.5; ctx.stroke(); ctx.setLineDash([]); }
+      // a target that lands later (its launcher has to reload first) is orange and says by how much
+      const late = e.late > 0, col = late ? '#ff9a4a' : '#ffd36e', lab = String(i + 1) + (late ? ' +' + Math.ceil(e.late / 10) + ' s' : '');
       ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832); ctx.moveTo(x - r - 4, y); ctx.lineTo(x + r + 4, y); ctx.moveTo(x, y - r - 4); ctx.lineTo(x, y + r + 4);
-      ctx.strokeStyle = '#ffd36e'; ctx.lineWidth = 2; ctx.stroke();
-      ctx.lineWidth = 3; ctx.strokeStyle = '#0b1016'; ctx.strokeText(String(i + 1), x + r + 8, y - r - 6); ctx.fillStyle = '#ffd36e'; ctx.fillText(String(i + 1), x + r + 8, y - r - 6);
+      ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.stroke();
+      ctx.textAlign = 'left';
+      ctx.lineWidth = 3; ctx.strokeStyle = '#0b1016'; ctx.strokeText(lab, x + r + 3, y - r - 6); ctx.fillStyle = col; ctx.fillText(lab, x + r + 3, y - r - 6);
+      ctx.textAlign = 'center';
     }
   };
   View.prototype.drawGhost = function (ctx, g, z, ox, oy, now) {
@@ -14219,6 +14281,22 @@ void main() {
     const u = game.structNear(tile, 3);
     return u && u.owner === game.human && u.built && u.type === ghost.t ? u : null;
   }
+  // «Langes Spiel»: the own submarine at a tile (within 4 tiles) that can fire weapon u, or null
+  function subAt(tile, u) {
+    const h = game.human, W = game.W, x = tile % W, y = (tile / W) | 0;
+    if (!game.subCan(h, u)) return null;
+    let best = null, bd = 17;
+    for (const v of h.units) if (v.type === UT.WARSHIP && v.cls === 2 && v.ready) { const d = (v.x - x) * (v.x - x) + (v.y - y) * (v.y - y); if (d < bd) { bd = d; best = v; } }
+    return best;
+  }
+  // The planned strikes as the simulation would time them: an entry that cannot start in time from
+  // its launcher (a submarine has one tube) lands later; its cross shows it (e.late, in ticks).
+  function salvoLate() {
+    const r = game.salvoPlan(game.human, salvoList.map(function (e) { return { u: e.u, c: e.c, t: e.t, s: e.s }; }));
+    let n = 0, most = 0;
+    for (let i = 0; i < salvoList.length; i++) { const l = r.plan ? r.plan[i].late : 0; salvoList[i].late = l; if (l > 0) { n++; most = Math.max(most, l); } }
+    return n ? n + ' Ziel' + (n === 1 ? '' : 'e') + ' bis ' + Math.ceil(most / 10) + ' s später (derselbe Abschussort lädt nach)' : '';
+  }
   function placeGhost(tile) {
     const h = game.human, t = ghost.t, up = ghostUpgrade(tile);
     if (up) {
@@ -14230,13 +14308,17 @@ void main() {
     if (game.lang && t >= UT.ATOM && t !== UT.LASER) {
       // «Langes Spiel»: a tap on an own silo picks it for the next shot; Shift plans a strike
       const s = game.structNear(tile, 3);
-      if (s && s.owner === h && s.type === UT.SILO && s.built) { siloSel = siloSel === s.id ? 0 : s.id; view.siloSel = siloSel; toast(siloSel ? 'Silo gewählt' : 'Wieder das nächste Silo'); ghostKey = ''; return; }
+      if (s && s.owner === h && s.type === UT.SILO && s.built && !s.cls === !G.isPlane(real(t).u)) { siloSel = siloSel === s.id ? 0 : s.id; view.siloSel = siloSel; toast(siloSel ? (s.cls ? 'Flugplatz gewählt' : 'Silo gewählt') : 'Wieder der nächste Abschussort'); ghostKey = ''; return; }
+      // an own submarine that can fire this weapon is a launcher as well (one tube)
+      const sb = subAt(tile, real(t).u);
+      if (sb) { siloSel = siloSel === sb.id ? 0 : sb.id; view.siloSel = siloSel; toast(siloSel ? 'U-Boot gewählt' : 'Wieder der nächste Abschussort'); ghostKey = ''; return; }
       if (shiftHeld) {
         const pc = game.buildCheck(h, real(t).u, tile, real(t).cls, false, siloSel);
         if (!pc.silo) { toast(plain(t) + ': ' + (pc.why || 'Hier nicht möglich')); snd('deny'); return; }
         if (salvoList.length >= 12) { toast('Höchstens 12 Ziele'); return; }
         salvoList.push({ u: real(t).u, c: real(t).cls || undefined, t: tile, s: pc.silo.id }); view.salvo = salvoList;
-        toast('Ziel ' + salvoList.length + ' geplant · Enter feuert alle zusammen');
+        const late = salvoLate();
+        toast('Ziel ' + salvoList.length + ' geplant' + (late ? ' · ' + late : '') + ' · Enter feuert alle zusammen');
         return;
       }
     }
@@ -15064,7 +15146,7 @@ void main() {
       if (aim) { if (k === 'enter' && !$('aimGo').disabled) fireAim(); return; }
       if (game.lang && k === 'r') { weaponBar = !weaponBar; setGhost(null); toast(weaponBar ? 'Waffenleiste: 1, 2, 3 … wählt die Waffe' : 'Bauleiste'); return; }
       if (game.lang && k === 'enter' && salvoList.length) { fireSalvo(); return; }
-      if (game.lang && k === 'backspace' && salvoList.length) { salvoList.pop(); view.salvo = salvoList; toast('Letztes Ziel entfernt'); return; }
+      if (game.lang && k === 'backspace' && salvoList.length) { salvoList.pop(); view.salvo = salvoList; if (salvoList.length) salvoLate(); toast('Letztes Ziel entfernt'); return; }
       if (k === 'enter' && game.pfeile) { launchPlans(); return; }
       if (k === 'backspace' && game.pfeile && plans.length) { plans.pop(); syncPlans(); toast('Letzter Pfeil entfernt'); return; }
       // everything below acts on the build menu's tile, or else on the tile under the mouse pointer

@@ -9,6 +9,13 @@ const G = globalThis.G, UT = G.UT;
 const count = (g, type, p) => g.units.filter((u) => u.active && u.type === type && (!p || u.owner === p)).length;
 // what has to be seen in each scene, asked every second; seen once is enough
 const SEEN = {
+  141: (g, s) => {
+    // the submarine fires twice, one after the other, the silo once
+    const sub = g.human.units.find((u) => u.type === UT.WARSHIP && u.cls === 2);
+    for (const n of g.nukes) if (n.active && n.owner === g.human && n.type === UT.CRUISE) (s.from || (s.from = new Map())).set(n.id, sub && Math.abs(n.sx - sub.x) < 3 && Math.abs(n.sy - sub.y) < 3 ? 'sub' : 'silo');
+    const v = s.from ? Array.from(s.from.values()) : [];
+    return v.filter((x) => x === 'sub').length >= 2 && v.includes('silo');
+  },
   140: (g) => { const c = g.human.units.find((u) => u.type === UT.WARSHIP && u.cls === 3); return !!c && c.hp < g.shipFull(c) && c.hp > G.SHIP_CLASS[3].hp * G.LANG.shipHp; },
   139: (g) => { const c = g.lv.foes[0].units.find((u) => u.type === UT.CITY && u.x < 220); return !!c && c.level < 8 && g.units.some((u) => u.active && u.type === UT.BOMBER && !u.load); },
   138: (g, s) => {

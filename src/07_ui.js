@@ -1467,6 +1467,22 @@
     const u = game.structNear(tile, 3);
     return u && u.owner === game.human && u.built && u.type === ghost.t ? u : null;
   }
+  // «Langes Spiel»: the own submarine at a tile (within 4 tiles) that can fire weapon u, or null
+  function subAt(tile, u) {
+    const h = game.human, W = game.W, x = tile % W, y = (tile / W) | 0;
+    if (!game.subCan(h, u)) return null;
+    let best = null, bd = 17;
+    for (const v of h.units) if (v.type === UT.WARSHIP && v.cls === 2 && v.ready) { const d = (v.x - x) * (v.x - x) + (v.y - y) * (v.y - y); if (d < bd) { bd = d; best = v; } }
+    return best;
+  }
+  // The planned strikes as the simulation would time them: an entry that cannot start in time from
+  // its launcher (a submarine has one tube) lands later; its cross shows it (e.late, in ticks).
+  function salvoLate() {
+    const r = game.salvoPlan(game.human, salvoList.map(function (e) { return { u: e.u, c: e.c, t: e.t, s: e.s }; }));
+    let n = 0, most = 0;
+    for (let i = 0; i < salvoList.length; i++) { const l = r.plan ? r.plan[i].late : 0; salvoList[i].late = l; if (l > 0) { n++; most = Math.max(most, l); } }
+    return n ? n + ' Ziel' + (n === 1 ? '' : 'e') + ' bis ' + Math.ceil(most / 10) + ' s später (derselbe Abschussort lädt nach)' : '';
+  }
   function placeGhost(tile) {
     const h = game.human, t = ghost.t, up = ghostUpgrade(tile);
     if (up) {
@@ -1478,13 +1494,17 @@
     if (game.lang && t >= UT.ATOM && t !== UT.LASER) {
       // «Langes Spiel»: a tap on an own silo picks it for the next shot; Shift plans a strike
       const s = game.structNear(tile, 3);
-      if (s && s.owner === h && s.type === UT.SILO && s.built) { siloSel = siloSel === s.id ? 0 : s.id; view.siloSel = siloSel; toast(siloSel ? 'Silo gewählt' : 'Wieder das nächste Silo'); ghostKey = ''; return; }
+      if (s && s.owner === h && s.type === UT.SILO && s.built && !s.cls === !G.isPlane(real(t).u)) { siloSel = siloSel === s.id ? 0 : s.id; view.siloSel = siloSel; toast(siloSel ? (s.cls ? 'Flugplatz gewählt' : 'Silo gewählt') : 'Wieder der nächste Abschussort'); ghostKey = ''; return; }
+      // an own submarine that can fire this weapon is a launcher as well (one tube)
+      const sb = subAt(tile, real(t).u);
+      if (sb) { siloSel = siloSel === sb.id ? 0 : sb.id; view.siloSel = siloSel; toast(siloSel ? 'U-Boot gewählt' : 'Wieder der nächste Abschussort'); ghostKey = ''; return; }
       if (shiftHeld) {
         const pc = game.buildCheck(h, real(t).u, tile, real(t).cls, false, siloSel);
         if (!pc.silo) { toast(plain(t) + ': ' + (pc.why || 'Hier nicht möglich')); snd('deny'); return; }
         if (salvoList.length >= 12) { toast('Höchstens 12 Ziele'); return; }
         salvoList.push({ u: real(t).u, c: real(t).cls || undefined, t: tile, s: pc.silo.id }); view.salvo = salvoList;
-        toast('Ziel ' + salvoList.length + ' geplant · Enter feuert alle zusammen');
+        const late = salvoLate();
+        toast('Ziel ' + salvoList.length + ' geplant' + (late ? ' · ' + late : '') + ' · Enter feuert alle zusammen');
         return;
       }
     }
@@ -2312,7 +2332,7 @@
       if (aim) { if (k === 'enter' && !$('aimGo').disabled) fireAim(); return; }
       if (game.lang && k === 'r') { weaponBar = !weaponBar; setGhost(null); toast(weaponBar ? 'Waffenleiste: 1, 2, 3 … wählt die Waffe' : 'Bauleiste'); return; }
       if (game.lang && k === 'enter' && salvoList.length) { fireSalvo(); return; }
-      if (game.lang && k === 'backspace' && salvoList.length) { salvoList.pop(); view.salvo = salvoList; toast('Letztes Ziel entfernt'); return; }
+      if (game.lang && k === 'backspace' && salvoList.length) { salvoList.pop(); view.salvo = salvoList; if (salvoList.length) salvoLate(); toast('Letztes Ziel entfernt'); return; }
       if (k === 'enter' && game.pfeile) { launchPlans(); return; }
       if (k === 'backspace' && game.pfeile && plans.length) { plans.pop(); syncPlans(); toast('Letzter Pfeil entfernt'); return; }
       // everything below acts on the build menu's tile, or else on the tile under the mouse pointer

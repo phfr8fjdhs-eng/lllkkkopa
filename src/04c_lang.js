@@ -342,35 +342,71 @@
     for (const id of Array.from(p.allies.keys())) { const q = this.players[id]; if (q) this.breakAlliance(p, q); }
     this.say(p === this.human ? 'Du hast eine Atomwaffe eingesetzt: Bündnisse gebrochen, ' + Math.round(G.LANG.outlaw / 600) + ' Minuten kein Handel, alle kämpfen härter gegen dich' : p.name + ' hat eine Atomwaffe eingesetzt und ist geächtet', 'bad');
   };
-  // A planned strike (command salvo): several targets, each with its weapon and silo, timed so that
-  // all land at once. The one that takes longest (arming included) starts now, the others later.
-  // Each start is checked and paid for when it comes, like a single order.
-  Game.prototype.salvo = function (p, list) {
-    if (!Array.isArray(list) || !list.length || list.length > 12) return 'Nicht möglich';
+  // A planned strike (command salvo): several targets, each with its weapon and launcher (silo,
+  // submarine or airfield), timed so that all land at once. The one that takes longest (arming
+  // included) starts now, the others later. Each start is checked and paid for when it comes, like
+  // a single order.
+  // A launcher has as many slots as levels (a submarine one tube): one used twice has to reload in
+  // between, so a target that cannot start in time starts as soon as the slot is free and lands
+  // `late` ticks after the others (salvoPlan; the interface shows it while planning).
+  Game.prototype.salvoPlan = function (p, list) {
+    if (!Array.isArray(list) || !list.length || list.length > 12) return { why: 'Nicht möglich' };
     const T = this.ticks, W = this.W, plan = [];
     let top = 0;
     for (const e of list) {
-      const t = e && e.t | 0, u = e && e.u | 0;
-      if (!(t >= 0 && t < this.N) || !(u >= UT.ATOM) || u === UT.LASER || u === UT.WARHEAD) return 'Nicht möglich';
-      const c = this.buildCheck(p, u, t, e.c === 1 ? 1 : 0, false, e.s | 0);
-      if (!c.silo) return c.why || 'Nicht möglich';
-      const d = Math.max(1, Math.hypot(t % W - c.silo.x, ((t / W) | 0) - c.silo.y));
-      const sp = this.R.nukeSpeed * (u === UT.SRBM ? G.LANG.srbmSpeed : G.lowFly(u) ? 1.6 : 1);
-      const need = Math.ceil(d / sp) + (G.LANG.arm[u] || 0);
+      const t = e && e.t | 0, u = e && e.u | 0, c1 = e && e.c === 1 ? 1 : 0;
+      if (!(t >= 0 && t < this.N) || !(u >= UT.ATOM) || u === UT.LASER || u === UT.WARHEAD || u === UT.FIGHTER) return { why: 'Nicht möglich' };
+      const c = this.buildCheck(p, u, t, c1, false, e.s | 0);
+      if (!c.silo) return { why: c.why || 'Nicht möglich' };
+      const L = c.silo, d = Math.max(1, Math.hypot(t % W - L.x, ((t / W) | 0) - L.y));
+      const plane = G.isPlane(u);
+      const sp = plane ? this.R.nukeSpeed * G.LANG.planeSpeed[u] : this.R.nukeSpeed * (u === UT.SRBM ? G.LANG.srbmSpeed : G.lowFly(u) ? 1.6 : 1) * this.weaponPace(p, u);
+      const arm = G.LANG.arm[u] ? Math.round(G.LANG.arm[u] * this.armFactory(p, L).k) : 0;
+      const need = Math.ceil(d / sp) + arm;
+      // how long the slot stays taken: the flight there and back for a plane, else arming and reloading
+      const busy = plane ? Math.ceil(2 * d / sp) + G.LANG.planeRest : arm + G.SILO_RELOAD;
       if (need > top) top = need;
-      plan.push({ u: u, t: t, s: c.silo.id, need: need, c: e.c === 1 ? 1 : 0 });
+      plan.push({ u: u, t: t, s: L.id, c: c1, need: need, busy: busy, at: 0, late: 0, L: L });
     }
+    // per launcher, in the order the starts are wanted: the slot free first
+    const free = new Map();
+    const order = plan.slice().sort(function (a, b) { return (b.need - a.need) || (a.t - b.t); });
+    for (const e of order) {
+      let f = free.get(e.s);
+      if (!f) { f = e.L.ready.map(function (r) { return Math.max(T, r); }); if (e.L.arm) for (let i = 0; i < f.length; i++) f[i] = Math.max(f[i], e.L.arm.at); free.set(e.s, f); }
+      let k = 0;
+      for (let i = 1; i < f.length; i++) if (f[i] < f[k]) k = i;
+      const want = T + top - e.need, at = Math.max(want, f[k]);
+      e.at = at; e.late = at - want; f[k] = at + e.busy;
+    }
+    for (const e of plan) delete e.L;
+    return { why: '', plan: plan };
+  };
+  Game.prototype.salvo = function (p, list) {
+    const r = this.salvoPlan(p, list);
+    if (r.why) return r.why;
     const q = this.salvoQ || (this.salvoQ = []);
-    for (const e of plan) q.push({ p: p.id, u: e.u, t: e.t, s: e.s, c: e.c, at: T + top - e.need });
+    for (const e of r.plan) q.push({ p: p.id, u: e.u, t: e.t, s: e.s, c: e.c, at: e.at, wait: e.at + 600, late: e.late });
+    if (p === this.human) { const late = r.plan.filter(function (e) { return e.late > 0; }).length; if (late) this.say(late + ' Ziel' + (late === 1 ? '' : 'e') + ' später: derselbe Abschussort muss nachladen', 'warn'); }
     return '';
+  };
+  // Is this launcher (by id) of p ready to fire now? (true if it is gone: then the nearest one fires)
+  Game.prototype.launcherFree = function (p, id) {
+    let L = null;
+    for (const u of p.units) if (u.id === id) { L = u; break; }
+    if (!L || !L.active || !L.ready || L.arm) return !L || !L.active || !L.ready;
+    for (let i = 0; i < L.ready.length; i++) if (L.ready[i] <= this.ticks) return true;
+    return false;
   };
   Game.prototype.langSalvoTick = function () {
     const q = this.salvoQ, T = this.ticks;
     for (let i = 0; i < q.length; i++) {
       const e = q[i];
       if (e.at > T) continue;
-      q.splice(i--, 1);
       const p = this.players[e.p];
+      // the launcher it was planned from fires it, once it is free (a submarine has one tube)
+      if (p && p.alive && e.s && T < (e.wait || 0) && !this.launcherFree(p, e.s)) continue;
+      q.splice(i--, 1);
       if (!p || !p.alive) continue;
       const done = this.build(p, e.u, e.t, e.c || 0, false, e.s);
       if (!done && p === this.human) this.say('Geplanter Schlag: ' + G.UNAME[e.u].replace('\u00AD', '') + ' konnte nicht starten', 'warn');

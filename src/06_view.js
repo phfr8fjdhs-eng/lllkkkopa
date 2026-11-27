@@ -1080,14 +1080,19 @@
   // silo), the silo picked by a tap (a white ring), and while aiming a weapon the reach of every
   // own silo for it (src/07_ui.js, salvoList; src/04c_lang.js, weaponReach)
   View.prototype.drawSalvo = function (ctx, g, z, ox, oy, now) {
-    const W = g.W, h = g.human, list = this.salvo;
+    const W = g.W, h = g.human;
     if (!h) return;
-    const gh = this.ghost, ty = gh && gh.type >= UT.ATOM && gh.type !== UT.LASER ? gh.type : -1;
+    // the planned list, or once fired the strikes still waiting for their start (g.salvoQ)
+    let list = this.salvo;
+    if ((!list || !list.length) && g.salvoQ && g.salvoQ.length) { list = this.salvoWait || (this.salvoWait = []); list.length = 0; for (const e of g.salvoQ) if (e.p === h.id) list.push(e); }
+    const gh = this.ghost, ty = gh && gh.type >= UT.ATOM && gh.type !== UT.LASER ? gh.type : this.reachType || -1;   // reachType: a scene shows the circles without a weapon in hand
     if (ty >= 0) {
       const reach = g.weaponReach(ty);
       if (reach < Infinity) {
         ctx.setLineDash([6, 6]); ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(255,255,255,0.45)';
-        for (const u of h.units) if (u.type === UT.SILO && u.built) { ctx.beginPath(); ctx.arc((u.x + 0.5) * z + ox, (u.y + 0.5) * z + oy, reach * z, 0, 6.2832); ctx.stroke(); }
+        // every own launcher that can fire it: silos, and submarines with the research for it
+        const sub = g.subCan(h, ty);
+        for (const u of h.units) if ((u.type === UT.SILO && u.built && !u.cls) || (sub && u.type === UT.WARSHIP && u.cls === 2 && u.ready)) { ctx.beginPath(); ctx.arc((u.x + 0.5) * z + ox, (u.y + 0.5) * z + oy, reach * z, 0, 6.2832); ctx.stroke(); }
         ctx.setLineDash([]);
       }
     }
@@ -1101,9 +1106,13 @@
       const e = list[i], x = (e.t % W + 0.5) * z + ox, y = (((e.t / W) | 0) + 0.5) * z + oy, r = 10;
       const s = h.units.find((u) => u.id === e.s);
       if (s) { ctx.beginPath(); ctx.moveTo((s.x + 0.5) * z + ox, (s.y + 0.5) * z + oy); ctx.lineTo(x, y); ctx.setLineDash([4, 5]); ctx.strokeStyle = 'rgba(255,220,120,0.7)'; ctx.lineWidth = 1.5; ctx.stroke(); ctx.setLineDash([]); }
+      // a target that lands later (its launcher has to reload first) is orange and says by how much
+      const late = e.late > 0, col = late ? '#ff9a4a' : '#ffd36e', lab = String(i + 1) + (late ? ' +' + Math.ceil(e.late / 10) + ' s' : '');
       ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832); ctx.moveTo(x - r - 4, y); ctx.lineTo(x + r + 4, y); ctx.moveTo(x, y - r - 4); ctx.lineTo(x, y + r + 4);
-      ctx.strokeStyle = '#ffd36e'; ctx.lineWidth = 2; ctx.stroke();
-      ctx.lineWidth = 3; ctx.strokeStyle = '#0b1016'; ctx.strokeText(String(i + 1), x + r + 8, y - r - 6); ctx.fillStyle = '#ffd36e'; ctx.fillText(String(i + 1), x + r + 8, y - r - 6);
+      ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.stroke();
+      ctx.textAlign = 'left';
+      ctx.lineWidth = 3; ctx.strokeStyle = '#0b1016'; ctx.strokeText(lab, x + r + 3, y - r - 6); ctx.fillStyle = col; ctx.fillText(lab, x + r + 3, y - r - 6);
+      ctx.textAlign = 'center';
     }
   };
   View.prototype.drawGhost = function (ctx, g, z, ox, oy, now) {

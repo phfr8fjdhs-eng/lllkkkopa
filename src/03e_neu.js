@@ -42,6 +42,23 @@
 
   G.NEUES = [
     {
+      n: 141, date: '27.11.2026', title: 'Langes Spiel: Abschussort wählen, auch ein U-Boot', lang: true,
+      text: 'Mit einer Waffe in der Hand ein eigenes Silo oder U-Boot antippen wählt es als Abschussort (weisser Ring). Gestrichelte Kreise zeigen, wie weit jeder Abschussort reicht. Beim Planen mit Shift + Klick merkt sich jedes Ziel seinen Abschussort. Ein U-Boot hat ein Rohr: Zwei Ziele vom selben U-Boot schlagen nicht gleichzeitig ein, das spätere Ziel ist orange mit «+27 s».',
+      map: { w: 300, h: 150, rough: 4, seed: 941, shapes: [rect(0, 0, 300, 40), rect(0, 100, 300, 150)] },
+      me: { x: 150, y: 18, box: [0, 0, 300, 40], troops: 60000, gold: 3000000, build: [[UT.PORT, 120, 39, 2], [UT.SILO, 60, 20, 1]] },
+      foes: [{ name: 'Südreich', x: 150, y: 130, box: [0, 100, 300, 150], troops: 90000, build: [[UT.CITY, 150, 125, 6], [UT.CITY, 230, 120, 4], [UT.FACTORY, 70, 125, 2]] }],
+      allow: ALL, quest: none,
+      events: [[0, function (Q) { Q.ship(Q.me, 190, 70, 2); }]],
+      loop: [6, 40, function (Q) {
+        const g = Q.g, me = Q.me, sub = me.units.find(function (u) { return u.type === UT.WARSHIP && u.cls === 2; }), silo = me.units.find(function (u) { return u.type === UT.SILO; });
+        if (!sub || !silo) return;
+        me.gold += 3e6;
+        g.salvo(me, [{ u: UT.CRUISE, t: g.levelTile(70, 125), s: silo.id }, { u: UT.CRUISE, t: g.levelTile(150, 125), s: sub.id }, { u: UT.CRUISE, t: g.levelTile(230, 120), s: sub.id }]);
+      }],
+      // only for the eye: the reach of both launchers (the strikes still waiting show by themselves)
+      look: function (v) { v.reachType = UT.CRUISE; }
+    },
+    {
       n: 140, date: '27.11.2026', title: 'Langes Spiel: Träger stärker, Schiffe teurer', lang: true,
       text: 'Der Flugzeugträger hält doppelt so viel aus. Schiffe kosten mehr: U-Boot und Flugzeugträger das Doppelte, Zerstörer, Schlachtschiff, Abwehr- und Radarschiff das 1.3-Fache. Hier beschiessen die Schlachtschiffe der Südküste deinen Träger; er hält lange durch.',
       map: STRAIT,
