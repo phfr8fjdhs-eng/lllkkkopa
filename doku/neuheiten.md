@@ -11,6 +11,7 @@ Ein eigener Bereich neben dem normalen Spiel und den Levels. Auf dem Startbildsc
 ## Die Szenen (Stand 26.11.2026)
 | Nr. | Datum | Name | Was passiert |
 | --- | --- | --- | --- |
+| 145 | 27.11. | Langes Spiel: neues Forschungsfenster | Zwei Unis, Flugabwehr erforscht, Marschflugkörper läuft; Tipp zeigt auf den Kolben |
 | 144 | 27.11. | Langes Spiel: Bauleiste in vier Gruppen | Küste mit Hafen, Silo und Flugplatz; Tipp zeigt auf die Reiter der Bauleiste |
 | 143 | 27.11. | Langes Spiel: Wer schiesst? | Südküste schickt Bomber und Marschflugkörper; eigene Raketenabwehr und Abwehrschiff schiessen sie ab, mit heller Spur und Meldung |
 | 142 | 27.11. | Langes Spiel: Flugzeuge decken auf | Alle 8 s abwechselnd ein Bomber und ein Aufklärer über das Land von Ostmark; um jedes Flugzeug ist der Nebel weg |

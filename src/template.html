@@ -530,16 +530,38 @@ body.placing #cv { cursor: crosshair; }
 #nwBar .nwBtns button { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 3px; padding: 6px 4px; border: 0; border-radius: 8px; font: 600 14px var(--display); color: var(--ink); background: rgba(255, 255, 255, 0.1); cursor: pointer; }
 #nwBar .nwBtns button:first-child svg { transform: scaleX(-1); }
 #nwBar .nwBtns button:disabled { opacity: .35; cursor: default; }
-#techCard .tb2 { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; margin: 4px 0 12px; }
-#techCard h3 { margin: 10px 0 4px; font: 600 13px var(--display); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
-#techCard .tk { border-radius: 8px; padding: 6px 7px; background: rgba(255,255,255,.05); font-size: 12px; line-height: 1.25; text-align: left; border: 1px solid transparent; color: inherit; }
-#techCard .tk b { display: block; font: 600 12.5px var(--display); }
-#techCard .tk small { display: block; color: var(--muted); }
-#techCard .tk.done { background: rgba(99,211,145,.16); border-color: rgba(99,211,145,.5); }
-#techCard .tk.run { border-color: #f4b740; }
-#techCard .tk.gone { opacity: .35; text-decoration: line-through; }
-#techCard .tk.can { cursor: pointer; border-color: rgba(255,255,255,.25); }
-#techCard .tk.lock { opacity: .55; }
+#modalCard.techWide { width: min(900px, 100%); }
+#techCard .thead { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 14px; }
+#techCard .tstats { display: flex; flex-wrap: wrap; gap: 6px; }
+#techCard .tstats span { padding: 4px 10px; border-radius: 999px; background: rgba(255,255,255,.07); font-size: 13px; color: var(--muted); }
+#techCard .tstats b { color: var(--accent); font: 700 15px var(--display); }
+#techCard .tdetail { margin: 8px 0; padding: 10px 12px; border-radius: 10px; background: rgba(255,255,255,.06); border-left: 4px solid var(--muted); }
+#techCard .tdetail b { font: 700 17px var(--display); } #techCard .tdetail b i { font-style: normal; font-size: 12px; color: var(--accent); }
+#techCard .tdetail span { margin-left: 8px; font-size: 12px; color: var(--muted); }
+#techCard .tdetail p { margin: 4px 0; font-size: 14px; } #techCard .tdetail small { color: var(--muted); }
+#techCard .tdetail.done { border-left-color: #63d391; } #techCard .tdetail.can { border-left-color: var(--accent); } #techCard .tdetail.run { border-left-color: #6fb7ff; }
+#techCard .tgrid { display: grid; grid-template-columns: 74px repeat(5, minmax(0, 1fr)); gap: 5px; align-items: start; margin-top: 8px; }
+#techCard .tier { text-align: center; font: 700 12px var(--display); color: var(--muted); }
+#techCard .tbr { align-self: center; font: 600 12px var(--display); letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+#techCard .tcol { display: flex; flex-direction: column; gap: 3px; min-height: 34px; padding: 3px; border-radius: 8px; background: rgba(255,255,255,.025); }
+#techCard .tor { font-size: 10px; font-style: normal; text-align: center; color: var(--accent); line-height: 1; }
+#techCard .tk { position: relative; display: flex; align-items: center; gap: 4px; min-height: 30px; padding: 3px 5px; border-radius: 7px; overflow: hidden; background: rgba(255,255,255,.06); border: 1.5px solid transparent; color: inherit; text-align: left; cursor: pointer; }
+#techCard .tk svg { flex: none; fill: currentColor; }
+#techCard .tk b { font: 600 12px var(--display); line-height: 1.1; overflow: hidden; text-overflow: ellipsis; }
+#techCard .tk em { margin-left: auto; font-style: normal; font: 700 11px var(--display); }
+#techCard .tk u { position: absolute; left: 0; bottom: 0; height: 3px; background: #6fb7ff; text-decoration: none; }
+#techCard .tk.done { background: rgba(99,211,145,.22); border-color: rgba(99,211,145,.65); color: #d9ffe8; }
+#techCard .tk.done em { color: #63d391; }
+#techCard .tk.can { border-color: var(--accent); color: var(--ink); background: rgba(244,183,64,.12); }
+#techCard .tk.run { border-color: #6fb7ff; background: rgba(111,183,255,.14); }
+#techCard .tk.wait { border-color: rgba(244,183,64,.4); }
+#techCard .tk.time { opacity: .5; } #techCard .tk.time em { color: var(--muted); }
+#techCard .tk.need { opacity: .6; border-style: dashed; border-color: rgba(255,255,255,.25); }
+#techCard .tk.gone { opacity: .28; text-decoration: line-through; }
+#techCard .tk.sel { outline: 2px solid #fff; outline-offset: 1px; }
+#techCard .tlegend { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 10px; }
+#techCard .tlegend .tk { min-height: 0; padding: 2px 8px; font-size: 11.5px; cursor: default; }
+@media (max-width: 620px) { #techCard .tgrid { grid-template-columns: 52px repeat(5, minmax(0, 1fr)); gap: 3px; } #techCard .tk svg { display: none; } #techCard .tk { padding: 9px 3px 3px; min-height: 34px; } #techCard .tk b { font-size: 10.5px; hyphens: auto; overflow-wrap: anywhere; } #techCard .tk em { position: absolute; right: 3px; top: 1px; font-size: 9px; } #techCard .tbr { font-size: 9.5px; overflow-wrap: anywhere; } }
 #techCard .tierh { font: 600 11px var(--display); color: var(--muted); text-align: center; }
 @media (max-width: 640px) { #techCard .tb2 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 #evac { position: absolute; left: 50%; top: 56px; transform: translateX(-50%); padding: 6px 8px; display: flex; flex-direction: column; gap: 6px; z-index: 6; }

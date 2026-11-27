@@ -375,3 +375,12 @@ Code: `GROUPS`, `groupItems`, `setGroup`, `groupTabs` in `src/07_ui.js`, Stil `.
 - **Handy:** Das Baumenü hat dieselben vier Reiter, gross genug für einen Finger (48 Pixel hoch), und zeigt nur die gewählte Gruppe. Ein Tipp auf einen Reiter lässt das Menü offen.
 - Flugzeuge aus dem Baumenü prüfen jetzt den Flugplatz statt eines Silos.
 - Szene 144.
+
+### B2. Forschungsfenster neu
+Code: `showTech`, `techState`, `TSHORT` in `src/07_ui.js`, Stil `#techCard` in `src/template.html`.
+- Breiter (bis 900 Pixel), oben Forschungspunkte pro Sekunde, Unis (davon frei) und wann die nächste Stufe aufgeht.
+- **Eine Zeile pro Zweig**, fünf Spalten für die Stufen; jede Forschung ein Kästchen mit kurzem Namen und Zeichen (`TSHORT`). «oder» steht zwischen den beiden Wahlen.
+- **Zustände:** erforscht (grün, ✓), möglich (gelber Rand), möglich aber keine Uni frei (blasser gelber Rand), läuft (blau, Balken unten), gesperrt bis Minute X (grau, «15′»), braucht zuerst etwas (gestrichelt), ausgeschlossen (durchgestrichen, sehr blass). Eine Legende steht unten.
+- **Erklärung erst beim Antippen** (oben im Fenster: Name, Zweig, was es tut, Zustand, Knopf «Erforschen») oder beim Darüberfahren (Titel). Nochmals antippen schliesst die Erklärung.
+- Auf dem Handy ohne Zeichen, Minute klein in der Ecke, Namen umbrechen.
+- Szene 145.

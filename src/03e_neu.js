@@ -42,6 +42,20 @@
 
   G.NEUES = [
     {
+      n: 145, date: '27.11.2026', title: 'Langes Spiel: neues Forschungsfenster', lang: true, research: true,
+      text: 'Das Forschungsfenster (Kolben oben) zeigt pro Zweig eine Zeile mit den fünf Stufen als Kästchen: grün erforscht, gelb möglich, blau läuft, grau mit Minute noch gesperrt, gestrichelt braucht zuerst etwas, durchgestrichen ausgeschlossen («oder»). Antippen erklärt das Kästchen und startet die Forschung. Punkte und Unis stehen oben.',
+      map: { w: 300, h: 200, seed: 945, shapes: [circ(150, 100, 90)] },
+      me: { x: 150, y: 100, r: 92, troops: 60000, gold: 4000000, build: [[UT.CITY, 110, 90, 8], [UT.CITY, 190, 110, 6], [UT.CITY, 150, 150, 2]] },
+      foes: [], allow: ALL, quest: none,
+      events: [[2, function (Q) {
+        const g = Q.g, cs = Q.me.units.filter(function (u) { return u.type === UT.CITY && u.level >= 5; });
+        for (const c of cs) g.buildUni(Q.me, c.tile);
+        Q.me.tech = Q.me.tech || {}; g.techDone(Q.me, 'abw1');
+        g.research(Q.me, 'rak1', cs[0] ? cs[0].tile : -1);
+      }]],
+      tips: [{ text: 'Hier ist das Forschungsfenster.', el: '#bTech' }]
+    },
+    {
       n: 144, date: '27.11.2026', title: 'Langes Spiel: Bauleiste in vier Gruppen', lang: true,
       text: 'Die Bauleiste hat oben vier Reiter: Gebäude, Bomben und Raketen, Schiffe, Flugzeuge. Taste R geht zur nächsten Gruppe (Shift + R zurück), 1, 2, 3 … wählen darin. Auf dem Handy hat das Baumenü dieselben vier Reiter.',
       map: STRAIT,

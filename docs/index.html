@@ -530,16 +530,38 @@ body.placing #cv { cursor: crosshair; }
 #nwBar .nwBtns button { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 3px; padding: 6px 4px; border: 0; border-radius: 8px; font: 600 14px var(--display); color: var(--ink); background: rgba(255, 255, 255, 0.1); cursor: pointer; }
 #nwBar .nwBtns button:first-child svg { transform: scaleX(-1); }
 #nwBar .nwBtns button:disabled { opacity: .35; cursor: default; }
-#techCard .tb2 { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; margin: 4px 0 12px; }
-#techCard h3 { margin: 10px 0 4px; font: 600 13px var(--display); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
-#techCard .tk { border-radius: 8px; padding: 6px 7px; background: rgba(255,255,255,.05); font-size: 12px; line-height: 1.25; text-align: left; border: 1px solid transparent; color: inherit; }
-#techCard .tk b { display: block; font: 600 12.5px var(--display); }
-#techCard .tk small { display: block; color: var(--muted); }
-#techCard .tk.done { background: rgba(99,211,145,.16); border-color: rgba(99,211,145,.5); }
-#techCard .tk.run { border-color: #f4b740; }
-#techCard .tk.gone { opacity: .35; text-decoration: line-through; }
-#techCard .tk.can { cursor: pointer; border-color: rgba(255,255,255,.25); }
-#techCard .tk.lock { opacity: .55; }
+#modalCard.techWide { width: min(900px, 100%); }
+#techCard .thead { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 14px; }
+#techCard .tstats { display: flex; flex-wrap: wrap; gap: 6px; }
+#techCard .tstats span { padding: 4px 10px; border-radius: 999px; background: rgba(255,255,255,.07); font-size: 13px; color: var(--muted); }
+#techCard .tstats b { color: var(--accent); font: 700 15px var(--display); }
+#techCard .tdetail { margin: 8px 0; padding: 10px 12px; border-radius: 10px; background: rgba(255,255,255,.06); border-left: 4px solid var(--muted); }
+#techCard .tdetail b { font: 700 17px var(--display); } #techCard .tdetail b i { font-style: normal; font-size: 12px; color: var(--accent); }
+#techCard .tdetail span { margin-left: 8px; font-size: 12px; color: var(--muted); }
+#techCard .tdetail p { margin: 4px 0; font-size: 14px; } #techCard .tdetail small { color: var(--muted); }
+#techCard .tdetail.done { border-left-color: #63d391; } #techCard .tdetail.can { border-left-color: var(--accent); } #techCard .tdetail.run { border-left-color: #6fb7ff; }
+#techCard .tgrid { display: grid; grid-template-columns: 74px repeat(5, minmax(0, 1fr)); gap: 5px; align-items: start; margin-top: 8px; }
+#techCard .tier { text-align: center; font: 700 12px var(--display); color: var(--muted); }
+#techCard .tbr { align-self: center; font: 600 12px var(--display); letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+#techCard .tcol { display: flex; flex-direction: column; gap: 3px; min-height: 34px; padding: 3px; border-radius: 8px; background: rgba(255,255,255,.025); }
+#techCard .tor { font-size: 10px; font-style: normal; text-align: center; color: var(--accent); line-height: 1; }
+#techCard .tk { position: relative; display: flex; align-items: center; gap: 4px; min-height: 30px; padding: 3px 5px; border-radius: 7px; overflow: hidden; background: rgba(255,255,255,.06); border: 1.5px solid transparent; color: inherit; text-align: left; cursor: pointer; }
+#techCard .tk svg { flex: none; fill: currentColor; }
+#techCard .tk b { font: 600 12px var(--display); line-height: 1.1; overflow: hidden; text-overflow: ellipsis; }
+#techCard .tk em { margin-left: auto; font-style: normal; font: 700 11px var(--display); }
+#techCard .tk u { position: absolute; left: 0; bottom: 0; height: 3px; background: #6fb7ff; text-decoration: none; }
+#techCard .tk.done { background: rgba(99,211,145,.22); border-color: rgba(99,211,145,.65); color: #d9ffe8; }
+#techCard .tk.done em { color: #63d391; }
+#techCard .tk.can { border-color: var(--accent); color: var(--ink); background: rgba(244,183,64,.12); }
+#techCard .tk.run { border-color: #6fb7ff; background: rgba(111,183,255,.14); }
+#techCard .tk.wait { border-color: rgba(244,183,64,.4); }
+#techCard .tk.time { opacity: .5; } #techCard .tk.time em { color: var(--muted); }
+#techCard .tk.need { opacity: .6; border-style: dashed; border-color: rgba(255,255,255,.25); }
+#techCard .tk.gone { opacity: .28; text-decoration: line-through; }
+#techCard .tk.sel { outline: 2px solid #fff; outline-offset: 1px; }
+#techCard .tlegend { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 10px; }
+#techCard .tlegend .tk { min-height: 0; padding: 2px 8px; font-size: 11.5px; cursor: default; }
+@media (max-width: 620px) { #techCard .tgrid { grid-template-columns: 52px repeat(5, minmax(0, 1fr)); gap: 3px; } #techCard .tk svg { display: none; } #techCard .tk { padding: 9px 3px 3px; min-height: 34px; } #techCard .tk b { font-size: 10.5px; hyphens: auto; overflow-wrap: anywhere; } #techCard .tk em { position: absolute; right: 3px; top: 1px; font-size: 9px; } #techCard .tbr { font-size: 9.5px; overflow-wrap: anywhere; } }
 #techCard .tierh { font: 600 11px var(--display); color: var(--muted); text-align: center; }
 @media (max-width: 640px) { #techCard .tb2 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 #evac { position: absolute; left: 50%; top: 56px; transform: translateX(-50%); padding: 6px 8px; display: flex; flex-direction: column; gap: 6px; z-index: 6; }
@@ -4409,6 +4431,20 @@ body.placing #cv { cursor: crosshair; }
   }
 
   G.NEUES = [
+    {
+      n: 145, date: '27.11.2026', title: 'Langes Spiel: neues Forschungsfenster', lang: true, research: true,
+      text: 'Das Forschungsfenster (Kolben oben) zeigt pro Zweig eine Zeile mit den fünf Stufen als Kästchen: grün erforscht, gelb möglich, blau läuft, grau mit Minute noch gesperrt, gestrichelt braucht zuerst etwas, durchgestrichen ausgeschlossen («oder»). Antippen erklärt das Kästchen und startet die Forschung. Punkte und Unis stehen oben.',
+      map: { w: 300, h: 200, seed: 945, shapes: [circ(150, 100, 90)] },
+      me: { x: 150, y: 100, r: 92, troops: 60000, gold: 4000000, build: [[UT.CITY, 110, 90, 8], [UT.CITY, 190, 110, 6], [UT.CITY, 150, 150, 2]] },
+      foes: [], allow: ALL, quest: none,
+      events: [[2, function (Q) {
+        const g = Q.g, cs = Q.me.units.filter(function (u) { return u.type === UT.CITY && u.level >= 5; });
+        for (const c of cs) g.buildUni(Q.me, c.tile);
+        Q.me.tech = Q.me.tech || {}; g.techDone(Q.me, 'abw1');
+        g.research(Q.me, 'rak1', cs[0] ? cs[0].tile : -1);
+      }]],
+      tips: [{ text: 'Hier ist das Forschungsfenster.', el: '#bTech' }]
+    },
     {
       n: 144, date: '27.11.2026', title: 'Langes Spiel: Bauleiste in vier Gruppen', lang: true,
       text: 'Die Bauleiste hat oben vier Reiter: Gebäude, Bomben und Raketen, Schiffe, Flugzeuge. Taste R geht zur nächsten Gruppe (Shift + R zurück), 1, 2, 3 … wählen darin. Auf dem Handy hat das Baumenü dieselben vier Reiter.',
@@ -13217,6 +13253,7 @@ void main() {
   }
   function openModal(html, kind) {
     if (kind !== 'res') $('modalCard').classList.remove('resCard');
+    $('modalCard').classList.remove('techWide');
     $('modalCard').innerHTML = html; $('modalCard').dataset.html = kind === 'res' ? html : '';
     $('modalCard').scrollTop = 0;
     $('modal').hidden = false;
@@ -14018,6 +14055,7 @@ void main() {
     if (what === 'gold') { act({ k: 'don', p: p.id, g: 'gold', say: 'Gold an ' + p.name + ' geschickt' }); return; }
     if (what === 'renew') { act({ k: 'renew', p: p.id }); dropAsk('r' + p.id); return; }
     if (what === 'tech') { showTech(); return; }
+    if (what.indexOf('tsel:') === 0) { techSel = techSel === what.slice(5) ? '' : what.slice(5); const top = $('modalCard').scrollTop; showTech(); $('modalCard').scrollTop = top; return; }
     if (what.indexOf('tech:') === 0) { act({ k: 'research', id: what.slice(5), say: 'Forschung gestartet' }); setTimeout(function () { if (modalKind === 'tech') showTech(); }, 150); return; }
     if (what.indexOf('take:') === 0) { const pr = what.split(':'); act({ k: 'techtake', p: +pr[2], id: pr[1], say: 'Gekauft' }); setTimeout(function () { if (modalKind === 'tech') showTech(); }, 150); return; }
     if (what === 'give') { const sel = $('giveTech'), pr = $('givePrice'); if (sel && sel.value) act({ k: 'techoffer', p: p.id, id: sel.value, price: +pr.value, say: +pr.value ? 'Angebot an ' + p.name + ' geschickt' : 'An ' + p.name + ' geschenkt' }); return; }
@@ -14211,34 +14249,79 @@ void main() {
   }
   // «Langes Spiel»: the research window (src/04c_lang.js, G.TECH). Five tiers in columns, the
   // branches in rows; a tap on a step that can be started gives it to a free university.
+  // «Langes Spiel», the research window (27.11.2026): one row per branch, its five tiers as boxes
+  // with a short name and a sign; done, open, locked by time, needing another first, shut out by an
+  // «oder» and running look different. What a step does shows only once it is tapped (or with the
+  // mouse over it). Points and universities on top.
+  const TSHORT = {
+    blitz: ['Blitzkrieg', 'sword'], tief: ['Tiefenvert.', 'defense'],
+    auf1: ['Radar', 'radar'], auf2: ['Radar ×1.5', 'radar'], spy2: ['Spione', 'people'], reco: ['Aufklärer', 'recon'], auf3: ['Tarnung sehen', 'cloak'], auf4: ['Frühwarnung', 'radar'], auf5: ['Satellit', 'target'],
+    abw1: ['Flugabwehr', 'sam'], abw2: ['+1 Schuss', 'sam'], schutz: ['Schutzräume', 'defense'], abw3a: ['+1 Schuss', 'sam'], abw3b: ['Reichweite', 'target'], abm3: ['ABM: Atom', 'abm'], schutz2: ['Schutz 30 %', 'defense'],
+    abw4: ['Nachladen', 'sam'], abm4: ['ABM: H-Bombe', 'abm'], zivil: ['Zivilschutz', 'people'], abm5: ['ABM: MIRV', 'abm'], abw5: ['Gegen Tarn', 'stealth'],
+    rak1: ['Marschflug.', 'cruise'], rak2: ['Streubombe', 'cluster'], rakR: ['Reichweite', 'target'], rak3a: ['Bunkerbr.', 'bunker'], rak3b: ['Thermobar', 'thermo'], rakA1: ['Sprengkraft', 'cruise'],
+    rak4: ['Kurzstrecke', 'srbm'], rakA2: ['Sprengkr. 50 %', 'cruise'], rakS: ['Tempo', 'srbm'], hyper: ['Hyperschall', 'srbm'],
+    atom: ['Atombombe', 'atom'], hydro: ['H-Bombe', 'hydro'], mirv: ['MIRV', 'mirv'],
+    heer1: ['Eingraben', 'defense'], infra: ['Infrastruktur', 'city'], heer2: ['Schienen', 'factory'], heer3a: ['Warthog', 'bomber'], heer3b: ['Apache', 'recon'], posten: ['Posten ×1.3', 'defense'],
+    heer4: ['Panzerkeil', 'sword'], heer5: ['Eingraben max', 'defense'], pionier: ['Pioniere', 'hammer'],
+    luft1: ['Flugplatz', 'airfield'], luft2: ['Abfangjäger', 'recon'], luft3: ['Betankung', 'airfield'], luftbr: ['Luftbrücke', 'airfield'], luft4: ['Bomber', 'bomber'], luft5: ['Tarnbomber', 'stealth'],
+    ub1: ['U-Boot', 'sub'], mar2: ['Schnelle Zerst.', 'warship'], bs2: ['Panzerung', 'battleship'], mine: ['Seeminen', 'mine'], rads: ['Radarschiff', 'radar'],
+    sonar: ['Sonar', 'warship'], bs3: ['Geschütze', 'battleship'], ub2: ['Leise U-Boote', 'sub'], abws: ['Abwehrschiff', 'abm'], marinf: ['Marineinf.', 'troops'],
+    mar4: ['Flak an Bord', 'warship'], bs4: ['Granaten', 'battleship'], ub4: ['Torpedos', 'sub'], traeger: ['Träger', 'carrier'], ub3: ['Raketen-U-Boot', 'sub'], geleit: ['Geleitschutz', 'carrier']
+  };
+  let techSel = '';
+  function techState(h, t, run, free) {
+    const done = game.has(h, t.id), gone = h.tech && h.tech[t.id] === -1, why = game.techWhy(h, t.id), pts = run[t.id];
+    if (done) return { cls: 'done', line: 'Erforscht' };
+    if (gone) return { cls: 'gone', line: 'Ausgeschlossen: die andere «oder»-Wahl ist erforscht' };
+    if (pts !== undefined) return { cls: 'run', line: 'Läuft: ' + Math.floor(100 * pts / game.techCost(t.id)) + ' %', pct: Math.floor(100 * pts / game.techCost(t.id)) };
+    if (!game.tierOpen(t.tier)) return { cls: 'time', line: why, mark: Math.round(G.LANG.tierFrom[t.tier - 1] / 600) + '′' };
+    if (why) return { cls: 'need', line: why };
+    return { cls: free ? 'can' : 'wait', line: game.techCost(t.id) + ' Punkte' + (free ? '' : ' · keine Uni frei') };
+  }
   function showTech() {
     const h = game.human, T = game.ticks;
     let unis = 0, free = 0, rate = 0;
     for (const u of h.units) if (u.uni) { unis++; if (!u.res) free++; rate += game.uniRate(u) * 10; }
     const run = {};
     for (const u of h.units) if (u.res) run[u.res.id] = u.res.pts;
-    let s = '<div id="techCard"><h2>Forschung</h2><p>' + (unis ? unis + (unis === 1 ? ' Uni' : ' Unis') + ', ' + free + ' frei · ' + (Math.round(rate * 10) / 10).toLocaleString('de-CH') + ' Punkte/s' : 'Noch keine Uni: Baue eine in einer Stadt ab Stufe ' + G.LANG.uniLevel + ' (Ausbaukarte der Stadt).') + '</p>';
+    const nextTier = G.LANG.tierFrom.findIndex(function (f) { return f > T; });
+    let s = '<div id="techCard"><div class="thead"><h2>Forschung</h2><div class="tstats">' +
+      '<span><b>' + (Math.round(rate * 10) / 10).toLocaleString('de-CH') + '</b> Punkte/s</span>' +
+      '<span><b>' + unis + '</b> ' + (unis === 1 ? 'Uni' : 'Unis') + (unis ? ', ' + free + ' frei' : '') + '</span>' +
+      (nextTier >= 0 ? '<span>Stufe <b>' + (nextTier + 1) + '</b> ab Minute ' + Math.round(G.LANG.tierFrom[nextTier] / 600) + '</span>' : '') + '</div></div>';
+    if (!unis) s += '<p class="notes">Noch keine Uni: in der Ausbaukarte einer Stadt ab Stufe ' + G.LANG.uniLevel + ' bauen.</p>';
     if (h.techOffers) for (const id in h.techOffers) { const o = h.techOffers[id], q = game.players[o.from]; if (o.until > T && q) s += '<p class="notes">' + esc(q.name) + ' bietet ' + esc(G.TECH_BY[id].name) + ' für ' + fmt(o.price) + ' <button class="btn ghost" data-act="take:' + id + ':' + q.id + '" type="button">Kaufen</button></p>'; }
+    // the chosen step, explained
+    const st = techSel && G.TECH_BY[techSel];
+    if (st) {
+      const x = techState(h, st, run, free);
+      s += '<div class="tdetail ' + x.cls + '"><b>' + esc(st.name) + (st.or ? ' <i>oder</i>' : '') + '</b><span>' + esc(st.br) + ', Stufe ' + st.tier + '</span><p>' + esc(st.what) + '</p><small>' + esc(x.line) + '</small>' +
+        (x.cls === 'can' ? '<button class="btn" data-act="tech:' + st.id + '" type="button">Erforschen (' + game.techCost(st.id) + ' Punkte)</button>' : '') + '</div>';
+    } else s += '<p class="hint">Tippe ein Kästchen an: was es tut und ob du es erforschen kannst.</p>';
+    s += '<div class="tgrid"><span></span>' + [1, 2, 3, 4, 5].map(function (n) { return '<span class="tier">' + n + '</span>'; }).join('');
     const branches = [];
     for (const t of G.TECH) if (branches.indexOf(t.br) < 0) branches.push(t.br);
     for (const br of branches) {
-      s += '<h3>' + esc(br) + '</h3><div class="tb2">';
+      s += '<span class="tbr">' + esc(br) + '</span>';
       for (let tier = 1; tier <= 5; tier++) {
-        s += '<div>';
-        if (br === branches[0]) s += '';
+        s += '<div class="tcol">';
+        let lastOr = '';
         for (const t of G.TECH) {
           if (t.br !== br || t.tier !== tier) continue;
-          const done = game.has(h, t.id), gone = h.tech && h.tech[t.id] === -1, why = game.techWhy(h, t.id), pts = run[t.id];
-          const cls = done ? 'done' : gone ? 'gone' : pts !== undefined ? 'run' : !why && free ? 'can' : 'lock';
-          const state = done ? 'erforscht' : gone ? 'ausgeschlossen' : pts !== undefined ? Math.floor(100 * pts / game.techCost(t.id)) + ' %' : why ? why : free ? game.techCost(t.id) + ' Punkte · antippen' : 'keine Uni frei';
-          s += '<button type="button" class="tk ' + cls + '"' + (cls === 'can' ? ' data-act="tech:' + t.id + '"' : '') + ' title="' + esc(t.what) + '"><b>' + tier + ' · ' + esc(t.name) + (t.or ? ' (oder)' : '') + '</b><small>' + esc(t.what) + '</small><small>' + esc(state) + '</small></button>';
+          const x = techState(h, t, run, free), sh = TSHORT[t.id] || [t.name, 'flask'];
+          if (t.or && t.or === lastOr) s += '<i class="tor">oder</i>';
+          lastOr = t.or;
+          s += '<button type="button" class="tk ' + x.cls + (techSel === t.id ? ' sel' : '') + '" data-act="tsel:' + t.id + '" title="' + esc(t.name + ': ' + t.what + ' (' + x.line + ')') + '">' +
+            svg(sh[1], 16) + '<b>' + esc(sh[0]) + '</b>' + (x.mark ? '<em>' + x.mark + '</em>' : x.cls === 'done' ? '<em>✓</em>' : '') +
+            (x.pct !== undefined ? '<u style="width:' + x.pct + '%"></u>' : '') + '</button>';
         }
         s += '</div>';
       }
-      s += '</div>';
     }
-    s += '<p class="hint">Stufe 1 und 2 ab dem Start, 3 ab Minute 15, 4 ab 30, 5 ab 45. Bei «oder» ist die andere Wahl danach für dieses Spiel weg.</p><button class="btn ghost" data-act="close" type="button">Schliessen</button></div>';
+    s += '</div><div class="tlegend"><span class="tk done">erforscht</span><span class="tk can">möglich</span><span class="tk run">läuft</span><span class="tk time">ab Minute</span><span class="tk need">braucht zuerst</span><span class="tk gone">ausgeschlossen</span></div>' +
+      '<button class="btn ghost" data-act="close" type="button">Schliessen</button></div>';
     openModal(s, 'tech');
+    $('modalCard').classList.add('techWide');
   }
   function fireSalvo() {
     act({ k: 'salvo', list: salvoList.slice(), say: salvoList.length + ' Schläge gestartet: sie schlagen gleichzeitig ein' });

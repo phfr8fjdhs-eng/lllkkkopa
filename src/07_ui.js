@@ -312,6 +312,7 @@
   }
   function openModal(html, kind) {
     if (kind !== 'res') $('modalCard').classList.remove('resCard');
+    $('modalCard').classList.remove('techWide');
     $('modalCard').innerHTML = html; $('modalCard').dataset.html = kind === 'res' ? html : '';
     $('modalCard').scrollTop = 0;
     $('modal').hidden = false;
@@ -1113,6 +1114,7 @@
     if (what === 'gold') { act({ k: 'don', p: p.id, g: 'gold', say: 'Gold an ' + p.name + ' geschickt' }); return; }
     if (what === 'renew') { act({ k: 'renew', p: p.id }); dropAsk('r' + p.id); return; }
     if (what === 'tech') { showTech(); return; }
+    if (what.indexOf('tsel:') === 0) { techSel = techSel === what.slice(5) ? '' : what.slice(5); const top = $('modalCard').scrollTop; showTech(); $('modalCard').scrollTop = top; return; }
     if (what.indexOf('tech:') === 0) { act({ k: 'research', id: what.slice(5), say: 'Forschung gestartet' }); setTimeout(function () { if (modalKind === 'tech') showTech(); }, 150); return; }
     if (what.indexOf('take:') === 0) { const pr = what.split(':'); act({ k: 'techtake', p: +pr[2], id: pr[1], say: 'Gekauft' }); setTimeout(function () { if (modalKind === 'tech') showTech(); }, 150); return; }
     if (what === 'give') { const sel = $('giveTech'), pr = $('givePrice'); if (sel && sel.value) act({ k: 'techoffer', p: p.id, id: sel.value, price: +pr.value, say: +pr.value ? 'Angebot an ' + p.name + ' geschickt' : 'An ' + p.name + ' geschenkt' }); return; }
@@ -1306,34 +1308,79 @@
   }
   // «Langes Spiel»: the research window (src/04c_lang.js, G.TECH). Five tiers in columns, the
   // branches in rows; a tap on a step that can be started gives it to a free university.
+  // «Langes Spiel», the research window (27.11.2026): one row per branch, its five tiers as boxes
+  // with a short name and a sign; done, open, locked by time, needing another first, shut out by an
+  // «oder» and running look different. What a step does shows only once it is tapped (or with the
+  // mouse over it). Points and universities on top.
+  const TSHORT = {
+    blitz: ['Blitzkrieg', 'sword'], tief: ['Tiefenvert.', 'defense'],
+    auf1: ['Radar', 'radar'], auf2: ['Radar ×1.5', 'radar'], spy2: ['Spione', 'people'], reco: ['Aufklärer', 'recon'], auf3: ['Tarnung sehen', 'cloak'], auf4: ['Frühwarnung', 'radar'], auf5: ['Satellit', 'target'],
+    abw1: ['Flugabwehr', 'sam'], abw2: ['+1 Schuss', 'sam'], schutz: ['Schutzräume', 'defense'], abw3a: ['+1 Schuss', 'sam'], abw3b: ['Reichweite', 'target'], abm3: ['ABM: Atom', 'abm'], schutz2: ['Schutz 30 %', 'defense'],
+    abw4: ['Nachladen', 'sam'], abm4: ['ABM: H-Bombe', 'abm'], zivil: ['Zivilschutz', 'people'], abm5: ['ABM: MIRV', 'abm'], abw5: ['Gegen Tarn', 'stealth'],
+    rak1: ['Marschflug.', 'cruise'], rak2: ['Streubombe', 'cluster'], rakR: ['Reichweite', 'target'], rak3a: ['Bunkerbr.', 'bunker'], rak3b: ['Thermobar', 'thermo'], rakA1: ['Sprengkraft', 'cruise'],
+    rak4: ['Kurzstrecke', 'srbm'], rakA2: ['Sprengkr. 50 %', 'cruise'], rakS: ['Tempo', 'srbm'], hyper: ['Hyperschall', 'srbm'],
+    atom: ['Atombombe', 'atom'], hydro: ['H-Bombe', 'hydro'], mirv: ['MIRV', 'mirv'],
+    heer1: ['Eingraben', 'defense'], infra: ['Infrastruktur', 'city'], heer2: ['Schienen', 'factory'], heer3a: ['Warthog', 'bomber'], heer3b: ['Apache', 'recon'], posten: ['Posten ×1.3', 'defense'],
+    heer4: ['Panzerkeil', 'sword'], heer5: ['Eingraben max', 'defense'], pionier: ['Pioniere', 'hammer'],
+    luft1: ['Flugplatz', 'airfield'], luft2: ['Abfangjäger', 'recon'], luft3: ['Betankung', 'airfield'], luftbr: ['Luftbrücke', 'airfield'], luft4: ['Bomber', 'bomber'], luft5: ['Tarnbomber', 'stealth'],
+    ub1: ['U-Boot', 'sub'], mar2: ['Schnelle Zerst.', 'warship'], bs2: ['Panzerung', 'battleship'], mine: ['Seeminen', 'mine'], rads: ['Radarschiff', 'radar'],
+    sonar: ['Sonar', 'warship'], bs3: ['Geschütze', 'battleship'], ub2: ['Leise U-Boote', 'sub'], abws: ['Abwehrschiff', 'abm'], marinf: ['Marineinf.', 'troops'],
+    mar4: ['Flak an Bord', 'warship'], bs4: ['Granaten', 'battleship'], ub4: ['Torpedos', 'sub'], traeger: ['Träger', 'carrier'], ub3: ['Raketen-U-Boot', 'sub'], geleit: ['Geleitschutz', 'carrier']
+  };
+  let techSel = '';
+  function techState(h, t, run, free) {
+    const done = game.has(h, t.id), gone = h.tech && h.tech[t.id] === -1, why = game.techWhy(h, t.id), pts = run[t.id];
+    if (done) return { cls: 'done', line: 'Erforscht' };
+    if (gone) return { cls: 'gone', line: 'Ausgeschlossen: die andere «oder»-Wahl ist erforscht' };
+    if (pts !== undefined) return { cls: 'run', line: 'Läuft: ' + Math.floor(100 * pts / game.techCost(t.id)) + ' %', pct: Math.floor(100 * pts / game.techCost(t.id)) };
+    if (!game.tierOpen(t.tier)) return { cls: 'time', line: why, mark: Math.round(G.LANG.tierFrom[t.tier - 1] / 600) + '′' };
+    if (why) return { cls: 'need', line: why };
+    return { cls: free ? 'can' : 'wait', line: game.techCost(t.id) + ' Punkte' + (free ? '' : ' · keine Uni frei') };
+  }
   function showTech() {
     const h = game.human, T = game.ticks;
     let unis = 0, free = 0, rate = 0;
     for (const u of h.units) if (u.uni) { unis++; if (!u.res) free++; rate += game.uniRate(u) * 10; }
     const run = {};
     for (const u of h.units) if (u.res) run[u.res.id] = u.res.pts;
-    let s = '<div id="techCard"><h2>Forschung</h2><p>' + (unis ? unis + (unis === 1 ? ' Uni' : ' Unis') + ', ' + free + ' frei · ' + (Math.round(rate * 10) / 10).toLocaleString('de-CH') + ' Punkte/s' : 'Noch keine Uni: Baue eine in einer Stadt ab Stufe ' + G.LANG.uniLevel + ' (Ausbaukarte der Stadt).') + '</p>';
+    const nextTier = G.LANG.tierFrom.findIndex(function (f) { return f > T; });
+    let s = '<div id="techCard"><div class="thead"><h2>Forschung</h2><div class="tstats">' +
+      '<span><b>' + (Math.round(rate * 10) / 10).toLocaleString('de-CH') + '</b> Punkte/s</span>' +
+      '<span><b>' + unis + '</b> ' + (unis === 1 ? 'Uni' : 'Unis') + (unis ? ', ' + free + ' frei' : '') + '</span>' +
+      (nextTier >= 0 ? '<span>Stufe <b>' + (nextTier + 1) + '</b> ab Minute ' + Math.round(G.LANG.tierFrom[nextTier] / 600) + '</span>' : '') + '</div></div>';
+    if (!unis) s += '<p class="notes">Noch keine Uni: in der Ausbaukarte einer Stadt ab Stufe ' + G.LANG.uniLevel + ' bauen.</p>';
     if (h.techOffers) for (const id in h.techOffers) { const o = h.techOffers[id], q = game.players[o.from]; if (o.until > T && q) s += '<p class="notes">' + esc(q.name) + ' bietet ' + esc(G.TECH_BY[id].name) + ' für ' + fmt(o.price) + ' <button class="btn ghost" data-act="take:' + id + ':' + q.id + '" type="button">Kaufen</button></p>'; }
+    // the chosen step, explained
+    const st = techSel && G.TECH_BY[techSel];
+    if (st) {
+      const x = techState(h, st, run, free);
+      s += '<div class="tdetail ' + x.cls + '"><b>' + esc(st.name) + (st.or ? ' <i>oder</i>' : '') + '</b><span>' + esc(st.br) + ', Stufe ' + st.tier + '</span><p>' + esc(st.what) + '</p><small>' + esc(x.line) + '</small>' +
+        (x.cls === 'can' ? '<button class="btn" data-act="tech:' + st.id + '" type="button">Erforschen (' + game.techCost(st.id) + ' Punkte)</button>' : '') + '</div>';
+    } else s += '<p class="hint">Tippe ein Kästchen an: was es tut und ob du es erforschen kannst.</p>';
+    s += '<div class="tgrid"><span></span>' + [1, 2, 3, 4, 5].map(function (n) { return '<span class="tier">' + n + '</span>'; }).join('');
     const branches = [];
     for (const t of G.TECH) if (branches.indexOf(t.br) < 0) branches.push(t.br);
     for (const br of branches) {
-      s += '<h3>' + esc(br) + '</h3><div class="tb2">';
+      s += '<span class="tbr">' + esc(br) + '</span>';
       for (let tier = 1; tier <= 5; tier++) {
-        s += '<div>';
-        if (br === branches[0]) s += '';
+        s += '<div class="tcol">';
+        let lastOr = '';
         for (const t of G.TECH) {
           if (t.br !== br || t.tier !== tier) continue;
-          const done = game.has(h, t.id), gone = h.tech && h.tech[t.id] === -1, why = game.techWhy(h, t.id), pts = run[t.id];
-          const cls = done ? 'done' : gone ? 'gone' : pts !== undefined ? 'run' : !why && free ? 'can' : 'lock';
-          const state = done ? 'erforscht' : gone ? 'ausgeschlossen' : pts !== undefined ? Math.floor(100 * pts / game.techCost(t.id)) + ' %' : why ? why : free ? game.techCost(t.id) + ' Punkte · antippen' : 'keine Uni frei';
-          s += '<button type="button" class="tk ' + cls + '"' + (cls === 'can' ? ' data-act="tech:' + t.id + '"' : '') + ' title="' + esc(t.what) + '"><b>' + tier + ' · ' + esc(t.name) + (t.or ? ' (oder)' : '') + '</b><small>' + esc(t.what) + '</small><small>' + esc(state) + '</small></button>';
+          const x = techState(h, t, run, free), sh = TSHORT[t.id] || [t.name, 'flask'];
+          if (t.or && t.or === lastOr) s += '<i class="tor">oder</i>';
+          lastOr = t.or;
+          s += '<button type="button" class="tk ' + x.cls + (techSel === t.id ? ' sel' : '') + '" data-act="tsel:' + t.id + '" title="' + esc(t.name + ': ' + t.what + ' (' + x.line + ')') + '">' +
+            svg(sh[1], 16) + '<b>' + esc(sh[0]) + '</b>' + (x.mark ? '<em>' + x.mark + '</em>' : x.cls === 'done' ? '<em>✓</em>' : '') +
+            (x.pct !== undefined ? '<u style="width:' + x.pct + '%"></u>' : '') + '</button>';
         }
         s += '</div>';
       }
-      s += '</div>';
     }
-    s += '<p class="hint">Stufe 1 und 2 ab dem Start, 3 ab Minute 15, 4 ab 30, 5 ab 45. Bei «oder» ist die andere Wahl danach für dieses Spiel weg.</p><button class="btn ghost" data-act="close" type="button">Schliessen</button></div>';
+    s += '</div><div class="tlegend"><span class="tk done">erforscht</span><span class="tk can">möglich</span><span class="tk run">läuft</span><span class="tk time">ab Minute</span><span class="tk need">braucht zuerst</span><span class="tk gone">ausgeschlossen</span></div>' +
+      '<button class="btn ghost" data-act="close" type="button">Schliessen</button></div>';
     openModal(s, 'tech');
+    $('modalCard').classList.add('techWide');
   }
   function fireSalvo() {
     act({ k: 'salvo', list: salvoList.slice(), say: salvoList.length + ' Schläge gestartet: sie schlagen gleichzeitig ein' });
