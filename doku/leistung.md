@@ -318,6 +318,20 @@ Bei wenigen Schiffen im Rauschen. Bei vielen Schiffen dicht beieinander halb so 
 
 Geprüft: Prüfsumme `SUM=1 stress.js` (Welt mit 0, 2000, 8000 Schiffen; Erde mit 3000) gleich, `det.js` (alle Varianten, `lang` mit Seeminen) und `posture.js` gleich, `lang.js`, `sea.js`, `worker.js` grün.
 
+### Nachtrag (27.11.2026, Abend): Langes Spiel und was das fürs Handy heisst
+Gemessen auf dem Stand nach Punkt 4, nur die Simulation (ohne Packen), V8-Profil, 900 Ticks nach 300 Ticks Anlauf, wie auf dem Startbildschirm (Kampf «Grenzland», eine Person, die angreift):
+
+| | Welt, 150 Bots | Welt, Langes Spiel | Erde (600 Bots, Nationen) | Erde, Langes Spiel |
+| --- | ---: | ---: | ---: | ---: |
+| Tick Mittel | 0.64 ms | 0.64 ms | 20.1 ms | 21.4 ms (+7 %) |
+| 99 % der Ticks unter | 2.3 ms | 1.9 ms | 36.3 ms | 42.5 ms |
+| Eroberung / Dichte / Kessel | 0.32 / 0.02 / 0.09 | 0.34 / 0.01 / 0.09 | 12.3 / 3.1 / 1.5 | 12.7 / 3.2 / 1.5 |
+| eigene Teile des Modus (`langTick`, `langFront`, `langResearch`) | – | 0.00 | – | 0.56 ms |
+
+Das Lange Spiel kostet auf der Erde gut 1 ms mehr pro Tick (`langFront` 0.33, `tickAttack` 0.39 mehr), auf der Welt nichts Messbares. Einschränkung: Die Messung deckt die ersten zwei Minuten ab, mit unter 100 Einheiten. Flugzeuge, U-Boote und Bomben kommen erst später in der Runde dazu. Das misst man mit vielen Einheiten (`stress.js`, `stress_view.js`), sobald sie im Spiel häufig werden. Für die Einheiten des Langen Spiels gilt dasselbe wie für Schiffe (Plan Punkt 5).
+
+**Fürs Handy (Schätzung, nicht gemessen):** Der Worker braucht auf dem Server nach Punkt 4 21 bis 24 ms pro Tick, im Langen Spiel gut 1 ms mehr. Ein mittleres Handy ist 3- bis 5-mal langsamer: 65 bis 125 ms von 100 ms. Das reicht knapp oder gar nicht für 10 Ticks pro Sekunde. Die Ticks über 99 % (40 ms auf dem Server) werden auf dem Handy sicher zu lang. Im Worker bremst das kein Bild, aber das Spiel läuft dann langsamer als die Uhr. Der grösste Block bleibt die Eroberung (12 ms), die echte Arbeit pro erobertem Feld ist. Mit dem Server (Abschnitt unten) rechnet das Handy später gar nicht mehr mit. Bis dahin entscheidet die Messung auf einem echten Gerät, ob die Erde auf dem Handy etwas anderes braucht.
+
 ## Plan (27.11.2026), nach Nutzen. Wartet auf OK
 Ersetzt den Plan vom 24.11. Dessen Punkt 2 (Worker) ist gebaut, die übrigen Punkte gehen hier auf. Ziel: die Erde auf einem mittleren Handy, mit Platz für mehr Einheiten. Heute braucht der Worker 19 ms pro Tick, im Speicher liegen rund 640 MB Arrays.
 
