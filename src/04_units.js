@@ -750,9 +750,11 @@
   // Now the ships (troop boats, warships, merchants) are sorted once a tick into cells of SEA_CELL
   // tiles, and a warship only looks at the cells within its range. The grid is built when the
   // first warship asks in a tick. Ships keep moving during the tick, so the search reaches one
-  // cell further than the range; the exact distance is checked by the caller with the current
-  // position. Ships added later in the tick are appended. The answer is in the order of
-  // this.units, exactly as the old loop went, so the simulation gives the same numbers.
+  // cell further than the range, and then keeps only the ships within the range at their current
+  // position (since 27.11.2026; before, every ship of those cells went back, four in five of them
+  // out of range, and was sorted). Every caller drops a ship further away than that anyway.
+  // Ships added later in the tick are appended. The answer is in the order of this.units,
+  // exactly as the old loop went, so the simulation gives the same numbers.
   const SEA_CELL = 32;
   Game.prototype.seaGrid = function () {
     const us = this.units, n = us.length, cw = (this.W + SEA_CELL - 1) >> 5, chh = (this.H + SEA_CELL - 1) >> 5, nc = cw * chh;
@@ -782,13 +784,16 @@
   Game.prototype.seaNear = function (x, y, r) {
     let sg = this.sg;
     if (!sg || sg.T !== this.ticks || sg.arr !== this.units) sg = this.seaGrid();
-    const us = this.units, items = sg.items, start = sg.start, idx = [];
+    const us = this.units, items = sg.items, start = sg.start, idx = [], r2 = r * r;
     const R = r + SEA_CELL;
     const cx0 = Math.max(0, (x - R) >> 5), cx1 = Math.min(sg.cw - 1, (x + R) >> 5);
     const cy0 = Math.max(0, (y - R) >> 5), cy1 = Math.min(sg.ch - 1, (y + R) >> 5);
     for (let cy = cy0; cy <= cy1; cy++) for (let cx = cx0; cx <= cx1; cx++) {
       const c = cy * sg.cw + cx;
-      for (let k = start[c]; k < start[c + 1]; k++) idx.push(items[k]);
+      for (let k = start[c]; k < start[c + 1]; k++) {
+        const v = us[items[k]], dx = v.x - x, dy = v.y - y;
+        if (dx * dx + dy * dy <= r2) idx.push(items[k]);
+      }
     }
     idx.sort(function (a, b) { return a - b; });
     NEAR.length = 0;
@@ -796,7 +801,7 @@
     // ships that came to sea after the grid was built in this tick
     for (let i = sg.n; i < us.length; i++) {
       const v = us[i], ty = v.type;
-      if (v.active && (ty === UT.TRANSPORT || ty === UT.WARSHIP || ty === UT.TRADE)) NEAR.push(v);
+      if (v.active && (ty === UT.TRANSPORT || ty === UT.WARSHIP || ty === UT.TRADE) && (v.x - x) * (v.x - x) + (v.y - y) * (v.y - y) <= r2) NEAR.push(v);
     }
     return NEAR;
   };
