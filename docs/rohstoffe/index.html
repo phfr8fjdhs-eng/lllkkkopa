@@ -1728,7 +1728,10 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     const N = this.N, S = this.S;
     this.owner = new Uint16Array(N);
     this.fallout = new Uint8Array(N); this.falloutCount = 0;
-    this.stamp = new Int32Array(N); this.sid = 0; this.q = new Int32Array(N);
+    // working memory of the searches over the map: a mark per tile (16 bit, cleared when the marks
+    // run out, see nextSid) and a queue that grows to what a search needs (qFor). 27.11.2026: both
+    // were 32 bit for every tile, 130 MB on the Earth (doku/leistung.md).
+    this.stamp = new Uint16Array(N); this.sid = 0; this.q = new Int32Array(Math.min(N, 1 << 16));
     this.players = [null];
     this.ticks = 0; this.phase = 'spawn'; this.spawnEnd = this.opts.spawnTicks;
     this.playStart = 0; this.immuneUntil = 0;
@@ -1948,6 +1951,17 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   // dirtyFlag, why a tile is to be painted again: 1 = a neighbour of a changed tile (fixAround),
   // 2 = its owner or fallout changed, 3 = only to paint (dirtyDisc). Only 2 and 3 cross to the
   // page, which marks the neighbours of 2 itself (src/05b_sync.js). Read by nothing in the simulation.
+  // A fresh mark for one search over `stamp`. No search runs inside another one, so clearing all
+  // marks when they run out gives every search the same answer as before.
+  Game.prototype.nextSid = function () {
+    if (++this.sid > 65000) { this.sid = 1; this.stamp.fill(0); }
+    return this.sid;
+  };
+  // The queue of a search, with room for at least n tiles.
+  Game.prototype.qFor = function (n) {
+    if (this.q.length < n) this.q = new Int32Array(Math.min(this.N, Math.max(n, this.q.length * 2)));
+    return this.q;
+  };
   Game.prototype.markDirty = function (t) {
     if (this.dirtyFlag[t]) return;
     this.dirtyFlag[t] = 1;
@@ -2206,7 +2220,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   // Is this free tile part of open land that touches the player's territory?
   Game.prototype.tnTouches = function (p, tile) {
     const own = this.owner, land = this.map.land, W = this.W, H = this.H, id = p.id, lim = this.R.tnSearch;
-    const st = this.stamp, sid = ++this.sid, q = this.q;
+    const st = this.stamp, sid = this.nextSid(), q = this.qFor(2 * lim * (lim + 1) + 1);   // at most the diamond of radius lim
     const tx = tile % W, ty = (tile / W) | 0;
     let qh = 0, qt = 0;
     q[qt++] = tile; st[tile] = sid;
@@ -2912,7 +2926,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
 
   // ---------- cut-off pockets ----------
   Game.prototype.removeClusters = function (p) {
-    const W = this.W, H = this.H, own = this.owner, id = p.id, st = this.stamp, sid = ++this.sid;
+    const W = this.W, H = this.H, own = this.owner, id = p.id, st = this.stamp, sid = this.nextSid();
     const border = p.border, eb = this.edge, clusters = [];
     for (const start of border) {
       if (st[start] === sid) continue;
@@ -3031,7 +3045,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
       }
     }
     if (!taker) return;
-    const st = this.stamp, sid = ++this.sid, q = this.q;
+    const st = this.stamp, sid = this.nextSid(), q = this.qFor(p.tiles + 1);   // only own tiles
     let qh = 0, qt = 0;
     q[qt++] = cl[0]; st[cl[0]] = sid;
     while (qh < qt) {
@@ -5284,7 +5298,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   Game.prototype.portSite = function (p, tile) {
     const own = this.owner, map = this.map, W = this.W, H = this.H, id = p.id;
     if (own[tile] !== id) return -1;
-    const st = this.stamp, sid = ++this.sid, q = this.q, lim = this.R.portSearch;
+    const lim = this.R.portSearch, st = this.stamp, sid = this.nextSid(), q = this.qFor(2 * lim * (lim + 1) + 1);   // at most the diamond of radius lim
     const tx = tile % W, ty = (tile / W) | 0;
     let qh = 0, qt = 0;
     q[qt++] = tile; st[tile] = sid;
@@ -5500,7 +5514,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     if (tid && this.friendly(p, this.players[tid])) return null;
     const comps = this.coastComps(p);
     if (!comps.size) return null;
-    const st = this.stamp, sid = ++this.sid, q = this.q;
+    const st = this.stamp, sid = this.nextSid(), q = this.qFor(4 * 6000 + 1);   // at most 6000 tiles looked at, 4 new ones each
     let qh = 0, qt = 0, dst = -1, dstWater = -1;
     q[qt++] = tile; st[tile] = sid;
     while (qh < qt && qh < 6000) {
@@ -8535,10 +8549,11 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     };
     m.players = [null]; m.units = []; m.nukes = []; m.attacks = []; m.rails = []; m.events = []; m.fx = [];
     m.mirror = true; m.cloakOk = false;
-    // working memory of the few questions that search (boatPlan, portSite): made on first use
-    let stamp = null, q = null;
-    Object.defineProperty(m, 'stamp', { get: function () { return stamp || (stamp = new Int32Array(N)); }, configurable: true });
-    Object.defineProperty(m, 'q', { get: function () { return q || (q = new Int32Array(N)); }, configurable: true });
+    // working memory of the few questions that search (boatPlan, portSite): the marks made on
+    // first use, the queue small and grown by qFor
+    let stamp = null;
+    Object.defineProperty(m, 'stamp', { get: function () { return stamp || (stamp = new Uint16Array(N)); }, configurable: true });
+    m.q = new Int32Array(1024);
     m.sid = 0;
     this.byU = new Map(); this.byA = new Map(); this.byE = new Map();
     this.Q = null;
@@ -8680,11 +8695,13 @@ globalThis.G = { VARIANT: 'rohstoffe' };
   };
 
   // ---------- the map: built on the page (it needs the browser to read the pictures), copied over ----------
-  G.mapPack = function (map) {
+  // `worker`: for the simulation, without what only the picture needs
+  G.mapPack = function (map, worker) {
     const o = {};
     for (const k in map) {
       const v = map[k];
       if (typeof v === 'function' || k === 'sea') continue;
+      if (worker && k === 'snow') continue;   // only the picture reads it (16 MB on the Earth)
       if (v && typeof v === 'object' && !ArrayBuffer.isView(v) && !Array.isArray(v)) {
         const pr = Object.getPrototypeOf(v);
         if (pr !== Object.prototype && pr !== null && !(v instanceof Map) && !(v instanceof Set)) continue;
@@ -9113,17 +9130,25 @@ void main() { outc = texture(uColor, vUV); }`;
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([0, 0, 1, 0, 0, 1, 1, 1]), gl.STATIC_DRAW);
     this.rects = gl.createBuffer(); this.rectData = new Float32Array(12 * 256);
     this.vao = gl.createVertexArray();
-    // the ground colours with the rivers in alpha
-    const rgba = new Uint8Array(N * 4), b32 = new Uint32Array(rgba.buffer), feat = map.feat;
-    for (let i = 0; i < N; i++) b32[i] = feat && (feat[i] & 1) ? base[i] | 0xff000000 : base[i] & 0x00ffffff;
+    // the ground colours with the rivers in alpha, made and sent in strips of rows (27.11.2026:
+    // before, a copy of the whole map at once, 65 MB on the Earth)
+    const feat = map.feat, SR = 256, strip = new Uint8Array(Math.min(C, W) * SR * 4), s32 = new Uint32Array(strip.buffer);
     this.chunks = [];
     for (let y0 = 0; y0 < H; y0 += C) for (let x0 = 0; x0 < W; x0 += C) {
       const cw = Math.min(C, W - x0), ch = Math.min(C, H - y0), k = { x0: x0, y0: y0, w: cw, h: ch };
       k.own = tex(gl);
       gl.texImage2D(gl.TEXTURE_2D, 0, gl.R16UI, cw + 2, ch + 2, 0, gl.RED_INTEGER, gl.UNSIGNED_SHORT, null);
       k.base = tex(gl);
-      unpack(gl, W, x0, y0);
-      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, cw, ch, 0, gl.RGBA, gl.UNSIGNED_BYTE, rgba);
+      unpack(gl, 0, 0, 0);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, cw, ch, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+      for (let sy = 0; sy < ch; sy += SR) {
+        const sh = Math.min(SR, ch - sy);
+        for (let y = 0; y < sh; y++) {
+          const row = (y0 + sy + y) * W + x0, o = y * cw;
+          for (let x = 0; x < cw; x++) { const i = row + x; s32[o + x] = feat && (feat[i] & 1) ? base[i] | 0xff000000 : base[i] & 0x00ffffff; }
+        }
+        gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, sy, cw, sh, gl.RGBA, gl.UNSIGNED_BYTE, strip.subarray(0, cw * sh * 4));
+      }
       k.color = tex(gl, gl.LINEAR);
       unpack(gl, 0, 0, 0);
       gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, cw, ch, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
@@ -9720,13 +9745,22 @@ void main() { outc = texture(uColor, vUV); }`;
     this.clampCam();
   };
 
-  View.prototype.setMap = function (map) {
-    this.map = map; this.game = null; this.fxList.length = 0; this.mark = -1; this.aim = null;
+  // The ground colour of every tile. With WebGL it lives on the graphics card only, and the copy
+  // here is let go once it is up there (65 MB on the Earth, 27.11.2026); the 2D picture and
+  // View.color make it again when they need it.
+  View.prototype.ground = function () {
+    const map = this.map;
+    if (this.base) return this.base;
     if (map.cover) this.base = worldColors(map);
     else {
       this.base = new Uint32Array(map.N);
       for (let i = 0; i < map.N; i++) this.base[i] = terrainColor(map, i);
     }
+    return this.base;
+  };
+  View.prototype.setMap = function (map) {
+    this.map = map; this.game = null; this.fxList.length = 0; this.mark = -1; this.aim = null;
+    this.base = null; this.ground();
     if (this.glm) { this.glm.free(); this.glm = null; }
     this.mc = this.mctx = this.img = this.px = null;
     if (this.glOn) {
@@ -9734,6 +9768,7 @@ void main() { outc = texture(uColor, vUV); }`;
         this.glm = new G.MapGL(this.glc, map, this.base, G.debugChunk);
         const self = this;
         this.glm.onLost = function () { self.glLost(); };
+        this.base = null;
       } catch (e) {
         if (typeof console !== 'undefined') console.warn('Karte ohne WebGL:', e.message);
         this.glm = null; this.glOn = false;
@@ -9748,7 +9783,7 @@ void main() { outc = texture(uColor, vUV); }`;
     this.mctx = mc.getContext('2d');
     this.img = this.mctx.createImageData(map.W, map.H);
     this.px = new Uint32Array(this.img.data.buffer);
-    this.px.set(this.base);
+    this.px.set(this.ground());
     if (this.game) for (let t = 0; t < this.game.N; t++) if (this.game.owner[t] || this.game.fallout[t]) this.paint(t);
     this.mctx.putImageData(this.img, 0, 0);
   };
@@ -9783,7 +9818,7 @@ void main() { outc = texture(uColor, vUV); }`;
     }
     if (this.glm) this.glm.setGame(game);
     else {
-      this.px.set(this.base);
+      this.px.set(this.ground());
       for (let t = 0; t < game.N; t++) if (game.owner[t] || game.fallout[t]) this.paint(t);
       this.mctx.putImageData(this.img, 0, 0);
     }
@@ -9795,7 +9830,7 @@ void main() { outc = texture(uColor, vUV); }`;
   // the same numbers; test/gl.js compares the two.
   View.prototype.paint = function (t) { this.px[t] = this.color(t); };
   View.prototype.color = function (t) {
-    const g = this.game, own = g.owner, o = own[t], b = this.base[t];
+    const g = this.game, own = g.owner, o = own[t], b = (this.base || this.ground())[t];
     if (!o) {
       if (!g.fallout[t]) return b;
       return pack(((b & 255) * 120 + 104 * 136) >> 8, (((b >>> 8) & 255) * 120 + 214 * 136) >> 8, (((b >>> 16) & 255) * 120 + 78 * 136) >> 8);
@@ -12619,7 +12654,7 @@ void main() { outc = texture(uColor, vUV); }`;
     const self = this;
     this.w.onmessage = function (ev) { self.got(ev.data); };
     this.w.onerror = function (ev) { ev.preventDefault(); self.fail(ev.message || 'Fehler im Spiel'); };
-    this.w.postMessage({ k: 'init', map: G.mapPack(map), opts: opts, people: people });
+    this.w.postMessage({ k: 'init', map: G.mapPack(map, true), opts: opts, people: people });
   }
   WorkerHost.prototype.got = function (d) {
     if (!this.w) return;

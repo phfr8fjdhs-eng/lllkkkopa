@@ -252,7 +252,7 @@
   Game.prototype.portSite = function (p, tile) {
     const own = this.owner, map = this.map, W = this.W, H = this.H, id = p.id;
     if (own[tile] !== id) return -1;
-    const st = this.stamp, sid = ++this.sid, q = this.q, lim = this.R.portSearch;
+    const lim = this.R.portSearch, st = this.stamp, sid = this.nextSid(), q = this.qFor(2 * lim * (lim + 1) + 1);   // at most the diamond of radius lim
     const tx = tile % W, ty = (tile / W) | 0;
     let qh = 0, qt = 0;
     q[qt++] = tile; st[tile] = sid;
@@ -468,7 +468,7 @@
     if (tid && this.friendly(p, this.players[tid])) return null;
     const comps = this.coastComps(p);
     if (!comps.size) return null;
-    const st = this.stamp, sid = ++this.sid, q = this.q;
+    const st = this.stamp, sid = this.nextSid(), q = this.qFor(4 * 6000 + 1);   // at most 6000 tiles looked at, 4 new ones each
     let qh = 0, qt = 0, dst = -1, dstWater = -1;
     q[qt++] = tile; st[tile] = sid;
     while (qh < qt && qh < 6000) {

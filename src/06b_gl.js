@@ -156,17 +156,25 @@ void main() { outc = texture(uColor, vUV); }`;
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([0, 0, 1, 0, 0, 1, 1, 1]), gl.STATIC_DRAW);
     this.rects = gl.createBuffer(); this.rectData = new Float32Array(12 * 256);
     this.vao = gl.createVertexArray();
-    // the ground colours with the rivers in alpha
-    const rgba = new Uint8Array(N * 4), b32 = new Uint32Array(rgba.buffer), feat = map.feat;
-    for (let i = 0; i < N; i++) b32[i] = feat && (feat[i] & 1) ? base[i] | 0xff000000 : base[i] & 0x00ffffff;
+    // the ground colours with the rivers in alpha, made and sent in strips of rows (27.11.2026:
+    // before, a copy of the whole map at once, 65 MB on the Earth)
+    const feat = map.feat, SR = 256, strip = new Uint8Array(Math.min(C, W) * SR * 4), s32 = new Uint32Array(strip.buffer);
     this.chunks = [];
     for (let y0 = 0; y0 < H; y0 += C) for (let x0 = 0; x0 < W; x0 += C) {
       const cw = Math.min(C, W - x0), ch = Math.min(C, H - y0), k = { x0: x0, y0: y0, w: cw, h: ch };
       k.own = tex(gl);
       gl.texImage2D(gl.TEXTURE_2D, 0, gl.R16UI, cw + 2, ch + 2, 0, gl.RED_INTEGER, gl.UNSIGNED_SHORT, null);
       k.base = tex(gl);
-      unpack(gl, W, x0, y0);
-      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, cw, ch, 0, gl.RGBA, gl.UNSIGNED_BYTE, rgba);
+      unpack(gl, 0, 0, 0);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, cw, ch, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+      for (let sy = 0; sy < ch; sy += SR) {
+        const sh = Math.min(SR, ch - sy);
+        for (let y = 0; y < sh; y++) {
+          const row = (y0 + sy + y) * W + x0, o = y * cw;
+          for (let x = 0; x < cw; x++) { const i = row + x; s32[o + x] = feat && (feat[i] & 1) ? base[i] | 0xff000000 : base[i] & 0x00ffffff; }
+        }
+        gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, sy, cw, sh, gl.RGBA, gl.UNSIGNED_BYTE, strip.subarray(0, cw * sh * 4));
+      }
       k.color = tex(gl, gl.LINEAR);
       unpack(gl, 0, 0, 0);
       gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, cw, ch, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);

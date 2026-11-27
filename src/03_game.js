@@ -242,7 +242,10 @@
     const N = this.N, S = this.S;
     this.owner = new Uint16Array(N);
     this.fallout = new Uint8Array(N); this.falloutCount = 0;
-    this.stamp = new Int32Array(N); this.sid = 0; this.q = new Int32Array(N);
+    // working memory of the searches over the map: a mark per tile (16 bit, cleared when the marks
+    // run out, see nextSid) and a queue that grows to what a search needs (qFor). 27.11.2026: both
+    // were 32 bit for every tile, 130 MB on the Earth (doku/leistung.md).
+    this.stamp = new Uint16Array(N); this.sid = 0; this.q = new Int32Array(Math.min(N, 1 << 16));
     this.players = [null];
     this.ticks = 0; this.phase = 'spawn'; this.spawnEnd = this.opts.spawnTicks;
     this.playStart = 0; this.immuneUntil = 0;
@@ -462,6 +465,17 @@
   // dirtyFlag, why a tile is to be painted again: 1 = a neighbour of a changed tile (fixAround),
   // 2 = its owner or fallout changed, 3 = only to paint (dirtyDisc). Only 2 and 3 cross to the
   // page, which marks the neighbours of 2 itself (src/05b_sync.js). Read by nothing in the simulation.
+  // A fresh mark for one search over `stamp`. No search runs inside another one, so clearing all
+  // marks when they run out gives every search the same answer as before.
+  Game.prototype.nextSid = function () {
+    if (++this.sid > 65000) { this.sid = 1; this.stamp.fill(0); }
+    return this.sid;
+  };
+  // The queue of a search, with room for at least n tiles.
+  Game.prototype.qFor = function (n) {
+    if (this.q.length < n) this.q = new Int32Array(Math.min(this.N, Math.max(n, this.q.length * 2)));
+    return this.q;
+  };
   Game.prototype.markDirty = function (t) {
     if (this.dirtyFlag[t]) return;
     this.dirtyFlag[t] = 1;
@@ -720,7 +734,7 @@
   // Is this free tile part of open land that touches the player's territory?
   Game.prototype.tnTouches = function (p, tile) {
     const own = this.owner, land = this.map.land, W = this.W, H = this.H, id = p.id, lim = this.R.tnSearch;
-    const st = this.stamp, sid = ++this.sid, q = this.q;
+    const st = this.stamp, sid = this.nextSid(), q = this.qFor(2 * lim * (lim + 1) + 1);   // at most the diamond of radius lim
     const tx = tile % W, ty = (tile / W) | 0;
     let qh = 0, qt = 0;
     q[qt++] = tile; st[tile] = sid;
@@ -1426,7 +1440,7 @@
 
   // ---------- cut-off pockets ----------
   Game.prototype.removeClusters = function (p) {
-    const W = this.W, H = this.H, own = this.owner, id = p.id, st = this.stamp, sid = ++this.sid;
+    const W = this.W, H = this.H, own = this.owner, id = p.id, st = this.stamp, sid = this.nextSid();
     const border = p.border, eb = this.edge, clusters = [];
     for (const start of border) {
       if (st[start] === sid) continue;
@@ -1545,7 +1559,7 @@
       }
     }
     if (!taker) return;
-    const st = this.stamp, sid = ++this.sid, q = this.q;
+    const st = this.stamp, sid = this.nextSid(), q = this.qFor(p.tiles + 1);   // only own tiles
     let qh = 0, qt = 0;
     q[qt++] = cl[0]; st[cl[0]] = sid;
     while (qh < qt) {

@@ -212,7 +212,7 @@ Gezählt mit `skala.js erde`: jedes typisierte Array ab 64 kB, das an Karte, Spi
 | Simulation | `fallout`, `dirtyFlag` | 2 × 1 | 2 × 16 | `dirtyFlag` ist ein Bit |
 | Simulation | Grenzen als `Set` (222 000 Einträge, etwa 26 Byte) | 0.4 | 6 | nur Grenzfelder |
 | Spiegel | `owner`, `fallout`, `dirtyFlag` | 4 | 65 | ja |
-| Spiegel | `dirty` (wächst bei der ersten, ganzen Nachricht auf 4 Mio.) | 1 | 17 | gebraucht werden pro Tick etwa 14 000 |
+| Spiegel | `dirty` | klein | | In `skala.js` wuchs es auf 4 Mio., weil dort niemand malt und die Liste nie geleert wird. Im Browser leert das Bild sie jedes Mal (Korrektur vom 27.11., Abend) |
 | Bild | `View.base` (Grundfarbe) | 4 | 65 | mit WebGL nur beim Hochladen nötig |
 | Bild | `MapGL.word` | 2 | 33 | ja (vergleicht, was neu gefärbt werden muss) |
 | Bild | beim Start von WebGL: `rgba` der ganzen Karte | 4 | 65 | nur kurz, aber eine Spitze. Ein Stück nach dem anderen reicht |
@@ -280,6 +280,29 @@ Weniger als geschätzt (2 bis 3 ms). Das Überspringen der leeren Set-Operatione
 
 Geprüft: Prüfsumme `SUM=1 stress.js` gleich, `det.js` (alle fünf Varianten) und `posture.js` Zeichen für Zeichen gleich, `sim.js`, `all.js`, `level.js`, `neu.js` grün, `worker.js` (Welt, Erde) und `gl.js` grün bis auf die fehlende Internetquelle.
 
+## Geändert am 27.11.2026: Punkt 3, weniger Speicher pro Feld
+1. **Marken der Suchen mit 16 Bit** (`stamp`): `nextSid` beginnt nach 65 000 Suchen neu und löscht dabei alle Marken. Keine Suche läuft in einer anderen, darum ergibt das dieselben Antworten. Geprüft mit Neubeginn schon nach 300 Suchen: Prüfsummen über 8000 Ticks Welt und 3000 Ticks Erde gleich.
+2. **Warteschlange der Suchen wächst bei Bedarf** (`qFor`). Jede Suche sagt, wie viel sie höchstens braucht: `capturePocket` die Felder des Reichs, `tnTouches` und `portSite` die Raute ihres Radius, `boatPlan` 4 × 6000 + 1.
+3. **Karte im Worker ohne `snow`** (`G.mapPack(map, true)`): nur das Bild liest es.
+4. **Grundfarben mit WebGL nur auf der Grafikkarte** (`View.ground`): Die Kopie auf der Seite wird nach dem Hochladen freigegeben. Das 2D-Bild (auch nach Verlust der Grafikkarte) und `View.color` machen sie bei Bedarf neu.
+5. **WebGL-Start in Streifen von 256 Zeilen** statt mit einer Kopie der ganzen Karte.
+
+Nicht gemacht: `dirtyFlag` als Bits. Es trägt seit Punkt 1 den Grund (0 bis 3). Die 4 Mio. von `dirty` im Spiegel waren ein Fehler der Messbank (siehe Tabelle oben).
+
+Gemessen im Browser (Chrome ohne Grafikkarte, Erde, 25 Sekunden gespielt, Summe des Speichers aller Chrome-Prozesse, je zwei Läufe):
+
+| | vorher | nachher |
+| --- | ---: | ---: |
+| mit WebGL (`?gl=1`, wie auf dem Handy mit Grafikkarte) | 2264 bis 2274 MB | **2045 bis 2077 MB** (−190 bis −230 MB) |
+| mit WebGL, Spitze | 2403 bis 2417 MB | **2055 bis 2181 MB** (−240 bis −350 MB) |
+| mit WebGL, JS-Speicher der Seite | 372 MB | 285 bis 303 MB |
+| 2D-Bild | 1911 bis 1913 MB | 1873 bis 1902 MB (−10 bis −40 MB) |
+| 2D-Bild, Spitze | 2155 MB | 2059 bis 2101 MB |
+
+Weniger als die 220 MB aus der Liste der Arrays, und mit 2D-Bild fast nichts. Der Grund: Ein Array, in das nie geschrieben wird, belegt beim Betriebssystem keinen Speicher. Die alte Warteschlange `q` mit 65 MB war fast leer und kostete darum kaum echten Speicher. Echt gespart haben die Grundfarben auf der Seite und die Kopie beim WebGL-Start. In Software rechnet hier auch die Grafikkarte im Arbeitsspeicher; die Zahlen enthalten sie.
+
+Geprüft: Prüfsumme `SUM=1 stress.js`, `det.js` (alle Varianten), `posture.js` gleich; lange Runden (oben) gleich; `gl.js` (WebGL wie `View.color`, in Stücke geschnitten, Verlust der Grafikkarte) und `worker.js` (Welt, Erde) grün bis auf die fehlende Internetquelle.
+
 ## Plan (27.11.2026), nach Nutzen. Wartet auf OK
 Ersetzt den Plan vom 24.11. Dessen Punkt 2 (Worker) ist gebaut, die übrigen Punkte gehen hier auf. Ziel: die Erde auf einem mittleren Handy, mit Platz für mehr Einheiten. Heute braucht der Worker 19 ms pro Tick, im Speicher liegen rund 640 MB Arrays.
 
@@ -289,7 +312,7 @@ Bei jedem Punkt steht, ob die Simulation berührt wird. Wenn ja, müssen die Pr�
 | --- | --- | --- | --- | --- |
 | 1 ✓ | **Gleichlauf schlanker** (gebaut 27.11., Ergebnis oben: Nachricht −45 %, packen −27 %) (`src/05b_sync.js`): Felder nur schicken, wenn der Besitzer oder die Verstrahlung wechselt (die Seite markiert die Nachbarn selbst zum Nachmalen), Verstrahlung nur wenn nicht 0. Die Zahlen, die sich jeden Tick ändern (Truppen, Gold, Felder der Spieler, Lage der fahrenden Einheiten), gehen gepackt in einem Array statt Feld für Feld mit Prüfsumme | Nachricht 138 → etwa 45 kB (Felder 97 → etwa 25 kB). Packen im Worker 3.8 → etwa 1.5 ms. Spiegel auf der Seite 1.4 → etwa 0.6 ms. Mit 2000 Einheiten packen 12.5 → etwa 3 ms. Ist zugleich das Format für den Server (unten) | mittel | Spiel unberührt. Gefahr: Spiegel weicht ab (`worker.js`), Rand falsch gemalt (`gl.js`, Pixelvergleich) |
 | 2 ✓ | **Grenze auch als Bit pro Feld** (gebaut 27.11.: Kessel-Prüfung −41 %, Tick etwa −8 %) (ein Bit «gehört zur Grenze seines Besitzers»): `removeClusters` fragt das Bit statt `Set.has`, `fixBorder` überspringt `Set.add`/`delete`, die nichts ändern (37 %) | `removeClusters` 2.3 → etwa 1 ms, `fixBorder` etwa ein Drittel weniger. Zusammen etwa 2 bis 3 ms von 15.4 (15 bis 20 %). Schätzung aus dem Profil, zuerst messen | klein | Simulation: Die Sets behalten Inhalt und Reihenfolge, das Ergebnis ist darum dasselbe. Jede Stelle, die eine Grenze ändert (`conquer`, `relinquish`, `fixBorder`, `kill`), muss das Bit mitführen. Prüfsumme |
-| 3 | **Weniger Speicher pro Feld**: `stamp` mit 16 Bit und Neubeginn beim Überlauf (−32 MB), `q` wächst bei Bedarf (−65 MB), Karte im Worker ohne `snow` (−16 MB), `View.base` mit WebGL nach dem Hochladen freigeben (−65 MB), WebGL-Start Stück für Stück statt ganze Karte auf einmal (−65 MB Spitze), `dirty` des Spiegels ohne Sprung auf 4 Mio. (−15 MB), `dirtyFlag` als Bits auf beiden Seiten (−28 MB) | Erde: −220 MB von 640 (−35 %), dazu −65 MB Spitze beim Start | mittel | `stamp` und `q` sind Arbeitsspeicher der Simulation: Prüfsumme. Die Teile auf der Seite: `gl.js`, `worker.js` und der Rückfall ohne Grafikkarte |
+| 3 ✓ | **Weniger Speicher pro Feld** (gebaut 27.11.: im Browser mit WebGL −0.2 GB, Spitze −0.3 GB): `stamp` mit 16 Bit und Neubeginn beim Überlauf (−32 MB), `q` wächst bei Bedarf (−65 MB), Karte im Worker ohne `snow` (−16 MB), `View.base` mit WebGL nach dem Hochladen freigeben (−65 MB), WebGL-Start Stück für Stück statt ganze Karte auf einmal (−65 MB Spitze), `dirty` des Spiegels ohne Sprung auf 4 Mio. (−15 MB), `dirtyFlag` als Bits auf beiden Seiten (−28 MB) | Erde: −220 MB von 640 (−35 %), dazu −65 MB Spitze beim Start | mittel | `stamp` und `q` sind Arbeitsspeicher der Simulation: Prüfsumme. Die Teile auf der Seite: `gl.js`, `worker.js` und der Rückfall ohne Grafikkarte |
 | 4 | **Zielsuche der Kriegsschiffe genauer**: `seaNear` filtert schon nach Abstand (mit Rand für die Bewegung im Tick) und sortiert nicht mehr. Das beste Ziel wird nach (Wert, Platz in `units`) gewählt, also wie heute | Bei dichten Schiffen etwa die halbe Zeit für Kriegsschiffe (heute 212 Kandidaten pro Suche, nur 22 % in Reichweite, `seaNear` 35 % der Zeit). Welt 788 Einheiten `tickUnit` 13 → etwa 6 ms, Erde 2065 Einheiten 7 → etwa 3.5 ms | klein | Simulation: Prüfsumme von `stress.js` mit 1000 bis 10 000 Schiffen |
 | 5 | **Einheiten über die Grafikkarte** (`src/06b_gl.js`): die schon vorgezeichneten Schiffsbilder als Textur, alle Schiffe einer Art in einem Zeichenaufruf, gedreht im Shader. Spuren, Linien und Effekte bleiben 2D. Ohne WebGL bleibt alles wie heute | 1000 Schiffe auf der ganzen Karte 13.4 → unter 2 ms pro Bild, 5000: 42 → wenige ms (Schätzung; ohne Grafikkarte hier nicht messbar, nur in Software) | gross | Bild: muss gleich aussehen. Neuer Pixelvergleich 2D gegen WebGL in `gl.js`. Lohnt sich, sobald echte Runden 1000 sichtbare Einheiten haben (langsamere Schiffe, Flugzeuge). Darum nach 1 bis 4 |
 | — | Quadratisch mit Spielern | nichts zu tun (gemessen: höchstens linear) | — | — |

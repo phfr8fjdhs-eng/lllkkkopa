@@ -325,13 +325,22 @@
     this.clampCam();
   };
 
-  View.prototype.setMap = function (map) {
-    this.map = map; this.game = null; this.fxList.length = 0; this.mark = -1; this.aim = null;
+  // The ground colour of every tile. With WebGL it lives on the graphics card only, and the copy
+  // here is let go once it is up there (65 MB on the Earth, 27.11.2026); the 2D picture and
+  // View.color make it again when they need it.
+  View.prototype.ground = function () {
+    const map = this.map;
+    if (this.base) return this.base;
     if (map.cover) this.base = worldColors(map);
     else {
       this.base = new Uint32Array(map.N);
       for (let i = 0; i < map.N; i++) this.base[i] = terrainColor(map, i);
     }
+    return this.base;
+  };
+  View.prototype.setMap = function (map) {
+    this.map = map; this.game = null; this.fxList.length = 0; this.mark = -1; this.aim = null;
+    this.base = null; this.ground();
     if (this.glm) { this.glm.free(); this.glm = null; }
     this.mc = this.mctx = this.img = this.px = null;
     if (this.glOn) {
@@ -339,6 +348,7 @@
         this.glm = new G.MapGL(this.glc, map, this.base, G.debugChunk);
         const self = this;
         this.glm.onLost = function () { self.glLost(); };
+        this.base = null;
       } catch (e) {
         if (typeof console !== 'undefined') console.warn('Karte ohne WebGL:', e.message);
         this.glm = null; this.glOn = false;
@@ -353,7 +363,7 @@
     this.mctx = mc.getContext('2d');
     this.img = this.mctx.createImageData(map.W, map.H);
     this.px = new Uint32Array(this.img.data.buffer);
-    this.px.set(this.base);
+    this.px.set(this.ground());
     if (this.game) for (let t = 0; t < this.game.N; t++) if (this.game.owner[t] || this.game.fallout[t]) this.paint(t);
     this.mctx.putImageData(this.img, 0, 0);
   };
@@ -388,7 +398,7 @@
     }
     if (this.glm) this.glm.setGame(game);
     else {
-      this.px.set(this.base);
+      this.px.set(this.ground());
       for (let t = 0; t < game.N; t++) if (game.owner[t] || game.fallout[t]) this.paint(t);
       this.mctx.putImageData(this.img, 0, 0);
     }
@@ -400,7 +410,7 @@
   // the same numbers; test/gl.js compares the two.
   View.prototype.paint = function (t) { this.px[t] = this.color(t); };
   View.prototype.color = function (t) {
-    const g = this.game, own = g.owner, o = own[t], b = this.base[t];
+    const g = this.game, own = g.owner, o = own[t], b = (this.base || this.ground())[t];
     if (!o) {
       if (!g.fallout[t]) return b;
       return pack(((b & 255) * 120 + 104 * 136) >> 8, (((b >>> 8) & 255) * 120 + 214 * 136) >> 8, (((b >>> 16) & 255) * 120 + 78 * 136) >> 8);

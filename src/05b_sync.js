@@ -313,10 +313,11 @@
     };
     m.players = [null]; m.units = []; m.nukes = []; m.attacks = []; m.rails = []; m.events = []; m.fx = [];
     m.mirror = true; m.cloakOk = false;
-    // working memory of the few questions that search (boatPlan, portSite): made on first use
-    let stamp = null, q = null;
-    Object.defineProperty(m, 'stamp', { get: function () { return stamp || (stamp = new Int32Array(N)); }, configurable: true });
-    Object.defineProperty(m, 'q', { get: function () { return q || (q = new Int32Array(N)); }, configurable: true });
+    // working memory of the few questions that search (boatPlan, portSite): the marks made on
+    // first use, the queue small and grown by qFor
+    let stamp = null;
+    Object.defineProperty(m, 'stamp', { get: function () { return stamp || (stamp = new Uint16Array(N)); }, configurable: true });
+    m.q = new Int32Array(1024);
     m.sid = 0;
     this.byU = new Map(); this.byA = new Map(); this.byE = new Map();
     this.Q = null;
@@ -458,11 +459,13 @@
   };
 
   // ---------- the map: built on the page (it needs the browser to read the pictures), copied over ----------
-  G.mapPack = function (map) {
+  // `worker`: for the simulation, without what only the picture needs
+  G.mapPack = function (map, worker) {
     const o = {};
     for (const k in map) {
       const v = map[k];
       if (typeof v === 'function' || k === 'sea') continue;
+      if (worker && k === 'snow') continue;   // only the picture reads it (16 MB on the Earth)
       if (v && typeof v === 'object' && !ArrayBuffer.isView(v) && !Array.isArray(v)) {
         const pr = Object.getPrototypeOf(v);
         if (pr !== Object.prototype && pr !== null && !(v instanceof Map) && !(v instanceof Set)) continue;

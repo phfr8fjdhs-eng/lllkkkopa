@@ -71,7 +71,7 @@
     const self = this;
     this.w.onmessage = function (ev) { self.got(ev.data); };
     this.w.onerror = function (ev) { ev.preventDefault(); self.fail(ev.message || 'Fehler im Spiel'); };
-    this.w.postMessage({ k: 'init', map: G.mapPack(map), opts: opts, people: people });
+    this.w.postMessage({ k: 'init', map: G.mapPack(map, true), opts: opts, people: people });
   }
   WorkerHost.prototype.got = function (d) {
     if (!this.w) return;

@@ -83,7 +83,7 @@ async function one(cfg) {
   };
   G.simWorker(scope);
   const opts = { seed: 7, bots: cfg.bots, difficulty: 1, spawnTicks: 10, autoSpawn: true, nations: cfg.nations !== false };
-  scope.onmessage({ data: { k: 'init', map: G.mapUnpack(G.mapPack(map)), opts: opts, people: { name: 'Ich' } } });
+  scope.onmessage({ data: { k: 'init', map: G.mapUnpack(G.mapPack(map, true)), opts: opts, people: { name: 'Ich' } } });
   const g = game;
   if (cfg.ships) addShips(G, g, cfg.ships, cfg.warm);
   const ticks = cfg.ticks, warm = cfg.warm, times = [], stepMs = [];
