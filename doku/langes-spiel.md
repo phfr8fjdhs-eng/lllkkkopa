@@ -254,10 +254,7 @@ Code: Abschnitt «the navy» in `src/04c_lang.js` (`shipFull`, `shipSpeed`, `lan
 - Szene 133 (Marine).
 
 ### 6b. Flotte (27.11.2026)
-- **Marschflugkörper-U-Boot** (Marine 4, `ub3`): Jedes U-Boot hat einen Startplatz und zählt für Marschflugkörper wie ein Silo (`readySilo`, `subCan`). Die Reichweite zählt ab dem U-Boot. Wer feuert, zeigt sich 30 s.
-- **Strategisches U-Boot** (Marine 5, `ub5`, braucht die Atombombe): Das U-Boot trägt auch Atom- und Wasserstoffbomben.
-  - Scharfgemacht wird wie im Silo, aber das sieht niemand: Den roten Ring gibt es nur bei Silos.
-  - Wird das eigene Land von einer Atomwaffe getroffen, startet die Bombe sofort. Das ist der Zweitschlag.
+- **Raketen-U-Boot** (Marine 4, `ub3`): Es gibt nur ein U-Boot, und es kommt wie jedes Kriegsschiff aus dem Hafen. Mit dieser Forschung feuert es selbst Marschflugkörper, ohne Silo (`subCan`); ist die Atombombe oder Wasserstoffbombe erforscht, auch diese. Die Reichweite zählt ab dem U-Boot, ein Schuss nach dem anderen (ein Rohr, Nachladen wie im Silo). Wer feuert, ist 30 s sichtbar. Atombomben macht es scharf, ohne dass es jemand sieht; trifft eine Atomwaffe das eigene Land, startet die Bombe sofort (Zweitschlag).
 - **Abwehrschiff** (Schiffsklasse 4, auf der Seite 7.3, Preis × 2.5, Marine 3):
   - Es hat keine Geschütze.
   - Alle 1.5 s schiesst es einen Marschflugkörper, eine Kurzstreckenrakete, einen Bomber oder ein Aufklärungsflugzeug in 60 Feldern ab (`flakR`, mal Reichweite des Modus).

@@ -549,9 +549,8 @@
     T_('rads', 'Marine', 2, 'Radarschiff', 'Radarschiff bauen: hebt den Nebel um sich auf, auch über dem Meer', ['auf1']),
     T_('abws', 'Marine', 3, 'Abwehrschiff', 'Abwehrschiff bauen: schiesst Marschflugkörper, Raketen und Flugzeuge in der Nähe ab', ['mar2']),
     T_('marinf', 'Marine', 3, 'Marineinfanterie', 'Deine Boote landen mit 1.25-mal so vielen Truppen', ['mar2']),
-    T_('ub3', 'Marine', 4, 'Marschflugkörper-U-Boot', 'U-Boote feuern Marschflugkörper (ein Platz, wie ein kleines Silo)', ['ub2', 'rak1']),
-    T_('kuest', 'Marine', 4, 'Küstenbeschuss', 'Schlachtschiffe ohne Ziel auf See beschiessen Gebäude an der Küste', ['bs3']),
-    T_('ub5', 'Marine', 5, 'Strategisches U-Boot', 'U-Boote tragen auch Atom- und Wasserstoffbomben: der Zweitschlag, den keiner sieht', ['ub3', 'atom'])
+    T_('ub3', 'Marine', 4, 'Raketen-U-Boot', 'Das U-Boot feuert selbst Marschflugkörper, mit Atombombe oder Wasserstoffbombe erforscht auch diese', ['ub2', 'rak1']),
+    T_('kuest', 'Marine', 4, 'Küstenbeschuss', 'Schlachtschiffe ohne Ziel auf See beschiessen Gebäude an der Küste', ['bs3'])
   ];
   G.SHIP_TECH = [0, 0, 'ub1', 'traeger', 'abws', 'rads'];
   const TECH = G.TECH_BY = {};
@@ -800,11 +799,13 @@
     if (u.cls === 3) { u.ready = []; for (let i = 0; i < G.LANG.carrierSlots; i++) u.ready.push(0); }
     if (u.cls === 2) u.ready = [0];   // a launch tube, used with research Marschflugkörper-U-Boot
   };
-  // What a submarine of p may fire: cruise missiles (ub3), the nuclear bombs too (ub5).
+  // What a submarine of p may fire (one kind of submarine, built in a port): with research
+  // Raketen-U-Boot cruise missiles, and the atom or hydrogen bomb once that is researched too.
   Game.prototype.subCan = function (p, type) {
     if (type === undefined) return this.has(p, 'ub3');
     if (type === UT.CRUISE) return this.has(p, 'ub3');
-    if (type === UT.ATOM || type === UT.HYDRO) return this.has(p, 'ub5');
+    if (type === UT.ATOM) return this.has(p, 'ub3') && this.has(p, 'atom');
+    if (type === UT.HYDRO) return this.has(p, 'ub3') && this.has(p, 'hydro');
     return false;
   };
   // Research Küstenbeschuss: a battleship with nothing to shoot at sea shells the nearest enemy

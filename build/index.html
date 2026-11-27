@@ -4350,7 +4350,7 @@ body.placing #cv { cursor: crosshair; }
   G.NEUES = [
     {
       n: 135, date: '27.11.2026', title: 'Langes Spiel: Flotte', lang: true,
-      text: 'Das U-Boot feuert Marschflugkörper (mit «Strategisches U-Boot» auch Atombomben) und zeigt sich dabei. Das Schlachtschiff beschiesst mit «Küstenbeschuss» Gebäude an der Küste. Das Abwehrschiff holt Marschflugkörper und Flugzeuge bei der Flotte herunter, das Radarschiff hebt den Nebel um sich auf.',
+      text: 'Das U-Boot kommt aus dem Hafen und feuert mit «Raketen-U-Boot» selbst Marschflugkörper, später auch Atombomben, und zeigt sich dabei. Das Schlachtschiff beschiesst mit «Küstenbeschuss» Gebäude an der Küste. Das Abwehrschiff holt Marschflugkörper und Flugzeuge bei der Flotte herunter, das Radarschiff hebt den Nebel um sich auf.',
       map: { w: 300, h: 150, rough: 4, seed: 935, shapes: [rect(0, 0, 300, 40), rect(0, 100, 300, 150)] },
       me: { x: 150, y: 18, box: [0, 0, 300, 40], troops: 60000, gold: 3000000, build: [[UT.PORT, 120, 39, 2], [UT.CITY, 200, 25, 6]] },
       foes: [{ name: 'Südreich', x: 150, y: 130, box: [0, 100, 300, 150], troops: 90000, build: [[UT.CITY, 150, 125, 6], [UT.DEFENSE, 80, 106, 2], [UT.SILO, 200, 104, 2], [UT.PORT, 260, 101, 1]] }],
@@ -5092,7 +5092,7 @@ body.placing #cv { cursor: crosshair; }
       if (this.lang) { const why = this.weaponWhy(p, type); if (why) { res.why = why; return res; } }
       if (this.lang && G.isPlane(type)) { this.planeCheck(p, type, tile, pick, res); return res; }   // planes start from an airfield (src/04c_lang.js)
       const s = this.readySilo(p, tile, type, pick);
-      if (!s.silo) { res.why = s.far ? 'Kein Silo in Reichweite' : s.any ? 'Silo lädt noch nach' : 'Dafür brauchst du ein Raketensilo'; return res; }
+      if (!s.silo) { const sub = this.lang && this.subCan(p, type); res.why = s.far ? (sub ? 'Kein Silo oder U-Boot in Reichweite' : 'Kein Silo in Reichweite') : s.any ? (sub ? 'Silo oder U-Boot lädt noch nach' : 'Silo lädt noch nach') : 'Dafür brauchst du ein Raketensilo' + (sub ? ' oder ein U-Boot' : ''); return res; }
       if (this.ticks < this.immuneUntil) { res.why = 'Schonfrist läuft noch'; return res; }
       if (type === UT.MIRV) {
         const o = this.owner[tile];
@@ -7068,9 +7068,8 @@ body.placing #cv { cursor: crosshair; }
     T_('rads', 'Marine', 2, 'Radarschiff', 'Radarschiff bauen: hebt den Nebel um sich auf, auch über dem Meer', ['auf1']),
     T_('abws', 'Marine', 3, 'Abwehrschiff', 'Abwehrschiff bauen: schiesst Marschflugkörper, Raketen und Flugzeuge in der Nähe ab', ['mar2']),
     T_('marinf', 'Marine', 3, 'Marineinfanterie', 'Deine Boote landen mit 1.25-mal so vielen Truppen', ['mar2']),
-    T_('ub3', 'Marine', 4, 'Marschflugkörper-U-Boot', 'U-Boote feuern Marschflugkörper (ein Platz, wie ein kleines Silo)', ['ub2', 'rak1']),
-    T_('kuest', 'Marine', 4, 'Küstenbeschuss', 'Schlachtschiffe ohne Ziel auf See beschiessen Gebäude an der Küste', ['bs3']),
-    T_('ub5', 'Marine', 5, 'Strategisches U-Boot', 'U-Boote tragen auch Atom- und Wasserstoffbomben: der Zweitschlag, den keiner sieht', ['ub3', 'atom'])
+    T_('ub3', 'Marine', 4, 'Raketen-U-Boot', 'Das U-Boot feuert selbst Marschflugkörper, mit Atombombe oder Wasserstoffbombe erforscht auch diese', ['ub2', 'rak1']),
+    T_('kuest', 'Marine', 4, 'Küstenbeschuss', 'Schlachtschiffe ohne Ziel auf See beschiessen Gebäude an der Küste', ['bs3'])
   ];
   G.SHIP_TECH = [0, 0, 'ub1', 'traeger', 'abws', 'rads'];
   const TECH = G.TECH_BY = {};
@@ -7319,11 +7318,13 @@ body.placing #cv { cursor: crosshair; }
     if (u.cls === 3) { u.ready = []; for (let i = 0; i < G.LANG.carrierSlots; i++) u.ready.push(0); }
     if (u.cls === 2) u.ready = [0];   // a launch tube, used with research Marschflugkörper-U-Boot
   };
-  // What a submarine of p may fire: cruise missiles (ub3), the nuclear bombs too (ub5).
+  // What a submarine of p may fire (one kind of submarine, built in a port): with research
+  // Raketen-U-Boot cruise missiles, and the atom or hydrogen bomb once that is researched too.
   Game.prototype.subCan = function (p, type) {
     if (type === undefined) return this.has(p, 'ub3');
     if (type === UT.CRUISE) return this.has(p, 'ub3');
-    if (type === UT.ATOM || type === UT.HYDRO) return this.has(p, 'ub5');
+    if (type === UT.ATOM) return this.has(p, 'ub3') && this.has(p, 'atom');
+    if (type === UT.HYDRO) return this.has(p, 'ub3') && this.has(p, 'hydro');
     return false;
   };
   // Research Küstenbeschuss: a battleship with nothing to shoot at sea shells the nearest enemy
@@ -13529,7 +13530,7 @@ void main() { outc = texture(uColor, vUV); }`;
       } else if (nuke) {
         const s = game.readySilo(h, tile);
         ok = s.any && h.gold >= cost;
-        note = !s.any ? 'Dafür brauchst du ein Raketensilo' : h.gold < cost ? 'Zu wenig Gold' : 'Ziel wählen und abfeuern';
+        note = !s.any ? 'Dafür brauchst du ein Raketensilo' + (game.lang && game.subCan(h, b.t) ? ' oder ein U-Boot' : '') : h.gold < cost ? 'Zu wenig Gold' : 'Ziel wählen und abfeuern';
       } else {
         const c = game.buildCheck(h, real(b.t).u, tile, real(b.t).cls);
         ok = c.ok; note = c.ok ? b.note : c.why; cost = c.cost;
@@ -13558,7 +13559,7 @@ void main() { outc = texture(uColor, vUV); }`;
     if (t === UT.LASER) { startAim(t, tile); return; }
     if (t >= UT.ATOM) {
       const h = game.human, s = game.readySilo(h, tile);
-      if (!s.any) { toast('Dafür brauchst du ein Raketensilo'); snd('deny'); return; }
+      if (!s.any) { toast('Dafür brauchst du ein Raketensilo' + (game.lang && game.subCan(h, t) ? ' oder ein U-Boot' : '')); snd('deny'); return; }
       startAim(t, tile);
       return;
     }

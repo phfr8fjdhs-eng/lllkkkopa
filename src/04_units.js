@@ -359,7 +359,7 @@
       if (this.lang) { const why = this.weaponWhy(p, type); if (why) { res.why = why; return res; } }
       if (this.lang && G.isPlane(type)) { this.planeCheck(p, type, tile, pick, res); return res; }   // planes start from an airfield (src/04c_lang.js)
       const s = this.readySilo(p, tile, type, pick);
-      if (!s.silo) { res.why = s.far ? 'Kein Silo in Reichweite' : s.any ? 'Silo lädt noch nach' : 'Dafür brauchst du ein Raketensilo'; return res; }
+      if (!s.silo) { const sub = this.lang && this.subCan(p, type); res.why = s.far ? (sub ? 'Kein Silo oder U-Boot in Reichweite' : 'Kein Silo in Reichweite') : s.any ? (sub ? 'Silo oder U-Boot lädt noch nach' : 'Silo lädt noch nach') : 'Dafür brauchst du ein Raketensilo' + (sub ? ' oder ein U-Boot' : ''); return res; }
       if (this.ticks < this.immuneUntil) { res.why = 'Schonfrist läuft noch'; return res; }
       if (type === UT.MIRV) {
         const o = this.owner[tile];

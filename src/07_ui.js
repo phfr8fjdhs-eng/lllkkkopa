@@ -1204,7 +1204,7 @@
       } else if (nuke) {
         const s = game.readySilo(h, tile);
         ok = s.any && h.gold >= cost;
-        note = !s.any ? 'Dafür brauchst du ein Raketensilo' : h.gold < cost ? 'Zu wenig Gold' : 'Ziel wählen und abfeuern';
+        note = !s.any ? 'Dafür brauchst du ein Raketensilo' + (game.lang && game.subCan(h, b.t) ? ' oder ein U-Boot' : '') : h.gold < cost ? 'Zu wenig Gold' : 'Ziel wählen und abfeuern';
       } else {
         const c = game.buildCheck(h, real(b.t).u, tile, real(b.t).cls);
         ok = c.ok; note = c.ok ? b.note : c.why; cost = c.cost;
@@ -1233,7 +1233,7 @@
     if (t === UT.LASER) { startAim(t, tile); return; }
     if (t >= UT.ATOM) {
       const h = game.human, s = game.readySilo(h, tile);
-      if (!s.any) { toast('Dafür brauchst du ein Raketensilo'); snd('deny'); return; }
+      if (!s.any) { toast('Dafür brauchst du ein Raketensilo' + (game.lang && game.subCan(h, t) ? ' oder ein U-Boot' : '')); snd('deny'); return; }
       startAim(t, tile);
       return;
     }
