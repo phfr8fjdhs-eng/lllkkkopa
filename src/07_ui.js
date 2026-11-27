@@ -925,7 +925,9 @@
         '<kbd>' + c.key.toUpperCase() + '</kbd>' + badge(c.have) + svg(c.b.icon, 22) + '<span>' + c.cost + '</span></button>';
     }).join('');
     el.classList.toggle('groups', !!game.lang);
-    el.innerHTML = game.lang ? groupTabs('gtab') + '<div class="hkrow">' + items + '</div>' : items;
+    // in the groups ships and planes: the list of all own ships and planes in the air
+    const list = game.lang && barGroup >= 2 ? '<button type="button" class="hk" data-fleet="1" title="Liste: alle eigenen Schiffe und Flugzeuge"><kbd></kbd>' + svg('table', 22) + '<span>Liste</span></button>' : '';
+    el.innerHTML = game.lang ? groupTabs('gtab') + '<div class="hkrow">' + items + list + '</div>' : items;
   }
   // the four tabs of «Langes Spiel», for the bar and the build menu
   function groupTabs(cls) {
@@ -986,6 +988,7 @@
       if (tg > 0) { addMsg('Züge bringen ' + fmt(tg) + ' Gold', 'good'); trainSeen = h.trainTotal || 0; }
     }
     if (modalKind === 'info' && T % 5 === 0) renderInfo();
+    if (modalKind === 'fleet' && T % 10 === 0) showFleet();
     if (modalKind === 'res' && T % 3 === 0) renderRes();
     if (aim && T % 3 === 0) refreshAim();
     if (game.lv) G.Feldzug.hud();
@@ -1114,6 +1117,7 @@
     if (what === 'gold') { act({ k: 'don', p: p.id, g: 'gold', say: 'Gold an ' + p.name + ' geschickt' }); return; }
     if (what === 'renew') { act({ k: 'renew', p: p.id }); dropAsk('r' + p.id); return; }
     if (what === 'tech') { showTech(); return; }
+    if (what.indexOf('fly:') === 0) { const u = game.human.units.find(function (v) { return v.id === +what.slice(4); }); closeModal(); if (u) view.flyTo(u.x, u.y, Math.max(view.cam.z, 4)); return; }
     if (what.indexOf('tsel:') === 0) { techSel = techSel === what.slice(5) ? '' : what.slice(5); const top = $('modalCard').scrollTop; showTech(); $('modalCard').scrollTop = top; return; }
     if (what.indexOf('tech:') === 0) { act({ k: 'research', id: what.slice(5), say: 'Forschung gestartet' }); setTimeout(function () { if (modalKind === 'tech') showTech(); }, 150); return; }
     if (what.indexOf('take:') === 0) { const pr = what.split(':'); act({ k: 'techtake', p: +pr[2], id: pr[1], say: 'Gekauft' }); setTimeout(function () { if (modalKind === 'tech') showTech(); }, 150); return; }
@@ -1230,6 +1234,7 @@
         if (near.uni) btns += '<div class="uprow"><small>Uni: ' + (near.res ? 'forscht an ' + esc(G.TECH_BY[near.res.id].name) + ' (' + Math.floor(100 * near.res.pts / game.techCost(near.res.id)) + ' %)' : 'frei, wähle unter «Forschung»') + ' · ' + (Math.round(game.uniRate(near) * 100) / 10).toLocaleString('de-CH') + ' Punkte/s</small></div>';
         else btns += '<div class="uprow"><button class="upbtn" type="button" data-uni="1"' + (near.level >= G.LANG.uniLevel && (rich || h.gold >= G.LANG.uniCost) ? '' : ' disabled') + '><span>Uni bauen' + (near.level < G.LANG.uniLevel ? ' (ab Stufe ' + G.LANG.uniLevel + ')' : '') + '</span>' + coin(G.LANG.uniCost) + '</button></div>';
       }
+      if (game.lang && near.type === UT.PORT) btns += '<div class="uprow"><button class="upbtn" type="button" data-fleet="1"><span>Liste aller Schiffe und Flugzeuge</span></button></div>';
       if (game.lang && near.type === UT.CITY) btns += near.shelter ? '<div class="uprow"><small>Schutzräume: halb so viele Tote, halb so viele verlorene Stufen bei einem Treffer</small></div>' : '<div class="uprow"><button class="upbtn" type="button" data-shelter="1"' + (rich || h.gold >= G.LANG.shelterCost ? '' : ' disabled') + '><span>Schutzräume</span>' + coin(G.LANG.shelterCost) + '</button></div>';
       html += '<div class="scard"><div class="shead"><span class="ic big">' + svg(BUILD.find(function (b) { return b.t === near.type; }).icon, 30) + '</span>' +
         '<div class="sinfo"><b>' + G.UNAME[near.type] + ' · Stufe ' + near.level + (top > 10 ? ' von ' + top : '') + '</b>' + bar +
@@ -1261,7 +1266,8 @@
     };
     if (game.lang) {
       // «Langes Spiel»: the same four groups as the bar, as tabs (big enough for a finger)
-      html += groupTabs('stab') + '<div class="grid">' + groupItems(barGroup).map(function (c) { return cell(c.b, c.key); }).join('') + '</div>';
+      html += groupTabs('stab') + '<div class="grid">' + groupItems(barGroup).map(function (c) { return cell(c.b, c.key); }).join('') +
+        (barGroup >= 2 ? '<button class="item" type="button" data-fleet="1"><span class="ic">' + svg('table', 24) + '</span><b>Liste</b><small>Alle eigenen Schiffe und Flugzeuge</small></button>' : '') + '</div>';
     } else {
       html += '<h3>Gebäude</h3><div class="grid">' + BUILD.filter(function (b) { return b.t <= UT.CLOAK && offered(b.t); }).map(function (b) { return cell(b); }).join('') + '</div>';
       html += '<h3>Flotte und Raketen</h3><div class="grid">' + BUILD.filter(function (b) { return b.t > UT.CLOAK && offered(b.t); }).map(function (b) { return cell(b); }).join('') + '</div>';
@@ -1382,6 +1388,49 @@
     openModal(s, 'tech');
     $('modalCard').classList.add('techWide');
   }
+  // «Langes Spiel» (27.11.2026): the own ships and planes as a list, kind, hull, where, what it does;
+  // a tap flies the map to it. Opened from the groups «Schiffe» and «Flugzeuge».
+  function fleetWhere(u) {
+    const g = game, W = g.W, h = g.human, t = Math.round(u.y) * W + Math.round(u.x), o = g.owner[t];
+    if (g.map.land[t]) return o === h.id ? 'über eigenem Land' : o ? 'über ' + g.players[o].name : 'über freiem Land';
+    // at sea: the nearest land with an owner, looked for in rings
+    for (let r = 4; r <= 40; r += 6) for (let a = 0; a < 8; a++) {
+      const x = Math.round(u.x + r * Math.cos(a * 0.785)), y = Math.round(u.y + r * Math.sin(a * 0.785));
+      if (x < 0 || y < 0 || x >= W || y >= g.H) continue;
+      const k = g.owner[y * W + x];
+      if (k) return 'auf See vor ' + (k === h.id ? 'der eigenen Küste' : g.players[k].name);
+    }
+    return 'auf offener See';
+  }
+  function fleetDoing(u) {
+    if (G.isPlane(u.type)) return u.type === UT.FIGHTER && u.leg === 0 ? 'jagt ein Ziel' : u.leg === 1 ? 'fliegt zurück' : 'fliegt zum Ziel';
+    if (u.docked) return 'liegt im Hafen (Reparatur)';
+    if (u.target && u.target.active) return u.cls === 3 ? 'startet Flugzeuge' : 'kämpft gegen ' + G.SHIP_CLASS[u.target.cls || 0].name.replace('Zerstörer', 'ein Schiff') + ' von ' + u.target.owner.name;
+    if (u.hunt) return 'jagt ein Handelsschiff';
+    if (u.leg === 'dock') return 'fährt zum Hafen';
+    if (u.leg === 'order' && u.path && u.pi < u.path.length - 1) return 'fährt zum befohlenen Ziel';
+    if (u.type === UT.WARSHIP && u.cls === 2 && u.shown > game.ticks) return 'hat gefeuert, ist sichtbar';
+    return 'auf Patrouille';
+  }
+  function showFleet() {
+    const h = game.human, rows = [];
+    for (const u of h.units) {
+      if (!u.active) continue;
+      if (u.type === UT.WARSHIP) rows.push({ u: u, kind: G.SHIP_CLASS[u.cls || 0].name, icon: ['warship', 'battleship', 'sub', 'carrier', 'abm', 'radar'][u.cls || 0], hp: Math.round(100 * u.hp / game.shipFull(u)) });
+      else if (G.isPlane(u.type)) rows.push({ u: u, kind: plain(u.type), icon: ['bomber', 'stealth', 'recon', 'recon'][u.type - UT.BOMBER], hp: u.type === UT.STEALTH ? Math.round(100 * u.hp / G.LANG.stealthHp) : -1 });
+    }
+    let s = '<div id="fleetCard"><h2>Flotte und Flugzeuge</h2><p class="hint">' + rows.length + ' unterwegs · antippen zeigt es auf der Karte</p>';
+    if (!rows.length) s += '<p class="notes">Keine Schiffe und keine Flugzeuge in der Luft.</p>';
+    else s += '<div class="flist">' + rows.map(function (r) {
+      return '<button type="button" class="frow" data-act="fly:' + r.u.id + '">' + svg(r.icon, 20) + '<b>' + esc(r.kind) + '</b>' +
+        '<span class="fhp">' + (r.hp >= 0 ? '<i style="width:' + r.hp + '%;background:' + (r.hp > 60 ? '#63d391' : r.hp > 30 ? '#f4b740' : '#ff6b5e') + '"></i>' : '') + '</span>' +
+        '<small>' + esc(fleetWhere(r.u)) + '</small><small>' + esc(fleetDoing(r.u)) + '</small></button>';
+    }).join('') + '</div>';
+    s += '<button class="btn ghost" data-act="close" type="button">Schliessen</button></div>';
+    const top = modalKind === 'fleet' ? $('modalCard').scrollTop : 0;
+    openModal(s, 'fleet');
+    $('modalCard').scrollTop = top;
+  }
   function fireSalvo() {
     act({ k: 'salvo', list: salvoList.slice(), say: salvoList.length + ' Schläge gestartet: sie schlagen gleichzeitig ein' });
     salvoList.length = 0; view.salvo = salvoList;
@@ -1430,8 +1479,9 @@
   function closeBuild() { $('sheet').hidden = true; if (view) { view.mark = -1; view.selUnit = null; } }
   function onBuild(e) {
     if (performance.now() - sheetAt < 350) return;
-    const b = e.target.closest('[data-t],[data-up],[data-shelter],[data-uni],[data-grp]');
+    const b = e.target.closest('[data-t],[data-up],[data-shelter],[data-uni],[data-grp],[data-fleet]');
     if (!b || b.disabled) return;
+    if (b.dataset.fleet) { closeBuild(); showFleet(); return; }
     if (b.dataset.grp !== undefined) { setGroup(+b.dataset.grp); return; }   // a tab: the menu stays open
     if (b.dataset.uni) act({ k: 'uni', t: buildTile, say: 'Uni gebaut' });
     else if (b.dataset.shelter) act({ k: 'shelter', t: buildTile, say: 'Schutzräume gebaut' });
@@ -2543,6 +2593,7 @@
       const b = e.target.closest('.hk,.gtab');
       if (!b || !game || game.phase !== 'play' || !game.human.alive) return;
       if (b.dataset.grp !== undefined) { setGroup(+b.dataset.grp); return; }
+      if (b.dataset.fleet) { showFleet(); return; }
       const t = +b.dataset.t;
       if (aim) stopAim();
       closeRadial(); if (!$('sheet').hidden) closeBuild();

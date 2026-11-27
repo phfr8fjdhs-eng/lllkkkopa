@@ -384,3 +384,10 @@ Code: `showTech`, `techState`, `TSHORT` in `src/07_ui.js`, Stil `#techCard` in `
 - **Erklärung erst beim Antippen** (oben im Fenster: Name, Zweig, was es tut, Zustand, Knopf «Erforschen») oder beim Darüberfahren (Titel). Nochmals antippen schliesst die Erklärung.
 - Auf dem Handy ohne Zeichen, Minute klein in der Ecke, Namen umbrechen.
 - Szene 145.
+
+### B3. Liste der eigenen Schiffe und Flugzeuge
+Code: `showFleet`, `fleetWhere`, `fleetDoing` in `src/07_ui.js`, Stil `#fleetCard`.
+- Knopf «Liste» am Ende der Gruppen «Schiffe» und «Flugzeuge» der Bauleiste, im Baumenü (Handy) in denselben Gruppen und in der Ausbaukarte jedes eigenen Hafens.
+- Eine Zeile pro Schiff und pro Flugzeug in der Luft: Art, Leben als Balken (grün, gelb, rot; beim Tarnbomber die Treffer), wo («auf See vor Varnholm», «über eigenem Land»), was es tut (Patrouille, kämpft gegen …, jagt ein Handelsschiff, fährt zum Hafen, liegt im Hafen, fliegt zum Ziel, fliegt zurück, jagt ein Ziel).
+- Antippen schliesst die Liste und fliegt die Karte zum Schiff. Die Liste rechnet nur, solange sie offen ist (jede Sekunde neu).
+- Szene 146.

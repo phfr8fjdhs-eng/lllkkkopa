@@ -531,6 +531,16 @@ body.placing #cv { cursor: crosshair; }
 #nwBar .nwBtns button:first-child svg { transform: scaleX(-1); }
 #nwBar .nwBtns button:disabled { opacity: .35; cursor: default; }
 #modalCard.techWide { width: min(900px, 100%); }
+/* «Langes Spiel»: the list of own ships and planes */
+#fleetCard .flist { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
+#fleetCard .frow { display: grid; grid-template-columns: 24px minmax(90px, 1fr) 70px 1.4fr 1.4fr; align-items: center; gap: 8px; min-height: 44px; padding: 6px 10px; border-radius: 9px; background: rgba(255,255,255,.05); border: 1px solid transparent; color: inherit; text-align: left; cursor: pointer; }
+#fleetCard .frow:hover { background: rgba(255,255,255,.1); border-color: var(--line); }
+#fleetCard .frow svg { fill: currentColor; }
+#fleetCard .frow b { font: 600 14px var(--display); }
+#fleetCard .frow small { color: var(--muted); font-size: 12.5px; }
+#fleetCard .fhp { height: 6px; border-radius: 3px; background: rgba(255,255,255,.1); overflow: hidden; }
+#fleetCard .fhp i { display: block; height: 100%; }
+@media (max-width: 620px) { #fleetCard .frow { grid-template-columns: 22px 1fr 60px; } #fleetCard .frow small { grid-column: 2 / 4; } }
 #techCard .thead { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 14px; }
 #techCard .tstats { display: flex; flex-wrap: wrap; gap: 6px; }
 #techCard .tstats span { padding: 4px 10px; border-radius: 999px; background: rgba(255,255,255,.07); font-size: 13px; color: var(--muted); }

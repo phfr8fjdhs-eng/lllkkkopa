@@ -42,6 +42,17 @@
 
   G.NEUES = [
     {
+      n: 146, date: '27.11.2026', title: 'Langes Spiel: Liste der Flotte', lang: true,
+      text: 'In den Gruppen «Schiffe» und «Flugzeuge» der Bauleiste (und in der Karte des Hafens) öffnet «Liste» alle eigenen Schiffe und Flugzeuge in der Luft: Art, Leben, wo und was es gerade tut. Antippen springt auf der Karte hin.',
+      map: STRAIT,
+      me: { x: 150, y: 20, box: [0, 0, 300, 46], troops: 60000, gold: 3000000, build: [[UT.PORT, 150, 44, 2], [3.5, 60, 20, 2]] },
+      foes: [{ name: 'Südküste', x: 150, y: 180, box: [0, 154, 300, 200], troops: 90000, build: [[UT.PORT, 150, 156, 1], [UT.CITY, 200, 180, 4]] }],
+      allow: ALL, quest: none,
+      events: [[0, function (Q) { Q.ship(Q.me, 90, 90, 0); Q.ship(Q.me, 150, 100, 3); Q.ship(Q.me, 210, 80, 4); Q.ship(Q.foe[0], 180, 120, 1); }]],
+      loop: [6, 15, function (Q) { Q.fire(Q.me, UT.RECON, 200, 175); }],
+      tips: [{ text: 'Gruppe «Schiffe», dann «Liste».', el: '#hotbar .gtabs' }]
+    },
+    {
       n: 145, date: '27.11.2026', title: 'Langes Spiel: neues Forschungsfenster', lang: true, research: true,
       text: 'Das Forschungsfenster (Kolben oben) zeigt pro Zweig eine Zeile mit den fünf Stufen als Kästchen: grün erforscht, gelb möglich, blau läuft, grau mit Minute noch gesperrt, gestrichelt braucht zuerst etwas, durchgestrichen ausgeschlossen («oder»). Antippen erklärt das Kästchen und startet die Forschung. Punkte und Unis stehen oben.',
       map: { w: 300, h: 200, seed: 945, shapes: [circ(150, 100, 90)] },
