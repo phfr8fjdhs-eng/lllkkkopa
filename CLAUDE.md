@@ -89,5 +89,5 @@ Weitere Ordner: `tools/` (Bauen und Kartenerzeugung, Python), `test/` (Tests, No
 - «Änderungen» (jede Szene baut sich, bleibt gleich, zeigt ihre Änderung): `node test/neu.js`
 - Bedienung im Browser: `node test/ui.js` (braucht Playwright und Chrome), schnelles Verdichten, Kürzel, Bauleiste: `node test/pinsel.js`
 - Spielmodus «Langes Spiel»: `node test/lang.js`, Gleichlauf `node test/det.js lang`, Inseln auf der Erde `node --max-old-space-size=6144 test/inseln.js`
-- Leistung: `node test/phasen.js` (wohin ein Tick geht: Eroberung, Dichte, Bots, mit Spitzen), `node test/stress.js` (Simulation mit 100 bis 10 000 Schiffen), `node test/stress_view.js` (Bild, nach dem Build)
+- Leistung: `node test/phasen.js` (wohin ein Tick geht: Eroberung, Dichte, Bots, mit Spitzen), `node test/stress.js` (Simulation mit 100 bis 10 000 Schiffen), `node test/stress_view.js` (Bild, nach dem Build), `node --max-old-space-size=6144 test/skala.js` (womit was wächst: Felder, Grenze, Spieler, Einheiten, Speicher pro Feld, Nachricht Worker an Seite)
 - Worker und Spiegel: `node test/worker.js [karte] [sekunden]`, Karte auf der Grafikkarte: `node test/gl.js` (beide nach dem Build). Browser-Tests, die direkt ins Spiel greifen, öffnen die Seite mit `?worker=0`.

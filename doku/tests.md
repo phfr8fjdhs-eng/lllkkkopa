@@ -23,6 +23,7 @@ Alle Tests liegen in `test/` und laufen mit `node test/<name>.js`. Seit dem 24.1
 | `prof.js` | zeigt, woher langsame Ticks kommen |
 | `stress.js [karte] [N,N] [ticks]` | Last der Simulation: N Schiffe zusätzlich (halb Kriegsschiffe, halb Handel), Zeit pro Tick und je Teil; `SUM=1` gibt eine Prüfsumme über Spieler und Einheiten zum Vergleich vorher/nachher |
 | `phasen.js [karte] [ticks] [bots]` | Wohin ein Tick der Simulation geht: Eroberung, Dichte, Bots, Einheiten, je Mittel und längster Tick, dazu 95 % und 99 % der Ticks; Erde mit `node --max-old-space-size=4096` |
+| `skala.js [felder\|spieler\|einheiten\|erde\|alle] [ticks]` | Wachstum: dieselbe Runde auf Karten verschiedener Grösse, mit verschieden vielen Bots und Schiffen; je Teil des Ticks die Zeit und ob sie mit Feldern, Grenze, Spielern oder Einheiten wächst, dazu Speicher pro Feld und was der Worker pro Tick an die Seite schickt. Mit `node --max-old-space-size=6144`, `JSON=datei` schreibt die Zahlen |
 | `stress_view.js [N,N]` | Browser: Zeit für ein Bild mit N Schiffen, ganze Karte, mittel, nah; `HTML=datei` für einen anderen Build |
 | `ui.js`, `feat.js`, `play.js`, `rail.js`, `rich.js`, `shot.js`, `aufstellung.js` | Browser: Bedienung, neue Funktionen, Durchlauf, Gleise, Gebäude und Raketen, Bilder, Netz; Bilder landen in `build/` |
 | `pinch.js` | Browser, Handy: Zoom mit zwei Fingern bleibt am Punkt zwischen den Fingern |
