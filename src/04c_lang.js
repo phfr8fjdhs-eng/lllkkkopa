@@ -413,6 +413,68 @@
     if (o === this.human) this.say(G.UNAME[v.type].replace('\u00AD', '') + ' verliert ' + lost + ' Stufe' + (lost === 1 ? '' : 'n'), 'bad');
   };
 
+  // ---------- war (27.11.2026) ----------
+  // In the mode two realms are at war once one of them has attacked the other: on the ground, by
+  // boat, with a bomb, missile or bomber (a recon flight and a spy are no attack). Both sides alike,
+  // p.war[q.id] = the tick of the last blow. Only at war do warships, submarines, mines, fighters
+  // and air defence against planes go for each other by themselves. Bots need no war, allies never
+  // are at war. Outside the mode everybody who is not a friend is fair game, as before.
+  Game.prototype.atWar = function (a, b) { return !!a && !!b && !!a.war && a.war[b.id] !== undefined; };
+  Game.prototype.hostile = function (a, b) {
+    if (a === b || this.friendly(a, b)) return false;
+    if (!this.lang || a.type === PT.BOT || b.type === PT.BOT) return true;
+    return this.atWar(a, b);
+  };
+  Game.prototype.declareWar = function (a, b, quiet) {
+    if (!this.lang || !a || !b || a === b || a.type === PT.BOT || b.type === PT.BOT || this.friendly(a, b)) return;
+    const fresh = !this.atWar(a, b), T = this.ticks;
+    (a.war || (a.war = {}))[b.id] = T; (b.war || (b.war = {}))[a.id] = T;
+    if (a.peace) delete a.peace[b.id];
+    if (b.peace) delete b.peace[a.id];
+    if (a.truce) delete a.truce[b.id];
+    if (!fresh || quiet) return;
+    const h = this.human;
+    if (b === h) this.say(a.name + ' ist jetzt im Krieg mit dir', 'bad');
+    else if (a === h) this.say('Du bist jetzt im Krieg mit ' + b.name, 'warn');
+  };
+  // A nation leaves a realm alone for a while after making peace with it.
+  Game.prototype.truce = function (p, q) { return this.lang && !!p.truce && p.truce[q.id] > this.ticks; };
+  Game.prototype.makePeace = function (a, b) {
+    if (a.war) delete a.war[b.id];
+    if (b.war) delete b.war[a.id];
+    if (a.peace) delete a.peace[b.id];
+    if (b.peace) delete b.peace[a.id];
+    const until = this.ticks + G.LANG.truce;
+    (a.truce || (a.truce = {}))[b.id] = until; (b.truce || (b.truce = {}))[a.id] = until;
+    for (const at of a.out.slice()) if (at.tid === b.id) this.endAttack(at, true);
+    for (const at of b.out.slice()) if (at.tid === a.id) this.endAttack(at, true);
+    const h = this.human;
+    if (a === h || b === h) this.say('Frieden mit ' + (a === h ? b : a).name, 'good');
+  };
+  // Order peace: p offers q peace, or takes the offer q made. A nation takes it once
+  // G.LANG.peaceWait ticks have passed since the last blow between the two.
+  Game.prototype.offerPeace = function (p, q) {
+    const T = this.ticks, L = G.LANG;
+    if (!this.atWar(p, q)) return 'Nicht im Krieg';
+    if (q.peace && q.peace[p.id] > T) { this.makePeace(p, q); return ''; }
+    if (q.type !== PT.HUMAN) {
+      if (T - p.war[q.id] >= L.peaceWait) this.makePeace(p, q);
+      else if (p === this.human) this.say(q.name + ' will noch keinen Frieden (frühestens in ' + Math.ceil((p.war[q.id] + L.peaceWait - T) / 10) + ' s)', 'warn');
+      return '';
+    }
+    (p.peace || (p.peace = {}))[q.id] = T + L.peaceAsk;
+    if (q === this.human) this.emit({ k: 'peaceReq', from: p.id, until: T + L.peaceAsk });
+    if (p === this.human) this.say('Frieden angeboten: ' + q.name + ' kann ' + Math.round(L.peaceAsk / 600) + ' Minuten lang annehmen', 'info');
+    return '';
+  };
+  // Whom p is at war with (living realms), for the info and the leaderboard.
+  Game.prototype.warsOf = function (p) {
+    const out = [];
+    if (!p.war) return out;
+    for (const id in p.war) { const q = this.players[+id]; if (q && q.alive) out.push(q); }
+    return out;
+  };
+
   // ---------- Paket 3: reconnaissance, alliances, bases ----------
   // How long two realms have been allied, in ticks (-1: not allied).
   Game.prototype.allyAge = function (a, b) {
@@ -433,6 +495,7 @@
     p.gold -= c;
     (p.spy || (p.spy = {}))[q.id] = this.ticks + G.LANG.spyTicks * (better ? 2 : 1);
     if (p === this.human) this.say('Spion in ' + q.name + ': ' + Math.round(G.LANG.spyTicks / 600) + ' Minuten lang siehst du dort alles', 'good');
+    if (q === this.human) this.say(p.name + ' spioniert dich aus', 'warn');   // no war: what to do about it is up to you
     return '';
   };
   Game.prototype.spying = function (p, q) { return !!p.spy && p.spy[q.id] > this.ticks; };
@@ -712,6 +775,7 @@
     this.addUnit(u);
     this.langLaunch(p, u);
     const q = this.players[u.tid];
+    if (type !== UT.RECON) this.declareWar(p, q);   // a recon flight is no attack, like a spy
     if (q && q !== p && type === UT.BOMBER && q === this.human) this.say('Bomber von ' + p.name + ' im Anflug', 'bad');
     return u;
   };
@@ -743,7 +807,7 @@
     if (slot < 0) return;
     for (const n of this.nukes) {
       if (!n.active || n.sam || (n.type !== UT.BOMBER && n.type !== UT.CRUISE && !G.lowFly(n.type))) continue;
-      if (n.owner === f.owner || this.friendly(n.owner, f.owner)) continue;
+      if (!this.hostile(n.owner, f.owner)) continue;   // fighters only go up at war
       if ((n.x - f.x) * (n.x - f.x) + (n.y - f.y) * (n.y - f.y) > r2) continue;
       const j = this.newPlane(f.owner, UT.FIGHTER, f, Math.round(n.x), Math.round(n.y));
       j.target = n; n.sam = true;
@@ -847,7 +911,7 @@
     if ((this.ticks + u.id) % 3) return;
     const L = G.LANG, p = u.owner, hit = Math.max(2, L.mineHit * this.S), clr = L.mineClear * this.S, h = this.human;
     for (const v of this.seaNear(u.x, u.y, Math.max(hit, clr))) {
-      if (!v.active || v.owner === p || this.friendly(v.owner, p)) continue;
+      if (!v.active || !this.hostile(v.owner, p)) continue;   // a mine goes off only under an enemy at war
       const d2 = (v.x - u.x) * (v.x - u.x) + (v.y - u.y) * (v.y - u.y);
       if (v.type === UT.WARSHIP && !v.cls && d2 <= clr * clr && this.has(v.owner, 'sonar')) {
         this.removeUnit(u);
@@ -872,7 +936,7 @@
     const r = (big ? G.LANG.flakR : G.SHIP_CLASS[0].range) * this.S * this.reach, r2 = r * r;
     for (const n of this.nukes) {
       if (!n.active || n.sam || (n.type !== UT.BOMBER && n.type !== UT.CRUISE && !G.lowFly(n.type) && !(big && (n.type === UT.SRBM || n.type === UT.RECON)))) continue;
-      if (n.owner === u.owner || this.friendly(n.owner, u.owner)) continue;
+      if (n.owner === u.owner || (G.isPlane(n.type) ? !this.hostile(n.owner, u.owner) : this.friendly(n.owner, u.owner))) continue;   // planes only at war
       if ((n.x - u.x) * (n.x - u.x) + (n.y - u.y) * (n.y - u.y) > r2) continue;
       this.fx.push({ k: 'pop', x: n.x, y: n.y, air: 0 });
       if (n.owner === this.human) this.say('Dein ' + G.UNAME[n.type].replace('\u00AD', '') + ' wurde über dem Meer abgeschossen', 'warn');

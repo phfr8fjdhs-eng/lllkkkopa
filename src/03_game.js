@@ -105,6 +105,9 @@
   //   spy*    a spy costs spyCost and shows a realm's troops, density and buildings for spyTicks
   //   ally*   an alliance lasts allyTicks (classic: ALLIANCE_TICKS), shows the partner's sight
   //           after allySight ticks, his radar and leave to build bases in his land after allyRadar
+  //   peace*  war (src/04c_lang.js, declareWar): a peace offer stands peaceAsk ticks; a nation takes
+  //           it once peaceWait ticks have passed since the last blow, and then leaves the other
+  //           alone for truce ticks
   //   rent, baseLeave  a base pays its host `rent` gold per tick; when the alliance ends it goes
   //           to the host after baseLeave ticks
   //   tier*, uni*  research: tiers open at tierFrom ticks of play and a step of a tier costs
@@ -137,6 +140,7 @@
     // Paket 3: fog, reconnaissance, alliances, bases
     fogSee: 3, radarCost: 1000000, radarR: [140, 40], spyCost: 500000, spyTicks: 3000,
     allyTicks: 4800, allySight: 1800, allyRadar: 3600, rent: 100, baseLeave: 300,
+    peaceAsk: 1200, peaceWait: 1800, truce: 3000,
     // Paket 4: research (src/04c_lang.js, G.TECH)
     tierFrom: [0, 0, 9000, 18000, 27000], tierCost: [120, 240, 420, 600, 900],
     uniLevel: 5, uniMax: 3, uniCost: 1000000, uniUpkeep: 50, uniRp: 0.08, shelter2: 0.3,
@@ -611,6 +615,8 @@
   Game.prototype.allyTicks = function () { return this.lang ? G.LANG.allyTicks : ALLIANCE_TICKS; };
   Game.prototype.makeAlliance = function (a, b) {
     if (a.allies.has(b.id)) return;
+    if (a.war) delete a.war[b.id];   // «Langes Spiel»: allies are never at war
+    if (b.war) delete b.war[a.id];
     const al = { a: a, b: b, end: this.ticks + this.allyTicks(), prompted: false, since: this.ticks };   // since: «Langes Spiel», alliances grow more valuable with time
     a.allies.set(b.id, al); b.allies.set(a.id, al);
     for (const at of a.out.slice()) if (at.tid === b.id) this.endAttack(at, true);
@@ -1147,6 +1153,7 @@
       if (troops < 1) return null;
     }
     if (t) this.relate(t, a, -80);
+    if (t && this.lang) this.declareWar(a, t);   // src/04c_lang.js
     let at = join;
     if (!at && !route && spot < 0) for (const o of a.out) if (o.active && o.tid === tid && o.goal < 0 && o.spot < 0) { at = o; break; }
     if (!at) {
@@ -1827,6 +1834,7 @@
         return this.build(p, c.u, c.t, cls, !!c.fresh, pick) ? '' : 'Nicht möglich';
       }
       case 'salvo': return this.lang ? this.salvo(p, c.list) : 'Nicht möglich';
+      case 'peace': return this.lang && q && q !== p ? this.offerPeace(p, q) : 'Nicht möglich';
       case 'spy': return this.lang && q && q !== p ? this.sendSpy(p, q) : 'Nicht möglich';
       case 'host': if (!this.lang || !q) return 'Nicht möglich'; (p.hostOk || (p.hostOk = {}))[q.id] = c.on ? 1 : 0; return '';
       case 'uni': return tileOk && this.lang ? this.buildUni(p, c.t) : 'Nicht möglich';

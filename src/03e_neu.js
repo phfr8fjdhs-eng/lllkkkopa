@@ -42,6 +42,22 @@
 
   G.NEUES = [
     {
+      n: 137, date: '27.11.2026', title: 'Langes Spiel: Krieg und Frieden', lang: true,
+      text: 'Wer einen anderen angreift (Boden, Boot, Bombe, Rakete, Bomber), ist mit ihm im Krieg, beide Seiten. Nur im Krieg schiessen Schiffe, U-Boote, Minen, Jäger und die Flugabwehr gegen Flugzeuge von selbst. Mit Varnholm bist du im Krieg (⚔ auf der Rangliste), mit Brenna nicht: Eure Zerstörer fahren friedlich nebeneinander. «Frieden anbieten» steht in der Info des Gegners.',
+      map: { w: 300, h: 200, seed: 937, shapes: [rect(0, 0, 300, 46), rect(0, 154, 140, 200), rect(160, 154, 300, 200)] },
+      me: { x: 150, y: 20, box: [0, 0, 300, 52], troops: 60000, gold: 3000000, build: [[UT.PORT, 150, 43, 2]] },
+      foes: [{ name: 'Varnholm', x: 70, y: 180, box: [0, 148, 150, 200], troops: 60000, build: [[UT.PORT, 70, 157, 1]] },
+        { name: 'Brenna', x: 230, y: 180, box: [150, 148, 300, 200], troops: 60000, build: [[UT.PORT, 230, 157, 1]] }],
+      allow: ALL, quest: none,
+      events: [[0, function (Q) {
+        const g = Q.g;
+        g.makePeace(Q.me, Q.foe[1]);
+        Q.ship(Q.me, 70, 95); Q.ship(Q.me, 230, 95);
+        Q.ship(Q.foe[0], 70, 112); Q.ship(Q.foe[1], 230, 112);
+      }], [40, function (Q) { Q.g.offerPeace(Q.foe[0], Q.me); }]],
+      tips: [{ text: 'Links Krieg, rechts Frieden.', pins: function (Q) { return Q.units(Q.me, UT.WARSHIP, 2); } }]
+    },
+    {
       n: 136, date: '27.11.2026', title: 'Langes Spiel: Bündnis dauert 8 Minuten', lang: true,
       text: 'Ein Bündnis dauert im Langen Spiel 8 Minuten statt 5. Nach 3 Minuten teilt ihr die Sicht, nach 6 Minuten das Radar, und du darfst Stützpunkte bauen. Beim Verlängern zählt die Zeit weiter. Hier ist das Bündnis mit Brenna fast 6 Minuten alt: gleich entsteht dein Silo in ihrem Land.',
       map: { w: 300, h: 160, seed: 936, shapes: [circ(80, 80, 62), circ(220, 80, 62)] },

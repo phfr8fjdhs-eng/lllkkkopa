@@ -132,7 +132,7 @@
 
   AI.prototype.choose = function (list) {
     const g = this.g, p = this.p, r = g.rng, d = g.opts.difficulty;
-    const foes = list.filter(function (q) { return !g.friendly(p, q); });
+    const foes = list.filter(function (q) { return !g.friendly(p, q) && !g.truce(p, q); });   // truce: «Langes Spiel», just made peace
     // strike back at the heaviest attack against us
     let top = null, best = p.troops * 0.05;
     for (const a of p.inc) if (a.active && a.troops > best && foes.indexOf(a.a) >= 0) { best = a.troops; top = a; }
@@ -161,6 +161,9 @@
       if (r.chance(careful ? 200 : 50)) { g.breakAlliance(p, q); return q; }
       if (!foes.length) return null;
       q = r.chance(2) ? foes[0] : r.pick(foes);
+    } else if (g.truce(p, q)) {
+      if (!foes.length) return null;
+      q = r.pick(foes);
     }
     // on the lower levels nations mostly leave the human alone unless provoked
     if (q.type === PT.HUMAN && !g.isTraitor(q) && d < 2 && !r.chance(d === 0 ? 8 : 4)) {
@@ -381,7 +384,7 @@
     let best = null, bs = -Infinity;
     for (let i = 1; i < g.players.length; i++) {
       const o = g.players[i];
-      if (!o || o === p || !o.alive || o.type === PT.BOT || g.friendly(p, o)) continue;
+      if (!o || o === p || !o.alive || o.type === PT.BOT || g.friendly(p, o) || g.truce(p, o)) continue;
       const s = -g.relation(p, o) + o.tiles / Math.max(1, g.map.landTiles) * 150 + (o.type === PT.HUMAN ? 25 : 0) + r.next() * 40;
       if (s > bs) { bs = s; best = o; }
     }

@@ -363,6 +363,9 @@
     // buildings come last, once every realm has its land
     for (let i = 0; i < def.foes.length; i++) for (const b of def.foes[i].build || []) this.levelPlace(foes[i], b[0], b[1], b[2], b[3]);
     for (const b of def.me.build || []) this.levelPlace(me, b[0], b[1], b[2], b[3]);
+    // «Langes Spiel»: the realms of a level or scene are at war with the player from the start (an
+    // alliance in its script ends that again), so ships and fighters fight at once
+    if (this.lang) for (const f of foes) this.declareWar(me, f, true);
     this.lv = { def: def, foes: foes, fired: 0, tip: 0, over: false, result: null, check: null, start: null, hit: false, goal: def.goal ? this.levelTile(def.goal[0], def.goal[1]) : -1, isle: new Map() };
     this.lv.Q = this.levelQ();
   };

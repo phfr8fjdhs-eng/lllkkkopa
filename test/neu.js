@@ -9,6 +9,12 @@ const G = globalThis.G, UT = G.UT;
 const count = (g, type, p) => g.units.filter((u) => u.active && u.type === type && (!p || u.owner === p)).length;
 // what has to be seen in each scene, asked every second; seen once is enough
 const SEEN = {
+  137: (g, s) => {
+    // the ships at war (left) hit each other, the ones at peace (right) stay whole
+    const me = g.human, war = g.lv.foes[0], calm = g.lv.foes[1];
+    for (const u of g.units) if (u.active && u.type === UT.WARSHIP && u.hp < g.shipFull(u)) { if (u.owner === war || (u.owner === me && u.x < 150)) s.war = true; else if (u.owner === me) s.calm = true; }
+    return !!s.war && !s.calm && g.atWar(me, war) && !g.atWar(me, calm) && g.ticks > 300;
+  },
   136: (g) => g.human.units.some((u) => u.type === UT.SILO && u.base) && g.allyRadar(g.human, g.lv.foes[0]) && g.allyAge(g.human, g.lv.foes[0]) < G.LANG.allyRadar + 900,
   135: (g, s) => (s.sub = s.sub || g.units.some((u) => u.active && u.type === UT.WARSHIP && u.cls === 2 && u.shown > g.ticks && g.nukes.some((n) => n.active && n.type === UT.CRUISE && n.owner === g.human))),
   134: (g) => g.human.units.some((u) => u.arm && u.arm.fab),

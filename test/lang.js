@@ -69,5 +69,32 @@ check('kleine Flugabwehr gegen die neuen Waffen', b.samCan({ cls: 0 }, G.UT.SRBM
 }
 // on the Earth (a side scale S of 1): a ship over the Atlantic (about 80 tiles a minute today)
 console.log('Erde: Schiff ' + (1 * W) + ' Felder pro Tick, Atombombe ' + (6 * A).toFixed(1) + ' (heute 1 und 6)');
+// war (27.11.2026): who attacks is at war, both ways; only then do ships and mines go for each other
+{
+  const g = new G.Game(map, { seed: 99, bots: 0, difficulty: 1, me: 0, lang: true }); g.setup([{ name: 'A' }, { name: 'B' }]);
+  let n = 0; for (let t = 0; t < map.N && n < 2; t += 53) if (g.canSpawnAt(t) && !map.shore[t]) { g.exec(++n, { k: 'spawn', t: t }); t += 20000; }
+  while (g.phase !== 'play' || g.ticks < g.immuneUntil) g.tick();
+  const A = g.players[1], B = g.players[2], bot = { type: G.PT.BOT, id: 99, allies: new Map() };
+  check('Krieg: anfangs keiner', !g.atWar(A, B) && !g.hostile(A, B) && g.hostile(A, bot));
+  check('Krieg: klassisch greift jeder an', a.hostile(a.players[1], { type: G.PT.HUMAN, id: 5, allies: new Map() }));
+  g.declareWar(A, B);
+  check('Krieg: beide Seiten', g.atWar(A, B) && g.atWar(B, A) && g.hostile(B, A));
+  g.exec(B.id, { k: 'peace', p: A.id });
+  check('Krieg: Angebot steht', g.atWar(A, B) && B.peace[A.id] > g.ticks && g.events.some((e) => e.k === 'peaceReq' && e.from === B.id) === (g.human === A));
+  g.exec(A.id, { k: 'peace', p: B.id });
+  check('Frieden: angenommen', !g.atWar(A, B) && !g.hostile(A, B));
+  g.declareWar(B, A); g.makeAlliance(A, B);
+  check('Verbündete nie im Krieg', !g.atWar(A, B) && !g.hostile(A, B));
+  A.allies.delete(B.id); B.allies.delete(A.id);
+  B.type = G.PT.NATION; g.declareWar(A, B);
+  g.exec(A.id, { k: 'peace', p: B.id });
+  check('Nation: erst nach einer Weile', g.atWar(A, B));
+  g.ticks += G.LANG.peaceWait;
+  g.exec(A.id, { k: 'peace', p: B.id });
+  check('Nation: dann Frieden und Ruhe', !g.atWar(A, B) && g.truce(B, A));
+  B.type = G.PT.HUMAN; g.ticks -= G.LANG.peaceWait;
+  g.exec(A.id, { k: 'spy', p: B.id });
+  check('Spion ist kein Krieg', !g.atWar(A, B));
+}
 if (bad) { console.log(bad + ' Fehler'); process.exit(1); }
 console.log('alles gut');

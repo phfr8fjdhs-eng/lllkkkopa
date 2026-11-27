@@ -60,6 +60,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 }
 .lbrow i { font-style: normal; color: var(--muted); font-variant-numeric: tabular-nums; }
 .lbrow > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.war { color: #ff6b5e; font-weight: 600; }
 .lbrow b { font: 600 14px var(--display); text-align: right; font-variant-numeric: tabular-nums; }
 .lbrow.me { background: rgba(244, 183, 64, 0.16); }
 .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; border: 1px solid rgba(255, 255, 255, 0.5); }
@@ -1590,6 +1591,9 @@ body.placing #cv { cursor: crosshair; }
   //   spy*    a spy costs spyCost and shows a realm's troops, density and buildings for spyTicks
   //   ally*   an alliance lasts allyTicks (classic: ALLIANCE_TICKS), shows the partner's sight
   //           after allySight ticks, his radar and leave to build bases in his land after allyRadar
+  //   peace*  war (src/04c_lang.js, declareWar): a peace offer stands peaceAsk ticks; a nation takes
+  //           it once peaceWait ticks have passed since the last blow, and then leaves the other
+  //           alone for truce ticks
   //   rent, baseLeave  a base pays its host `rent` gold per tick; when the alliance ends it goes
   //           to the host after baseLeave ticks
   //   tier*, uni*  research: tiers open at tierFrom ticks of play and a step of a tier costs
@@ -1622,6 +1626,7 @@ body.placing #cv { cursor: crosshair; }
     // Paket 3: fog, reconnaissance, alliances, bases
     fogSee: 3, radarCost: 1000000, radarR: [140, 40], spyCost: 500000, spyTicks: 3000,
     allyTicks: 4800, allySight: 1800, allyRadar: 3600, rent: 100, baseLeave: 300,
+    peaceAsk: 1200, peaceWait: 1800, truce: 3000,
     // Paket 4: research (src/04c_lang.js, G.TECH)
     tierFrom: [0, 0, 9000, 18000, 27000], tierCost: [120, 240, 420, 600, 900],
     uniLevel: 5, uniMax: 3, uniCost: 1000000, uniUpkeep: 50, uniRp: 0.08, shelter2: 0.3,
@@ -2096,6 +2101,8 @@ body.placing #cv { cursor: crosshair; }
   Game.prototype.allyTicks = function () { return this.lang ? G.LANG.allyTicks : ALLIANCE_TICKS; };
   Game.prototype.makeAlliance = function (a, b) {
     if (a.allies.has(b.id)) return;
+    if (a.war) delete a.war[b.id];   // «Langes Spiel»: allies are never at war
+    if (b.war) delete b.war[a.id];
     const al = { a: a, b: b, end: this.ticks + this.allyTicks(), prompted: false, since: this.ticks };   // since: «Langes Spiel», alliances grow more valuable with time
     a.allies.set(b.id, al); b.allies.set(a.id, al);
     for (const at of a.out.slice()) if (at.tid === b.id) this.endAttack(at, true);
@@ -2632,6 +2639,7 @@ body.placing #cv { cursor: crosshair; }
       if (troops < 1) return null;
     }
     if (t) this.relate(t, a, -80);
+    if (t && this.lang) this.declareWar(a, t);   // src/04c_lang.js
     let at = join;
     if (!at && !route && spot < 0) for (const o of a.out) if (o.active && o.tid === tid && o.goal < 0 && o.spot < 0) { at = o; break; }
     if (!at) {
@@ -3312,6 +3320,7 @@ body.placing #cv { cursor: crosshair; }
         return this.build(p, c.u, c.t, cls, !!c.fresh, pick) ? '' : 'Nicht möglich';
       }
       case 'salvo': return this.lang ? this.salvo(p, c.list) : 'Nicht möglich';
+      case 'peace': return this.lang && q && q !== p ? this.offerPeace(p, q) : 'Nicht möglich';
       case 'spy': return this.lang && q && q !== p ? this.sendSpy(p, q) : 'Nicht möglich';
       case 'host': if (!this.lang || !q) return 'Nicht möglich'; (p.hostOk || (p.hostOk = {}))[q.id] = c.on ? 1 : 0; return '';
       case 'uni': return tileOk && this.lang ? this.buildUni(p, c.t) : 'Nicht möglich';
@@ -4169,6 +4178,9 @@ body.placing #cv { cursor: crosshair; }
     // buildings come last, once every realm has its land
     for (let i = 0; i < def.foes.length; i++) for (const b of def.foes[i].build || []) this.levelPlace(foes[i], b[0], b[1], b[2], b[3]);
     for (const b of def.me.build || []) this.levelPlace(me, b[0], b[1], b[2], b[3]);
+    // «Langes Spiel»: the realms of a level or scene are at war with the player from the start (an
+    // alliance in its script ends that again), so ships and fighters fight at once
+    if (this.lang) for (const f of foes) this.declareWar(me, f, true);
     this.lv = { def: def, foes: foes, fired: 0, tip: 0, over: false, result: null, check: null, start: null, hit: false, goal: def.goal ? this.levelTile(def.goal[0], def.goal[1]) : -1, isle: new Map() };
     this.lv.Q = this.levelQ();
   };
@@ -4375,6 +4387,22 @@ body.placing #cv { cursor: crosshair; }
   }
 
   G.NEUES = [
+    {
+      n: 137, date: '27.11.2026', title: 'Langes Spiel: Krieg und Frieden', lang: true,
+      text: 'Wer einen anderen angreift (Boden, Boot, Bombe, Rakete, Bomber), ist mit ihm im Krieg, beide Seiten. Nur im Krieg schiessen Schiffe, U-Boote, Minen, Jäger und die Flugabwehr gegen Flugzeuge von selbst. Mit Varnholm bist du im Krieg (⚔ auf der Rangliste), mit Brenna nicht: Eure Zerstörer fahren friedlich nebeneinander. «Frieden anbieten» steht in der Info des Gegners.',
+      map: { w: 300, h: 200, seed: 937, shapes: [rect(0, 0, 300, 46), rect(0, 154, 140, 200), rect(160, 154, 300, 200)] },
+      me: { x: 150, y: 20, box: [0, 0, 300, 52], troops: 60000, gold: 3000000, build: [[UT.PORT, 150, 43, 2]] },
+      foes: [{ name: 'Varnholm', x: 70, y: 180, box: [0, 148, 150, 200], troops: 60000, build: [[UT.PORT, 70, 157, 1]] },
+        { name: 'Brenna', x: 230, y: 180, box: [150, 148, 300, 200], troops: 60000, build: [[UT.PORT, 230, 157, 1]] }],
+      allow: ALL, quest: none,
+      events: [[0, function (Q) {
+        const g = Q.g;
+        g.makePeace(Q.me, Q.foe[1]);
+        Q.ship(Q.me, 70, 95); Q.ship(Q.me, 230, 95);
+        Q.ship(Q.foe[0], 70, 112); Q.ship(Q.foe[1], 230, 112);
+      }], [40, function (Q) { Q.g.offerPeace(Q.foe[0], Q.me); }]],
+      tips: [{ text: 'Links Krieg, rechts Frieden.', pins: function (Q) { return Q.units(Q.me, UT.WARSHIP, 2); } }]
+    },
     {
       n: 136, date: '27.11.2026', title: 'Langes Spiel: Bündnis dauert 8 Minuten', lang: true,
       text: 'Ein Bündnis dauert im Langen Spiel 8 Minuten statt 5. Nach 3 Minuten teilt ihr die Sicht, nach 6 Minuten das Radar, und du darfst Stützpunkte bauen. Beim Verlängern zählt die Zeit weiter. Hier ist das Bündnis mit Brenna fast 6 Minuten alt: gleich entsteht dein Silo in ihrem Land.',
@@ -5297,6 +5325,7 @@ body.placing #cv { cursor: crosshair; }
     }, p.type === PT.HUMAN);
     const q = plan.tid ? this.players[plan.tid] : null;
     if (q) {
+      if (this.lang) this.declareWar(p, q);
       this.relate(q, p, -40);
       if (q === this.human) this.say('Ein Boot von ' + p.name + ' hält auf deine Küste zu', 'bad');
     }
@@ -5689,7 +5718,7 @@ body.placing #cv { cursor: crosshair; }
         if (!v.active || v.owner === p) continue;
         const ty = v.type;
         if (v.safeUntil > T || v.docked) continue;   // just changed hands, or under repair at the quay
-        if (this.friendly(v.owner, p)) continue;
+        if (!this.hostile(v.owner, p)) continue;   // «Langes Spiel»: only at war (src/04c_lang.js)
         if (ty === UT.WARSHIP && v.cls === 2 && !this.subSeen(v, p)) continue;   // «Langes Spiel»: a submarine nobody has found
         if (ty === UT.TRANSPORT) { const q = v.tid ? this.players[v.tid] : null; if (!q || (q !== p && !this.friendly(p, q))) continue; }
         if (ty === UT.TRADE) {
@@ -5915,6 +5944,7 @@ body.placing #cv { cursor: crosshair; }
       if (q) {
         if (p.allies.has(q.id)) this.breakAlliance(p, q);
         this.relate(q, p, -100);
+        if (this.lang) this.declareWar(p, q);
         if (q === h) this.say('MIRV von ' + p.name + ' im Anflug!', 'bad');
       }
       return u;
@@ -5924,6 +5954,7 @@ body.placing #cv { cursor: crosshair; }
       const q = this.players[e[0]];
       if (q === p) continue;
       if (p.allies.has(q.id) && e[1] > 20) this.breakAlliance(p, q);
+      if (this.lang) this.declareWar(p, q);
       this.relate(q, p, -100);
       if (q === h) this.say(G.UNAME[type] + ' von ' + p.name + ' im Anflug!', 'bad');
     }
@@ -5943,6 +5974,7 @@ body.placing #cv { cursor: crosshair; }
       const q = this.players[e[0]];
       if (q === p) continue;
       if (p.allies.has(q.id) && e[1] > 20) this.breakAlliance(p, q);
+      if (this.lang) this.declareWar(p, q);
       this.relate(q, p, -100);
       if (q === h) this.say('Satellitenstrahl von ' + p.name + ' zielt auf dein Gebiet!', 'bad');
     }
@@ -6127,7 +6159,7 @@ body.placing #cv { cursor: crosshair; }
       if (u.ready[s] > T) continue;
       for (const n of this.nukes) {
         if (!n.active || n.sam || !(this.lang ? this.samCan(u, n.type) : G.canIntercept(n.type))) continue;
-        if (n.owner === u.owner || this.friendly(n.owner, u.owner)) continue;
+        if (n.owner === u.owner || (G.isPlane(n.type) ? !this.hostile(n.owner, u.owner) : this.friendly(n.owner, u.owner))) continue;   // «Langes Spiel»: planes only at war
         if (n.type === UT.STEALTH && !this.stealthLocked(u, n, sr)) continue;   // «Langes Spiel»: it has to be held a while first
         if (!this.samSolve(u, n, sr * G.seenAt(n.type) * (this.lang && (n.type === UT.CRUISE || n.type === UT.SRBM) && this.has(n.owner, 'hyper') ? 0.5 : 1))) continue;
         n.sam = true; u.ready[s] = T + (this.lang ? this.samReload(u) : 90);
@@ -6982,6 +7014,68 @@ body.placing #cv { cursor: crosshair; }
     if (o === this.human) this.say(G.UNAME[v.type].replace('\u00AD', '') + ' verliert ' + lost + ' Stufe' + (lost === 1 ? '' : 'n'), 'bad');
   };
 
+  // ---------- war (27.11.2026) ----------
+  // In the mode two realms are at war once one of them has attacked the other: on the ground, by
+  // boat, with a bomb, missile or bomber (a recon flight and a spy are no attack). Both sides alike,
+  // p.war[q.id] = the tick of the last blow. Only at war do warships, submarines, mines, fighters
+  // and air defence against planes go for each other by themselves. Bots need no war, allies never
+  // are at war. Outside the mode everybody who is not a friend is fair game, as before.
+  Game.prototype.atWar = function (a, b) { return !!a && !!b && !!a.war && a.war[b.id] !== undefined; };
+  Game.prototype.hostile = function (a, b) {
+    if (a === b || this.friendly(a, b)) return false;
+    if (!this.lang || a.type === PT.BOT || b.type === PT.BOT) return true;
+    return this.atWar(a, b);
+  };
+  Game.prototype.declareWar = function (a, b, quiet) {
+    if (!this.lang || !a || !b || a === b || a.type === PT.BOT || b.type === PT.BOT || this.friendly(a, b)) return;
+    const fresh = !this.atWar(a, b), T = this.ticks;
+    (a.war || (a.war = {}))[b.id] = T; (b.war || (b.war = {}))[a.id] = T;
+    if (a.peace) delete a.peace[b.id];
+    if (b.peace) delete b.peace[a.id];
+    if (a.truce) delete a.truce[b.id];
+    if (!fresh || quiet) return;
+    const h = this.human;
+    if (b === h) this.say(a.name + ' ist jetzt im Krieg mit dir', 'bad');
+    else if (a === h) this.say('Du bist jetzt im Krieg mit ' + b.name, 'warn');
+  };
+  // A nation leaves a realm alone for a while after making peace with it.
+  Game.prototype.truce = function (p, q) { return this.lang && !!p.truce && p.truce[q.id] > this.ticks; };
+  Game.prototype.makePeace = function (a, b) {
+    if (a.war) delete a.war[b.id];
+    if (b.war) delete b.war[a.id];
+    if (a.peace) delete a.peace[b.id];
+    if (b.peace) delete b.peace[a.id];
+    const until = this.ticks + G.LANG.truce;
+    (a.truce || (a.truce = {}))[b.id] = until; (b.truce || (b.truce = {}))[a.id] = until;
+    for (const at of a.out.slice()) if (at.tid === b.id) this.endAttack(at, true);
+    for (const at of b.out.slice()) if (at.tid === a.id) this.endAttack(at, true);
+    const h = this.human;
+    if (a === h || b === h) this.say('Frieden mit ' + (a === h ? b : a).name, 'good');
+  };
+  // Order peace: p offers q peace, or takes the offer q made. A nation takes it once
+  // G.LANG.peaceWait ticks have passed since the last blow between the two.
+  Game.prototype.offerPeace = function (p, q) {
+    const T = this.ticks, L = G.LANG;
+    if (!this.atWar(p, q)) return 'Nicht im Krieg';
+    if (q.peace && q.peace[p.id] > T) { this.makePeace(p, q); return ''; }
+    if (q.type !== PT.HUMAN) {
+      if (T - p.war[q.id] >= L.peaceWait) this.makePeace(p, q);
+      else if (p === this.human) this.say(q.name + ' will noch keinen Frieden (frühestens in ' + Math.ceil((p.war[q.id] + L.peaceWait - T) / 10) + ' s)', 'warn');
+      return '';
+    }
+    (p.peace || (p.peace = {}))[q.id] = T + L.peaceAsk;
+    if (q === this.human) this.emit({ k: 'peaceReq', from: p.id, until: T + L.peaceAsk });
+    if (p === this.human) this.say('Frieden angeboten: ' + q.name + ' kann ' + Math.round(L.peaceAsk / 600) + ' Minuten lang annehmen', 'info');
+    return '';
+  };
+  // Whom p is at war with (living realms), for the info and the leaderboard.
+  Game.prototype.warsOf = function (p) {
+    const out = [];
+    if (!p.war) return out;
+    for (const id in p.war) { const q = this.players[+id]; if (q && q.alive) out.push(q); }
+    return out;
+  };
+
   // ---------- Paket 3: reconnaissance, alliances, bases ----------
   // How long two realms have been allied, in ticks (-1: not allied).
   Game.prototype.allyAge = function (a, b) {
@@ -7002,6 +7096,7 @@ body.placing #cv { cursor: crosshair; }
     p.gold -= c;
     (p.spy || (p.spy = {}))[q.id] = this.ticks + G.LANG.spyTicks * (better ? 2 : 1);
     if (p === this.human) this.say('Spion in ' + q.name + ': ' + Math.round(G.LANG.spyTicks / 600) + ' Minuten lang siehst du dort alles', 'good');
+    if (q === this.human) this.say(p.name + ' spioniert dich aus', 'warn');   // no war: what to do about it is up to you
     return '';
   };
   Game.prototype.spying = function (p, q) { return !!p.spy && p.spy[q.id] > this.ticks; };
@@ -7281,6 +7376,7 @@ body.placing #cv { cursor: crosshair; }
     this.addUnit(u);
     this.langLaunch(p, u);
     const q = this.players[u.tid];
+    if (type !== UT.RECON) this.declareWar(p, q);   // a recon flight is no attack, like a spy
     if (q && q !== p && type === UT.BOMBER && q === this.human) this.say('Bomber von ' + p.name + ' im Anflug', 'bad');
     return u;
   };
@@ -7312,7 +7408,7 @@ body.placing #cv { cursor: crosshair; }
     if (slot < 0) return;
     for (const n of this.nukes) {
       if (!n.active || n.sam || (n.type !== UT.BOMBER && n.type !== UT.CRUISE && !G.lowFly(n.type))) continue;
-      if (n.owner === f.owner || this.friendly(n.owner, f.owner)) continue;
+      if (!this.hostile(n.owner, f.owner)) continue;   // fighters only go up at war
       if ((n.x - f.x) * (n.x - f.x) + (n.y - f.y) * (n.y - f.y) > r2) continue;
       const j = this.newPlane(f.owner, UT.FIGHTER, f, Math.round(n.x), Math.round(n.y));
       j.target = n; n.sam = true;
@@ -7416,7 +7512,7 @@ body.placing #cv { cursor: crosshair; }
     if ((this.ticks + u.id) % 3) return;
     const L = G.LANG, p = u.owner, hit = Math.max(2, L.mineHit * this.S), clr = L.mineClear * this.S, h = this.human;
     for (const v of this.seaNear(u.x, u.y, Math.max(hit, clr))) {
-      if (!v.active || v.owner === p || this.friendly(v.owner, p)) continue;
+      if (!v.active || !this.hostile(v.owner, p)) continue;   // a mine goes off only under an enemy at war
       const d2 = (v.x - u.x) * (v.x - u.x) + (v.y - u.y) * (v.y - u.y);
       if (v.type === UT.WARSHIP && !v.cls && d2 <= clr * clr && this.has(v.owner, 'sonar')) {
         this.removeUnit(u);
@@ -7441,7 +7537,7 @@ body.placing #cv { cursor: crosshair; }
     const r = (big ? G.LANG.flakR : G.SHIP_CLASS[0].range) * this.S * this.reach, r2 = r * r;
     for (const n of this.nukes) {
       if (!n.active || n.sam || (n.type !== UT.BOMBER && n.type !== UT.CRUISE && !G.lowFly(n.type) && !(big && (n.type === UT.SRBM || n.type === UT.RECON)))) continue;
-      if (n.owner === u.owner || this.friendly(n.owner, u.owner)) continue;
+      if (n.owner === u.owner || (G.isPlane(n.type) ? !this.hostile(n.owner, u.owner) : this.friendly(n.owner, u.owner))) continue;   // planes only at war
       if ((n.x - u.x) * (n.x - u.x) + (n.y - u.y) * (n.y - u.y) > r2) continue;
       this.fx.push({ k: 'pop', x: n.x, y: n.y, air: 0 });
       if (n.owner === this.human) this.say('Dein ' + G.UNAME[n.type].replace('\u00AD', '') + ' wurde über dem Meer abgeschossen', 'warn');
@@ -7603,7 +7699,7 @@ body.placing #cv { cursor: crosshair; }
 
   AI.prototype.choose = function (list) {
     const g = this.g, p = this.p, r = g.rng, d = g.opts.difficulty;
-    const foes = list.filter(function (q) { return !g.friendly(p, q); });
+    const foes = list.filter(function (q) { return !g.friendly(p, q) && !g.truce(p, q); });   // truce: «Langes Spiel», just made peace
     // strike back at the heaviest attack against us
     let top = null, best = p.troops * 0.05;
     for (const a of p.inc) if (a.active && a.troops > best && foes.indexOf(a.a) >= 0) { best = a.troops; top = a; }
@@ -7632,6 +7728,9 @@ body.placing #cv { cursor: crosshair; }
       if (r.chance(careful ? 200 : 50)) { g.breakAlliance(p, q); return q; }
       if (!foes.length) return null;
       q = r.chance(2) ? foes[0] : r.pick(foes);
+    } else if (g.truce(p, q)) {
+      if (!foes.length) return null;
+      q = r.pick(foes);
     }
     // on the lower levels nations mostly leave the human alone unless provoked
     if (q.type === PT.HUMAN && !g.isTraitor(q) && d < 2 && !r.chance(d === 0 ? 8 : 4)) {
@@ -7852,7 +7951,7 @@ body.placing #cv { cursor: crosshair; }
     let best = null, bs = -Infinity;
     for (let i = 1; i < g.players.length; i++) {
       const o = g.players[i];
-      if (!o || o === p || !o.alive || o.type === PT.BOT || g.friendly(p, o)) continue;
+      if (!o || o === p || !o.alive || o.type === PT.BOT || g.friendly(p, o) || g.truce(p, o)) continue;
       const s = -g.relation(p, o) + o.tiles / Math.max(1, g.map.landTiles) * 150 + (o.type === PT.HUMAN ? 25 : 0) + r.next() * 40;
       if (s > bs) { bs = s; best = o; }
     }
@@ -13337,6 +13436,10 @@ void main() {
         const from = game.players[e.from], id = e.id;
         addAsk('q' + id, from.name + ' bietet dir eine Allianz an', 'Annehmen', 'Ablehnen',
           function () { act({ k: 'ans', id: id, y: 1 }); }, function () { act({ k: 'ans', id: id, y: 0 }); });
+      } else if (e.k === 'peaceReq') {
+        const from = game.players[e.from];
+        addAsk('f' + from.id, from.name + ' bietet dir Frieden an', 'Annehmen', 'Ablehnen',
+          function () { act({ k: 'peace', p: from.id }); }, function () { /* the war goes on */ });
       } else if (e.k === 'renew') {
         const q = game.players[e.id];
         addAsk('r' + q.id, 'Die Allianz mit ' + q.name + ' läuft bald ab', 'Verlängern', 'Auslaufen lassen',
@@ -13435,7 +13538,7 @@ void main() {
     const row = function (p, i) {
       const s = p.tiles / den * 100;
       return '<button class="lbrow' + (p === h ? ' me' : '') + '" data-id="' + p.id + '" type="button"><i>' + (i + 1) + '</i><span><span class="dot" style="background:' + p.css + '"></span>' +
-        esc(p.name) + '</span><b>' + s.toFixed(s >= 10 ? 0 : 1) + '%</b><b>' + G.troopsSeen(game, p) + '</b></button>';
+        esc(p.name) + (game.lang && game.atWar(h, p) ? ' <span class="war" title="Im Krieg mit dir">⚔</span>' : '') + '</span><b>' + s.toFixed(s >= 10 ? 0 : 1) + '%</b><b>' + G.troopsSeen(game, p) + '</b></button>';
     };
     let html = '';
     for (let i = 0; i < n && i < ps.length; i++) html += row(ps[i], i);
@@ -13588,8 +13691,15 @@ void main() {
     if (p.traitorUntil > T) notes.push('Verräter, noch ' + Math.ceil((p.traitorUntil - T) / 10) + ' s leichter zu erobern');
     if (!me && h.embargo.has(p.id)) notes.push('Du handelst nicht mit diesem Spieler');
     if (!me && p.embargo.has(h.id)) notes.push('Dieser Spieler handelt nicht mit dir');
+    // «Langes Spiel»: who is at war with whom
+    if (game.lang && p.alive) {
+      if (!me && game.atWar(h, p)) notes.push('<b class="war">⚔ Im Krieg mit dir</b>' + (p.peace && p.peace[h.id] > T ? ', bietet dir Frieden an' : h.peace && h.peace[p.id] > T ? ', dein Friedensangebot steht' : ''));
+      const ws = game.warsOf(p).filter(function (q) { return q !== h || me; });
+      if (ws.length) notes.push((me ? 'Du bist im Krieg mit ' : 'Im Krieg mit ') + ws.map(function (q) { return esc(q.name); }).join(', '));
+    }
     if (notes.length) s += '<p class="notes">' + notes.join(' · ') + '</p>';
     if (!me && p.alive && h.alive && game.phase === 'play') {
+      if (game.lang && game.atWar(h, p)) s += '<button class="btn" data-act="peace" type="button">' + (p.peace && p.peace[h.id] > T ? 'Frieden annehmen' : 'Frieden anbieten') + '</button>';
       if (al) {
         s += '<div class="acts"><button class="btn ghost" data-act="troops" type="button">Truppen spenden (' + fmtT(h.troops * ratio) + ')</button>' +
           '<button class="btn ghost" data-act="gold" type="button">Gold spenden (' + fmt(Math.min(h.gold, 1e9) * 0.1) + ')</button></div>';
@@ -13666,6 +13776,7 @@ void main() {
     if (what.indexOf('tech:') === 0) { act({ k: 'research', id: what.slice(5), say: 'Forschung gestartet' }); setTimeout(function () { if (modalKind === 'tech') showTech(); }, 150); return; }
     if (what.indexOf('take:') === 0) { const pr = what.split(':'); act({ k: 'techtake', p: +pr[2], id: pr[1], say: 'Gekauft' }); setTimeout(function () { if (modalKind === 'tech') showTech(); }, 150); return; }
     if (what === 'give') { const sel = $('giveTech'), pr = $('givePrice'); if (sel && sel.value) act({ k: 'techoffer', p: p.id, id: sel.value, price: +pr.value, say: +pr.value ? 'Angebot an ' + p.name + ' geschickt' : 'An ' + p.name + ' geschenkt' }); return; }
+    if (what === 'peace') { act({ k: 'peace', p: p.id }); dropAsk('f' + p.id); return; }
     if (what === 'spy') { if (!game.spying(h, p)) act({ k: 'spy', p: p.id }); return; }
     if (what === 'host') { act({ k: 'host', p: p.id, on: h.hostOk && h.hostOk[p.id] ? 0 : 1, say: h.hostOk && h.hostOk[p.id] ? 'Keine Stützpunkte mehr für ' + p.name : p.name + ' darf Stützpunkte bei dir bauen' }); return; }
     if (what === 'embargo') { act({ k: 'emb', p: p.id, on: h.embargo.has(p.id) ? 0 : 1 }); return; }

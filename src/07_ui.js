@@ -748,6 +748,10 @@
         const from = game.players[e.from], id = e.id;
         addAsk('q' + id, from.name + ' bietet dir eine Allianz an', 'Annehmen', 'Ablehnen',
           function () { act({ k: 'ans', id: id, y: 1 }); }, function () { act({ k: 'ans', id: id, y: 0 }); });
+      } else if (e.k === 'peaceReq') {
+        const from = game.players[e.from];
+        addAsk('f' + from.id, from.name + ' bietet dir Frieden an', 'Annehmen', 'Ablehnen',
+          function () { act({ k: 'peace', p: from.id }); }, function () { /* the war goes on */ });
       } else if (e.k === 'renew') {
         const q = game.players[e.id];
         addAsk('r' + q.id, 'Die Allianz mit ' + q.name + ' läuft bald ab', 'Verlängern', 'Auslaufen lassen',
@@ -846,7 +850,7 @@
     const row = function (p, i) {
       const s = p.tiles / den * 100;
       return '<button class="lbrow' + (p === h ? ' me' : '') + '" data-id="' + p.id + '" type="button"><i>' + (i + 1) + '</i><span><span class="dot" style="background:' + p.css + '"></span>' +
-        esc(p.name) + '</span><b>' + s.toFixed(s >= 10 ? 0 : 1) + '%</b><b>' + G.troopsSeen(game, p) + '</b></button>';
+        esc(p.name) + (game.lang && game.atWar(h, p) ? ' <span class="war" title="Im Krieg mit dir">⚔</span>' : '') + '</span><b>' + s.toFixed(s >= 10 ? 0 : 1) + '%</b><b>' + G.troopsSeen(game, p) + '</b></button>';
     };
     let html = '';
     for (let i = 0; i < n && i < ps.length; i++) html += row(ps[i], i);
@@ -999,8 +1003,15 @@
     if (p.traitorUntil > T) notes.push('Verräter, noch ' + Math.ceil((p.traitorUntil - T) / 10) + ' s leichter zu erobern');
     if (!me && h.embargo.has(p.id)) notes.push('Du handelst nicht mit diesem Spieler');
     if (!me && p.embargo.has(h.id)) notes.push('Dieser Spieler handelt nicht mit dir');
+    // «Langes Spiel»: who is at war with whom
+    if (game.lang && p.alive) {
+      if (!me && game.atWar(h, p)) notes.push('<b class="war">⚔ Im Krieg mit dir</b>' + (p.peace && p.peace[h.id] > T ? ', bietet dir Frieden an' : h.peace && h.peace[p.id] > T ? ', dein Friedensangebot steht' : ''));
+      const ws = game.warsOf(p).filter(function (q) { return q !== h || me; });
+      if (ws.length) notes.push((me ? 'Du bist im Krieg mit ' : 'Im Krieg mit ') + ws.map(function (q) { return esc(q.name); }).join(', '));
+    }
     if (notes.length) s += '<p class="notes">' + notes.join(' · ') + '</p>';
     if (!me && p.alive && h.alive && game.phase === 'play') {
+      if (game.lang && game.atWar(h, p)) s += '<button class="btn" data-act="peace" type="button">' + (p.peace && p.peace[h.id] > T ? 'Frieden annehmen' : 'Frieden anbieten') + '</button>';
       if (al) {
         s += '<div class="acts"><button class="btn ghost" data-act="troops" type="button">Truppen spenden (' + fmtT(h.troops * ratio) + ')</button>' +
           '<button class="btn ghost" data-act="gold" type="button">Gold spenden (' + fmt(Math.min(h.gold, 1e9) * 0.1) + ')</button></div>';
@@ -1077,6 +1088,7 @@
     if (what.indexOf('tech:') === 0) { act({ k: 'research', id: what.slice(5), say: 'Forschung gestartet' }); setTimeout(function () { if (modalKind === 'tech') showTech(); }, 150); return; }
     if (what.indexOf('take:') === 0) { const pr = what.split(':'); act({ k: 'techtake', p: +pr[2], id: pr[1], say: 'Gekauft' }); setTimeout(function () { if (modalKind === 'tech') showTech(); }, 150); return; }
     if (what === 'give') { const sel = $('giveTech'), pr = $('givePrice'); if (sel && sel.value) act({ k: 'techoffer', p: p.id, id: sel.value, price: +pr.value, say: +pr.value ? 'Angebot an ' + p.name + ' geschickt' : 'An ' + p.name + ' geschenkt' }); return; }
+    if (what === 'peace') { act({ k: 'peace', p: p.id }); dropAsk('f' + p.id); return; }
     if (what === 'spy') { if (!game.spying(h, p)) act({ k: 'spy', p: p.id }); return; }
     if (what === 'host') { act({ k: 'host', p: p.id, on: h.hostOk && h.hostOk[p.id] ? 0 : 1, say: h.hostOk && h.hostOk[p.id] ? 'Keine Stützpunkte mehr für ' + p.name : p.name + ' darf Stützpunkte bei dir bauen' }); return; }
     if (what === 'embargo') { act({ k: 'emb', p: p.id, on: h.embargo.has(p.id) ? 0 : 1 }); return; }

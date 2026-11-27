@@ -519,6 +519,7 @@
     }, p.type === PT.HUMAN);
     const q = plan.tid ? this.players[plan.tid] : null;
     if (q) {
+      if (this.lang) this.declareWar(p, q);
       this.relate(q, p, -40);
       if (q === this.human) this.say('Ein Boot von ' + p.name + ' hält auf deine Küste zu', 'bad');
     }
@@ -911,7 +912,7 @@
         if (!v.active || v.owner === p) continue;
         const ty = v.type;
         if (v.safeUntil > T || v.docked) continue;   // just changed hands, or under repair at the quay
-        if (this.friendly(v.owner, p)) continue;
+        if (!this.hostile(v.owner, p)) continue;   // «Langes Spiel»: only at war (src/04c_lang.js)
         if (ty === UT.WARSHIP && v.cls === 2 && !this.subSeen(v, p)) continue;   // «Langes Spiel»: a submarine nobody has found
         if (ty === UT.TRANSPORT) { const q = v.tid ? this.players[v.tid] : null; if (!q || (q !== p && !this.friendly(p, q))) continue; }
         if (ty === UT.TRADE) {
@@ -1137,6 +1138,7 @@
       if (q) {
         if (p.allies.has(q.id)) this.breakAlliance(p, q);
         this.relate(q, p, -100);
+        if (this.lang) this.declareWar(p, q);
         if (q === h) this.say('MIRV von ' + p.name + ' im Anflug!', 'bad');
       }
       return u;
@@ -1146,6 +1148,7 @@
       const q = this.players[e[0]];
       if (q === p) continue;
       if (p.allies.has(q.id) && e[1] > 20) this.breakAlliance(p, q);
+      if (this.lang) this.declareWar(p, q);
       this.relate(q, p, -100);
       if (q === h) this.say(G.UNAME[type] + ' von ' + p.name + ' im Anflug!', 'bad');
     }
@@ -1165,6 +1168,7 @@
       const q = this.players[e[0]];
       if (q === p) continue;
       if (p.allies.has(q.id) && e[1] > 20) this.breakAlliance(p, q);
+      if (this.lang) this.declareWar(p, q);
       this.relate(q, p, -100);
       if (q === h) this.say('Satellitenstrahl von ' + p.name + ' zielt auf dein Gebiet!', 'bad');
     }
@@ -1349,7 +1353,7 @@
       if (u.ready[s] > T) continue;
       for (const n of this.nukes) {
         if (!n.active || n.sam || !(this.lang ? this.samCan(u, n.type) : G.canIntercept(n.type))) continue;
-        if (n.owner === u.owner || this.friendly(n.owner, u.owner)) continue;
+        if (n.owner === u.owner || (G.isPlane(n.type) ? !this.hostile(n.owner, u.owner) : this.friendly(n.owner, u.owner))) continue;   // «Langes Spiel»: planes only at war
         if (n.type === UT.STEALTH && !this.stealthLocked(u, n, sr)) continue;   // «Langes Spiel»: it has to be held a while first
         if (!this.samSolve(u, n, sr * G.seenAt(n.type) * (this.lang && (n.type === UT.CRUISE || n.type === UT.SRBM) && this.has(n.owner, 'hyper') ? 0.5 : 1))) continue;
         n.sam = true; u.ready[s] = T + (this.lang ? this.samReload(u) : 90);

@@ -298,3 +298,15 @@ Code: `G.ISLES`, `G.ISLE_R` und `buildWorld(def, cls, cost, hgt, { isles: true }
 - **Neu:** Ein Bündnis dauert im Modus 8 Minuten (`G.LANG.allyTicks` = 4800, `allyTicks()`), im klassischen Spiel bleiben es 5. Sicht nach 3 Minuten (`allySight` = 1800), Radar und Stützpunkte nach 6 Minuten (`allyRadar` = 3600). Beim Verlängern bleibt `al.since`.
 - Geprüft mit zwei Menschen: vor 6 Minuten «Stützpunkte erst nach 6 Minuten Bündnis», danach «B erlaubt keine Stützpunkte», nach «Stützpunkte erlauben» baut A das Silo im Land von B, Pacht fliesst, nach dem Bruch geht es nach 30 s an B. «Stützpunkte erlauben» funktionierte schon; eine Anfrage vom Bauenden an den Gastgeber gibt es nicht, der Gastgeber muss es von sich aus erlauben.
 - Szene 136.
+
+### A2. Kriegszustand
+Code: Abschnitt «war» in `src/04c_lang.js` (`atWar`, `hostile`, `declareWar`, `offerPeace`, `makePeace`, `truce`, `warsOf`), Zahlen `peaceAsk`, `peaceWait`, `truce` in `G.LANG`. Befehl `{k:'peace', p}`.
+- **Krieg beginnt**, sobald einer den anderen angreift: Bodenangriff (`attack`), Boot (`sendBoat`), Bombe oder Rakete auf sein Land (`launch`, alle Reiche im Sprengkreis, auch beim Planen mit Shift), Bomber oder Tarnbomber (`launchPlane`). Beide Seiten sind dann gegenseitig im Krieg (`p.war[q.id]` = Tick des letzten Schlags). Ein Torpedo setzt Krieg schon voraus, weil U-Boote nur im Krieg feuern.
+- **Kein Krieg:** Spion (der Ausspionierte bekommt nur «X spioniert dich aus»), Aufklärungsflugzeug (zählt wie ein Spion; meine Entscheidung, da nicht vorgegeben), Handel stoppen, Bündnis brechen.
+- **Nur im Krieg** greifen von selbst an (`hostile` statt `friendly`): Kriegsschiffe und U-Boote (Ziele, auch Handelsschiffe kapern), Seeminen, Abfangjäger, Flugabwehr und Abwehrschiffe gegen Flugzeuge. Gegen Bomben und Raketen schiesst die Flugabwehr weiter auf alle, die nicht verbündet sind (ein Start ist ohnehin Krieg). Bots: wie bisher, gegen sie braucht es keinen Krieg.
+- **Verbündete** sind nie im Krieg: Ein Bündnis beendet den Krieg.
+- **Frieden:** Knopf «Frieden anbieten» in der Info des Gegners. Ein Mensch bekommt oben die Frage «X bietet dir Frieden an» (2 Minuten, `peaceAsk`) oder drückt in der Info «Frieden annehmen». Eine Nation nimmt an, wenn seit dem letzten Schlag 3 Minuten vergangen sind (`peaceWait`), und greift danach 5 Minuten nicht an (`truce`, auch keine Bomben). Frieden beendet laufende Angriffe zwischen beiden.
+- **Nationen** sind im Krieg mit dem, den sie angreifen oder der sie angreift (dieselben Befehle).
+- **Anzeige:** In der Info eines Spielers «⚔ Im Krieg mit dir» und «Im Krieg mit …» (seine Kriege), auf der Rangliste ⚔ hinter dem Namen.
+- In Szenen und Levels des Modus sind die Gegner von Anfang an im Krieg mit dem Spieler (`levelSetup`); ein Bündnis im Drehbuch beendet das.
+- Szene 137.
