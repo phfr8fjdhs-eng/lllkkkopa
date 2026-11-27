@@ -333,7 +333,19 @@ Bei jedem Punkt steht, ob die Simulation berührt wird. Wenn ja, müssen die Pr�
 | — | Quadratisch mit Spielern | nichts zu tun (gemessen: höchstens linear) | — | — |
 | — | Nicht vorgeschlagen: Kern der Eroberung (58 %). `addFront` zieht Zufall in der Reihenfolge der Grenze; jede andere Ordnung ändert das Spiel. Kessel-Prüfung nur bei Änderung: Das Ergebnis hängt an der Reihenfolge und am grössten Stück, «gleich» lässt sich nicht sicher zeigen, darum Punkt 2. `postDijkstra` nur bei Änderung: 7 %, betrifft heute nur Nationen | | | |
 
-Wenn 1 bis 4 halten, was die Messung verspricht: Worker auf der Erde 19 → etwa 14 ms pro Tick, Speicher 640 → etwa 420 MB, Nachricht 138 → etwa 45 kB. Danach auf einem echten Handy messen (alter Plan Punkt 1). Erst dann entscheiden, ob es mehr braucht, zum Beispiel die Bytes der Karte zusammenpacken (`land`, `shore`, `mag`, `cover`, `feat` in 2 statt 5 Byte, −97 MB). Das berührt rund 100 Lesestellen, viele in heissen Schleifen.
+**Stand nach 1 bis 4 (27.11.2026, Abend)**, `skala.js` Erde mit 400 Bots, alter und neuer Stand abwechselnd (der Server war dabei langsamer als am Morgen, darum zählt der Vergleich innerhalb einer Zeile):
+
+| | vor Punkt 1 | nach Punkt 4 |
+| --- | ---: | ---: |
+| Worker pro Tick (Simulation + packen) | 24.3 ms | 21.2 bis 23.5 ms (−3 bis −13 %) |
+| davon packen | 5.6 ms | 4.6 bis 5.3 ms |
+| Nachricht pro Tick | 133 kB | 74 kB |
+| mit 1306 Einheiten: Worker / packen / Nachricht | 37.7 ms / 12.2 ms / 224 kB | 32.4 ms / 9.8 ms / 153 kB |
+| Browser mit WebGL (alle Prozesse) | 2.26 GB | 2.05 bis 2.08 GB |
+
+Das ist weniger als die Schätzung unten. Die Rechenzeit des Workers ist um etwa ein Zehntel gesunken, der Kern der Eroberung bleibt. Der nächste grosse Schritt für das Handy ist die Messung auf einem echten Gerät.
+
+Ursprüngliche Schätzung: Wenn 1 bis 4 halten, was die Messung verspricht: Worker auf der Erde 19 → etwa 14 ms pro Tick, Speicher 640 → etwa 420 MB, Nachricht 138 → etwa 45 kB. Danach auf einem echten Handy messen (alter Plan Punkt 1). Erst dann entscheiden, ob es mehr braucht, zum Beispiel die Bytes der Karte zusammenpacken (`land`, `shore`, `mag`, `cover`, `feat` in 2 statt 5 Byte, −97 MB). Das berührt rund 100 Lesestellen, viele in heissen Schleifen.
 
 ### Nur beschrieben: die Simulation auf einem Server, jeder sieht nur, was er sieht
 **Heute:** Jedes Gerät rechnet das ganze Spiel. Der Mehrspieler über MQTT schickt nur Befehle (Gleichlauf). Im Browser rechnet ein Worker, die Seite liest einen Spiegel, den der Worker mit Änderungen nachführt (`G.SyncOut`/`G.SyncIn`).
