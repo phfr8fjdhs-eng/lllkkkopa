@@ -442,4 +442,125 @@ void main() { outc = texture(uColor, vUV); }`;
     } catch (e) { return false; }
   };
   G.MapGL = MapGL;
+
+  // ---------- ships on the graphics card (27.11.2026, doku/leistung.md) ----------
+  // In Canvas 2D every ship is one turned drawImage, about 9 µs each: 1000 ships on the whole map
+  // filled a frame. Here all hulls go in one draw: the pixel pictures of the ships (View's ART) as
+  // a texture of roles (owner colour, its shades, the fixed colours), each ship one quad, turned
+  // and placed exactly as drawShip places its picture, the colours worked out per pixel as
+  // shipSprite paints them. The picture lands on a canvas of its own that View copies into its 2D
+  // picture in one go, at the place where the hulls are drawn, so what lies under and over them
+  // stays as before.
+  const VS_SHIP = `#version 300 es
+in vec2 aPos;
+in vec4 aPlace;   // x, y in css pixels, cos and sin of the heading
+in vec3 aSize;    // width, height in css pixels, kind
+in vec3 aO; in vec3 aD; in vec3 aK;
+uniform vec2 uView; uniform float uDpr; uniform vec4 uKind[16];
+out vec2 vT; flat out vec4 vRect; flat out vec3 vO; flat out vec3 vD; flat out vec3 vK;
+void main() {
+  vec4 r = uKind[int(aSize.z)];
+  vec2 l = (aPos - 0.5) * aSize.xy;
+  vec2 p = (vec2(aPlace.z * l.x - aPlace.w * l.y, aPlace.w * l.x + aPlace.z * l.y) + aPlace.xy) * uDpr;
+  gl_Position = vec4(p.x / uView.x * 2.0 - 1.0, 1.0 - p.y / uView.y * 2.0, 0.0, 1.0);
+  vT = aPos * r.zw; vRect = r; vO = aO; vD = aD; vK = aK;
+}`;
+  const FS_SHIP = `#version 300 es
+precision highp float; precision highp int; precision highp usampler2D;
+uniform usampler2D uArt; uniform vec3 uFix[16];
+in vec2 vT; flat in vec4 vRect; flat in vec3 vO; flat in vec3 vD; flat in vec3 vK;
+out vec4 outc;
+void main() {
+  ivec2 t = clamp(ivec2(floor(vT)), ivec2(0), ivec2(vRect.zw) - 1);
+  uint role = texelFetch(uArt, ivec2(vRect.xy) + t, 0).r;
+  if (role == 0u) discard;
+  vec3 c = role == 1u ? vO : role == 2u ? vD : role == 3u ? vK : uFix[role];
+  outc = vec4(c / 255.0, 1.0);
+}`;
+  const ROLE = { '.': 0, o: 1, d: 2, k: 3, w: 4, g: 5, G: 6, F: 7, r: 8, 0: 9, 1: 10, 2: 11, 3: 12, 4: 13 };
+  const hex = function (h) { return [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)]; };
+  const FL = 16;   // floats per ship
+  // art: { kind: rows }, fixed: { role letter: '#rrggbb' }, boxes: ['#rrggbb', ...] (the containers)
+  function ShipGL(art, fixed, boxes) {
+    const canvas = this.cv = document.createElement('canvas');
+    const gl = canvas.getContext('webgl2', { alpha: true, premultipliedAlpha: true, antialias: true, depth: false, stencil: false, preserveDrawingBuffer: false });
+    if (!gl) throw new Error('no WebGL 2');
+    this.gl = gl;
+    this.prog = program(gl, VS_SHIP, FS_SHIP);
+    // the atlas: every picture in rows of its own, one byte (its role) per pixel
+    const kinds = Object.keys(art);
+    let aw = 1, ah = 0;
+    for (const k of kinds) { aw = Math.max(aw, art[k][0].length); ah += art[k].length; }
+    const data = new Uint8Array(aw * ah), rect = new Float32Array(16 * 4);
+    this.kind = {};
+    let y0 = 0;
+    kinds.forEach((k, i) => {
+      const rows = art[k];
+      for (let y = 0; y < rows.length; y++) for (let x = 0; x < rows[0].length; x++) {
+        const c = rows[y][x] || '.';
+        data[(y0 + y) * aw + x] = ROLE[c] !== undefined ? ROLE[c] : 1;
+      }
+      rect.set([0, y0, rows[0].length, rows.length], i * 4);
+      this.kind[k] = i; y0 += rows.length;
+    });
+    gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+    this.art = tex(gl);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.R8UI, aw, ah, 0, gl.RED_INTEGER, gl.UNSIGNED_BYTE, data);
+    const fix = new Float32Array(16 * 3);
+    for (const c in fixed) fix.set(hex(fixed[c]), ROLE[c] * 3);
+    boxes.forEach((b, i) => fix.set(hex(b), (9 + i) * 3));
+    const P = this.prog;
+    gl.useProgram(P.p);
+    gl.uniform4fv(P.u['uKind[0]'], rect); gl.uniform3fv(P.u['uFix[0]'], fix); gl.uniform1i(P.u.uArt, 0);
+    this.vao = gl.createVertexArray();
+    gl.bindVertexArray(this.vao);
+    const quad = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, quad);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([0, 0, 1, 0, 0, 1, 1, 1]), gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+    this.buf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.buf);
+    const at = function (name, n, off) {
+      const l = gl.getAttribLocation(P.p, name);
+      if (l < 0) return;
+      gl.enableVertexAttribArray(l); gl.vertexAttribPointer(l, n, gl.FLOAT, false, FL * 4, off * 4); gl.vertexAttribDivisor(l, 1);
+    };
+    at('aPlace', 4, 0); at('aSize', 3, 4); at('aO', 3, 7); at('aD', 3, 10); at('aK', 3, 13);
+    gl.bindVertexArray(null);
+    this.d = new Float32Array(FL * 1024); this.n = 0;
+    this.lost = false;
+    const self = this;
+    canvas.addEventListener('webglcontextlost', function (e) { e.preventDefault(); self.lost = true; }, false);
+  }
+  ShipGL.prototype.begin = function () { this.n = 0; };
+  // one hull: kind (a key of art), centre x, y and heading in css pixels, w and h its size in css
+  // pixels, p the owner (r, g, b)
+  ShipGL.prototype.add = function (kind, x, y, ang, w, h, p) {
+    if ((this.n + 1) * FL > this.d.length) { const e = new Float32Array(this.d.length * 2); e.set(this.d); this.d = e; }
+    const d = this.d, o = this.n++ * FL, r = Math.round(p.r), g = Math.round(p.g), b = Math.round(p.b);
+    d[o] = x; d[o + 1] = y; d[o + 2] = Math.cos(ang); d[o + 3] = Math.sin(ang);
+    d[o + 4] = w; d[o + 5] = h; d[o + 6] = this.kind[kind];
+    d[o + 7] = r; d[o + 8] = g; d[o + 9] = b;
+    d[o + 10] = Math.round(p.r * 0.6); d[o + 11] = Math.round(p.g * 0.6); d[o + 12] = Math.round(p.b * 0.6);
+    d[o + 13] = Math.round(p.r * 0.28); d[o + 14] = Math.round(p.g * 0.28); d[o + 15] = Math.round(p.b * 0.28);
+  };
+  // draw what was added onto this.cv (w x h device pixels); false when there was nothing
+  ShipGL.prototype.end = function (w, h, dpr) {
+    const gl = this.gl, cv = this.cv;
+    if (!this.n || this.lost) return false;
+    if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
+    gl.viewport(0, 0, w, h);
+    gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
+    const P = this.prog;
+    gl.useProgram(P.p);
+    gl.uniform2f(P.u.uView, w, h); gl.uniform1f(P.u.uDpr, dpr);
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, this.art);
+    gl.bindVertexArray(this.vao);
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.buf);
+    gl.bufferData(gl.ARRAY_BUFFER, this.d.subarray(0, this.n * FL), gl.STREAM_DRAW);
+    gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, this.n);
+    gl.bindVertexArray(null);
+    return true;
+  };
+  G.ShipGL = ShipGL;
 })(globalThis.G = globalThis.G || {});

@@ -299,6 +299,9 @@
   function View(canvas) {
     this.cv = canvas;
     this.glOn = !!(G.MapGL && G.MapGL.wanted());
+    // ship hulls on the graphics card (View.hullsGL): for now only with ?schiffe=gl, until it is
+    // measured on a device with a real graphics card (doku/leistung.md, 27.11.2026)
+    this.sglOff = (function () { try { return new URLSearchParams(location.search).get('schiffe') !== 'gl'; } catch (e) { return true; } })();
     if (this.glOn) {
       const c = this.glc = document.createElement('canvas');
       c.id = 'cvMap'; c.setAttribute('aria-hidden', 'true');
@@ -1580,6 +1583,8 @@
   // restore (24.11.2026: about a fifth less time a ship; test/stress_view.js). Elsewhere (tests)
   // the slow, general way.
   let SHIP_DPR = 0;
+  // true while drawUnitList runs after the hulls went on the graphics card (View.hullsGL)
+  let SHIP_GL = false;
   function drawShip(ctx, kind, x, y, ang, px, p) {
     const cv = shipSprite(kind, p), L = cv.width * SCALE[kind], Wd = cv.height * SCALE[kind];
     if (SHIP_DPR) {
@@ -1728,7 +1733,39 @@
     ctx.lineJoin = 'round';
     const smooth = ctx.imageSmoothingEnabled;
     ctx.imageSmoothingEnabled = false; SHIP_DPR = this.dpr;
-    try { this.drawUnitList(ctx, g, z, ox, oy, alpha, now, zz); } finally { SHIP_DPR = 0; ctx.imageSmoothingEnabled = smooth; }
+    SHIP_GL = !!this.glm && !this.sglOff && this.hullsGL(ctx, g, z, ox, oy, zz);
+    try { this.drawUnitList(ctx, g, z, ox, oy, alpha, now, zz); } finally { SHIP_DPR = 0; SHIP_GL = false; ctx.imageSmoothingEnabled = smooth; }
+  };
+  // With the map on the graphics card, the hulls of all ships go there too, in one draw
+  // (G.ShipGL, 27.11.2026), and land in the picture here as one image, where drawUnitList would
+  // draw them: over the wakes, under everything drawUnitList draws (bars, rings, shells, bombs).
+  // The ships are those drawUnitList would draw, placed as drawShip places them. False when the
+  // graphics card cannot: then drawUnitList draws them as before. Off unless ?schiffe=gl (`sglOff`).
+  View.prototype.hullsGL = function (ctx, g, z, ox, oy, zz) {
+    let sg = this.sgl;
+    if (sg && sg.lost) { this.sgl = sg = null; this.sglOff = true; return false; }
+    if (!sg) {
+      try { sg = this.sgl = new G.ShipGL(ART, { w: '#f2f4f6', g: '#a7afb6', G: '#4b545c', F: '#ffb04a', r: '#e04a3a' }, BOXCOL); }
+      catch (e) { this.sglOff = true; return false; }
+    }
+    const cw = this.cw, ch = this.ch, us = g.units, px = shipPx(zz);
+    sg.begin();
+    for (let i = 0; i < us.length; i++) {
+      const u = us[i], ty = u.type;
+      if (!u.active || (ty !== UT.WARSHIP && ty !== UT.TRANSPORT && ty !== UT.TRADE)) continue;
+      if (FOG && fogHides(g, u)) continue;
+      if (ty === UT.WARSHIP && u.cls === 2 && !subShown(g, u)) continue;
+      const x = (u.vx + 0.5) * z + ox, y = (u.vy + 0.5) * z + oy;
+      if (x < -30 || y < -30 || x > cw + 30 || y > ch + 30) continue;
+      const k = ty === UT.WARSHIP ? 'war' + (u.cls || 0) : ty === UT.TRADE ? 'trade' + (u.kind || 0) : 'boat', sc = SCALE[k] * px;
+      sg.add(k, x, y, u.va, ART[k][0].length * sc, ART[k].length * sc, u.owner);
+    }
+    if (sg.end(this.cv.width, this.cv.height, this.dpr)) {
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.drawImage(sg.cv, 0, 0);
+      ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    }
+    return true;
   };
   View.prototype.drawUnitList = function (ctx, g, z, ox, oy, alpha, now, zz) {
     const cw = this.cw, ch = this.ch, us = g.units;
@@ -1779,7 +1816,7 @@
       }
       if (ty === UT.WARSHIP) {
         const s = warSize(zz, u.cls), tg = u.target && u.target.active && u.target.type !== UT.TRADE ? u.target : null, full = g.lang ? g.shipFull(u) : G.SHIP_CLASS[u.cls || 0].hp;
-        warship(ctx, x, y, ang, s, p, tg ? Math.atan2(tg.y - u.y, tg.x - u.x) - ang : null, u.cls);
+        if (!SHIP_GL) warship(ctx, x, y, ang, s, p, tg ? Math.atan2(tg.y - u.y, tg.x - u.x) - ang : null, u.cls);
         if (u.id === this.shipSel) {
           // the ship you picked: a white ring; where it goes, a dashed line
           ctx.beginPath(); ctx.arc(x, y, s * 1.25, 0, 6.2832);
@@ -1803,7 +1840,7 @@
         }
       } else if (ty === UT.TRANSPORT) {
         // a troop boat: the landing craft picture (white wheelhouse aft, the well, the ramp)
-        drawShip(ctx, 'boat', x, y, ang, shipPx(zz), p);
+        if (!SHIP_GL) drawShip(ctx, 'boat', x, y, ang, shipPx(zz), p);
       } else if (ty === UT.TRAIN) {
         if (u.edge && (hid(g, u.edge.a) || hid(g, u.edge.b))) continue;
         const zz = z * (g.S || 1);
@@ -1811,7 +1848,8 @@
       } else if (ty === UT.TRADE) {
         // Hull in the owner's colour, cargo in a deep shade of it, dark edge: readable on any water.
         const s = tradeSize(zz);
-        merchant(ctx, x, y, ang, s, p, u.captured, u.kind);
+        if (!SHIP_GL) merchant(ctx, x, y, ang, s, p, u.captured, u.kind);
+        else if (u.captured) { ctx.fillStyle = '#f4b740'; ctx.fillRect(x - 2, y - 2, 4, 4); }
         // a large ship under fire: what is left of it before it can be taken
         if (u.kind && !u.captured && u.hits < G.HAFEN.ships[u.kind].hits) {
           const full = G.HAFEN.ships[u.kind].hits, bw = s * 2.2;
