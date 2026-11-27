@@ -11,6 +11,7 @@ Ein eigener Bereich neben dem normalen Spiel und den Levels. Auf dem Startbildsc
 ## Die Szenen (Stand 26.11.2026)
 | Nr. | Datum | Name | Was passiert |
 | --- | --- | --- | --- |
+| 138 | 27.11. | Langes Spiel: Flugabwehr gegen Flugzeuge | Alle 10 s ein eigener Bomber über drei kleine Flugabwehren von Varnholm hinweg; nur die Raketenabwehr Stufe 3 schiesst |
 | 137 | 27.11. | Langes Spiel: Krieg und Frieden | Mit Varnholm im Krieg, mit Brenna nicht: links beschiessen sich die Zerstörer, rechts fahren sie nebeneinander; nach 40 s bietet Varnholm Frieden an |
 | 136 | 27.11. | Langes Spiel: Bündnis dauert 8 Minuten | Bündnis mit Brenna knapp 6 Minuten alt; nach 8 s ein eigenes Silo als Stützpunkt in Brennas Land |
 | 135 | 27.11. | Langes Spiel: Flotte | Eigenes U-Boot feuert Marschflugkörper auf die Stadt des Südreichs, das Abwehrschiff holt die Marschflugkörper des Südreichs herunter, das Radarschiff deckt den Nebel auf |

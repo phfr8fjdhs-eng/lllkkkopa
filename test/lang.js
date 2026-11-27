@@ -36,6 +36,8 @@ check('Raketenabwehr: Schüsse 1, 2, 3, 3', shots.join(',') === '1,2,3,3', shots
 check('kleine Flugabwehr: 2 Schüsse pro Stufe', b.samShotsOf({ cls: 0, level: 3 }) === 6);
 const wise = { tech: { abm3: 1, abm4: 1, abm5: 1 } };
 check('Raketenabwehr nur gegen Atomwaffen (mit Forschung)', b.samCan({ cls: 1, owner: wise }, G.UT.ATOM) && b.samCan({ cls: 1, owner: wise }, G.UT.WARHEAD) && !b.samCan({ cls: 1, owner: wise }, G.UT.CRUISE) && !b.samCan({ cls: 1, owner: {} }, G.UT.ATOM));
+check('Flugzeuge: kleine nie, Raketenabwehr ab Stufe 3', !b.samCan({ cls: 0, level: 10 }, G.UT.BOMBER) && !b.samCan({ cls: 1, level: 2 }, G.UT.BOMBER) && b.samCan({ cls: 1, level: 3 }, G.UT.BOMBER) && b.samCan({ cls: 1, level: 3 }, G.UT.RECON) && b.samCan({ cls: 0 }, G.UT.SRBM));
+check('Tarnbomber: Raketenabwehr ab Stufe 5 mit Forschung', !b.samCan({ cls: 0, level: 9, owner: { tech: { abw5: 1 } } }, G.UT.STEALTH) && !b.samCan({ cls: 1, level: 4, owner: { tech: { abw5: 1 } } }, G.UT.STEALTH) && b.samCan({ cls: 1, level: 5, owner: { tech: { abw5: 1 } } }, G.UT.STEALTH) && !b.samCan({ cls: 1, level: 5, owner: { tech: {} } }, G.UT.STEALTH));
 check('kleine nur gegen Marschflugkörper', b.samCan({ cls: 0 }, G.UT.CRUISE) && !b.samCan({ cls: 0 }, G.UT.ATOM));
 // Paket 2: nuclear weapons late and dear, reach from the silo
 const pb = b.players[1];

@@ -78,14 +78,13 @@ Im klassischen Spiel gibt jede Stufe einer Flugabwehr einen Abfangschuss mehr: E
 
 | | kleine Flugabwehr (Taste `6`) | Raketenabwehr (Taste `J`) |
 | --- | --- | --- |
-| trifft | Marschflugkörper (später Flugzeuge, Kurzstreckenraketen) | Atombombe, Wasserstoffbombe, MIRV-Sprengköpfe |
+| trifft | Marschflugkörper, Kurzstreckenrakete und die anderen konventionellen Waffen aus dem Silo, keine Flugzeuge (seit 27.11.2026, A3) | Atombombe, Wasserstoffbombe, MIRV-Sprengköpfe; ab Stufe 3 Bomber und Aufklärer, ab Stufe 5 mit «Gegen Tarnbomber» auch Tarnbomber |
 | Schüsse pro Salve | 2 pro Stufe (`samShots`) | 1 + ⌊Stufe / 4⌋: Stufe 1: 1, 4: 2, 8: 3, 10: 3 |
 | Nachladen | 9 s | 9 s · 8 / (Stufe + 7): Stufe 1: 9 s, 10: 4.2 s |
 | Reichweite | wie bisher mit der Stufe, × 0.5 (1a) | ebenso |
 | Preis | wie bisher | × 1.5 (`abmCost`), teilt die Preisleiter mit der kleinen |
 
 - **Abnehmender Schutz:** Steht eine eigene Flugabwehr derselben Art schon in Reichweite, lädt die neuere halb so schnell nach, bei zwei älteren ein Viertel so schnell und so weiter (`abmStack` 0.5). Gerechnet nur, wenn eine gebaut, zerstört oder erobert wird (`samSig`).
-- Die kleine schiesst auf Bomber später nur auf das Flugzeug, nicht auf seine Bomben (kommt mit Paket 5).
 - Bauleiste: Die Zahl auf der Flugabwehr zeigt die Abwehrschüsse dieser Art zusammen. Auf der Karte ist die Raketenabwehr ein Sechseck mit zwei Raketen, die kleine bleibt die Raute.
 - Nationen bauen im Modus zuerst eine Raketenabwehr, dann eine kleine.
 - Szene 124.
@@ -209,9 +208,9 @@ Code: Abschnitt «the air force» in `src/04c_lang.js` (`planeCheck`, `launchPla
 
 - **Flugplatz** (Taste `9` in der Bauleiste, 2M, Forschung «Flugplatz»): im Spiel ein Silo der Klasse 1 (`u.cls` = 1, auf der Seite 3.5), weil im Spielkern keine Gebäudenummer mehr frei ist; gezeichnet als Quadrat mit Flugzeug. Er schickt so viele Flüge gleichzeitig, wie er Stufen hat. Reichweite 250 Felder der Erde, wie die Waffen auf die Karte umgerechnet, +5 % pro Stufe, mit «Luftbetankung» × 1.5 (`airRange`). Kann als Stützpunkt bei einem Verbündeten stehen (3d).
 - **Flugzeuge fliegen selbst** hin und zurück (`tickPlane`); niemand steuert sie. Nach der Landung braucht der Flugplatz den Hin- und Rückflug plus 20 s, bis derselbe Platz wieder startet. Fällt der Flugplatz, ist das Flugzeug bei der Rückkehr weg.
-- **Bomber** (Waffenleiste `9`, 600K, Forschung «Bomber»): wirft am Ziel eine Streubombe (Truppen, kein Land, keine Gebäude). Die kleine Flugabwehr schiesst auf das Flugzeug, sobald sie es in Reichweite hat, nicht auf die Bomben (die fallen ungelenkt).
+- **Bomber** (Waffenleiste `9`, 600K, Forschung «Bomber»): wirft am Ziel eine Streubombe (Truppen, kein Land, keine Gebäude). Auf ihn schiesst nur die Raketenabwehr ab Stufe 3, sobald sie ihn in Reichweite hat, dazu Abwehrschiffe und Abfangjäger (seit 27.11.2026; vorher die kleine Flugabwehr).
 - **Tarnbomber** (Waffenleiste `0`, 2M plus der Preis der Bombe, Forschung «Tarnbomber», erst ab Minute 30): trägt eine Atombombe, mit der Forschung «Wasserstoffbombe» eine Wasserstoffbombe (feste Nutzlast). Wirkt wie die Bombe aus dem Silo, auf Truppen und Gebäude, mit Ächtung. Reicht doppelt so weit wie der Flugplatz. **Schutz gegen das Abschiessen** (deine Vorgabe: nicht von einer Flugabwehr der Stufe 2 sofort weg):
-  - Nur die kleine Flugabwehr mit der Forschung «Gegen Tarnbomber» (Abwehr 5) kann überhaupt auf ihn schiessen.
+  - Nur die Raketenabwehr ab Stufe 5 mit der Forschung «Gegen Tarnbomber» (Abwehr 5) kann überhaupt auf ihn schiessen (bis 27.11.2026 die kleine Flugabwehr).
   - Sie sieht ihn erst in einem Viertel ihrer Reichweite (`stealthSeen`) und muss ihn dort 3 s halten, bevor sie schiesst (`stealthLock`).
   - Er hält 2 Treffer aus (`stealthHp`).
   - So überfliegt er Mauern aus Flugabwehr; nur eine Flugabwehr direkt beim Ziel trifft ihn noch, meist auf dem Rückweg.
@@ -220,7 +219,7 @@ Code: Abschnitt «the air force» in `src/04c_lang.js` (`planeCheck`, `launchPla
 - **Abfangjäger** (Forschung «Abfangjäger»): Ein Flugplatz schickt von selbst einen Jäger gegen feindliche Bomber und Marschflugkörper (und die anderen tief fliegenden Waffen) in seiner Reichweite; der Jäger holt sie ein, schiesst sie ab und fliegt zurück, dann 15 s Pause für diesen Platz.
 - **Luftbrücke** (Luftwaffe 3): Ein Kessel in Reichweite eines eigenen Flugplatzes hungert nicht.
 - **Warthog** (Heer 3) gilt jetzt im Umkreis eines eigenen Flugplatzes: Angriffe dort verlieren 15 % weniger.
-- Forschung Luftwaffe: 1 Flugplatz, 2 Abfangjäger, 3 Luftbetankung und Luftbrücke, 4 Bomber, 5 Tarnbomber (braucht die Atombombe). Dazu Aufklärung 2 Aufklärungsflugzeug und Abwehr 5 «Gegen Tarnbomber».
+- Forschung Luftwaffe: 1 Flugplatz, 2 Abfangjäger, 3 Luftbetankung und Luftbrücke, 4 Bomber, 5 Tarnbomber (braucht die Atombombe). Dazu Aufklärung 2 Aufklärungsflugzeug und Abwehr 5 «Gegen Tarnbomber» (für die Raketenabwehr ab Stufe 5).
 - Szenen 131 (Luftwaffe) und 132 (Tarnbomber).
 
 ## Paket 6: Marine (26.11.2026)
@@ -310,3 +309,11 @@ Code: Abschnitt «war» in `src/04c_lang.js` (`atWar`, `hostile`, `declareWar`, 
 - **Anzeige:** In der Info eines Spielers «⚔ Im Krieg mit dir» und «Im Krieg mit …» (seine Kriege), auf der Rangliste ⚔ hinter dem Namen.
 - In Szenen und Levels des Modus sind die Gegner von Anfang an im Krieg mit dem Spieler (`levelSetup`); ein Bündnis im Drehbuch beendet das.
 - Szene 137.
+
+### A3. Flugabwehr gegen Flugzeuge
+Code: `samCan` in `src/04c_lang.js`, Zahlen `abmPlane` (3), `abmStealth` (5) in `G.LANG`.
+- Die **kleine Flugabwehr** trifft keine Flugzeuge mehr, nur Marschflugkörper, Kurzstreckenraketen und die anderen konventionellen Waffen aus dem Silo (Streubombe, Bunkerbrecher, thermobare Bombe; die stehen nicht in der Vorgabe, ich habe sie als Raketen gezählt). Grund: Sonst sind Flugzeuge nutzlos.
+- **Bomber und Aufklärer** trifft die Raketenabwehr ab Stufe 3 (`abmPlane`), mit voller Reichweite, dazu weiterhin Abwehrschiffe und Abfangjäger (und Zerstörer mit «Flugabwehr an Bord»).
+- **Tarnbomber** trifft nur die Raketenabwehr ab Stufe 5 (`abmStealth`) mit «Gegen Tarnbomber» (Abwehr 5, umgehängt von der kleinen Flugabwehr). Erfassen in einem Viertel der Reichweite, 3 s Zielzeit, 2 Treffer bleiben.
+- Gegen Flugzeuge schiesst jede Abwehr nur im Krieg (A2).
+- Szene 138.

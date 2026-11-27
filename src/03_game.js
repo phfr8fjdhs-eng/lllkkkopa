@@ -83,6 +83,7 @@
   //           warheads, 1 + floor(level / 4) shots, reload abmReload x 8 / (level + 7), price x
   //           abmCost. A second launcher of the same class within reach reloads 1 / abmStack
   //           times as long, a third 1 / abmStack^2 (src/04c_lang.js)
+  //           abmPlane, abmStealth: from which level the missile defence takes planes, stealth bombers
   //   cityHit  share of its levels a city loses to a bomb in the inner ring (by UT: atom bomb,
   //           hydrogen bomb, warhead), half that in the outer ring, at least one level; its people
   //           (its share of the troop limit, as full as the realm) die. Evacuated (an order given
@@ -129,7 +130,7 @@
     wearFrom: 12000, wearOver: 2, wear: 0.01,
     digTicks: 1200, digLoss: 2, digTime: 0.75, digDrop: 0.004,
     postR: 1.5, postLoss: [5, 3], postTime: 3, postDens: 2,
-    samShots: 2, samReload: 90, abmCost: 1.5, abmReload: 90, abmStack: 0.5,
+    samShots: 2, samReload: 90, abmCost: 1.5, abmReload: 90, abmStack: 0.5, abmPlane: 3, abmStealth: 5,
     cityHit: { 13: 0.5, 14: 1, 16: 0.25, 21: 0.35 }, evacDie: 0.33, evacStop: 600, evacBack: 1800, evacHold: 900, shelterCost: 250000, shelter: 0.5,
     // Paket 2: nuclear weapons deter, conventional ones fight the war
     nukeCost: { 13: 8, 14: 8, 15: 4 }, nukeFrom: { 13: 18000, 14: 27000, 15: 36000 }, arm: { 13: 300, 14: 450, 15: 600 },

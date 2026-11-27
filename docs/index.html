@@ -1569,6 +1569,7 @@ body.placing #cv { cursor: crosshair; }
   //           warheads, 1 + floor(level / 4) shots, reload abmReload x 8 / (level + 7), price x
   //           abmCost. A second launcher of the same class within reach reloads 1 / abmStack
   //           times as long, a third 1 / abmStack^2 (src/04c_lang.js)
+  //           abmPlane, abmStealth: from which level the missile defence takes planes, stealth bombers
   //   cityHit  share of its levels a city loses to a bomb in the inner ring (by UT: atom bomb,
   //           hydrogen bomb, warhead), half that in the outer ring, at least one level; its people
   //           (its share of the troop limit, as full as the realm) die. Evacuated (an order given
@@ -1615,7 +1616,7 @@ body.placing #cv { cursor: crosshair; }
     wearFrom: 12000, wearOver: 2, wear: 0.01,
     digTicks: 1200, digLoss: 2, digTime: 0.75, digDrop: 0.004,
     postR: 1.5, postLoss: [5, 3], postTime: 3, postDens: 2,
-    samShots: 2, samReload: 90, abmCost: 1.5, abmReload: 90, abmStack: 0.5,
+    samShots: 2, samReload: 90, abmCost: 1.5, abmReload: 90, abmStack: 0.5, abmPlane: 3, abmStealth: 5,
     cityHit: { 13: 0.5, 14: 1, 16: 0.25, 21: 0.35 }, evacDie: 0.33, evacStop: 600, evacBack: 1800, evacHold: 900, shelterCost: 250000, shelter: 0.5,
     // Paket 2: nuclear weapons deter, conventional ones fight the war
     nukeCost: { 13: 8, 14: 8, 15: 4 }, nukeFrom: { 13: 18000, 14: 27000, 15: 36000 }, arm: { 13: 300, 14: 450, 15: 600 },
@@ -4388,6 +4389,16 @@ body.placing #cv { cursor: crosshair; }
 
   G.NEUES = [
     {
+      n: 138, date: '27.11.2026', title: 'Langes Spiel: Flugabwehr gegen Flugzeuge', lang: true,
+      text: 'Die kleine Flugabwehr trifft keine Flugzeuge mehr, nur noch Marschflugkörper und Raketen. Bomber und Aufklärer holt nur die Raketenabwehr ab Stufe 3 herunter (dazu Abwehrschiffe und Abfangjäger), Tarnbomber erst die Raketenabwehr ab Stufe 5 mit «Gegen Tarnbomber». Deine Bomber fliegen über die kleinen Flugabwehren von Varnholm hinweg; erst die Raketenabwehr bei der Stadt schiesst.',
+      map: { w: 340, h: 200, seed: 938, shapes: [circ(70, 100, 62), circ(250, 100, 85)] },
+      me: { x: 70, y: 100, r: 64, troops: 80000, gold: 0, build: [[3.5, 90, 100, 3]] },
+      foes: [{ name: 'Varnholm', x: 250, y: 100, r: 87, troops: 150000, build: [[UT.SAM, 185, 70, 3], [UT.SAM, 180, 100, 3], [UT.SAM, 185, 130, 3], [4.5, 240, 100, 3], [UT.CITY, 270, 100, 6]] }],
+      allow: ALL, quest: none,
+      loop: [6, 10, function (Q, k) { Q.fire(Q.me, UT.BOMBER, k % 2 ? 230 : 238, k % 2 ? 85 : 110); }],
+      tips: [{ text: 'Nur die Raketenabwehr (Sechseck) schiesst auf Bomber.', pins: function (Q) { return Q.units(Q.foe[0], UT.SAM, 4); } }]
+    },
+    {
       n: 137, date: '27.11.2026', title: 'Langes Spiel: Krieg und Frieden', lang: true,
       text: 'Wer einen anderen angreift (Boden, Boot, Bombe, Rakete, Bomber), ist mit ihm im Krieg, beide Seiten. Nur im Krieg schiessen Schiffe, U-Boote, Minen, Jäger und die Flugabwehr gegen Flugzeuge von selbst. Mit Varnholm bist du im Krieg (⚔ auf der Rangliste), mit Brenna nicht: Eure Zerstörer fahren friedlich nebeneinander. «Frieden anbieten» steht in der Info des Gegners.',
       map: { w: 300, h: 200, seed: 937, shapes: [rect(0, 0, 300, 46), rect(0, 154, 140, 200), rect(160, 154, 300, 200)] },
@@ -4465,7 +4476,7 @@ body.placing #cv { cursor: crosshair; }
     },
     {
       n: 132, date: '26.11.2026', title: 'Langes Spiel: Tarnbomber', lang: true,
-      text: 'Der Tarnbomber trägt eine Atombombe und kommt durch Mauern aus Flugabwehr: Eine Flugabwehr sieht ihn nur in einem Viertel ihrer Reichweite, muss ihn dort 3 Sekunden halten und braucht dafür die Forschung «Gegen Tarnbomber»; er hält zwei Treffer aus. Nach dem Abwurf fliegt er zurück. Nur ein Radar mit «Tarnung erkennen» zeigt ihn.',
+      text: 'Der Tarnbomber trägt eine Atombombe und kommt durch Mauern aus Flugabwehr: Treffen kann ihn nur eine Raketenabwehr ab Stufe 5 mit der Forschung «Gegen Tarnbomber», und sie sieht ihn nur in einem Viertel ihrer Reichweite und muss ihn dort 3 Sekunden halten; er hält zwei Treffer aus. Nach dem Abwurf fliegt er zurück. Nur ein Radar mit «Tarnung erkennen» zeigt ihn.',
       map: { w: 380, h: 200, seed: 932, shapes: [circ(70, 100, 60), circ(290, 100, 80)] },
       me: { x: 70, y: 100, r: 62, troops: 80000, gold: 0, build: [[3.5, 90, 100, 2], [4.7, 60, 70, 3]] },
       foes: [{ name: 'Küstenreich', x: 290, y: 100, r: 82, troops: 200000, build: [[UT.SAM, 220, 70, 2], [UT.SAM, 215, 100, 2], [UT.SAM, 220, 130, 2], [UT.CITY, 300, 100, 10]] }],
@@ -6752,7 +6763,10 @@ body.placing #cv { cursor: crosshair; }
   Game.prototype.samCan = function (u, type) {
     if (u.cls === 2) return false;
     if (type === UT.FIGHTER) return false;
-    if (type === UT.STEALTH) return !u.cls && this.has(u.owner, 'abw5');
+    // planes (27.11.2026): only the missile defence from a higher level, the stealth bomber from a
+    // higher one still and with research; the small air defence leaves them alone, else planes are useless
+    if (type === UT.STEALTH) return u.cls === 1 && u.level >= G.LANG.abmStealth && this.has(u.owner, 'abw5');
+    if (type === UT.BOMBER || type === UT.RECON) return u.cls === 1 && u.level >= G.LANG.abmPlane;
     if (u.cls) return (type === UT.ATOM && this.has(u.owner, 'abm3')) || (type === UT.HYDRO && this.has(u.owner, 'abm4')) || (type === UT.WARHEAD && this.has(u.owner, 'abm5'));
     return type === UT.CRUISE || G.LANG_WEAPON(type);
   };
@@ -7156,7 +7170,7 @@ body.placing #cv { cursor: crosshair; }
     T_('auf3', 'Aufklärung', 3, 'Tarnung erkennen', 'Im Kreis eigener Radare sind getarnte Gebäude sichtbar', ['auf2']),
     T_('auf4', 'Aufklärung', 4, 'Frühwarnradar', 'Bomben und Raketen siehst du im dreifachen Radarkreis', ['auf3']),
     T_('auf5', 'Aufklärung', 5, 'Satellit', 'Jeder Raketenstart auf der Welt ist zu sehen', ['auf4']),
-    T_('abw1', 'Abwehr', 1, 'Flugabwehr', 'Kleine Flugabwehr und Raketenabwehr bauen'),
+    T_('abw1', 'Abwehr', 1, 'Flugabwehr', 'Kleine Flugabwehr (gegen Marschflugkörper) und Raketenabwehr (gegen Atomwaffen, ab Stufe 3 auch Flugzeuge) bauen'),
     T_('abw2', 'Abwehr', 2, 'Mehr Schüsse', 'Kleine Flugabwehr: 3 statt 2 Schüsse pro Stufe', ['abw1']),
     T_('schutz', 'Abwehr', 2, 'Schutzräume', 'Ausbau der Stadt: halber Schaden durch Bomben'),
     T_('abw3a', 'Abwehr', 3, 'Noch mehr Schüsse', 'Kleine Flugabwehr: ein Schuss mehr pro Stufe', ['abw2'], 'abw3'),
@@ -7189,7 +7203,7 @@ body.placing #cv { cursor: crosshair; }
     T_('heer4', 'Heer', 4, 'Panzerkeil', 'Deine Angriffe verlieren 30 % langsamer Schwung', ['heer2', 'blitz']),
     T_('heer5', 'Heer', 5, 'Stärkstes Eingraben', 'Eingegrabene Truppen: Angreifer bis 5-mal so viele Verluste', ['heer1', 'tief']),
     T_('pionier', 'Heer', 5, 'Pioniere', 'Gebirge, Wald und Flüsse bremsen deinen Angriff weniger', ['heer2']),
-    T_('abw5', 'Abwehr', 5, 'Gegen Tarnbomber', 'Kleine Flugabwehr kann Tarnbomber treffen (wenn sie ihn 3 s erfasst)', ['abw4']),
+    T_('abw5', 'Abwehr', 5, 'Gegen Tarnbomber', 'Raketenabwehr ab Stufe 5 trifft Tarnbomber (wenn sie ihn 3 s erfasst)', ['abw4']),
     T_('reco', 'Aufklärung', 2, 'Aufklärungsflugzeug', 'Deckt vom Flugplatz aus kurz ein Gebiet auf', ['luft1']),
     T_('luft1', 'Luftwaffe', 1, 'Flugplatz', 'Flugplatz bauen (Taste 9); ohne ihn keine Luftwaffe'),
     T_('luft2', 'Luftwaffe', 2, 'Abfangjäger', 'Flugplätze schicken Jäger gegen Bomber und Marschflugkörper in ihrer Reichweite', ['luft1']),

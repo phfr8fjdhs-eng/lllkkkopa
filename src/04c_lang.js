@@ -151,7 +151,10 @@
   Game.prototype.samCan = function (u, type) {
     if (u.cls === 2) return false;
     if (type === UT.FIGHTER) return false;
-    if (type === UT.STEALTH) return !u.cls && this.has(u.owner, 'abw5');
+    // planes (27.11.2026): only the missile defence from a higher level, the stealth bomber from a
+    // higher one still and with research; the small air defence leaves them alone, else planes are useless
+    if (type === UT.STEALTH) return u.cls === 1 && u.level >= G.LANG.abmStealth && this.has(u.owner, 'abw5');
+    if (type === UT.BOMBER || type === UT.RECON) return u.cls === 1 && u.level >= G.LANG.abmPlane;
     if (u.cls) return (type === UT.ATOM && this.has(u.owner, 'abm3')) || (type === UT.HYDRO && this.has(u.owner, 'abm4')) || (type === UT.WARHEAD && this.has(u.owner, 'abm5'));
     return type === UT.CRUISE || G.LANG_WEAPON(type);
   };
@@ -555,7 +558,7 @@
     T_('auf3', 'Aufklärung', 3, 'Tarnung erkennen', 'Im Kreis eigener Radare sind getarnte Gebäude sichtbar', ['auf2']),
     T_('auf4', 'Aufklärung', 4, 'Frühwarnradar', 'Bomben und Raketen siehst du im dreifachen Radarkreis', ['auf3']),
     T_('auf5', 'Aufklärung', 5, 'Satellit', 'Jeder Raketenstart auf der Welt ist zu sehen', ['auf4']),
-    T_('abw1', 'Abwehr', 1, 'Flugabwehr', 'Kleine Flugabwehr und Raketenabwehr bauen'),
+    T_('abw1', 'Abwehr', 1, 'Flugabwehr', 'Kleine Flugabwehr (gegen Marschflugkörper) und Raketenabwehr (gegen Atomwaffen, ab Stufe 3 auch Flugzeuge) bauen'),
     T_('abw2', 'Abwehr', 2, 'Mehr Schüsse', 'Kleine Flugabwehr: 3 statt 2 Schüsse pro Stufe', ['abw1']),
     T_('schutz', 'Abwehr', 2, 'Schutzräume', 'Ausbau der Stadt: halber Schaden durch Bomben'),
     T_('abw3a', 'Abwehr', 3, 'Noch mehr Schüsse', 'Kleine Flugabwehr: ein Schuss mehr pro Stufe', ['abw2'], 'abw3'),
@@ -588,7 +591,7 @@
     T_('heer4', 'Heer', 4, 'Panzerkeil', 'Deine Angriffe verlieren 30 % langsamer Schwung', ['heer2', 'blitz']),
     T_('heer5', 'Heer', 5, 'Stärkstes Eingraben', 'Eingegrabene Truppen: Angreifer bis 5-mal so viele Verluste', ['heer1', 'tief']),
     T_('pionier', 'Heer', 5, 'Pioniere', 'Gebirge, Wald und Flüsse bremsen deinen Angriff weniger', ['heer2']),
-    T_('abw5', 'Abwehr', 5, 'Gegen Tarnbomber', 'Kleine Flugabwehr kann Tarnbomber treffen (wenn sie ihn 3 s erfasst)', ['abw4']),
+    T_('abw5', 'Abwehr', 5, 'Gegen Tarnbomber', 'Raketenabwehr ab Stufe 5 trifft Tarnbomber (wenn sie ihn 3 s erfasst)', ['abw4']),
     T_('reco', 'Aufklärung', 2, 'Aufklärungsflugzeug', 'Deckt vom Flugplatz aus kurz ein Gebiet auf', ['luft1']),
     T_('luft1', 'Luftwaffe', 1, 'Flugplatz', 'Flugplatz bauen (Taste 9); ohne ihn keine Luftwaffe'),
     T_('luft2', 'Luftwaffe', 2, 'Abfangjäger', 'Flugplätze schicken Jäger gegen Bomber und Marschflugkörper in ihrer Reichweite', ['luft1']),

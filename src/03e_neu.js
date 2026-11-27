@@ -42,6 +42,16 @@
 
   G.NEUES = [
     {
+      n: 138, date: '27.11.2026', title: 'Langes Spiel: Flugabwehr gegen Flugzeuge', lang: true,
+      text: 'Die kleine Flugabwehr trifft keine Flugzeuge mehr, nur noch Marschflugkörper und Raketen. Bomber und Aufklärer holt nur die Raketenabwehr ab Stufe 3 herunter (dazu Abwehrschiffe und Abfangjäger), Tarnbomber erst die Raketenabwehr ab Stufe 5 mit «Gegen Tarnbomber». Deine Bomber fliegen über die kleinen Flugabwehren von Varnholm hinweg; erst die Raketenabwehr bei der Stadt schiesst.',
+      map: { w: 340, h: 200, seed: 938, shapes: [circ(70, 100, 62), circ(250, 100, 85)] },
+      me: { x: 70, y: 100, r: 64, troops: 80000, gold: 0, build: [[3.5, 90, 100, 3]] },
+      foes: [{ name: 'Varnholm', x: 250, y: 100, r: 87, troops: 150000, build: [[UT.SAM, 185, 70, 3], [UT.SAM, 180, 100, 3], [UT.SAM, 185, 130, 3], [4.5, 240, 100, 3], [UT.CITY, 270, 100, 6]] }],
+      allow: ALL, quest: none,
+      loop: [6, 10, function (Q, k) { Q.fire(Q.me, UT.BOMBER, k % 2 ? 230 : 238, k % 2 ? 85 : 110); }],
+      tips: [{ text: 'Nur die Raketenabwehr (Sechseck) schiesst auf Bomber.', pins: function (Q) { return Q.units(Q.foe[0], UT.SAM, 4); } }]
+    },
+    {
       n: 137, date: '27.11.2026', title: 'Langes Spiel: Krieg und Frieden', lang: true,
       text: 'Wer einen anderen angreift (Boden, Boot, Bombe, Rakete, Bomber), ist mit ihm im Krieg, beide Seiten. Nur im Krieg schiessen Schiffe, U-Boote, Minen, Jäger und die Flugabwehr gegen Flugzeuge von selbst. Mit Varnholm bist du im Krieg (⚔ auf der Rangliste), mit Brenna nicht: Eure Zerstörer fahren friedlich nebeneinander. «Frieden anbieten» steht in der Info des Gegners.',
       map: { w: 300, h: 200, seed: 937, shapes: [rect(0, 0, 300, 46), rect(0, 154, 140, 200), rect(160, 154, 300, 200)] },
@@ -119,7 +129,7 @@
     },
     {
       n: 132, date: '26.11.2026', title: 'Langes Spiel: Tarnbomber', lang: true,
-      text: 'Der Tarnbomber trägt eine Atombombe und kommt durch Mauern aus Flugabwehr: Eine Flugabwehr sieht ihn nur in einem Viertel ihrer Reichweite, muss ihn dort 3 Sekunden halten und braucht dafür die Forschung «Gegen Tarnbomber»; er hält zwei Treffer aus. Nach dem Abwurf fliegt er zurück. Nur ein Radar mit «Tarnung erkennen» zeigt ihn.',
+      text: 'Der Tarnbomber trägt eine Atombombe und kommt durch Mauern aus Flugabwehr: Treffen kann ihn nur eine Raketenabwehr ab Stufe 5 mit der Forschung «Gegen Tarnbomber», und sie sieht ihn nur in einem Viertel ihrer Reichweite und muss ihn dort 3 Sekunden halten; er hält zwei Treffer aus. Nach dem Abwurf fliegt er zurück. Nur ein Radar mit «Tarnung erkennen» zeigt ihn.',
       map: { w: 380, h: 200, seed: 932, shapes: [circ(70, 100, 60), circ(290, 100, 80)] },
       me: { x: 70, y: 100, r: 62, troops: 80000, gold: 0, build: [[3.5, 90, 100, 2], [4.7, 60, 70, 3]] },
       foes: [{ name: 'Küstenreich', x: 290, y: 100, r: 82, troops: 200000, build: [[UT.SAM, 220, 70, 2], [UT.SAM, 215, 100, 2], [UT.SAM, 220, 130, 2], [UT.CITY, 300, 100, 10]] }],
