@@ -1251,7 +1251,7 @@
         this.removeUnit(v);
       }
     }
-    this.fx.push({ k: 'boom', x: cx, y: cy, r: rout, big: type === UT.HYDRO, head: type === UT.WARHEAD, beam: type === UT.LASER });
+    this.fx.push({ k: 'boom', x: cx, y: cy, r: rout, big: type === UT.HYDRO, head: type === UT.WARHEAD, beam: type === UT.LASER, t: type });   // t: the picture of the blast (src/06_view.js)
     if (this.fx.length > 300) this.fx.splice(0, 150);
   };
   Game.prototype.splitMirv = function (u) {

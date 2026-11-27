@@ -2,6 +2,9 @@
   'use strict';
   const UT = G.UT, PT = G.PT, within = G.within;
   const SEA = '#456f95';
+  // The new pictures of «Langes Spiel» (27.11.2026, Teil C): for now only with ?grafik=neu, so the
+  // old and the new can be compared side by side before the switch.
+  const NEWLOOK = G.NEWLOOK = typeof location !== 'undefined' && /[?&]grafik=neu/.test(location.search);
   const FONT = '"Barlow Condensed", "Arial Narrow", "Roboto Condensed", sans-serif';
 
   // Icon shapes on a 24-unit grid, shared by the map and the menus.
@@ -194,8 +197,20 @@
     const c = this.fogCv || (this.fogCv = document.createElement('canvas'));
     if (c.width !== CW || c.height !== CH) { c.width = CW; c.height = CH; }
     const cx2 = c.getContext('2d'), img = cx2.createImageData(CW, CH), d8 = img.data;
-    for (let i = 0; i < n; i++) { const o = i * 4; d8[o] = 8; d8[o + 1] = 12; d8[o + 2] = 20; d8[o + 3] = grid[i] ? 0 : 92; }
+    const veil = NEWLOOK ? 62 : 92;   // ?grafik=neu: lighter, so land and borders stay easy to read
+    for (let i = 0; i < n; i++) { const o = i * 4; d8[o] = NEWLOOK ? 14 : 8; d8[o + 1] = NEWLOOK ? 20 : 12; d8[o + 2] = NEWLOOK ? 32 : 20; d8[o + 3] = grid[i] ? 0 : veil; }
     cx2.putImageData(img, 0, 0);
+    // ?grafik=neu: a soft, rounded edge instead of the stairs of the cells: the cells blown up four
+    // times and blurred once per scan (at most once a second), then only stretched over the map
+    if (NEWLOOK) {
+      const sc = this.fogSoft || (this.fogSoft = document.createElement('canvas')), F = 4;
+      if (sc.width !== CW * F || sc.height !== CH * F) { sc.width = CW * F; sc.height = CH * F; }
+      const s2 = sc.getContext('2d');
+      s2.clearRect(0, 0, sc.width, sc.height); s2.imageSmoothingEnabled = true;
+      if ('filter' in s2) s2.filter = 'blur(' + F * 0.9 + 'px)';
+      s2.drawImage(c, 0, 0, CW * F, CH * F);
+      if ('filter' in s2) s2.filter = 'none';
+    }
     // everything hidden or shown anew: buildings ask again
     for (const u of g.structAt.values()) u.hidT = -1;
   };
@@ -203,7 +218,7 @@
     if (!FOG || !this.fogCv) return;
     const CS = G.POST.cell, sm = ctx.imageSmoothingEnabled;
     ctx.imageSmoothingEnabled = true;
-    ctx.drawImage(this.fogCv, ox, oy, g.CW * CS * z, g.CH * CS * z);
+    ctx.drawImage(NEWLOOK && this.fogSoft ? this.fogSoft : this.fogCv, ox, oy, g.CW * CS * z, g.CH * CS * z);
     ctx.imageSmoothingEnabled = sm;
   };
   const paths = {};
@@ -1318,6 +1333,8 @@
     else if (type === UT.FACTORY) poly(ctx, x, y, r, 6, 0);
     else if (type === UT.DEFENSE) poly(ctx, x, y, r, 8, 0.3927);
     else if (type === UT.SAM) poly(ctx, x, y, r, 4, 0.7854);
+    else if (type === 4.5 && NEWLOOK) { poly(ctx, x, y, r * 1.05, 4, 0.7854); }   // ?grafik=neu: the air defence's diamond, larger, with a second rim (structIcon)
+    else if (type === 3.5 && NEWLOOK) { const w = r * 1.15, hh = r * 0.78, rr = r * 0.3; ctx.moveTo(x - w + rr, y - hh); ctx.arcTo(x + w, y - hh, x + w, y + hh, rr); ctx.arcTo(x + w, y + hh, x - w, y + hh, rr); ctx.arcTo(x - w, y + hh, x - w, y - hh, rr); ctx.arcTo(x - w, y - hh, x + w, y - hh, rr); ctx.closePath(); }   // a runway
     else if (type === 4.5) poly(ctx, x, y, r, 6, 0.5236);   // «Langes Spiel»: missile defence
     else if (type === 4.7) poly(ctx, x, y, r, 10, 0);       // «Langes Spiel»: radar
     else if (type === 3.5) poly(ctx, x, y, r, 4, 0);        // «Langes Spiel»: airfield
@@ -1331,6 +1348,7 @@
     ctx.fillStyle = built ? p.cssI : '#c6c6c6'; ctx.fill();
     shape(ctx, type, x, y, r - rim / 2);
     ctx.lineWidth = rim; ctx.strokeStyle = built ? p.cssR : '#7f7f7f'; ctx.stroke();
+    if (NEWLOOK && type === 4.5) { ctx.beginPath(); poly(ctx, x, y, r * 0.72, 4, 0.7854); ctx.lineWidth = rim * 0.55; ctx.strokeStyle = 'rgba(255,255,255,.7)'; ctx.stroke(); }
     if (!sign) return side;
     ctx.fillStyle = '#fff';
     glyph(ctx, signOf(type, 1), x, y + (type === UT.SILO ? r * 0.18 : 0), ICON_PX * k * (ICON_FILL[type] || 0.85) * 0.6);
@@ -1573,6 +1591,27 @@
   // order by length now: troop boat 6, merchants 11 / 12, destroyer 14, container ship 16 (long, but as slim
   // as the others), battleship 20.
   const SCALE = { rkt: 1, boat: 0.8, trade0: 0.8, trade1: 0.8, trade2: 0.8, war0: 0.8, war1: 0.8, war2: 0.8, war3: 0.8, war4: 0.8, war5: 0.8 };
+  // ?grafik=neu: every ship in one style, seven picture pixels high: a dark rim all round, the hull
+  // in the owner's colour, a pointed bow, and on deck one sign per kind in white, grey or red
+  // (destroyer one gun and a bridge, battleship three turrets, submarine a low dark hull with its
+  // tower, carrier a grey flight deck with its markings, defence ship red launch cells, radar ship a
+  // white dish). Rows are given from the top to the middle and mirrored.
+  if (NEWLOOK) {
+    const half = function (rows) { const all = rows.concat(rows.slice(0, -1).reverse()), n = Math.max.apply(null, all.map(function (r) { return r.length; })); return all.map(function (r) { while (r.length < n) r += '.'; return r; }); };
+    const NEWART = {
+      boat: half(['.kkkkk..', 'kwwoook.', 'kwwooook']),
+      trade0: half(['..kkkkkkkkk...', '.kwwogggggook..', 'kwwwogggggooook']),
+      trade1: half(['..kkkkkkkkkk...', '.kwwoddoddook..', 'kwwwoddoddooook']),
+      trade2: half(['..kkkkkkkkkkkkkk...', '.kww00112233ook..', 'kwww3344001122ooook']),
+      war0: half(['..kkkkkkkkkkkk', '.koooooooooooookk', 'kooGGoowwoGGoooook', 'kodGGowwwwoGGdooookk']),
+      war1: half(['..kkkkkkkkkkkkkkkkkkk', '.koooooooooooooooooookk', 'kooGGGooGGGowwwoGGGooooook', 'kodGGGddGGGwwwwwGGGddooooookk']),
+      war2: half(['....kkkkkkkkkkk', '..kkdddddddddddkk', '.kdddddddGGGdddddddk', 'kddoooooooGGGoooooodddk']),
+      war3: half(['..kkkkkkkkkkkkkkkkkkkkkkkk', '.koooooooooooooooGGGoooooook', 'kogggggggggggggggggggggggggok', 'kogwwgggwwgggwwgggwwgggwwggook']),
+      war4: half(['..kkkkkkkkkkkkkk', '.koooooooooooooookk', 'koorrorrorrGGoooooook', 'kodrrorrorrGGwwdddooookk']),
+      war5: half(['..kkkkkkkkkkkkkk', '.kooooooowwoooookk', 'koooooowwwwGGoooooook', 'koddddowwwwwGGdddooookk'])
+    };
+    for (const k in NEWART) { ART[k] = NEWART[k]; SCALE[k] = 0.6; }
+  }
   for (const k in ART) HULLS[k] = [ART[k][0].length * SCALE[k], ART[k].length * SCALE[k]];
   const BOXCOL = ['#e0793a', '#3d7fc4', '#c94a3f', '#4f9a5a', '#d8b23a'];
   function hullGrid(kind) { return ART[kind]; }
@@ -1681,6 +1720,38 @@
   // A missile seen from above. No outline and no toy colours: a slim body of dull metal that catches
   // the light along its back, small fins, a narrow band in the colour of the weapon, a glowing
   // exhaust and a position light that blinks. kind 0: cruise missile with wings, 1/2: ballistic.
+  // ?grafik=neu: each conventional weapon of «Langes Spiel» has a picture of its own (the cruise
+  // missile keeps its winged rocket): the short-range missile a slim rocket with a red nose and four
+  // fins; the cluster bomb a fat canister with a ring of bomblets; the bunker buster a long dark
+  // dart; the thermobaric bomb a round orange body that glows.
+  function weaponHead(ctx, x, y, ang, len, ty, flame, now) {
+    ctx.save(); ctx.translate(x, y); ctx.rotate(ang);
+    const rim = 'rgba(10,14,18,.85)';
+    if (ty === UT.SRBM) {
+      rocket(ctx, 0, 0, 0, len, '255,80,60', 1, flame, false);
+      ctx.beginPath(); ctx.moveTo(len * 0.5, 0); ctx.lineTo(len * 0.3, -len * 0.09); ctx.lineTo(len * 0.3, len * 0.09); ctx.closePath(); ctx.fillStyle = '#e8453a'; ctx.fill();
+    } else if (ty === UT.CLUSTER) {
+      const w = len * 0.32;
+      ctx.beginPath(); ctx.roundRect ? ctx.roundRect(-len * 0.4, -w / 2, len * 0.8, w, w / 2) : ctx.rect(-len * 0.4, -w / 2, len * 0.8, w);
+      ctx.fillStyle = '#6f7a63'; ctx.fill(); ctx.lineWidth = 1; ctx.strokeStyle = rim; ctx.stroke();
+      ctx.fillStyle = '#f4d25a';
+      for (let i = 0; i < 6; i++) { const a = i * 1.047 + now / 400; ctx.beginPath(); ctx.arc(Math.cos(a) * len * 0.55, Math.sin(a) * len * 0.42, Math.max(1.2, len * 0.06), 0, 6.2832); ctx.fill(); }
+      ctx.fillStyle = '#20262d'; ctx.fillRect(-len * 0.5, -w * 0.7, len * 0.1, w * 1.4);
+    } else if (ty === UT.BUNKER) {
+      ctx.beginPath(); ctx.moveTo(len * 0.6, 0); ctx.lineTo(len * 0.2, -len * 0.07); ctx.lineTo(-len * 0.45, -len * 0.07); ctx.lineTo(-len * 0.55, -len * 0.2); ctx.lineTo(-len * 0.55, len * 0.2); ctx.lineTo(-len * 0.45, len * 0.07); ctx.lineTo(len * 0.2, len * 0.07); ctx.closePath();
+      ctx.fillStyle = '#3a4048'; ctx.fill(); ctx.lineWidth = 1; ctx.strokeStyle = '#c9d0d8'; ctx.stroke();
+      ctx.fillStyle = '#ffb04a'; ctx.fillRect(len * 0.05, -len * 0.07, len * 0.06, len * 0.14);
+    } else {
+      // thermobaric
+      const r = len * 0.3, gl = 0.6 + 0.4 * flame;
+      const gr = ctx.createRadialGradient(0, 0, r * 0.2, 0, 0, r * 2.2);
+      gr.addColorStop(0, 'rgba(255,170,60,' + (0.55 * gl).toFixed(3) + ')'); gr.addColorStop(1, 'rgba(255,120,40,0)');
+      ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(0, 0, r * 2.2, 0, 6.2832); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(0, 0, r * 1.3, r, 0, 0, 6.2832); ctx.fillStyle = '#e8792e'; ctx.fill(); ctx.lineWidth = 1; ctx.strokeStyle = rim; ctx.stroke();
+      ctx.fillStyle = '#20262d'; ctx.fillRect(-r * 1.9, -r * 0.8, r * 0.5, r * 1.6);
+    }
+    ctx.restore();
+  }
   function rocket(ctx, x, y, ang, len, col, kind, flame, blink) {
     ctx.save();
     ctx.translate(x, y); ctx.rotate(ang);
@@ -2005,8 +2076,60 @@
     }
   };
 
+  // ?grafik=neu: planes seen from above, drawn once per owner and kind (planeSprite) and then only
+  // copied and turned: the bomber with straight wings and four engines, the stealth bomber a flying
+  // wing with a saw-toothed trailing edge, the fighter a small delta, the recon plane long thin
+  // wings. The owner's colour, a dark rim, a light canopy.
+  const PLANE_PX = 48, PLANE_SPR = new Map();
+  function planeSprite(type, p) {
+    const key = type + ':' + p.id + ':' + p.r + ',' + p.g + ',' + p.b;
+    let cv = PLANE_SPR.get(key);
+    if (cv) return cv;
+    cv = document.createElement('canvas'); cv.width = cv.height = PLANE_PX;
+    const c = cv.getContext('2d'), m = PLANE_PX / 2;
+    c.translate(m, m); c.lineJoin = 'round';
+    const own = 'rgb(' + p.r + ',' + p.g + ',' + p.b + ')', dark = 'rgb(' + Math.round(p.r * 0.3) + ',' + Math.round(p.g * 0.3) + ',' + Math.round(p.b * 0.3) + ')';
+    const path = function (pts) { c.beginPath(); c.moveTo(pts[0], pts[1]); for (let i = 2; i < pts.length; i += 2) c.lineTo(pts[i], pts[i + 1]); c.closePath(); };
+    const mirror = function (pts) { const out = pts.slice(); for (let i = pts.length - 2; i >= 0; i -= 2) out.push(pts[i], -pts[i + 1]); return out; };
+    const fill = function (pts, col) { path(pts); c.fillStyle = col; c.fill(); c.lineWidth = 2.2; c.strokeStyle = dark; c.stroke(); };
+    if (type === UT.STEALTH) {
+      fill(mirror([21, 0, -4, 22, -10, 22, -6, 14, -12, 8, -7, 0]), own);
+      c.fillStyle = 'rgba(255,255,255,.55)'; c.beginPath(); c.ellipse(9, 0, 4, 2.2, 0, 0, 6.2832); c.fill();
+    } else if (type === UT.FIGHTER) {
+      fill(mirror([21, 0, 4, 3, -10, 15, -15, 15, -12, 4, -18, 8, -20, 8, -18, 0]), own);
+      c.fillStyle = 'rgba(220,240,255,.85)'; c.beginPath(); c.ellipse(9, 0, 4, 1.8, 0, 0, 6.2832); c.fill();
+    } else if (type === UT.RECON) {
+      fill(mirror([2, 2, 0, 23, -4, 23, -5, 2]), own);
+      fill(mirror([-15, 2, -17, 8, -20, 8, -19, 0]), own);
+      fill(mirror([20, 0, 16, 2.4, -20, 2, -20, 0]), own);
+      c.fillStyle = 'rgba(220,240,255,.85)'; c.beginPath(); c.ellipse(13, 0, 3, 1.4, 0, 0, 6.2832); c.fill();
+    } else {
+      // the bomber
+      fill(mirror([4, 3, -4, 23, -9, 23, -8, 3]), own);
+      fill(mirror([-15, 3, -19, 10, -22, 10, -21, 0]), own);
+      fill(mirror([21, 0, 17, 3.5, -21, 3, -21, 0]), own);
+      c.fillStyle = dark; for (const y of [-15, -8, 8, 15]) c.fillRect(0, y - 1.3, 6, 2.6);
+      c.fillStyle = 'rgba(220,240,255,.85)'; c.beginPath(); c.ellipse(15, 0, 3.2, 1.8, 0, 0, 6.2832); c.fill();
+    }
+    PLANE_SPR.set(key, cv);
+    if (PLANE_SPR.size > 2000) PLANE_SPR.clear();
+    return cv;
+  }
   // «Langes Spiel», Paket 5: a plane, a small dark silhouette in its owner's colour pointing where it flies
   function drawPlane(ctx, g, u, z, ox, oy, alpha) {
+    if (NEWLOOK) {
+      const pr = Math.min(1, u.prog + alpha * u.speed / u.dist), hunt = u.type === UT.FIGHTER && u.leg === 0;
+      const tx = hunt && u.target ? u.target.x : u.dx, ty = hunt && u.target ? u.target.y : u.dy;
+      const px = hunt ? u.x : u.sx + (u.dx - u.sx) * pr, py = hunt ? u.y : u.sy + (u.dy - u.sy) * pr;
+      const x = (px + 0.5) * z + ox, y = (py + 0.5) * z + oy, a = Math.atan2(ty - py, tx - px);
+      const s = within(z * (u.type === UT.FIGHTER ? 5 : u.type === UT.RECON ? 6 : 7.5), 14, u.type === UT.FIGHTER ? 26 : 38);
+      ctx.save(); ctx.translate(x, y);
+      // its shadow a little below, so it reads as flying
+      ctx.globalAlpha = 0.25; ctx.rotate(a); ctx.drawImage(planeSprite(u.type, u.owner), -s / 2 + 2, -s / 2 + 3, s, s); ctx.globalAlpha = 1;
+      ctx.drawImage(planeSprite(u.type, u.owner), -s / 2, -s / 2, s, s);
+      ctx.restore();
+      return;
+    }
     const pr = Math.min(1, u.prog + alpha * u.speed / u.dist);
     const tx = u.type === UT.FIGHTER && u.leg === 0 && u.target ? u.target.x : u.dx, ty = u.type === UT.FIGHTER && u.leg === 0 && u.target ? u.target.y : u.dy;
     const px = u.type === UT.FIGHTER && u.leg === 0 ? u.x : u.sx + (u.dx - u.sx) * pr, py = u.type === UT.FIGHTER && u.leg === 0 ? u.y : u.sy + (u.dy - u.sy) * pr;
@@ -2084,12 +2207,60 @@
     // higher up it is nearer to the eye: it grows towards the top of the arc
     const up = 1 + 0.35 * Math.sin(Math.PI * prog) * (ty === UT.CRUISE ? 0.3 : 1);
     const blink = (now + u.id * 137) % 620 < 150;
-    if (ty === UT.CRUISE || G.LANG_WEAPON(ty)) rocket(ctx, x, y, ang, within(z * (ty === UT.THERMO ? 4.8 : 4.2), 13, 24) * up, col, 0, flick, blink);
+    if (NEWLOOK && G.LANG_WEAPON(ty)) weaponHead(ctx, x, y, ang, within(z * 4.4, 13, 24) * up, ty, flick, now);
+    else if (ty === UT.CRUISE || G.LANG_WEAPON(ty)) rocket(ctx, x, y, ang, within(z * (ty === UT.THERMO ? 4.8 : 4.2), 13, 24) * up, col, 0, flick, blink);
     else if (ty === UT.ATOM) rocket(ctx, x, y, ang, within(z * 3.6, 12, 20) * up, col, 1, flick, blink);
     else if (ty === UT.HYDRO) rocket(ctx, x, y, ang, within(z * 4.6, 15, 27) * up, col, 2, flick, blink);
     else rocket(ctx, x, y, ang, within(z * 5, 16, 30) * up, col, 2, flick, blink);      // the MIRV carrier
   };
 
+  // ?grafik=neu: the blast of a conventional weapon, so it is never mistaken for an atom bomb (no
+  // white flash, no big fireball): cruise and short-range missile a small sharp blast with sparks;
+  // cluster bomb many small pops scattered over the area; bunker buster a narrow column of dust and
+  // a small deep flash; thermobaric bomb an orange wave rolling out; the bomber's explosive bombs a
+  // row of blasts along its way.
+  View.prototype.drawWeaponBoom = function (ctx, f, x, y, z, k, e) {
+    const R0 = Math.max(6, f.r * z), seed = (f.x * 73 + f.y * 151) | 0, heat = 1 - k;
+    const rnd = function (i) { const v = Math.sin(seed * 12.9898 + i * 78.233) * 43758.5453; return v - Math.floor(v); };
+    const pop = function (px, py, r, a) {
+      ctx.beginPath(); ctx.arc(px, py, r, 0, 6.2832); ctx.fillStyle = 'rgba(255,190,90,' + (0.85 * a).toFixed(3) + ')'; ctx.fill();
+      ctx.beginPath(); ctx.arc(px, py, r * 0.45, 0, 6.2832); ctx.fillStyle = 'rgba(255,248,220,' + a.toFixed(3) + ')'; ctx.fill();
+    };
+    if (f.t === UT.CLUSTER) {
+      for (let i = 0; i < 18; i++) {
+        const t0 = rnd(i) * 0.5, kk = (k - t0) / 0.4;
+        if (kk <= 0 || kk >= 1) continue;
+        const a = rnd(i + 30) * 6.2832, d = Math.sqrt(rnd(i + 60)) * R0;
+        pop(x + Math.cos(a) * d, y + Math.sin(a) * d, within(z * 1.4, 3, 9) * (0.5 + kk), 1 - kk);
+      }
+    } else if (f.t === UT.BUNKER) {
+      const w = within(z * 2, 5, 16);
+      ctx.fillStyle = 'rgba(150,130,105,' + (0.7 * heat).toFixed(3) + ')';
+      ctx.fillRect(x - w / 2 * (1 + k), y - R0 * 2.2 * e, w * (1 + k), R0 * 2.2 * e);
+      if (k < 0.3) pop(x, y, within(z * 2.2, 5, 14), 1 - k / 0.3);
+      ctx.beginPath(); ctx.ellipse(x, y, R0 * (0.4 + e), R0 * (0.2 + 0.5 * e), 0, 0, 6.2832); ctx.strokeStyle = 'rgba(190,170,140,' + (0.8 * heat).toFixed(3) + ')'; ctx.lineWidth = 2; ctx.stroke();
+    } else if (f.t === UT.THERMO) {
+      const fr = R0 * (0.3 + 0.9 * e);
+      const gr = ctx.createRadialGradient(x, y, fr * 0.6, x, y, fr);
+      gr.addColorStop(0, 'rgba(255,140,40,0)'); gr.addColorStop(0.75, 'rgba(255,120,30,' + (0.75 * heat).toFixed(3) + ')'); gr.addColorStop(1, 'rgba(255,200,90,0)');
+      ctx.beginPath(); ctx.arc(x, y, fr, 0, 6.2832); ctx.fillStyle = gr; ctx.fill();
+      ctx.beginPath(); ctx.arc(x, y, fr * 0.55, 0, 6.2832); ctx.fillStyle = 'rgba(255,110,30,' + (0.35 * heat).toFixed(3) + ')'; ctx.fill();
+    } else if (f.bombs) {
+      for (let i = 0; i < 5; i++) {
+        const t0 = i * 0.1, kk = (k - t0) / 0.45;
+        if (kk <= 0 || kk >= 1) continue;
+        pop(x + (i - 2) * R0 * 0.55, y + (rnd(i) - 0.5) * R0 * 0.4, within(z * 2, 4, 12) * (0.6 + kk), 1 - kk);
+      }
+    } else {
+      // cruise or short-range missile
+      if (k < 0.45) pop(x, y, within(z * 2.6, 6, 18) * (0.5 + e), 1 - k / 0.45);
+      for (let i = 0; i < 10; i++) {
+        const a = rnd(i) * 6.2832, d = R0 * 1.2 * e * (0.5 + rnd(i + 9));
+        ctx.fillStyle = 'rgba(255,200,110,' + heat.toFixed(3) + ')'; ctx.fillRect(x + Math.cos(a) * d - 1, y + Math.sin(a) * d - 1, 2, 2);
+      }
+      ctx.beginPath(); ctx.arc(x, y, R0 * (0.3 + e), 0, 6.2832); ctx.strokeStyle = 'rgba(255,230,190,' + (0.6 * heat).toFixed(3) + ')'; ctx.lineWidth = 1.5; ctx.stroke();
+    }
+  };
   // A warship that is destroyed: white flash, fireball, shock ring, a second blast from the magazine,
   // burning debris thrown out in an arc and a column of smoke. Every part is driven by k (0..1).
   View.prototype.drawShipBoom = function (ctx, f, x, y, z, k) {
@@ -2154,6 +2325,7 @@
       const dur = f.k === 'shipboom' ? 2000 : f.k === 'boom' ? (f.big ? 2600 : 1100) : f.k === 'text' ? 2500 : f.k === 'coin' ? 1500 : f.k === 'flag' ? 700 : f.k === 'muzzle' ? 170 : f.k === 'tracer' ? (f.slow ? 1400 : 800) : f.air ? 750 : 420, k = (now - f.t0) / dur;
       if (k >= 1 || (f.k === 'coin' && !f.mine)) { list.splice(i, 1); continue; }
       const x = (f.x + 0.5) * z + ox, y = (f.y + 0.5) * z + oy, e = k * (2 - k);
+      if (f.k === 'boom' && NEWLOOK && (f.bombs || f.t === UT.CRUISE || G.LANG_WEAPON(f.t))) { this.drawWeaponBoom(ctx, f, x, y, z, k, e); continue; }
       if (f.k === 'boom') {
         const r = Math.max(6, f.r * z) * (0.3 + 0.7 * e);
         if (f.big) {
