@@ -455,6 +455,9 @@
   Game.prototype.goldRate = function (p) { return (p.type === PT.BOT ? 50 : 100) + (this.res ? p.resRate | 0 : 0); };
 
   // ---------- territory ----------
+  // dirtyFlag, why a tile is to be painted again: 1 = a neighbour of a changed tile (fixAround),
+  // 2 = its owner or fallout changed, 3 = only to paint (dirtyDisc). Only 2 and 3 cross to the
+  // page, which marks the neighbours of 2 itself (src/05b_sync.js). Read by nothing in the simulation.
   Game.prototype.markDirty = function (t) {
     if (this.dirtyFlag[t]) return;
     this.dirtyFlag[t] = 1;
@@ -493,7 +496,7 @@
     if (x > p.x1) p.x1 = x;
     if (y < p.y0) p.y0 = y;
     if (y > p.y1) p.y1 = y;
-    this.fixAround(t);
+    this.fixAround(t); this.dirtyFlag[t] = 2;
     if (this.structAt.size) { const u = this.structAt.get(t); if (u) this.captureUnit(u, p); }
   };
   Game.prototype.relinquish = function (t) {
@@ -503,7 +506,7 @@
     q.tiles--; q.border.delete(t); q.lastChange = this.ticks; own[t] = 0;
     if (this.res) this.resMove(prev, 0, t);
     if (q.post) this.postLose(q, t);
-    this.fixAround(t);
+    this.fixAround(t); this.dirtyFlag[t] = 2;
     if (this.structAt.size) { const u = this.structAt.get(t); if (u) this.removeUnit(u); }
   };
   Game.prototype.forTiles = function (p, fn) {

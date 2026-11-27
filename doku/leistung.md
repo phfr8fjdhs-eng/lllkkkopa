@@ -246,6 +246,25 @@ Etwa 9 µs pro sichtbares Schiff. Ab rund 1000 sichtbaren Schiffen reicht ein Bi
 | quadratisch mit Spielern | nicht gefunden (Exponenten bis 0.8). Schleifen über alle Spieler gibt es nur im Zug einer Nation (alle 28 bis 52 Ticks) und alle 10 Ticks in `tickDiplomacy` | **theoretisch** |
 | Karte grösser als die Erde | nur Speicher (rund 40 Byte pro Feld im Arbeitsspeicher, 10 auf der Grafikkarte), kaum Rechenzeit | **theoretisch** |
 
+## Geändert am 27.11.2026: Punkt 1, Gleichlauf Worker → Seite schlanker
+1. **Nur Felder, die sich ändern:** Die Simulation merkt sich in `dirtyFlag`, warum ein Feld neu gemalt wird: 1 = Nachbar eines geänderten Felds (`fixAround`), 2 = Besitzer oder Verstrahlung gewechselt (`conquer`, `relinquish`, Bombe), 3 = nur malen (`dirtyDisc`). Die Simulation liest diese Marke nie. Hinüber gehen nur Felder mit 2 (mit Besitzer, die Verstrahlung nur, wenn eines der Felder welche hat) und mit 3 (nur als Liste). Die Seite malt die Nachbarn der geänderten Felder selbst nach, wie `fixAround` sie im Worker markiert.
+2. **Vergleich nach Platz statt nach Namen** (`Out.diff`): Was zuletzt geschickt wurde, steht pro Objekt in zwei Listen in der Reihenfolge der Felder. Bisher war es eine Map mit Nachschlagen pro Feld. Felder, die nie hinüber gehen, werden an ihrem Platz übersprungen. Kommt ein Feld dazu oder fällt eines weg, wird ab dort nach Namen verglichen. Die Nachricht ist dieselbe.
+
+Gemessen mit `skala.js` (Erde, 400 Bots, Ticks 400 bis 1200; vorher und nachher nacheinander auf derselben Maschine):
+
+| | vorher | nachher |
+| --- | ---: | ---: |
+| Nachricht pro Tick | 133 kB | **74 kB** (−45 %) |
+| grösste Nachricht | 480 kB | 394 kB |
+| Worker: Änderungen packen | 4.9 ms | **3.6 ms** (−27 %) |
+| Kopieren (wie `postMessage`) | 0.66 ms | 0.60 ms |
+| Seite: Spiegel nachführen | 1.41 ms | 1.25 ms (−11 %) |
+| mit 2000 Schiffen dazu (854 schwimmen): Nachricht / packen | 205 kB / 8.4 ms | 131 kB / 7.1 bis 7.6 ms |
+
+Weniger als im Plan geschätzt (packen etwa 1.5 ms). Was bleibt: Jeder Spieler kostet beim Vergleich etwa 5 µs, jede Einheit etwa 3 µs (Erde: 570 Spieler, 889 Einheiten). Das sind die Prüfsummen der Listen und Maps eines Objekts (`units`, `cnt`, `allies`, `path`, Verweise) und das Durchgehen der Felder. Schneller ginge das nur, wenn die Simulation selbst sagt, was sich geändert hat (eine Nummer pro Änderung). Das wäre ein Eingriff an vielen Stellen, darum nicht jetzt. Bei vielen Einheiten bleibt der Gleichlauf ein Posten (Punkt 5 und der Server, unten).
+
+Geprüft: Prüfsumme `SUM=1 stress.js welt 0,2000,8000` gleich, `det.js` (alle fünf Varianten) und `posture.js` Zeichen für Zeichen gleich. `worker.js` auf Welt, Erde und «Rohstoffe»: Spiegel = Worker in jedem Feld und Wert, Kartenbild Feld für Feld richtig. `gl.js` grün. In beiden Tests schlägt hier nur «keine Fehler auf der Seite» fehl, weil der Server ohne Internet eine Quelle nicht laden kann (`ERR_TUNNEL_CONNECTION_FAILED`). Das tut auch der Stand vor der Änderung.
+
 ## Plan (27.11.2026), nach Nutzen. Wartet auf OK
 Ersetzt den Plan vom 24.11. Dessen Punkt 2 (Worker) ist gebaut, die übrigen Punkte gehen hier auf. Ziel: die Erde auf einem mittleren Handy, mit Platz für mehr Einheiten. Heute braucht der Worker 19 ms pro Tick, im Speicher liegen rund 640 MB Arrays.
 
@@ -253,7 +272,7 @@ Bei jedem Punkt steht, ob die Simulation berührt wird. Wenn ja, müssen die Pr�
 
 | # | Was | Erwarteter Gewinn (aus den Messungen oben) | Aufwand | Risiko |
 | --- | --- | --- | --- | --- |
-| 1 | **Gleichlauf schlanker** (`src/05b_sync.js`): Felder nur schicken, wenn der Besitzer oder die Verstrahlung wechselt (die Seite markiert die Nachbarn selbst zum Nachmalen), Verstrahlung nur wenn nicht 0. Die Zahlen, die sich jeden Tick ändern (Truppen, Gold, Felder der Spieler, Lage der fahrenden Einheiten), gehen gepackt in einem Array statt Feld für Feld mit Prüfsumme | Nachricht 138 → etwa 45 kB (Felder 97 → etwa 25 kB). Packen im Worker 3.8 → etwa 1.5 ms. Spiegel auf der Seite 1.4 → etwa 0.6 ms. Mit 2000 Einheiten packen 12.5 → etwa 3 ms. Ist zugleich das Format für den Server (unten) | mittel | Spiel unberührt. Gefahr: Spiegel weicht ab (`worker.js`), Rand falsch gemalt (`gl.js`, Pixelvergleich) |
+| 1 ✓ | **Gleichlauf schlanker** (gebaut 27.11., Ergebnis oben: Nachricht −45 %, packen −27 %) (`src/05b_sync.js`): Felder nur schicken, wenn der Besitzer oder die Verstrahlung wechselt (die Seite markiert die Nachbarn selbst zum Nachmalen), Verstrahlung nur wenn nicht 0. Die Zahlen, die sich jeden Tick ändern (Truppen, Gold, Felder der Spieler, Lage der fahrenden Einheiten), gehen gepackt in einem Array statt Feld für Feld mit Prüfsumme | Nachricht 138 → etwa 45 kB (Felder 97 → etwa 25 kB). Packen im Worker 3.8 → etwa 1.5 ms. Spiegel auf der Seite 1.4 → etwa 0.6 ms. Mit 2000 Einheiten packen 12.5 → etwa 3 ms. Ist zugleich das Format für den Server (unten) | mittel | Spiel unberührt. Gefahr: Spiegel weicht ab (`worker.js`), Rand falsch gemalt (`gl.js`, Pixelvergleich) |
 | 2 | **Grenze auch als Bit pro Feld** (ein Bit «gehört zur Grenze seines Besitzers»): `removeClusters` fragt das Bit statt `Set.has`, `fixBorder` überspringt `Set.add`/`delete`, die nichts ändern (37 %) | `removeClusters` 2.3 → etwa 1 ms, `fixBorder` etwa ein Drittel weniger. Zusammen etwa 2 bis 3 ms von 15.4 (15 bis 20 %). Schätzung aus dem Profil, zuerst messen | klein | Simulation: Die Sets behalten Inhalt und Reihenfolge, das Ergebnis ist darum dasselbe. Jede Stelle, die eine Grenze ändert (`conquer`, `relinquish`, `fixBorder`, `kill`), muss das Bit mitführen. Prüfsumme |
 | 3 | **Weniger Speicher pro Feld**: `stamp` mit 16 Bit und Neubeginn beim Überlauf (−32 MB), `q` wächst bei Bedarf (−65 MB), Karte im Worker ohne `snow` (−16 MB), `View.base` mit WebGL nach dem Hochladen freigeben (−65 MB), WebGL-Start Stück für Stück statt ganze Karte auf einmal (−65 MB Spitze), `dirty` des Spiegels ohne Sprung auf 4 Mio. (−15 MB), `dirtyFlag` als Bits auf beiden Seiten (−28 MB) | Erde: −220 MB von 640 (−35 %), dazu −65 MB Spitze beim Start | mittel | `stamp` und `q` sind Arbeitsspeicher der Simulation: Prüfsumme. Die Teile auf der Seite: `gl.js`, `worker.js` und der Rückfall ohne Grafikkarte |
 | 4 | **Zielsuche der Kriegsschiffe genauer**: `seaNear` filtert schon nach Abstand (mit Rand für die Bewegung im Tick) und sortiert nicht mehr. Das beste Ziel wird nach (Wert, Platz in `units`) gewählt, also wie heute | Bei dichten Schiffen etwa die halbe Zeit für Kriegsschiffe (heute 212 Kandidaten pro Suche, nur 22 % in Reichweite, `seaNear` 35 % der Zeit). Welt 788 Einheiten `tickUnit` 13 → etwa 6 ms, Erde 2065 Einheiten 7 → etwa 3.5 ms | klein | Simulation: Prüfsumme von `stress.js` mit 1000 bis 10 000 Schiffen |

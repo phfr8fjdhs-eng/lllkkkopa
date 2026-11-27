@@ -119,24 +119,48 @@
     for (const k in v) { const x = this.enc(v[k], d + 1); if (x !== NOPE) o[k] = x; }
     return o;
   };
+  // What was last sent of an object: per field, in the order `for (k in o)` gives them (objects of
+  // one kind keep their shape, so the fields are compared by position, not looked up by name),
+  // and in `x` the extras sent another way (border, front, post, lv). 27.11.2026: a Map per
+  // object and a lookup per field was 3 of the 3.8 ms this took per tick on the Earth.
+  const UNSEEN = {}, SKIPPED = {};
+  Out.prototype.memo = function (o) {
+    let pv = this.prev.get(o);
+    if (!pv) { pv = { ks: [], vs: [], x: new Map() }; this.prev.set(o, pv); }
+    return pv;
+  };
   // The fields of one object that changed: { field: value }, or null.
   Out.prototype.diff = function (o, skip) {
-    let pv = this.prev.get(o);
-    if (!pv) { pv = new Map(); this.prev.set(o, pv); }
-    let ch = null;
+    const pv = this.memo(o);
+    let ks = pv.ks, vs = pv.vs, i = 0, ch = null, byName = null;
     for (const k in o) {
-      if (skip.has(k)) continue;
+      // a field came or went since the last call: from here on compare by name
+      if (!byName && ks[i] !== k) {
+        byName = new Map();
+        for (let j = i; j < ks.length; j++) byName.set(ks[j], vs[j]);
+        ks.length = i; vs.length = i;
+      }
+      const at = i++;
+      if (!byName && vs[at] === SKIPPED) continue;
+      if (skip.has(k)) { if (byName) { ks.push(k); vs.push(SKIPPED); } continue; }
       const v = o[k];
-      if (typeof v === 'function') continue;
+      if (typeof v === 'function') { if (byName) { ks.push(k); vs.push(UNSEEN); } continue; }
       let key;
       if (v === null || typeof v !== 'object') key = v;
       else { const r = this.ref.get(v); key = r !== undefined ? r.s : '#' + hash(v, 0, 0, this); }
-      if (pv.has(k) && pv.get(k) === key) continue;
-      pv.set(k, key);
+      if (byName) {
+        const had = byName.has(k) ? byName.get(k) : UNSEEN;
+        ks.push(k); vs.push(key);
+        if (had !== UNSEEN && had === key) continue;
+      } else {
+        if (vs[at] !== UNSEEN && vs[at] === key) continue;
+        vs[at] = key;
+      }
       const e = this.enc(v, 0);
       if (e === NOPE) continue;
       (ch || (ch = {}))[k] = e;
     }
+    if (!byName && i < ks.length) { ks.length = i; vs.length = i; }
     return ch;
   };
   // An id list: sent when it changed.
@@ -157,7 +181,7 @@
     let h = num(num(post.cells.size, post.H), post.edits);
     if (mine) for (const c of post.cells.values()) for (const k in c) { const v = c[k]; if (typeof v === 'number' || typeof v === 'boolean') h = hash(v, h, 0, null); }
     else for (const c of post.cells.values()) h = num(num(num(h, c.id), c.n), c.u);
-    const pv = this.prev.get(p);
+    const pv = this.memo(p).x;
     if (pv.get('post') === h) return undefined;
     pv.set('post', h);
     if (mine) {
@@ -182,7 +206,7 @@
     const q = {}, o = {};
     for (const k in lv.Q) { const v = lv.Q[k]; if (v === null || typeof v !== 'object' && typeof v !== 'function') q[k] = v; }
     for (const k in lv) if (k !== 'def' && k !== 'Q') o[k] = lv[k];
-    const h = '#' + hash(o, hash(q, 0, 0, this), 0, this), pv = this.prev.get(this.g);
+    const h = '#' + hash(o, hash(q, 0, 0, this), 0, this), pv = this.memo(this.g).x;
     if (pv.get('lv') === h) return undefined;
     pv.set('lv', h);
     const e = this.enc(o, 0);
@@ -199,11 +223,27 @@
       for (let i = 0; i < g.dirtyN; i++) g.dirtyFlag[g.dirty[i]] = 0;
       g.dirtyN = 0;
     } else if (g.dirtyN) {
-      const n = g.dirtyN, d = g.dirty, t = d.slice(0, n), o = new Uint16Array(n), f = new Uint8Array(n);
-      for (let i = 0; i < n; i++) { const k = t[i]; o[i] = g.owner[k]; f[i] = g.fallout[k]; g.dirtyFlag[k] = 0; }
+      // Only the tiles whose owner or fallout changed (flag 2, see markDirty) go with their
+      // numbers; the page paints them and their four neighbours again itself, as fixAround marks
+      // them here (flag 1, not sent). Tiles only to paint (flag 3: the ground a defence post
+      // covers) go as a list `r`. Fallout goes only when one of the tiles has some.
+      // 27.11.2026: before, every marked tile went with both numbers, four times as many.
+      const n = g.dirtyN, d = g.dirty, fl = g.dirtyFlag, own = g.owner, fo = g.fallout;
+      let nc = 0, nr = 0, anyF = false;
+      for (let i = 0; i < n; i++) { const k = d[i], f = fl[k]; if (f === 2) { nc++; if (fo[k]) anyF = true; } else if (f === 3) nr++; }
+      const t = new Int32Array(nc), o = new Uint16Array(nc), f = anyF ? new Uint8Array(nc) : null, r = nr ? new Int32Array(nr) : null;
+      let ic = 0, ir = 0;
+      for (let i = 0; i < n; i++) {
+        const k = d[i], v = fl[k];
+        fl[k] = 0;
+        if (v === 2) { t[ic] = k; o[ic] = own[k]; if (f) f[ic] = fo[k]; ic++; }
+        else if (v === 3) r[ir++] = k;
+      }
       g.dirtyN = 0;
-      msg.tiles = { t: t, owner: o, fallout: f };
-      xfer.push(t.buffer, o.buffer, f.buffer);
+      msg.tiles = { t: t, owner: o };
+      xfer.push(t.buffer, o.buffer);
+      if (f) { msg.tiles.fallout = f; xfer.push(f.buffer); }
+      if (r) { msg.tiles.r = r; xfer.push(r.buffer); }
     }
     if (this.first) msg.opts = this.enc(g.opts, 0);
     msg.game = this.diff(g, SKIP_GAME);
@@ -217,7 +257,7 @@
       const post = this.post(p, mine);
       if (post !== undefined) (c || (c = {})).post = post;
       if (mine) {
-        const pv = this.prev.get(p), key = '#' + hash(p.border, 0, 0, this);
+        const pv = this.memo(p).x, key = '#' + hash(p.border, 0, 0, this);
         if (pv.get('border') !== key) { pv.set('border', key); (c || (c = {})).border = Int32Array.from(p.border); }
       }
       if (c) pl.push(i, c);
@@ -231,7 +271,7 @@
     const ad = [];
     for (const a of T.attacks) {   // all of them on or by the person at this device, with their front
       let c = this.diff(a, SKIP_ATTACK);
-      const pv = this.prev.get(a), key = '#' + hash(a.front, 0, 0, this);
+      const pv = this.memo(a).x, key = '#' + hash(a.front, 0, 0, this);
       if (pv.get('front') !== key) { pv.set('front', key); (c || (c = {})).front = { $S: Array.from(a.front) }; }
       if (c) ad.push(a.id, c);
     }
@@ -356,8 +396,19 @@
     const tl = msg.tiles;
     if (tl && tl.all) { m.owner.set(tl.owner); m.fallout.set(tl.fallout); }
     else if (tl) {
-      const t = tl.t, o = tl.owner, f = tl.fallout, own = m.owner, fo = m.fallout;
-      for (let i = 0; i < t.length; i++) { const k = t[i]; own[k] = o[i]; fo[k] = f[i]; m.markDirty(k); }
+      // the changed tiles, then each with its four neighbours to paint (as fixAround in the
+      // worker), then the tiles only to paint
+      const t = tl.t, o = tl.owner, f = tl.fallout, own = m.owner, fo = m.fallout, W = m.W, N = m.N;
+      for (let i = 0; i < t.length; i++) { const k = t[i]; own[k] = o[i]; fo[k] = f ? f[i] : 0; }
+      for (let i = 0; i < t.length; i++) {
+        const k = t[i], x = k % W;
+        m.markDirty(k);
+        if (x > 0) m.markDirty(k - 1);
+        if (x < W - 1) m.markDirty(k + 1);
+        if (k >= W) m.markDirty(k - W);
+        if (k + W < N) m.markDirty(k + W);
+      }
+      if (tl.r) { const r = tl.r; for (let i = 0; i < r.length; i++) m.markDirty(r[i]); }
     }
     for (let i = m.players.length; i < msg.np; i++) this.player(i);
     if (msg.players) {

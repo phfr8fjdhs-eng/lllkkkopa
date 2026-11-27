@@ -190,7 +190,8 @@
     const W = this.W, H = this.H, r = this.R.defense, cx = tile % W, cy = (tile / W) | 0;
     for (let y = Math.max(0, cy - r); y <= Math.min(H - 1, cy + r); y++) {
       for (let x = Math.max(0, cx - r); x <= Math.min(W - 1, cx + r); x++) {
-        if (this.owner[y * W + x]) this.markDirty(y * W + x);
+        const k = y * W + x;
+        if (this.owner[k] && !this.dirtyFlag[k]) { this.markDirty(k); this.dirtyFlag[k] = 3; }   // 3: only to paint (src/05b_sync.js)
       }
     }
   };
@@ -1219,7 +1220,7 @@
           q.troops = Math.max(0, q.troops - kill * q.troops / Math.max(1, q.tiles));
           if (crater && (!keep || !keep.has(t))) this.relinquish(t);
         }
-        if (!clean && !this.fallout[t]) { this.fallout[t] = 1; this.falloutCount++; this.markDirty(t); }
+        if (!clean && !this.fallout[t]) { this.fallout[t] = 1; this.falloutCount++; this.markDirty(t); this.dirtyFlag[t] = 2; }
       }
     }
     const h = this.human;
