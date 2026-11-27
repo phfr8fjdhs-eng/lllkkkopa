@@ -96,6 +96,7 @@
     if (r.u === UT.SILO && r.cls) return game.opts.infiniteGold ? 0 : G.LANG.fieldCost;
     if (r.u === UT.STEALTH) return c + game.cost(h, game.has(h, 'hydro') ? UT.HYDRO : UT.ATOM);
     if (r.u === UT.BOMBER) return c;   // explosive or cluster, the same price
+    if (r.u === UT.WARSHIP && game.lang) return Math.round(Math.round(c * (r.cls ? G.SHIP_CLASS[r.cls].cost : 1)) * G.LANG.shipCost[r.cls]);   // as buildCheck
     return r.cls ? Math.round(c * (r.u === UT.SAM ? G.LANG.abmCost : G.SHIP_CLASS[r.cls].cost)) : c; }
   function shipsOf(h, cls) { let n = 0; for (const u of h.units) if (u.type === UT.WARSHIP && (u.cls || 0) === cls) n++; return n; }
   // how many of a kind of building you can see at player q (a cloaking tower hides some)

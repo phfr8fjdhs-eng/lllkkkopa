@@ -9,6 +9,7 @@ const G = globalThis.G, UT = G.UT;
 const count = (g, type, p) => g.units.filter((u) => u.active && u.type === type && (!p || u.owner === p)).length;
 // what has to be seen in each scene, asked every second; seen once is enough
 const SEEN = {
+  140: (g) => { const c = g.human.units.find((u) => u.type === UT.WARSHIP && u.cls === 3); return !!c && c.hp < g.shipFull(c) && c.hp > G.SHIP_CLASS[3].hp * G.LANG.shipHp; },
   139: (g) => { const c = g.lv.foes[0].units.find((u) => u.type === UT.CITY && u.x < 220); return !!c && c.level < 8 && g.units.some((u) => u.active && u.type === UT.BOMBER && !u.load); },
   138: (g, s) => {
     // the missile defence fires (at the bombers, nothing else flies), the small air defence never does

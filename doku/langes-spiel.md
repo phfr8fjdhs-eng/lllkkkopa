@@ -228,7 +228,7 @@ Code: Abschnitt «the navy» in `src/04c_lang.js` (`shipFull`, `shipSpeed`, `lan
 - **Schwerere Schiffe:** Kriegsschiffe halten im Modus 1.5-mal so viel aus und kosten 1.5-mal so viel Unterhalt; langsamer sind sie schon seit Paket 1a (halbes Tempo auf See).
 - **Mehr Gold zur See:** Handelsschiffe bringen 1.5-mal so viel (`tradeGold`). Das gleicht die halbe Reichweite der Häfen aus Paket 1a aus (nicht gemessen).
 - **Klare Rollen:** Der Zerstörer jagt Boote und, mit Sonar, U-Boote und Minen. Das Schlachtschiff versenkt Kriegsschiffe und schiesst nicht auf Land. Das U-Boot versenkt Kriegs- und Handelsschiffe. Der Flugzeugträger trägt die Luftwaffe übers Meer.
-- **U-Boot** (Schiffsklasse 2, auf der Seite 7.2, ohne Taste, Preis × 2, Forschung «U-Boot»):
+- **U-Boot** (Schiffsklasse 2, auf der Seite 7.2, ohne Taste, Preis × 2 (seit 27.11.2026 × 4), Forschung «U-Boot»):
   - Auf andere Spieler wirkt es unsichtbar: Kein Schiff zielt darauf, und die Karte zeigt es nicht.
   - Feuert es einen Torpedo, sehen es alle für 30 s (`subShow`).
   - Sonst findet es nur ein feindlicher Zerstörer mit der Forschung «Sonar» in 60 Feldern der Erde (`sonarR`, mal Reichweite des Modus); mit «Leise U-Boote» erst in 60 % davon.
@@ -239,7 +239,7 @@ Code: Abschnitt «the navy» in `src/04c_lang.js` (`shipFull`, `shipSpeed`, `lan
   - Fährt ein feindliches Schiff auf eine Mine, versenkt sie Boote und Handelsschiffe und nimmt Kriegsschiffen 1500 Punkte; dabei geht die Mine hoch.
   - Ein feindlicher Zerstörer mit Sonar räumt sie aus 25 Feldern.
   - So lassen sich Häfen und Meerengen sperren.
-- **Flugzeugträger** (Schiffsklasse 3, auf der Seite 7.7, Preis × 5, Forschung «Flugzeugträger»):
+- **Flugzeugträger** (Schiffsklasse 3, auf der Seite 7.7, Preis × 5 (seit 27.11.2026 × 10), Forschung «Flugzeugträger»):
   - Er ist ein Flugplatz auf See: Bomber, Tarnbomber und Aufklärer starten von ihm, Abfangjäger von selbst.
   - Er hat 2 Startplätze und 0.6 der Reichweite eines Flugplatzes.
   - Er hat keine eigenen Geschütze.
@@ -325,3 +325,20 @@ Code: `bombHit` und `launchPlane(…, cls)` in `src/04c_lang.js`, `structHitBy(v
 - Geht auch beim Schläge planen (Shift + Klick, `salvo` merkt sich die Last).
 - Szenen des Modus erlauben jetzt alles zum Bauen und Feuern (`levelAllows`), wie es `doku/neuheiten.md` verspricht.
 - Szene 139.
+
+### A5 und A6. Flugzeugträger stärker, Schiffe teurer
+Code: `shipFull` in `src/04c_lang.js`, Preis in `buildCheck` (`src/04_units.js`) und `costOf` (`src/07_ui.js`), Zahlen `carrierHp`, `shipCost` in `G.LANG`.
+- **Flugzeugträger:** doppelt so viel Leben (`carrierHp` = 2): 3000 · 1.5 · 2 = 9000 Punkte.
+- **Preise** im Modus, auf den Preis der Klasse (Kriegsschiff-Preisleiter × Klasse) mal `shipCost`:
+
+| Schiff | Klasse | vorher | jetzt |
+| --- | --- | --- | --- |
+| Zerstörer | × 1 | × 1 | × 1.3 |
+| Schlachtschiff | × 2.5 | × 2.5 | × 3.25 |
+| U-Boot | × 2 | × 2 | × 4 |
+| Flugzeugträger | × 5 | × 5 | × 10 |
+| Abwehrschiff | × 2.5 | × 2.5 | × 3.25 |
+| Radarschiff | × 2 | × 2 | × 2.6 |
+
+- Schiffe aus dem Lager eines Hafens bleiben gratis. Unterhalt unverändert.
+- Szene 140.

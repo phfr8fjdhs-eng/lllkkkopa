@@ -309,6 +309,7 @@
   Game.prototype.buildCheck = function (p, type, tile, cls, fresh, pick) {
     const res = { ok: false, why: '', cost: this.cost(p, type), tile: tile, port: null, silo: null, stored: false };
     if (type === UT.WARSHIP && cls) res.cost = Math.round(res.cost * G.SHIP_CLASS[cls].cost);
+    if (type === UT.WARSHIP && this.lang) res.cost = Math.round(res.cost * G.LANG.shipCost[cls || 0]);   // «Langes Spiel»: ships dearer
     if (type === UT.SILO && cls && this.lang) res.cost = p.type === PT.HUMAN && this.opts.infiniteGold ? 0 : G.LANG.fieldCost;
     if (type === UT.SAM && cls && this.lang) res.cost = cls === 2 ? (p.type === PT.HUMAN && this.opts.infiniteGold ? 0 : G.LANG.radarCost) : Math.round(res.cost * G.LANG.abmCost);
     const map = this.map, W = this.W;

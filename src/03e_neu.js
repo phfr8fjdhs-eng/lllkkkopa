@@ -42,6 +42,19 @@
 
   G.NEUES = [
     {
+      n: 140, date: '27.11.2026', title: 'Langes Spiel: Träger stärker, Schiffe teurer', lang: true,
+      text: 'Der Flugzeugträger hält doppelt so viel aus. Schiffe kosten mehr: U-Boot und Flugzeugträger das Doppelte, Zerstörer, Schlachtschiff, Abwehr- und Radarschiff das 1.3-Fache. Hier beschiessen die Schlachtschiffe der Südküste deinen Träger; er hält lange durch.',
+      map: STRAIT,
+      me: { x: 150, y: 20, box: [0, 0, 300, 46], troops: 60000, gold: 3000000, build: [[UT.PORT, 150, 44, 2]] },
+      foes: [{ name: 'Südküste', x: 150, y: 180, box: [0, 154, 300, 200], troops: 90000, build: [[UT.PORT, 150, 156, 2]] }],
+      allow: ALL, quest: none,
+      events: [[0, function (Q) {
+        Q.ship(Q.me, 150, 100, 3);
+        Q.ship(Q.foe[0], 130, 125, 1); Q.ship(Q.foe[0], 170, 125, 1);
+      }]],
+      tips: [{ text: 'Die Schiffe in der Bauleiste: neue Preise.', el: hot(7.7) }]
+    },
+    {
       n: 139, date: '27.11.2026', title: 'Langes Spiel: Bomber mit Sprengbomben', lang: true,
       text: 'Beim Bomber wählst du die Last: Streubombe gegen Truppen wie bisher, oder Sprengbomben (Waffenleiste, gleich daneben): Jedes Gebäude im Zielgebiet verliert ein Viertel seiner Stufen, Stufe 1 fällt, Schutzräume halbieren. Dein Flugplatz schickt abwechselnd beide auf Varnholm.',
       map: { w: 320, h: 200, seed: 939, shapes: [circ(70, 100, 62), circ(235, 100, 80)] },

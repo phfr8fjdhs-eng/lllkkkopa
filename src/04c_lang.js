@@ -872,7 +872,7 @@
   // airfield, with carrierSlots sorties. Sea mines lie unseen on the water.
   Game.prototype.shipFull = function (u) {
     const c = u.cls || 0, p = u.owner;
-    return G.SHIP_CLASS[c].hp * G.LANG.shipHp * (c === 1 && this.has(p, 'bs2') ? 1.3 : 1);
+    return G.SHIP_CLASS[c].hp * G.LANG.shipHp * (c === 1 && this.has(p, 'bs2') ? 1.3 : 1) * (c === 3 ? G.LANG.carrierHp : 1);
   };
   Game.prototype.shipSpeed = function (u) { return G.SHIP_CLASS[u.cls || 0].speed * (!u.cls && this.has(u.owner, 'mar2') ? 1.25 : 1); };
   Game.prototype.langShip = function (u) {

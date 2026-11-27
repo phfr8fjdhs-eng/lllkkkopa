@@ -151,6 +151,9 @@
     fieldCost: 2000000, airR: 250, planeSpeed: { 23: 0.6, 24: 0.6, 25: 0.9, 26: 1.5 }, planeCost: { 23: 600000, 24: 2000000, 25: 200000 },
     planeRest: 200, stealthSeen: 0.25, stealthLock: 30, stealthHp: 2, reconR: 40, reconTicks: 600, fighterRest: 150,
     // Paket 6: the navy (doku/langes-spiel.md)
+    // 27.11.2026: the carrier holds carrierHp times more again; ships cost shipCost times the
+    // price of their class (by class: destroyer, battleship, submarine, carrier, defence ship, radar ship)
+    carrierHp: 2, shipCost: [1.3, 1.3, 2, 2, 1.3, 1.3],
     shipHp: 1.5, shipUpkeep: 1.5, tradeGold: 1.5, sonarR: 60, subShow: 300, subQuiet: 0.6,
     pushCity: 0.15, pushMass: 0.6, armNoFab: 2, armFab: 0.1, armFabMin: 0.5, armLost: 0.5, armSee: 0.25,
     mineCost: 150000, mineR: 120, mineMax: 30, mineHit: 3, mineDmg: 1500, mineClear: 25, carrierSlots: 2, flakR: 60, flakEvery: 15, marines: 1.25, shipRadar: 80

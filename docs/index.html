@@ -1637,6 +1637,9 @@ body.placing #cv { cursor: crosshair; }
     fieldCost: 2000000, airR: 250, planeSpeed: { 23: 0.6, 24: 0.6, 25: 0.9, 26: 1.5 }, planeCost: { 23: 600000, 24: 2000000, 25: 200000 },
     planeRest: 200, stealthSeen: 0.25, stealthLock: 30, stealthHp: 2, reconR: 40, reconTicks: 600, fighterRest: 150,
     // Paket 6: the navy (doku/langes-spiel.md)
+    // 27.11.2026: the carrier holds carrierHp times more again; ships cost shipCost times the
+    // price of their class (by class: destroyer, battleship, submarine, carrier, defence ship, radar ship)
+    carrierHp: 2, shipCost: [1.3, 1.3, 2, 2, 1.3, 1.3],
     shipHp: 1.5, shipUpkeep: 1.5, tradeGold: 1.5, sonarR: 60, subShow: 300, subQuiet: 0.6,
     pushCity: 0.15, pushMass: 0.6, armNoFab: 2, armFab: 0.1, armFabMin: 0.5, armLost: 0.5, armSee: 0.25,
     mineCost: 150000, mineR: 120, mineMax: 30, mineHit: 3, mineDmg: 1500, mineClear: 25, carrierSlots: 2, flakR: 60, flakEvery: 15, marines: 1.25, shipRadar: 80
@@ -4393,6 +4396,19 @@ body.placing #cv { cursor: crosshair; }
 
   G.NEUES = [
     {
+      n: 140, date: '27.11.2026', title: 'Langes Spiel: Träger stärker, Schiffe teurer', lang: true,
+      text: 'Der Flugzeugträger hält doppelt so viel aus. Schiffe kosten mehr: U-Boot und Flugzeugträger das Doppelte, Zerstörer, Schlachtschiff, Abwehr- und Radarschiff das 1.3-Fache. Hier beschiessen die Schlachtschiffe der Südküste deinen Träger; er hält lange durch.',
+      map: STRAIT,
+      me: { x: 150, y: 20, box: [0, 0, 300, 46], troops: 60000, gold: 3000000, build: [[UT.PORT, 150, 44, 2]] },
+      foes: [{ name: 'Südküste', x: 150, y: 180, box: [0, 154, 300, 200], troops: 90000, build: [[UT.PORT, 150, 156, 2]] }],
+      allow: ALL, quest: none,
+      events: [[0, function (Q) {
+        Q.ship(Q.me, 150, 100, 3);
+        Q.ship(Q.foe[0], 130, 125, 1); Q.ship(Q.foe[0], 170, 125, 1);
+      }]],
+      tips: [{ text: 'Die Schiffe in der Bauleiste: neue Preise.', el: hot(7.7) }]
+    },
+    {
       n: 139, date: '27.11.2026', title: 'Langes Spiel: Bomber mit Sprengbomben', lang: true,
       text: 'Beim Bomber wählst du die Last: Streubombe gegen Truppen wie bisher, oder Sprengbomben (Waffenleiste, gleich daneben): Jedes Gebäude im Zielgebiet verliert ein Viertel seiner Stufen, Stufe 1 fällt, Schutzräume halbieren. Dein Flugplatz schickt abwechselnd beide auf Varnholm.',
       map: { w: 320, h: 200, seed: 939, shapes: [circ(70, 100, 62), circ(235, 100, 80)] },
@@ -5144,6 +5160,7 @@ body.placing #cv { cursor: crosshair; }
   Game.prototype.buildCheck = function (p, type, tile, cls, fresh, pick) {
     const res = { ok: false, why: '', cost: this.cost(p, type), tile: tile, port: null, silo: null, stored: false };
     if (type === UT.WARSHIP && cls) res.cost = Math.round(res.cost * G.SHIP_CLASS[cls].cost);
+    if (type === UT.WARSHIP && this.lang) res.cost = Math.round(res.cost * G.LANG.shipCost[cls || 0]);   // «Langes Spiel»: ships dearer
     if (type === UT.SILO && cls && this.lang) res.cost = p.type === PT.HUMAN && this.opts.infiniteGold ? 0 : G.LANG.fieldCost;
     if (type === UT.SAM && cls && this.lang) res.cost = cls === 2 ? (p.type === PT.HUMAN && this.opts.infiniteGold ? 0 : G.LANG.radarCost) : Math.round(res.cost * G.LANG.abmCost);
     const map = this.map, W = this.W;
@@ -7502,7 +7519,7 @@ body.placing #cv { cursor: crosshair; }
   // airfield, with carrierSlots sorties. Sea mines lie unseen on the water.
   Game.prototype.shipFull = function (u) {
     const c = u.cls || 0, p = u.owner;
-    return G.SHIP_CLASS[c].hp * G.LANG.shipHp * (c === 1 && this.has(p, 'bs2') ? 1.3 : 1);
+    return G.SHIP_CLASS[c].hp * G.LANG.shipHp * (c === 1 && this.has(p, 'bs2') ? 1.3 : 1) * (c === 3 ? G.LANG.carrierHp : 1);
   };
   Game.prototype.shipSpeed = function (u) { return G.SHIP_CLASS[u.cls || 0].speed * (!u.cls && this.has(u.owner, 'mar2') ? 1.25 : 1); };
   Game.prototype.langShip = function (u) {
@@ -12831,6 +12848,7 @@ void main() {
     if (r.u === UT.SILO && r.cls) return game.opts.infiniteGold ? 0 : G.LANG.fieldCost;
     if (r.u === UT.STEALTH) return c + game.cost(h, game.has(h, 'hydro') ? UT.HYDRO : UT.ATOM);
     if (r.u === UT.BOMBER) return c;   // explosive or cluster, the same price
+    if (r.u === UT.WARSHIP && game.lang) return Math.round(Math.round(c * (r.cls ? G.SHIP_CLASS[r.cls].cost : 1)) * G.LANG.shipCost[r.cls]);   // as buildCheck
     return r.cls ? Math.round(c * (r.u === UT.SAM ? G.LANG.abmCost : G.SHIP_CLASS[r.cls].cost)) : c; }
   function shipsOf(h, cls) { let n = 0; for (const u of h.units) if (u.type === UT.WARSHIP && (u.cls || 0) === cls) n++; return n; }
   // how many of a kind of building you can see at player q (a cloaking tower hides some)

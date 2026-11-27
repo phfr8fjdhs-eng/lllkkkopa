@@ -58,6 +58,11 @@ check('kleine Flugabwehr gegen die neuen Waffen', b.samCan({ cls: 0 }, G.UT.SRBM
   check('Zerstörer mit Sonar findet es', b.subSeen(sub, me));
   sub.shown = b.ticks + 10;
   check('wer feuert, zeigt sich', b.subSeen(sub, { id: 79, tech: {}, units: [] }));
+  check('Flugzeugträger doppelt so stark', b.shipFull({ cls: 3, owner: me }) === G.SHIP_CLASS[3].hp * G.LANG.shipHp * 2);
+  { const rich = b.players[1], g0 = rich.gold; rich.gold = 1e12;
+    const pr = (cls) => b.buildCheck(rich, G.UT.WARSHIP, 0, cls).cost, base = a.buildCheck(a.players[1], G.UT.WARSHIP, 0, 0).cost;
+    check('Schiffe teurer: U-Boot und Träger doppelt, Zerstörer 1.3', pr(2) === Math.round(Math.round(base * 2) * 2) && pr(3) === Math.round(Math.round(base * 5) * 2) && pr(0) === Math.round(base * 1.3), G.fmt(pr(0)) + ' / ' + G.fmt(pr(2)) + ' / ' + G.fmt(pr(3)));
+    rich.gold = g0; }
   check('Kriegsschiffe schwerer', b.shipFull({ cls: 1, owner: me }) === G.SHIP_CLASS[1].hp * G.LANG.shipHp);
   check('U-Boot feuert erst mit Forschung', !b.subCan({ tech: {} }, UT.CRUISE) && b.subCan({ tech: { ub3: 1 } }, UT.CRUISE) && !b.subCan({ tech: { ub3: 1 } }, UT.ATOM) && b.subCan({ tech: { ub3: 1, hydro: 1 } }, UT.HYDRO));
   check('Seemine nur mit Hafen in der Nähe', b.mineWhy(pb, 0, {}) !== '', b.mineWhy(pb, 0, {}));
