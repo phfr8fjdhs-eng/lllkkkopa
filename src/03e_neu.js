@@ -43,7 +43,7 @@
   G.NEUES = [
     {
       n: 135, date: '27.11.2026', title: 'Langes Spiel: Flotte', lang: true,
-      text: 'Das U-Boot kommt aus dem Hafen und feuert mit «Raketen-U-Boot» selbst Marschflugkörper, später auch Atombomben, und zeigt sich dabei. Das Schlachtschiff beschiesst mit «Küstenbeschuss» Gebäude an der Küste. Das Abwehrschiff holt Marschflugkörper und Flugzeuge bei der Flotte herunter, das Radarschiff hebt den Nebel um sich auf.',
+      text: 'Das U-Boot kommt aus dem Hafen und feuert mit «Raketen-U-Boot» selbst Marschflugkörper, später auch Atombomben, und zeigt sich dabei. Das Abwehrschiff holt Marschflugkörper und Flugzeuge bei der Flotte herunter, das Radarschiff hebt den Nebel um sich auf.',
       map: { w: 300, h: 150, rough: 4, seed: 935, shapes: [rect(0, 0, 300, 40), rect(0, 100, 300, 150)] },
       me: { x: 150, y: 18, box: [0, 0, 300, 40], troops: 60000, gold: 3000000, build: [[UT.PORT, 120, 39, 2], [UT.CITY, 200, 25, 6]] },
       foes: [{ name: 'Südreich', x: 150, y: 130, box: [0, 100, 300, 150], troops: 90000, build: [[UT.CITY, 150, 125, 6], [UT.DEFENSE, 80, 106, 2], [UT.SILO, 200, 104, 2], [UT.PORT, 260, 101, 1]] }],

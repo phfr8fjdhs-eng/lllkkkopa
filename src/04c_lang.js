@@ -549,8 +549,7 @@
     T_('rads', 'Marine', 2, 'Radarschiff', 'Radarschiff bauen: hebt den Nebel um sich auf, auch über dem Meer', ['auf1']),
     T_('abws', 'Marine', 3, 'Abwehrschiff', 'Abwehrschiff bauen: schiesst Marschflugkörper, Raketen und Flugzeuge in der Nähe ab', ['mar2']),
     T_('marinf', 'Marine', 3, 'Marineinfanterie', 'Deine Boote landen mit 1.25-mal so vielen Truppen', ['mar2']),
-    T_('ub3', 'Marine', 4, 'Raketen-U-Boot', 'Das U-Boot feuert selbst Marschflugkörper, mit Atombombe oder Wasserstoffbombe erforscht auch diese', ['ub2', 'rak1']),
-    T_('kuest', 'Marine', 4, 'Küstenbeschuss', 'Schlachtschiffe ohne Ziel auf See beschiessen Gebäude an der Küste', ['bs3'])
+    T_('ub3', 'Marine', 4, 'Raketen-U-Boot', 'Das U-Boot feuert selbst Marschflugkörper, mit Atombombe oder Wasserstoffbombe erforscht auch diese', ['ub2', 'rak1'])
   ];
   G.SHIP_TECH = [0, 0, 'ub1', 'traeger', 'abws', 'rads'];
   const TECH = G.TECH_BY = {};
@@ -807,23 +806,6 @@
     if (type === UT.ATOM) return this.has(p, 'ub3') && this.has(p, 'atom');
     if (type === UT.HYDRO) return this.has(p, 'ub3') && this.has(p, 'hydro');
     return false;
-  };
-  // Research Küstenbeschuss: a battleship with nothing to shoot at sea shells the nearest enemy
-  // building in its gun range, every shoreEvery ticks; each hit takes levels as a cruise missile does.
-  Game.prototype.shoreFire = function (u) {
-    if ((this.ticks + u.id) % G.LANG.shoreEvery || !this.has(u.owner, 'kuest')) return;
-    const p = u.owner, r = G.SHIP_CLASS[1].range * this.S * this.reach * (this.has(p, 'bs3') ? 1.3 : 1), r2 = r * r;
-    let best = null, bd = Infinity;
-    for (const v of this.structAt.values()) {
-      if (!v.built || v.owner === p || this.friendly(v.owner, p)) continue;
-      const d = (v.x - u.x) * (v.x - u.x) + (v.y - u.y) * (v.y - u.y);
-      if (d <= r2 && d < bd) { bd = d; best = v; }
-    }
-    if (!best) return;
-    this.fx.push({ k: 'muzzle', x: u.x, y: u.y, tx: best.x, ty: best.y, ship: u });
-    this.fx.push({ k: 'pop', x: best.x, y: best.y, hit: true });
-    if (best.owner === this.human) this.say(G.UNAME[best.type].replace('\u00AD', '') + ' wird von einem Schlachtschiff von ' + p.name + ' beschossen', 'bad');
-    this.structHitBy(best, p);
   };
   // Research Geleitschutz: a destroyer sails with every new carrier and keeps to its waters.
   Game.prototype.escort = function (p, carrier, c) {

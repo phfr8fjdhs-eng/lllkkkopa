@@ -1631,7 +1631,7 @@ body.placing #cv { cursor: crosshair; }
     // Paket 6: the navy (doku/langes-spiel.md)
     shipHp: 1.5, shipUpkeep: 1.5, tradeGold: 1.5, sonarR: 60, subShow: 300, subQuiet: 0.6,
     pushCity: 0.15, pushMass: 0.6, armNoFab: 2, armFab: 0.1, armFabMin: 0.5, armLost: 0.5, armSee: 0.25,
-    mineCost: 150000, mineR: 120, mineMax: 30, mineHit: 3, mineDmg: 1500, mineClear: 25, carrierSlots: 2, flakR: 60, flakEvery: 15, shoreEvery: 150, marines: 1.25, shipRadar: 80
+    mineCost: 150000, mineR: 120, mineMax: 30, mineHit: 3, mineDmg: 1500, mineClear: 25, carrierSlots: 2, flakR: 60, flakEvery: 15, marines: 1.25, shipRadar: 80
   };
   G.isPlane = function (t) { return t >= UT.BOMBER && t <= UT.FIGHTER; };
   G.LANG_WEAPON = function (t) { return t >= UT.CLUSTER && t <= UT.SRBM; };
@@ -4350,7 +4350,7 @@ body.placing #cv { cursor: crosshair; }
   G.NEUES = [
     {
       n: 135, date: '27.11.2026', title: 'Langes Spiel: Flotte', lang: true,
-      text: 'Das U-Boot kommt aus dem Hafen und feuert mit «Raketen-U-Boot» selbst Marschflugkörper, später auch Atombomben, und zeigt sich dabei. Das Schlachtschiff beschiesst mit «Küstenbeschuss» Gebäude an der Küste. Das Abwehrschiff holt Marschflugkörper und Flugzeuge bei der Flotte herunter, das Radarschiff hebt den Nebel um sich auf.',
+      text: 'Das U-Boot kommt aus dem Hafen und feuert mit «Raketen-U-Boot» selbst Marschflugkörper, später auch Atombomben, und zeigt sich dabei. Das Abwehrschiff holt Marschflugkörper und Flugzeuge bei der Flotte herunter, das Radarschiff hebt den Nebel um sich auf.',
       map: { w: 300, h: 150, rough: 4, seed: 935, shapes: [rect(0, 0, 300, 40), rect(0, 100, 300, 150)] },
       me: { x: 150, y: 18, box: [0, 0, 300, 40], troops: 60000, gold: 3000000, build: [[UT.PORT, 120, 39, 2], [UT.CITY, 200, 25, 6]] },
       foes: [{ name: 'Südreich', x: 150, y: 130, box: [0, 100, 300, 150], troops: 90000, build: [[UT.CITY, 150, 125, 6], [UT.DEFENSE, 80, 106, 2], [UT.SILO, 200, 104, 2], [UT.PORT, 260, 101, 1]] }],
@@ -5575,7 +5575,6 @@ body.placing #cv { cursor: crosshair; }
     const C = G.SHIP_CLASS[u.cls || 0], full = this.lang ? this.shipFull(u) : C.hp, spd = this.lang ? this.shipSpeed(u) : C.speed;
     if (C.carrier) this.tickField(u);   // «Langes Spiel»: a carrier sends planes like an airfield
     else if (this.lang && (!u.cls || C.flak)) this.shipFlak(u);
-    else if (this.lang && u.cls === 1 && !u.target) this.shoreFire(u);   // research Küstenbeschuss
     // upkeep while at sea; without the gold for it the ship makes for port and is laid up there
     if (!(p.type === PT.HUMAN && this.opts.infiniteGold)) {
       p.gold -= this.lang ? C.upkeep * G.LANG.shipUpkeep : C.upkeep;
@@ -7068,8 +7067,7 @@ body.placing #cv { cursor: crosshair; }
     T_('rads', 'Marine', 2, 'Radarschiff', 'Radarschiff bauen: hebt den Nebel um sich auf, auch über dem Meer', ['auf1']),
     T_('abws', 'Marine', 3, 'Abwehrschiff', 'Abwehrschiff bauen: schiesst Marschflugkörper, Raketen und Flugzeuge in der Nähe ab', ['mar2']),
     T_('marinf', 'Marine', 3, 'Marineinfanterie', 'Deine Boote landen mit 1.25-mal so vielen Truppen', ['mar2']),
-    T_('ub3', 'Marine', 4, 'Raketen-U-Boot', 'Das U-Boot feuert selbst Marschflugkörper, mit Atombombe oder Wasserstoffbombe erforscht auch diese', ['ub2', 'rak1']),
-    T_('kuest', 'Marine', 4, 'Küstenbeschuss', 'Schlachtschiffe ohne Ziel auf See beschiessen Gebäude an der Küste', ['bs3'])
+    T_('ub3', 'Marine', 4, 'Raketen-U-Boot', 'Das U-Boot feuert selbst Marschflugkörper, mit Atombombe oder Wasserstoffbombe erforscht auch diese', ['ub2', 'rak1'])
   ];
   G.SHIP_TECH = [0, 0, 'ub1', 'traeger', 'abws', 'rads'];
   const TECH = G.TECH_BY = {};
@@ -7326,23 +7324,6 @@ body.placing #cv { cursor: crosshair; }
     if (type === UT.ATOM) return this.has(p, 'ub3') && this.has(p, 'atom');
     if (type === UT.HYDRO) return this.has(p, 'ub3') && this.has(p, 'hydro');
     return false;
-  };
-  // Research Küstenbeschuss: a battleship with nothing to shoot at sea shells the nearest enemy
-  // building in its gun range, every shoreEvery ticks; each hit takes levels as a cruise missile does.
-  Game.prototype.shoreFire = function (u) {
-    if ((this.ticks + u.id) % G.LANG.shoreEvery || !this.has(u.owner, 'kuest')) return;
-    const p = u.owner, r = G.SHIP_CLASS[1].range * this.S * this.reach * (this.has(p, 'bs3') ? 1.3 : 1), r2 = r * r;
-    let best = null, bd = Infinity;
-    for (const v of this.structAt.values()) {
-      if (!v.built || v.owner === p || this.friendly(v.owner, p)) continue;
-      const d = (v.x - u.x) * (v.x - u.x) + (v.y - u.y) * (v.y - u.y);
-      if (d <= r2 && d < bd) { bd = d; best = v; }
-    }
-    if (!best) return;
-    this.fx.push({ k: 'muzzle', x: u.x, y: u.y, tx: best.x, ty: best.y, ship: u });
-    this.fx.push({ k: 'pop', x: best.x, y: best.y, hit: true });
-    if (best.owner === this.human) this.say(G.UNAME[best.type].replace('\u00AD', '') + ' wird von einem Schlachtschiff von ' + p.name + ' beschossen', 'bad');
-    this.structHitBy(best, p);
   };
   // Research Geleitschutz: a destroyer sails with every new carrier and keeps to its waters.
   Game.prototype.escort = function (p, carrier, c) {

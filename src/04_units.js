@@ -842,7 +842,6 @@
     const C = G.SHIP_CLASS[u.cls || 0], full = this.lang ? this.shipFull(u) : C.hp, spd = this.lang ? this.shipSpeed(u) : C.speed;
     if (C.carrier) this.tickField(u);   // «Langes Spiel»: a carrier sends planes like an airfield
     else if (this.lang && (!u.cls || C.flak)) this.shipFlak(u);
-    else if (this.lang && u.cls === 1 && !u.target) this.shoreFire(u);   // research Küstenbeschuss
     // upkeep while at sea; without the gold for it the ship makes for port and is laid up there
     if (!(p.type === PT.HUMAN && this.opts.infiniteGold)) {
       p.gold -= this.lang ? C.upkeep * G.LANG.shipUpkeep : C.upkeep;

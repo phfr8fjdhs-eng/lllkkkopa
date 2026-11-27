@@ -9,7 +9,7 @@ const G = globalThis.G, UT = G.UT;
 const count = (g, type, p) => g.units.filter((u) => u.active && u.type === type && (!p || u.owner === p)).length;
 // what has to be seen in each scene, asked every second; seen once is enough
 const SEEN = {
-  135: (g, s) => (s.sub = s.sub || g.units.some((u) => u.active && u.type === UT.WARSHIP && u.cls === 2 && u.shown > g.ticks && g.nukes.some((n) => n.active && n.type === UT.CRUISE && n.owner === g.human))) && (s.shore = s.shore || g.lv.foes[0].units.some((u) => u.type === UT.DEFENSE && u.level < 2) || !g.lv.foes[0].units.some((u) => u.type === UT.DEFENSE)),
+  135: (g, s) => (s.sub = s.sub || g.units.some((u) => u.active && u.type === UT.WARSHIP && u.cls === 2 && u.shown > g.ticks && g.nukes.some((n) => n.active && n.type === UT.CRUISE && n.owner === g.human))),
   134: (g) => g.human.units.some((u) => u.arm && u.arm.fab),
   133: (g, s) => (s.sub = s.sub || g.units.some((u) => u.active && u.type === UT.WARSHIP && u.cls === 2 && u.shown > g.ticks)) && (s.air = s.air || g.units.some((u) => u.active && u.type === UT.BOMBER)) && g.human.cnt[UT.MINE] < 7 && g.units.some((u) => u.active && u.type === UT.WARSHIP && u.cls === 3),
   132: (g) => g.units.some((u) => u.active && u.type === UT.STEALTH) && g.ticks > 300,

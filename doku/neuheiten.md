@@ -11,7 +11,7 @@ Ein eigener Bereich neben dem normalen Spiel und den Levels. Auf dem Startbildsc
 ## Die Szenen (Stand 26.11.2026)
 | Nr. | Datum | Name | Was passiert |
 | --- | --- | --- | --- |
-| 135 | 27.11. | Langes Spiel: Flotte | Eigenes U-Boot feuert Marschflugkörper auf die Stadt des Südreichs, das Schlachtschiff zerschiesst einen Verteidigungsposten an der Küste, das Abwehrschiff holt die Marschflugkörper des Südreichs herunter, das Radarschiff deckt den Nebel auf |
+| 135 | 27.11. | Langes Spiel: Flotte | Eigenes U-Boot feuert Marschflugkörper auf die Stadt des Südreichs, das Abwehrschiff holt die Marschflugkörper des Südreichs herunter, das Radarschiff deckt den Nebel auf |
 | 134 | 26.11. | Langes Spiel: Rüstungsindustrie | Eigene Atombombe wird in der Fabrik gebaut (Spur zum Silo); ein Marschflugkörper der Ostmark zerstört die Fabrik, die Bombe kommt später |
 | 133 | 26.11. | Langes Spiel: Marine | Eigenes U-Boot versenkt Zerstörer der Südküste und zeigt sich dabei, Seeminen vor dem Hafen versenken anlaufende Boote, der Flugzeugträger schickt Bomber |
 | 132 | 26.11. | Langes Spiel: Tarnbomber | Alle 40 s ein Tarnbomber mit Atombombe über eine Reihe von Flugabwehren hinweg auf die Stadt des Küstenreichs |

@@ -228,7 +228,7 @@ Code: Abschnitt «the navy» in `src/04c_lang.js` (`shipFull`, `shipSpeed`, `lan
 
 - **Schwerere Schiffe:** Kriegsschiffe halten im Modus 1.5-mal so viel aus und kosten 1.5-mal so viel Unterhalt; langsamer sind sie schon seit Paket 1a (halbes Tempo auf See).
 - **Mehr Gold zur See:** Handelsschiffe bringen 1.5-mal so viel (`tradeGold`). Das gleicht die halbe Reichweite der Häfen aus Paket 1a aus (nicht gemessen).
-- **Klare Rollen:** Der Zerstörer jagt Boote und, mit Sonar, U-Boote und Minen. Das Schlachtschiff versenkt Kriegsschiffe und beschiesst die Küste. Das U-Boot versenkt Kriegs- und Handelsschiffe. Der Flugzeugträger trägt die Luftwaffe übers Meer.
+- **Klare Rollen:** Der Zerstörer jagt Boote und, mit Sonar, U-Boote und Minen. Das Schlachtschiff versenkt Kriegsschiffe und schiesst nicht auf Land. Das U-Boot versenkt Kriegs- und Handelsschiffe. Der Flugzeugträger trägt die Luftwaffe übers Meer.
 - **U-Boot** (Schiffsklasse 2, auf der Seite 7.2, ohne Taste, Preis × 2, Forschung «U-Boot»):
   - Auf andere Spieler wirkt es unsichtbar: Kein Schiff zielt darauf, und die Karte zeigt es nicht.
   - Feuert es einen Torpedo, sehen es alle für 30 s (`subShow`).
@@ -262,9 +262,6 @@ Code: Abschnitt «the navy» in `src/04c_lang.js` (`shipFull`, `shipSpeed`, `lan
 - **Radarschiff** (Schiffsklasse 5, auf der Seite 7.4, Preis × 2, Marine 2, braucht «Radarstation»):
   - Es hat keine Geschütze.
   - Es hebt den Nebel in 80 Feldern um sich auf (`shipRadar`) und zeigt dort Tarnbomber.
-- **Küstenbeschuss** (Marine 4, `kuest`):
-  - Ein Schlachtschiff ohne Ziel auf See beschiesst alle 15 s das nächste feindliche Gebäude in seiner Geschützweite.
-  - Jeder Treffer nimmt Stufen wie ein Marschflugkörper.
 - **Marineinfanterie** (Marine 3, `marinf`): Eigene Boote landen mit 1.25-mal so vielen Truppen (`marines`).
 - **Nationen** bauen ab «U-Boot» mit einer Flotte ab und zu ein U-Boot und legen mit «Seeminen» bis zu 6 Minen vor ihre Häfen.
 - Szene 135 (Flotte).
