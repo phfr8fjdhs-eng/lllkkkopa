@@ -19,6 +19,7 @@ for (const L of [1, 10]) {
   const ra = a.samRange({ level: L }), rb = b.samRange({ level: L });
   check('Flugabwehr Stufe ' + L, Math.abs(rb - ra * W) <= 1, ra + ' -> ' + rb + ' Felder');
 }
+check('Bündnis dauert 8 Minuten (klassisch 5)', b.allyTicks() === 4800 && a.allyTicks() === 3000 && G.LANG.allyRadar < G.LANG.allyTicks && G.LANG.allySight < G.LANG.allyRadar);
 check('Kriegsschiff Patrouille', Math.abs(b.R.warPatrol - a.R.warPatrol * W) <= 1, a.R.warPatrol + ' -> ' + b.R.warPatrol);
 check('Bodenkampf im Tempo gleich', a.attackPace === b.attackPace);
 check('Verteidigungsposten grösser', b.R.defense === Math.round(a.R.defense * G.LANG.postR), a.R.defense + ' -> ' + b.R.defense);

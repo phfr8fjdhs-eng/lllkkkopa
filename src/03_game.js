@@ -103,8 +103,8 @@
   //   radar*  radar (air defence class 2, key X): price radarCost, sees everything within
   //           (radarR[0] + radarR[1] x √level) x S tiles
   //   spy*    a spy costs spyCost and shows a realm's troops, density and buildings for spyTicks
-  //   ally*   an alliance shows the partner's sight after allySight ticks, his radar and leave to
-  //           build bases in his land after allyRadar ticks
+  //   ally*   an alliance lasts allyTicks (classic: ALLIANCE_TICKS), shows the partner's sight
+  //           after allySight ticks, his radar and leave to build bases in his land after allyRadar
   //   rent, baseLeave  a base pays its host `rent` gold per tick; when the alliance ends it goes
   //           to the host after baseLeave ticks
   //   tier*, uni*  research: tiers open at tierFrom ticks of play and a step of a tier costs
@@ -136,7 +136,7 @@
     share: 0.25, cruiseHeat: 0.25, cruiseCool: 300, srbmSpeed: 4, srbmSeen: 0.25,
     // Paket 3: fog, reconnaissance, alliances, bases
     fogSee: 3, radarCost: 1000000, radarR: [140, 40], spyCost: 500000, spyTicks: 3000,
-    allySight: 3000, allyRadar: 9000, rent: 100, baseLeave: 300,
+    allyTicks: 4800, allySight: 1800, allyRadar: 3600, rent: 100, baseLeave: 300,
     // Paket 4: research (src/04c_lang.js, G.TECH)
     tierFrom: [0, 0, 9000, 18000, 27000], tierCost: [120, 240, 420, 600, 900],
     uniLevel: 5, uniMax: 3, uniCost: 1000000, uniUpkeep: 50, uniRp: 0.08, shelter2: 0.3,
@@ -606,9 +606,12 @@
       this.say(r.to.name + ' lehnt deine Allianz ab', 'warn');
     }
   };
+  // How long an alliance lasts (and a renewal adds): «Langes Spiel» longer, so its sight and bases
+  // come within one term.
+  Game.prototype.allyTicks = function () { return this.lang ? G.LANG.allyTicks : ALLIANCE_TICKS; };
   Game.prototype.makeAlliance = function (a, b) {
     if (a.allies.has(b.id)) return;
-    const al = { a: a, b: b, end: this.ticks + ALLIANCE_TICKS, prompted: false, since: this.ticks };   // since: «Langes Spiel», alliances grow more valuable with time
+    const al = { a: a, b: b, end: this.ticks + this.allyTicks(), prompted: false, since: this.ticks };   // since: «Langes Spiel», alliances grow more valuable with time
     a.allies.set(b.id, al); b.allies.set(a.id, al);
     for (const at of a.out.slice()) if (at.tid === b.id) this.endAttack(at, true);
     for (const at of b.out.slice()) if (at.tid === a.id) this.endAttack(at, true);
@@ -635,7 +638,7 @@
     const al = a.allies.get(b.id);
     if (!al) return false;
     const ok = b.type === PT.HUMAN || (b.ai && b.ai.decide(a, true));
-    if (ok) { al.end = this.ticks + ALLIANCE_TICKS; al.prompted = false; }
+    if (ok) { al.end = this.ticks + this.allyTicks(); al.prompted = false; }   // al.since stays
     if (a === this.human) this.say(ok ? 'Allianz mit ' + b.name + ' verlängert' : b.name + ' will die Allianz nicht verlängern', ok ? 'good' : 'warn');
     return ok;
   };

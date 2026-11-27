@@ -11,13 +11,14 @@ Ein eigener Bereich neben dem normalen Spiel und den Levels. Auf dem Startbildsc
 ## Die Szenen (Stand 26.11.2026)
 | Nr. | Datum | Name | Was passiert |
 | --- | --- | --- | --- |
+| 136 | 27.11. | Langes Spiel: Bündnis dauert 8 Minuten | Bündnis mit Brenna knapp 6 Minuten alt; nach 8 s ein eigenes Silo als Stützpunkt in Brennas Land |
 | 135 | 27.11. | Langes Spiel: Flotte | Eigenes U-Boot feuert Marschflugkörper auf die Stadt des Südreichs, das Abwehrschiff holt die Marschflugkörper des Südreichs herunter, das Radarschiff deckt den Nebel auf |
 | 134 | 26.11. | Langes Spiel: Rüstungsindustrie | Eigene Atombombe wird in der Fabrik gebaut (Spur zum Silo); ein Marschflugkörper der Ostmark zerstört die Fabrik, die Bombe kommt später |
 | 133 | 26.11. | Langes Spiel: Marine | Eigenes U-Boot versenkt Zerstörer der Südküste und zeigt sich dabei, Seeminen vor dem Hafen versenken anlaufende Boote, der Flugzeugträger schickt Bomber |
 | 132 | 26.11. | Langes Spiel: Tarnbomber | Alle 40 s ein Tarnbomber mit Atombombe über eine Reihe von Flugabwehren hinweg auf die Stadt des Küstenreichs |
 | 131 | 26.11. | Langes Spiel: Luftwaffe | Eigener Flugplatz schickt reihum Bomber und Aufklärer; Varnholms Marschflugkörper holen die Abfangjäger herunter |
 | 130 | 26.11. | Langes Spiel: Forschung | Zwei Städte bekommen eine Uni und forschen Blitzkrieg und Marschflugkörper; Tipp zeigt auf den Knopf «Forschung» |
-| 129 | 26.11. | Langes Spiel: Bündnisse, Stützpunkte, Spione | Bündnis mit Brenna seit 15 Minuten, nach 6 s ein eigenes Silo als Stützpunkt in Brennas Land und ein Spion in Ostmark |
+| 129 | 26.11. | Langes Spiel: Bündnisse, Stützpunkte, Spione | Bündnis mit Brenna seit 6 Minuten, nach 6 s ein eigenes Silo als Stützpunkt in Brennas Land und ein Spion in Ostmark |
 | 128 | 26.11. | Langes Spiel: Nebel und Radar | Vellmars Land liegt grösstenteils im Nebel; eigenes Radar; alle 30 s ein Marschflugkörper von Vellmar, dessen Silo sich dann zeigt |
 | 127 | 26.11. | Langes Spiel: Waffen für den Krieg | Ein eigenes Silo feuert alle 6 s reihum Streubombe, Marschflugkörper, Kurzstreckenrakete, thermobare Bombe und Bunkerbrecher auf Varnholm |
 | 126 | 26.11. | Langes Spiel: Atomwaffen schrecken ab | Vellmar macht alle 50 s eine Atombombe scharf (roter Ring) und feuert sie auf deine Stadt; danach ist es geächtet |

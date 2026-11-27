@@ -42,6 +42,24 @@
 
   G.NEUES = [
     {
+      n: 136, date: '27.11.2026', title: 'Langes Spiel: Bündnis dauert 8 Minuten', lang: true,
+      text: 'Ein Bündnis dauert im Langen Spiel 8 Minuten statt 5. Nach 3 Minuten teilt ihr die Sicht, nach 6 Minuten das Radar, und du darfst Stützpunkte bauen. Beim Verlängern zählt die Zeit weiter. Hier ist das Bündnis mit Brenna fast 6 Minuten alt: gleich entsteht dein Silo in ihrem Land.',
+      map: { w: 300, h: 160, seed: 936, shapes: [circ(80, 80, 62), circ(220, 80, 62)] },
+      me: { x: 80, y: 80, r: 64, troops: 80000, gold: 3000000, build: [[UT.CITY, 70, 80, 4]] },
+      foes: [{ name: 'Brenna', x: 220, y: 80, r: 64, troops: 80000, build: [[UT.CITY, 230, 80, 3]] }],
+      allow: ALL, quest: none,
+      events: [[0, function (Q) {
+        const g = Q.g, b = Q.foe[0];
+        g.makeAlliance(Q.me, b);
+        const al = Q.me.allies.get(b.id); if (al) al.since = g.ticks - G.LANG.allyRadar + 60;   // 6 s short of six minutes
+      }], [8, function (Q) {
+        const g = Q.g;
+        Q.me.gold += 3e6;
+        g.build(Q.me, UT.SILO, g.levelTile(200, 105, Q.foe[0]));     // a base in Brenna's land
+      }]],
+      tips: [{ text: 'Dein Silo als Stützpunkt im Land von Brenna.', pins: function (Q) { return Q.units(Q.me, UT.SILO, 1); } }]
+    },
+    {
       n: 135, date: '27.11.2026', title: 'Langes Spiel: Flotte', lang: true,
       text: 'Das U-Boot kommt aus dem Hafen und feuert mit «Raketen-U-Boot» selbst Marschflugkörper, später auch Atombomben, und zeigt sich dabei. Das Abwehrschiff holt Marschflugkörper und Flugzeuge bei der Flotte herunter, das Radarschiff hebt den Nebel um sich auf.',
       map: { w: 300, h: 150, rough: 4, seed: 935, shapes: [rect(0, 0, 300, 40), rect(0, 100, 300, 150)] },
@@ -122,7 +140,7 @@
     },
     {
       n: 129, date: '26.11.2026', title: 'Langes Spiel: Bündnisse, Stützpunkte, Spione', lang: true,
-      text: 'Ein Bündnis wird mit der Zeit wertvoller: nach 5 Minuten teilt ihr die Sicht, nach 15 Minuten auch das Radar, und du darfst im Land des Partners Stützpunkte bauen (Hafen, Silo, Flugabwehr). Du zahlst ihm dafür laufend Pacht. Ein Spion zeigt dir ein fremdes Land ein paar Minuten lang ganz.',
+      text: 'Ein Bündnis wird mit der Zeit wertvoller: nach 3 Minuten teilt ihr die Sicht, nach 6 Minuten auch das Radar, und du darfst im Land des Partners Stützpunkte bauen (Hafen, Silo, Flugabwehr). Du zahlst ihm dafür laufend Pacht. Ein Spion zeigt dir ein fremdes Land ein paar Minuten lang ganz.',
       map: { w: 360, h: 200, seed: 929, shapes: [circ(70, 100, 60), circ(185, 100, 55), circ(300, 100, 55)] },
       me: { x: 70, y: 100, r: 62, troops: 80000, gold: 3000000, build: [[UT.CITY, 60, 100, 4]] },
       foes: [{ name: 'Brenna', x: 185, y: 100, r: 57, troops: 80000, build: [[UT.CITY, 185, 100, 3]] },

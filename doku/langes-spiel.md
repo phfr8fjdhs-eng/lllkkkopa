@@ -147,9 +147,9 @@ Code: `src/04c_lang.js` (Abschnitt «weapons»), Haken in `buildCheck`, `build`,
 ## Paket 3: Nebel, Aufklärung, Bündnisse (26.11.2026)
 ### 3a. Nebel (nur Anzeige)
 - Code: `fogScan`, `fogHides`, `drawFog`, `G.troopsSeen` in `src/06_view.js`. Das Raster ist das der Aufstellung (Zellen 16 × 16 Felder, statt der besprochenen 8 × 8: es ist schon da, und auf der Erde sind es so etwa 60 000 Zellen).
-- **In Sicht** ist, was höchstens 3 Zellen (etwa 50 Felder) vom eigenen Land entfernt liegt, in Schritten gezählt, nicht im Kreis (`G.LANG.fogSee`); dazu das Land von Verbündeten nach 5 Minuten samt Rand, der Kreis der eigenen Radare (und derer von Verbündeten nach 15 Minuten) und das ganze Land eines Reichs, in dem ein eigener Spion ist.
+- **In Sicht** ist, was höchstens 3 Zellen (etwa 50 Felder) vom eigenen Land entfernt liegt, in Schritten gezählt, nicht im Kreis (`G.LANG.fogSee`); dazu das Land von Verbündeten nach 3 Minuten samt Rand, der Kreis der eigenen Radare (und derer von Verbündeten nach 6 Minuten) und das ganze Land eines Reichs, in dem ein eigener Spion ist.
 - **Im Nebel** sieht man nur, wem das Land gehört, und den Namen. Keine Gebäude, Schiffe, Bomben, keine Dichte (dazu weiterhin nur 2 Zellen hinter der Grenze, 1b). Über dem Nebel liegt ein dunkler Schleier.
-- **Truppen** (Namen auf der Karte, Rangliste, Info, Karte beim Darüberfahren, Urteil beim Angriff): genau für sich selbst, Verbündete nach 5 Minuten und Reiche unter Spionage; mit zwei Ziffern («~35K»), wenn der Name des Reichs in Sicht ist; sonst mit einer Ziffer («~40K»), eine grobe Schätzung.
+- **Truppen** (Namen auf der Karte, Rangliste, Info, Karte beim Darüberfahren, Urteil beim Angriff): genau für sich selbst, Verbündete nach 3 Minuten und Reiche unter Spionage; mit zwei Ziffern («~35K»), wenn der Name des Reichs in Sicht ist; sonst mit einer Ziffer («~40K»), eine grobe Schätzung.
 - **Ausnahmen:** Eine Bombe, die auf das eigene Land zielt, erscheint spätestens 10 s vor dem Einschlag. Ein Silo, das feuert, ist eine Minute lang für alle sichtbar (`firedAt`). Ein Boot, das zu einem fährt, ist immer zu sehen.
 - Neu gerechnet höchstens einmal pro Sekunde, und nur wenn sich das eigene Land, das eines Verbündeten oder etwa alle 10 s etwas anderes geändert hat. Auf der Seite gerechnet, die Simulation ändert sich dadurch nicht. Bots und Nationen sehen weiter alles (Nebel als Regel in der Simulation erst, wo nötig). Ein Server könnte später jedem Spieler nur seine Sicht schicken.
 
@@ -159,11 +159,11 @@ Code: `src/04c_lang.js` (Abschnitt «weapons»), Haken in `buildCheck`, `build`,
 - Satellit, Frühwarnradar und Tarnung erkennen kommen mit der Forschung (Paket 4).
 
 ### 3c. Bündnisse werden wertvoller
-- Ein Bündnis merkt sich, seit wann es besteht (`al.since`, `allyAge`). Sofort: die Grenzen wie bei jedem. Nach 5 Minuten: die Sicht des Partners (`allySees`) und seine Truppen genau. Nach 15 Minuten: auch sein Radar, und man darf Stützpunkte bauen (`allyRadar`). Die Info des Partners sagt, wie weit das Bündnis ist.
+- Ein Bündnis merkt sich, seit wann es besteht (`al.since`, `allyAge`). Ein Bündnis dauert im Modus 8 Minuten (`G.LANG.allyTicks`, klassisch 5), Verlängern behält das Alter. Sofort: die Grenzen wie bei jedem. Nach 3 Minuten: die Sicht des Partners (`allySees`) und seine Truppen genau. Nach 6 Minuten: auch sein Radar, und man darf Stützpunkte bauen (`allyRadar`). Bis 27.11.2026 waren es 5 und 15 Minuten, das Bündnis lief aber nach 5 Minuten ab: Ohne zweimaliges Verlängern kam man nie zu Stützpunkten (siehe unten, A1). Die Info des Partners sagt, wie weit das Bündnis ist.
 - Wer bricht, verliert alles; ein neues Bündnis beginnt bei null.
 
 ### 3d. Stützpunkte
-- Hafen, Silo oder Flugabwehr (auch Raketenabwehr und Radar) im Land eines Verbündeten, mit dem man seit 15 Minuten verbündet ist (`baseHost`, `buildCheck`). Ein Mensch muss es erlauben («Stützpunkte erlauben» in der Info des Verbündeten, Befehl `{k:'host', p, on}`), eine Nation erlaubt es immer.
+- Hafen, Silo oder Flugabwehr (auch Raketenabwehr und Radar) im Land eines Verbündeten, mit dem man seit 6 Minuten verbündet ist (`baseHost`, `buildCheck`). Ein Mensch muss es erlauben («Stützpunkte erlauben» in der Info des Verbündeten, Befehl `{k:'host', p, on}`), eine Nation erlaubt es immer.
 - Der Stützpunkt gehört dem Bauenden (`u.base` = Gastland). Er zahlt dem Gastland 100 Gold pro Tick (60K pro Minute, `rent`), auch wenn ihm das Gold ausgeht, bis zu dem, was er hat.
 - Endet das Bündnis, geht der Stützpunkt nach 30 s an das Gastland (`baseLeave`, `langBases`). Erobert ein anderer das Feld, nimmt er ihn wie jedes Gebäude.
 - Der Flugplatz als Stützpunkt kommt mit Paket 5.
@@ -291,3 +291,10 @@ Code: `G.ISLES`, `G.ISLE_R` und `buildWorld(def, cls, cost, hgt, { isles: true }
 - **Bleiben, wie klein sie auch sind:** Sonst fällt jede Insel unter 100 Feldern weg (`G.MIN_ISLAND`). Jede Insel der Liste bekommt mindestens eine Scheibe mit Halbmesser 4 Feldern Land (rund 50 Felder, genug für Hafen und Flugplatz). Wo schon Land ist, ändert sich nichts.
 - **Nationen starten nicht dort:** Nationen starten nicht auf den Inseln unter 1000 Feldern (`map.isle`), sondern auf freiem Land in der Nähe. Island und Sri Lanka sind grösser und bleiben offen.
 - Keine Szene: Die Szenen laufen auf kleinen eigenen Karten, die Inseln gibt es nur auf der Erde. Geprüft mit `test/inseln.js`.
+
+## Rückmeldungen aus dem ersten Test (27.11.2026)
+### A1. Bündnis und Stützpunkte
+- **Fehler:** Ein Bündnis lief nach 5 Minuten ab (`ALLIANCE_TICKS`), Stützpunkte gab es erst nach 15 Minuten Bündnis. Ohne zweimaliges Verlängern kam man nie dazu. Im Test bestätigt (Bündnis weg nach 3009 Ticks).
+- **Neu:** Ein Bündnis dauert im Modus 8 Minuten (`G.LANG.allyTicks` = 4800, `allyTicks()`), im klassischen Spiel bleiben es 5. Sicht nach 3 Minuten (`allySight` = 1800), Radar und Stützpunkte nach 6 Minuten (`allyRadar` = 3600). Beim Verlängern bleibt `al.since`.
+- Geprüft mit zwei Menschen: vor 6 Minuten «Stützpunkte erst nach 6 Minuten Bündnis», danach «B erlaubt keine Stützpunkte», nach «Stützpunkte erlauben» baut A das Silo im Land von B, Pacht fliesst, nach dem Bruch geht es nach 30 s an B. «Stützpunkte erlauben» funktionierte schon; eine Anfrage vom Bauenden an den Gastgeber gibt es nicht, der Gastgeber muss es von sich aus erlauben.
+- Szene 136.
