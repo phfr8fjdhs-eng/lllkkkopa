@@ -21,7 +21,7 @@
   // ---------- what does not go across, or goes another way ----------
   // the game: tile arrays have their own channel, lists of objects too, the rest is the worker's
   // own working memory
-  const SKIP_GAME = new Set(['armed', 'salvoQ', 'map', 'sea', 'rng', 'owner', 'fallout', 'stamp', 'sid', 'q', 'dirty', 'dirtyN', 'dirtyFlag',
+  const SKIP_GAME = new Set(['armed', 'salvoQ', 'map', 'sea', 'rng', 'owner', 'fallout', 'stamp', 'sid', 'q', 'dirty', 'dirtyN', 'dirtyFlag', 'edge',
     'players', 'units', 'attacks', 'rails', 'events', 'fx', 'pathLeg', 'pathNear', 'pathCache', 'pathQ', 'pathJob', 'nearQ', 'nearJob',
     'postHeap', 'postList', 'pocketQ', 'railHeap', 'thrustHeap', 'deferList', 'sg', 'cloakOk', 'opts', 'lv']);
   // a player: the border is sent for the person at this device only (the mirror works it out

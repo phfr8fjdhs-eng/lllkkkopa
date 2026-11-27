@@ -1741,6 +1741,10 @@ body.placing #cv { cursor: crosshair; }
     // the tiles changed since the last picture: a list that grows when needed (24.11.2026; one
     // slot for every tile was 65 MB on the Earth, a tick changes some ten thousand)
     this.dirty = new Int32Array(Math.min(N, 1 << 16)); this.dirtyN = 0; this.dirtyFlag = new Uint8Array(N);
+    // one bit per tile: the tile is in the border set of its owner (always the same as
+    // players[owner[t]].border.has(t)). The sets keep what they hold and its order; the bit only
+    // spares the set operations that change nothing and the lookups (27.11.2026, doku/leistung.md).
+    this.edge = new Int32Array((N + 31) >> 5);
     this.sea = map.sea || (map.sea = new G.SeaGraph(map));   // built once per map, shared by every game on it
     this.pathLeg = new G.Pathfinder(map, 160000); this.pathCache = new Map(); this.pathQ = []; this.pathJob = null;
     this.pathNear = new G.Pathfinder(map, 260000); this.nearQ = []; this.nearJob = null;   // short hops: a window of at most 260 000 tiles
@@ -1956,8 +1960,9 @@ body.placing #cv { cursor: crosshair; }
     const W = this.W, x = t % W, y = (t - x) / W;
     const edge = (x > 0 && own[t - 1] !== id) || (x < W - 1 && own[t + 1] !== id) ||
       (y > 0 && own[t - W] !== id) || (y < this.H - 1 && own[t + W] !== id);
-    const set = this.players[id].border;
-    if (edge) set.add(t); else set.delete(t);
+    const eb = this.edge, w = t >> 5, bit = 1 << (t & 31), was = (eb[w] & bit) !== 0;
+    if (edge) { if (!was) { this.players[id].border.add(t); eb[w] |= bit; } }
+    else if (was) { this.players[id].border.delete(t); eb[w] &= ~bit; }
   };
   Game.prototype.fixAround = function (t) {
     const W = this.W, x = t % W, y = (t - x) / W;
@@ -1970,7 +1975,7 @@ body.placing #cv { cursor: crosshair; }
   Game.prototype.conquer = function (p, t) {
     const own = this.owner, prev = own[t], id = p.id;
     if (prev === id) return;
-    if (prev) { const q = this.players[prev]; q.tiles--; q.border.delete(t); q.lastChange = this.ticks; if (q.post) this.postLose(q, t); }
+    if (prev) { const q = this.players[prev]; q.tiles--; q.border.delete(t); this.edge[t >> 5] &= ~(1 << (t & 31)); q.lastChange = this.ticks; if (q.post) this.postLose(q, t); }
     own[t] = id; p.tiles++; p.lastChange = this.ticks;
     if (this.res) this.resMove(prev, id, t);
     if (p.post) this.postGain(p, t);
@@ -1988,7 +1993,7 @@ body.placing #cv { cursor: crosshair; }
     const own = this.owner, prev = own[t];
     if (!prev) return;
     const q = this.players[prev];
-    q.tiles--; q.border.delete(t); q.lastChange = this.ticks; own[t] = 0;
+    q.tiles--; q.border.delete(t); this.edge[t >> 5] &= ~(1 << (t & 31)); q.lastChange = this.ticks; own[t] = 0;
     if (this.res) this.resMove(prev, 0, t);
     if (q.post) this.postLose(q, t);
     this.fixAround(t); this.dirtyFlag[t] = 2;
@@ -2907,7 +2912,7 @@ body.placing #cv { cursor: crosshair; }
   // ---------- cut-off pockets ----------
   Game.prototype.removeClusters = function (p) {
     const W = this.W, H = this.H, own = this.owner, id = p.id, st = this.stamp, sid = ++this.sid;
-    const border = p.border, clusters = [];
+    const border = p.border, eb = this.edge, clusters = [];
     for (const start of border) {
       if (st[start] === sid) continue;
       const cl = [start];
@@ -2921,7 +2926,7 @@ body.placing #cv { cursor: crosshair; }
             const xx = x + dx;
             if (xx < 0 || xx >= W || (!dx && !dy)) continue;
             const n = yy * W + xx;
-            if (st[n] !== sid && own[n] === id && border.has(n)) { st[n] = sid; cl.push(n); }
+            if (st[n] !== sid && own[n] === id && (eb[n >> 5] & (1 << (n & 31)))) { st[n] = sid; cl.push(n); }
           }
         }
       }
@@ -3049,7 +3054,9 @@ body.placing #cv { cursor: crosshair; }
     for (const a of p.inc.slice()) this.endAttack(a, true);
     for (const u of p.units.slice()) if (u.type < UT.ATOM) this.removeUnit(u);
     for (const e of p.allies) this.players[e[0]].allies.delete(p.id);
-    p.allies.clear(); p.border.clear();
+    p.allies.clear();
+    for (const t of p.border) this.edge[t >> 5] &= ~(1 << (t & 31));
+    p.border.clear();
     if (p === this.human) this.emit({ k: 'defeat' });
   };
   Game.prototype.reap = function () {
@@ -7947,7 +7954,7 @@ body.placing #cv { cursor: crosshair; }
   // ---------- what does not go across, or goes another way ----------
   // the game: tile arrays have their own channel, lists of objects too, the rest is the worker's
   // own working memory
-  const SKIP_GAME = new Set(['armed', 'salvoQ', 'map', 'sea', 'rng', 'owner', 'fallout', 'stamp', 'sid', 'q', 'dirty', 'dirtyN', 'dirtyFlag',
+  const SKIP_GAME = new Set(['armed', 'salvoQ', 'map', 'sea', 'rng', 'owner', 'fallout', 'stamp', 'sid', 'q', 'dirty', 'dirtyN', 'dirtyFlag', 'edge',
     'players', 'units', 'attacks', 'rails', 'events', 'fx', 'pathLeg', 'pathNear', 'pathCache', 'pathQ', 'pathJob', 'nearQ', 'nearJob',
     'postHeap', 'postList', 'pocketQ', 'railHeap', 'thrustHeap', 'deferList', 'sg', 'cloakOk', 'opts', 'lv']);
   // a player: the border is sent for the person at this device only (the mirror works it out
