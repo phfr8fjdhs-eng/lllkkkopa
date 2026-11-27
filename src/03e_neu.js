@@ -42,6 +42,15 @@
 
   G.NEUES = [
     {
+      n: 144, date: '27.11.2026', title: 'Langes Spiel: Bauleiste in vier Gruppen', lang: true,
+      text: 'Die Bauleiste hat oben vier Reiter: Gebäude, Bomben und Raketen, Schiffe, Flugzeuge. Taste R geht zur nächsten Gruppe (Shift + R zurück), 1, 2, 3 … wählen darin. Auf dem Handy hat das Baumenü dieselben vier Reiter.',
+      map: STRAIT,
+      me: { x: 150, y: 20, box: [0, 0, 300, 46], troops: 60000, gold: 5000000, build: [[UT.PORT, 150, 44, 2], [UT.SILO, 90, 20, 2], [3.5, 210, 20, 2], [UT.CITY, 150, 15, 4]] },
+      foes: [{ name: 'Südküste', x: 150, y: 180, box: [0, 154, 300, 200], troops: 90000, build: [[UT.CITY, 150, 180, 4]] }],
+      allow: ALL, quest: none,
+      tips: [{ text: 'Hier wechselst du die Gruppe (Taste R).', el: '#hotbar .gtabs' }]
+    },
+    {
       n: 143, date: '27.11.2026', title: 'Langes Spiel: Wer schiesst?', lang: true,
       text: 'Jeder Schuss auf ein Flugzeug oder eine Rakete zeigt kurz eine helle Spur vom Schützen: Flugabwehr, Raketenabwehr, Abwehrschiff, Abfangjäger (gestrichelt, wenn er aufsteigt). Wer etwas verliert, liest, wer es war: «Dein Bomber wurde von der Raketenabwehr von X abgeschossen».',
       map: STRAIT,
@@ -97,7 +106,7 @@
     },
     {
       n: 139, date: '27.11.2026', title: 'Langes Spiel: Bomber mit Sprengbomben', lang: true,
-      text: 'Beim Bomber wählst du die Last: Streubombe gegen Truppen wie bisher, oder Sprengbomben (Waffenleiste, gleich daneben): Jedes Gebäude im Zielgebiet verliert ein Viertel seiner Stufen, Stufe 1 fällt, Schutzräume halbieren. Dein Flugplatz schickt abwechselnd beide auf Varnholm.',
+      text: 'Beim Bomber wählst du die Last: Streubombe gegen Truppen wie bisher, oder Sprengbomben (Gruppe «Flugzeuge», gleich daneben): Jedes Gebäude im Zielgebiet verliert ein Viertel seiner Stufen, Stufe 1 fällt, Schutzräume halbieren. Dein Flugplatz schickt abwechselnd beide auf Varnholm.',
       map: { w: 320, h: 200, seed: 939, shapes: [circ(70, 100, 62), circ(235, 100, 80)] },
       me: { x: 70, y: 100, r: 64, troops: 80000, gold: 0, build: [[3.5, 95, 100, 3]] },
       foes: [{ name: 'Varnholm', x: 235, y: 100, r: 82, troops: 150000, build: [[UT.CITY, 205, 95, 8], [UT.FACTORY, 212, 108, 3], [UT.PORT, 160, 100, 2], [UT.CITY, 250, 80, 4]] }],

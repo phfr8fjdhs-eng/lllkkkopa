@@ -49,16 +49,30 @@
     { t: UT.STEALTH, icon: 'stealth', note: 'Atombombe, kaum zu erfassen, fliegt zurück', key: '' },
     { t: UT.RECON, icon: 'recon', note: 'Deckt kurz ein Gebiet auf', key: '' }
   ];
-  // «Langes Spiel»: key R turns the bar to the weapons, then 1, 2, 3 ... pick one (the digits are the
-  // buildings' otherwise). The order of the weapon bar:
-  const WEAPONS = [UT.CRUISE, UT.CLUSTER, UT.BUNKER, UT.THERMO, UT.SRBM, UT.ATOM, UT.HYDRO, UT.MIRV, UT.BOMBER, 23.5, UT.STEALTH, UT.RECON];
-  const WKEY = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', ''];
-  let weaponBar = false, siloSel = 0;
+  // «Langes Spiel» (27.11.2026): the bar in four groups, one tab each; key R goes to the next group
+  // (Shift + R back), then 1, 2, 3 ... pick within the group. The same groups in the build menu.
+  const GROUPS = [
+    { name: 'Gebäude', icon: 'city', ts: [UT.CITY, UT.FACTORY, UT.PORT, UT.DEFENSE, UT.SILO, UT.SAM, 4.5, 4.7] },
+    { name: 'Bomben und Raketen', short: 'Raketen', icon: 'cruise', ts: [UT.CRUISE, UT.CLUSTER, UT.BUNKER, UT.THERMO, UT.SRBM, UT.ATOM, UT.HYDRO, UT.MIRV] },
+    { name: 'Schiffe', icon: 'warship', ts: [UT.WARSHIP, 7.5, 7.2, 7.7, 7.3, 7.4, 7.9] },
+    { name: 'Flugzeuge', icon: 'airfield', ts: [3.5, UT.BOMBER, 23.5, UT.STEALTH, UT.RECON] }
+  ];
+  const GKEY = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'];
+  let barGroup = 0, siloSel = 0;
   const salvoList = [];   // planned strikes (Shift + click), fired together with Enter
+  function groupItems(gi) {
+    const out = [];
+    for (const t of GROUPS[gi].ts) { const b = BUILD.find(function (x) { return x.t === t; }); if (b && offered(t)) out.push({ b: b, key: GKEY[out.length] || '' }); }
+    return out;
+  }
   function barItems() {
     if (!game.lang) return BUILD.filter(function (b) { return offered(b.t); }).map(function (b) { return { b: b, key: b.key }; });
-    if (weaponBar) return WEAPONS.map(function (t, i) { return { b: BUILD.find(function (b) { return b.t === t; }), key: WKEY[i] }; }).filter(function (c) { return offered(c.b.t); });
-    return BUILD.filter(function (b) { return b.t < UT.ATOM && offered(b.t); }).map(function (b) { return { b: b, key: b.key }; });
+    return groupItems(barGroup);
+  }
+  function setGroup(gi, say) {
+    barGroup = (gi + GROUPS.length) % GROUPS.length; setGhost(null); hotSig = '';
+    if (say) toast(GROUPS[barGroup].name + ': 1, 2, 3 … wählt');
+    if (!$('sheet').hidden && buildTile >= 0) openBuild(buildTile);
   }
   const FIELD = 3.5;   // «Langes Spiel»: the airfield is silo class 1
   const TERRAIN = ['Ebene', 'Hochland', 'Gebirge'];
@@ -901,14 +915,23 @@
       const have = ownBadge(h, b.t);
       return { b: b, key: it.key, cost: wait > 0 ? wait + ' s' : fmt(cost), poor: wait > 0 || (!rich && h.gold < cost), have: have, on: !!ghost && ghost.t === b.t };
     });
-    const sig = (weaponBar ? 'W' : '') + cells.map(function (c) { return c.cost + (c.poor ? '!' : '') + c.have.n + c.have.cls + (c.on ? '*' : ''); }).join('|');
+    const sig = barGroup + ':' + cells.map(function (c) { return c.cost + (c.poor ? '!' : '') + c.have.n + c.have.cls + (c.on ? '*' : ''); }).join('|');
     if (sig === hotSig) return;
     hotSig = sig;
-    // «Langes Spiel»: the first button switches between buildings and weapons (key R)
-    el.innerHTML = (game.lang ? '<button type="button" class="hk wb" data-wb="1" aria-pressed="' + weaponBar + '" title="Taste R: ' + (weaponBar ? 'Gebäude' : 'Waffen') + '"><kbd>R</kbd>' + svg(weaponBar ? 'city' : 'cruise', 22) + '<span>' + (weaponBar ? 'Bauen' : 'Waffen') + '</span></button>' : '') + cells.map(function (c) {
+    // «Langes Spiel»: four tabs on top (key R goes to the next), the group's items below
+    const items = cells.map(function (c) {
       return '<button type="button" class="hk' + (c.poor ? ' poor' : '') + '" data-t="' + c.b.t + '" aria-pressed="' + c.on + '" title="' + plain(c.b.t) + ': ' + esc(c.b.note) + '">' +
         '<kbd>' + c.key.toUpperCase() + '</kbd>' + badge(c.have) + svg(c.b.icon, 22) + '<span>' + c.cost + '</span></button>';
     }).join('');
+    el.classList.toggle('groups', !!game.lang);
+    el.innerHTML = game.lang ? groupTabs('gtab') + '<div class="hkrow">' + items + '</div>' : items;
+  }
+  // the four tabs of «Langes Spiel», for the bar and the build menu
+  function groupTabs(cls) {
+    return '<div class="' + cls + 's" role="tablist">' + (cls === 'gtab' ? '<kbd title="Taste R: nächste Gruppe">R</kbd>' : '') + GROUPS.map(function (gr, i) {
+      const n = groupItems(i).length;
+      return '<button type="button" class="' + cls + '" role="tab" data-grp="' + i + '" aria-selected="' + (i === barGroup) + '"' + (n ? '' : ' disabled') + '>' + svg(gr.icon, 16) + '<span>' + (gr.short || gr.name) + '</span></button>';
+    }).join('') + '</div>';
   }
 
   function hudTick() {
@@ -1211,8 +1234,8 @@
         '<small>Jetzt: ' + levelText(near.type, near.level) + '</small>' +
         (max ? '<small>' + (top === 1 ? 'Hat keine Stufen' : 'Höchste Stufe erreicht') + '</small>' : '<small class="next">Stufe ' + (near.level + 1) + ': ' + levelText(near.type, near.level + 1) + '</small>') + '</div></div>' + btns + '</div>';
     }
-    const cell = function (b) {
-      const nuke = b.t >= UT.ATOM;
+    const cell = function (b, key) {
+      const plane = game.lang && G.isPlane(real(b.t).u), nuke = b.t >= UT.ATOM && !plane;
       let ok, note, cost = costOf(h, b.t);
       if (b.t === UT.LASER) {
         const wait = (h.laserAt || 0) - game.ticks;
@@ -1231,11 +1254,16 @@
       const lager = b.t === UT.WARSHIP || b.t === BS || b.t === 7.2 || b.t === 7.3 || b.t === 7.4 || b.t === 7.7 ? game.stored(h, real(b.t).cls) : 0;
       if (lager && ok) note = 'Aus dem Lager (' + lager + ' im Hafen), gratis';
       const extra = lager ? '<button class="item" type="button" data-t="' + b.t + '" data-fresh="1"><span class="ic">' + svg(b.icon, 24) + '</span><b>Neu bauen</b><small>' + esc(b.note) + '</small>' + coin(costOf(h, b.t)) + '</button>' : '';
-      return extra + '<button class="item' + (nuke ? ' nuke' : '') + (!game.opts.infiniteGold && h.gold < cost ? ' poor' : '') + '" type="button" data-t="' + b.t + '"' + (ok ? '' : ' disabled') + '><kbd>' + b.key.toUpperCase() + '</kbd>' + badge(have) +
+      return extra + '<button class="item' + (nuke ? ' nuke' : '') + (!game.opts.infiniteGold && h.gold < cost ? ' poor' : '') + '" type="button" data-t="' + b.t + '"' + (ok ? '' : ' disabled') + '><kbd>' + (key === undefined ? b.key : key).toUpperCase() + '</kbd>' + badge(have) +
         '<span class="ic">' + svg(b.icon, 24) + '</span><b>' + G.UNAME[b.t] + '</b><small>' + esc(note) + '</small>' + coin(cost) + '</button>';
     };
-    html += '<h3>Gebäude</h3><div class="grid">' + BUILD.filter(function (b) { return b.t <= UT.CLOAK && offered(b.t); }).map(cell).join('') + '</div>';
-    html += '<h3>Flotte und Raketen</h3><div class="grid">' + BUILD.filter(function (b) { return b.t > UT.CLOAK && offered(b.t); }).map(cell).join('') + '</div>';
+    if (game.lang) {
+      // «Langes Spiel»: the same four groups as the bar, as tabs (big enough for a finger)
+      html += groupTabs('stab') + '<div class="grid">' + groupItems(barGroup).map(function (c) { return cell(c.b, c.key); }).join('') + '</div>';
+    } else {
+      html += '<h3>Gebäude</h3><div class="grid">' + BUILD.filter(function (b) { return b.t <= UT.CLOAK && offered(b.t); }).map(function (b) { return cell(b); }).join('') + '</div>';
+      html += '<h3>Flotte und Raketen</h3><div class="grid">' + BUILD.filter(function (b) { return b.t > UT.CLOAK && offered(b.t); }).map(function (b) { return cell(b); }).join('') + '</div>';
+    }
     $('sheetBody').innerHTML = html;
     $('purse').innerHTML = svg('gold', 15) + (game.opts.infiniteGold ? '∞' : fmt(h.gold));
     $('sheet').hidden = false; sheetAt = performance.now();
@@ -1250,7 +1278,7 @@
     if (t === UT.LASER) { startAim(t, tile); return; }
     if (t >= UT.ATOM) {
       const h = game.human, s = game.readySilo(h, tile);
-      if (!s.any) { toast('Dafür brauchst du ein Raketensilo' + (game.lang && game.subCan(h, t) ? ' oder ein U-Boot' : '')); snd('deny'); return; }
+      if (!s.any && !(game.lang && G.isPlane(real(t).u))) { toast('Dafür brauchst du ein Raketensilo' + (game.lang && game.subCan(h, t) ? ' oder ein U-Boot' : '')); snd('deny'); return; }
       startAim(t, tile);
       return;
     }
@@ -1355,8 +1383,9 @@
   function closeBuild() { $('sheet').hidden = true; if (view) { view.mark = -1; view.selUnit = null; } }
   function onBuild(e) {
     if (performance.now() - sheetAt < 350) return;
-    const b = e.target.closest('[data-t],[data-up],[data-shelter],[data-uni]');
+    const b = e.target.closest('[data-t],[data-up],[data-shelter],[data-uni],[data-grp]');
     if (!b || b.disabled) return;
+    if (b.dataset.grp !== undefined) { setGroup(+b.dataset.grp); return; }   // a tab: the menu stays open
     if (b.dataset.uni) act({ k: 'uni', t: buildTile, say: 'Uni gebaut' });
     else if (b.dataset.shelter) act({ k: 'shelter', t: buildTile, say: 'Schutzräume gebaut' });
     else if (b.dataset.up) doUpgrade(buildTile, +b.dataset.up);
@@ -1389,7 +1418,7 @@
   function refreshAim() {
     const h = game.human;
     if (!h.alive) { stopAim(); return; }
-    const c = game.buildCheck(h, aim.type, aim.tile), W = game.W;
+    const c = game.buildCheck(h, real(aim.type).u, aim.tile, real(aim.type).cls), W = game.W;
     const silo = aim.type === UT.LASER ? null : c.silo || game.readySilo(h, aim.tile).silo || h.units.find(function (u) { return u.type === UT.SILO && u.built; }) || null;
     view.aim = { type: aim.type, tile: aim.tile, silo: silo, ok: c.ok };
     let text, warn = false;
@@ -1408,7 +1437,7 @@
   }
   function fireAim() {
     if (!aim) return;
-    act({ k: 'build', u: aim.type, t: aim.tile, say: G.UNAME[aim.type].replace('­', '') + ' gestartet' });
+    act({ k: 'build', u: real(aim.type).u, cls: real(aim.type).cls || undefined, t: aim.tile, say: G.UNAME[aim.type].replace('­', '') + ' gestartet' });
     stopAim();
   }
 
@@ -1918,6 +1947,8 @@
     if (net) h += '<h4>Aufstellung</h4>' + row(K('V') + ' halten', 'Verdichten, wo die Maus ist') + row(K('Shift') + K('V'), 'halten: ausdünnen') +
       row('+ / −', 'Rechts am Rand: einmal ziehen, lange drücken bleibt an') + row('2× tippen', 'und halten: verdichten') + row(K('N'), 'Aufstellung mit allem');
     h += '<h4>Bauen</h4>' + row(K('U'), 'Gebäude unter der Maus ausbauen') + row(K('Shift') + K('1') + '–' + K('6'), 'Nächstes dieser Art ausbauen') + row(K('Strg') + ' Klick', 'Baumenü') +
+      (game && game.lang ? row(K('R'), 'Nächste Gruppe: Gebäude, Raketen, Schiffe, Flugzeuge') + row(K('Shift') + K('R'), 'Gruppe zurück') + row(K('1') + '–' + K('0'), 'In der Gruppe wählen') +
+        row(K('Shift') + ' Klick', 'Schlag planen') + row(K('Enter'), 'Geplante Schläge feuern') : '') +
       '<h4>Mitspieler</h4>' + row(K('K'), 'Allianz anfragen') + row(K('L'), 'Allianz brechen') + row(K('I'), 'Spieler-Info') +
       '<h4>Karte und Spiel</h4>' + row(K('Q') + K('E'), 'Zoom −/+') + row(K('W') + K('A') + K('S') + K('D'), 'Karte schieben') + row(K('C'), 'Zum eigenen Gebiet') +
       (game && game.res ? row(K('R'), 'Vorkommen ein/aus') : '') +
@@ -2330,7 +2361,7 @@
       if (k === '.' || k === ',') { if (!mp) setSpeed(k === '.' ? 1 : -1); return; }
       if (e.repeat || game.phase !== 'play' || !game.human.alive) return;
       if (aim) { if (k === 'enter' && !$('aimGo').disabled) fireAim(); return; }
-      if (game.lang && k === 'r') { weaponBar = !weaponBar; setGhost(null); toast(weaponBar ? 'Waffenleiste: 1, 2, 3 … wählt die Waffe' : 'Bauleiste'); return; }
+      if (game.lang && k === 'r') { setGroup(barGroup + (e.shiftKey ? -1 : 1), true); return; }
       if (game.lang && k === 'enter' && salvoList.length) { fireSalvo(); return; }
       if (game.lang && k === 'backspace' && salvoList.length) { salvoList.pop(); view.salvo = salvoList; if (salvoList.length) salvoLate(); toast('Letztes Ziel entfernt'); return; }
       if (k === 'enter' && game.pfeile) { launchPlans(); return; }
@@ -2462,9 +2493,9 @@
     document.addEventListener('fullscreenchange', function () { fsShow(); view.resize(); });
     document.addEventListener('webkitfullscreenchange', function () { fsShow(); view.resize(); });
     $('hotbar').addEventListener('click', function (e) {
-      const b = e.target.closest('.hk');
+      const b = e.target.closest('.hk,.gtab');
       if (!b || !game || game.phase !== 'play' || !game.human.alive) return;
-      if (b.dataset.wb) { weaponBar = !weaponBar; setGhost(null); return; }
+      if (b.dataset.grp !== undefined) { setGroup(+b.dataset.grp); return; }
       const t = +b.dataset.t;
       if (aim) stopAim();
       closeRadial(); if (!$('sheet').hidden) closeBuild();

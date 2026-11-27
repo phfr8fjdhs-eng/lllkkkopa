@@ -139,7 +139,7 @@ Code: `src/04c_lang.js` (Abschnitt «weapons»), Haken in `buildCheck`, `build`,
 - Ein Silo, das feuert, verrät seinen Standort: gilt mit dem Nebel (Paket 3).
 
 ### 2d. Bedienung
-- **Waffenleiste:** Taste `R` (oder der erste Knopf der Leiste, «Waffen» / «Bauen») schaltet die Bauleiste auf die Waffen um: `1` Marschflugkörper, `2` Streubombe, `3` Bunkerbrecher, `4` thermobare Bombe, `5` Kurzstreckenrakete, `6` Atombombe, `7` Wasserstoffbombe, `8` MIRV. In der Bauleiste stehen dann nur Gebäude und Schiffe (wie bisher `1` bis `8`, dazu `J` Raketenabwehr).
+- **Waffenleiste** (bis 27.11.2026, seither vier Gruppen, B1): Taste `R` (oder der erste Knopf der Leiste, «Waffen» / «Bauen») schaltet die Bauleiste auf die Waffen um: `1` Marschflugkörper, `2` Streubombe, `3` Bunkerbrecher, `4` thermobare Bombe, `5` Kurzstreckenrakete, `6` Atombombe, `7` Wasserstoffbombe, `8` MIRV. In der Bauleiste stehen dann nur Gebäude und Schiffe (wie bisher `1` bis `8`, dazu `J` Raketenabwehr).
 - **Schläge planen:** Shift + Klick mit einer Waffe setzt ein Ziel (gelbes Fadenkreuz mit Nummer und Linie zum Silo), bis 12. `Enter` feuert alle zusammen, `Backspace` nimmt das letzte weg, `Esc` verwirft alle. Die Simulation (`salvo`, `langSalvoTick`) startet jede Waffe so, dass alle gleichzeitig einschlagen (Scharfmachen eingerechnet); jede wird beim Start geprüft und bezahlt. Das ist die Antwort auf starke Flugabwehr, die pro Salve nur wenige abschiesst.
 - Szenen 126 (Abschreckung) und 127 (konventionelle Waffen).
 
@@ -366,3 +366,12 @@ Code: `shotDown` in `src/04c_lang.js` (aus `tickSamMissile`, `tickFighter`, `shi
 - **Meldung** beim Besitzer: «Dein Bomber wurde von der Raketenabwehr von X abgeschossen» (Flugzeuge «abgeschossen», Raketen und Bomben «abgefangen»; Schützen: Flugabwehr, Raketenabwehr, Abwehrschiff, Zerstörer, Abfangjäger). Beim Schützen: «Deine Raketenabwehr hat einen Bomber von X abgeschossen».
 - Nur im Modus; das klassische Spiel behält seine Meldungen.
 - Szene 143.
+
+## Teil B: Bedienung (27.11.2026)
+### B1. Bauleiste in vier Gruppen
+Code: `GROUPS`, `groupItems`, `setGroup`, `groupTabs` in `src/07_ui.js`, Stil `.gtab`, `.stab` in `src/template.html`.
+- Statt «Bauen» / «Waffen» hat die Bauleiste oben vier Reiter: **Gebäude** (Stadt, Fabrik, Hafen, Posten, Silo, Flugabwehr, Raketenabwehr, Radar), **Bomben und Raketen** (Marschflugkörper, Streubombe, Bunkerbrecher, thermobare Bombe, Kurzstreckenrakete, Atombombe, Wasserstoffbombe, MIRV), **Schiffe** (Zerstörer, Schlachtschiff, U-Boot, Flugzeugträger, Abwehrschiff, Radarschiff, Seemine), **Flugzeuge** (Flugplatz, Bomber, Sprengbomber, Tarnbomber, Aufklärer).
+- **Tasten:** `R` nächste Gruppe, Shift + `R` zurück; in der Gruppe `1`, `2`, `3` … `0` der Reihe nach (die Zahl steht auf jedem Knopf). Die festen Buchstaben `J` und `X` gibt es im Modus nicht mehr. Hilfe-Fenster («?») und `doku/spielregeln.md` nachgeführt.
+- **Handy:** Das Baumenü hat dieselben vier Reiter, gross genug für einen Finger (48 Pixel hoch), und zeigt nur die gewählte Gruppe. Ein Tipp auf einen Reiter lässt das Menü offen.
+- Flugzeuge aus dem Baumenü prüfen jetzt den Flugplatz statt eines Silos.
+- Szene 144.

@@ -436,12 +436,25 @@ body.placing #cv { cursor: crosshair; }
 @media (min-width: 1160px) and (hover: hover) and (pointer: fine) {
   #hotbar:not([hidden]) { position: absolute; left: 448px; bottom: 8px; display: flex; gap: 4px; padding: 5px; pointer-events: auto; }
   #app #toast { bottom: 84px; }
+  #app:has(#hotbar.groups:not([hidden])) #toast { bottom: 118px; }
 }
 .hk {
   position: relative; display: flex; flex-direction: column; align-items: center; gap: 1px; width: 54px; padding: 15px 0 4px;
   color: var(--ink); background: rgba(255, 255, 255, 0.05); border: 1.5px solid transparent; border-radius: 9px; cursor: pointer;
 }
 .hk:hover { background: rgba(255, 255, 255, 0.11); }
+/* «Langes Spiel»: the bar in four groups, tabs on top (key R), the group's items below */
+#hotbar.groups:not([hidden]) { flex-direction: column; gap: 5px; }
+.hkrow { display: flex; gap: 4px; }
+.gtabs { display: flex; align-items: center; gap: 4px; }
+.gtabs kbd { font-size: 10.5px; line-height: 13px; padding: 0 4px; margin-right: 2px; }
+.gtab, .stab { display: flex; align-items: center; justify-content: center; gap: 5px; color: var(--muted); background: rgba(255, 255, 255, 0.04); border: 1.5px solid transparent; border-radius: 8px; cursor: pointer; font: 600 12.5px var(--display); letter-spacing: .02em; }
+.gtab { padding: 3px 10px; }
+.gtab:hover, .stab:hover { color: var(--ink); background: rgba(255, 255, 255, 0.1); }
+.gtab[aria-selected=true], .stab[aria-selected=true] { color: var(--ink); border-color: var(--accent); background: rgba(244, 183, 64, 0.16); }
+.gtab:disabled, .stab:disabled { opacity: .35; cursor: default; }
+.stabs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 4px 0 10px; }
+.stab { flex-direction: column; min-height: 48px; padding: 6px 2px; font-size: 13px; }
 .hk[aria-pressed=true] { border-color: var(--accent); background: rgba(244, 183, 64, 0.16); }
 .hk kbd { position: absolute; left: 3px; top: 3px; min-width: 16px; padding: 0 3px; font-size: 10.5px; line-height: 13px; border-bottom-width: 1px; }
 .hk .own { position: absolute; right: 4px; top: 3px; font: 700 10.5px var(--display); font-style: normal; color: var(--muted); }
