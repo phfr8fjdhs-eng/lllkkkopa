@@ -77,6 +77,7 @@ Weitere Ordner: `tools/` (Bauen und Kartenerzeugung, Python), `test/` (Tests, No
 | Wohin das Spiel geht, Reihenfolge der nächsten Schritte | `vision.md` |
 | Leistung: Messungen, Engpässe, Plan | `leistung.md` |
 | Spielmodus «Langes Spiel»: Pakete, Regeln, Zahlen (`G.LANG`, `opts.lang`) | `langes-spiel.md` |
+| Forschung mit Punkten statt Unis (Entwurf, noch nicht gebaut) | `forschung-entwurf.md` |
 
 ## Welcher Test
 - Regeln und Zahlen: `node test/sim.js`, `node test/all.js`
