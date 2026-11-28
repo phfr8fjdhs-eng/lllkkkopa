@@ -4,8 +4,10 @@
 build/index.html      the classic game
 build/rohstoffe.html  the game version «Rohstoffe»: the same game, plus src/03c_res.js and the
                       countries of the Earth (build/laender.json, made by tools/build_countries.py)
+build/pixel-test.html the test page of the pixel style (src/pixel-test.html, plan «Pixel-Stil»,
+                      doku/stil.md); copied to docs/pixel-test.html, next to docs/assets/
 """
-import json, pathlib
+import base64, json, pathlib
 root = pathlib.Path(__file__).resolve().parent.parent
 # The simulation (up to 05b_sync.js) goes into a script block of its own, «sim»: the page runs it,
 # and starts the same text again as the worker the game runs in (src/08b_host.js). The rest is
@@ -13,6 +15,14 @@ root = pathlib.Path(__file__).resolve().parent.parent
 SIM = ["00_util.js", "01_map.js", "02_path.js", "03_game.js", "03b_posture.js", "03d_level.js", "03e_neu.js", "04_units.js", "04b_rail.js", "04c_lang.js", "05_ai.js", "05b_sync.js"]
 PAGE = ["06a_audio.js", "06b_gl.js", "06_view.js", "08_net.js", "08b_host.js", "07_ui.js", "07b_level.js", "07c_neu.js"]
 FILES = SIM + PAGE
+# The pixel style of «Langes Spiel» (doku/stil.md): palette, shapes, pictures. The ship sheet goes
+# in as a data URL.
+PIXEL = ["assets/palette.js", "06c_pixel.js", "06d_pixart.js"]
+def pixel_js():
+    js = "\n".join((root / "src" / f).read_text() for f in PIXEL)
+    sheet = "data:image/png;base64," + base64.b64encode((root / "src" / "assets" / "schiffe-sheet.png").read_bytes()).decode()
+    assert '"/*__PIX_SHEET__*/"' in js
+    return js.replace('"/*__PIX_SHEET__*/"', json.dumps(sheet))
 def page(name, files, head="", title=None, ctry=None):
     sim = head + "\n".join((root / "src" / f).read_text() for f in files if f not in PAGE)
     js = "\n".join((root / "src" / f).read_text() for f in files if f in PAGE)
@@ -35,3 +45,6 @@ if laender.exists():
     i = FILES.index("03_game.js") + 1
     page("rohstoffe.html", FILES[:i] + ["03c_res.js"] + FILES[i:], head="globalThis.G = { VARIANT: 'rohstoffe' };\n",
          title="Grenzland · Rohstoffe", ctry=json.loads(laender.read_text()))
+test = (root / "src" / "pixel-test.html").read_text().replace("/*__JS__*/", pixel_js())
+(root / "build" / "pixel-test.html").write_text(test)
+print("wrote", root / "build" / "pixel-test.html", len(test.encode()), "bytes")

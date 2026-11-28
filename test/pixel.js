@@ -1,0 +1,31 @@
+// Pixel style (src/06c_pixel.js, src/06d_pixart.js, doku/stil.md): every picture built here in
+// Node uses only the measured palette (src/assets/palette.js), the player colour placeholders and
+// the drop shadow; it comes out the same twice; the sizes stay within the plan
+// (building picture A about 32 × 28, picture E at most 96 × 80, outline included: + 2).
+const fs = require('fs'), vm = require('vm'), path = require('path');
+globalThis.G = {};
+for (const f of ['assets/palette.js', '06c_pixel.js', '06d_pixart.js']) vm.runInThisContext(fs.readFileSync(path.join(__dirname, '..', 'src', f), 'utf8'), { filename: f });
+const X = G.Pixel, A = G.PixArt;
+const ok = new Set(X.PAL.values()); ok.add(X.PC1); ok.add(X.PC2); ok.add(X.PC3);
+// shadow: a palette colour × 0.65
+const shade = new Set();
+for (const v of X.PAL.values()) shade.add(X.pack(Math.round((v & 255) * 0.65), Math.round(((v >>> 8) & 255) * 0.65), Math.round(((v >>> 16) & 255) * 0.65)));
+let fail = 0;
+const check = (name, p, maxW, maxH) => {
+  let bad = 0, n = 0;
+  for (const v of p.d) { if (!v) continue; n++; if (!ok.has(v) && !shade.has(v)) bad++; }
+  const size = p.w + ' × ' + p.h;
+  const tooBig = (maxW && p.w > maxW) || (maxH && p.h > maxH);
+  if (bad || tooBig) fail++;
+  console.log((bad || tooBig ? 'FEHLER ' : 'ok     ') + name.padEnd(12) + size.padEnd(10) + n + ' Pixel' + (bad ? ', ' + bad + ' nicht aus der Palette' : '') + (tooBig ? ', zu gross' : ''));
+};
+const same = (a, b) => a.w === b.w && a.h === b.h && a.d.every((v, i) => v === b.d[i]);
+for (const k of ['city', 'factory']) for (let s = 0; s < 5; s++) {
+  const p = A[k](s);
+  check(k + ' ' + 'ABCDE'[s], p, s === 0 ? 36 : 98, s === 0 ? 32 : 82);
+  if (!same(p, A[k](s))) { fail++; console.log('FEHLER ' + k + ' ' + s + ' nicht gleich beim zweiten Mal'); }
+}
+check('boat', A.boat(), 44, 34);
+for (const [lv, st] of [[1, 0], [2, 1], [4, 1], [5, 2], [9, 2], [10, 3], [29, 3], [30, 4], [100, 4]]) if (A.stage(lv) !== st) { fail++; console.log('FEHLER Stufe ' + lv + ' → Bild ' + A.stage(lv)); }
+console.log(fail ? fail + ' Fehler' : 'alles in Ordnung');
+process.exit(fail ? 1 : 0);

@@ -53,6 +53,8 @@ Ziel: grosse Karten, viele Spieler und Einheiten, später Mehrspieler über eine
 | `08_net.js` | 310 | Mehrspieler über MQTT: `G.RELAYS` |
 | `08b_host.js` | 110 | Wo das Spiel läuft: `G.Host` (Worker oder mit `?worker=0` auf der Seite), `exec`, `order`, `step`, `ready` |
 | `07b_level.js` | 210 | Feldzug auf dem Bildschirm: `G.Feldzug` (Levelseite, Quest-Leiste `#lvBar`, Tipps `#lvTip`, Endfenster); nutzt `G.ui` aus `07_ui.js` |
+| `06c_pixel.js` | 370 | Pixel-Stil fürs Lange Spiel (`doku/stil.md`): Pixelpuffer `Pix`, isometrische Formen (`Iso`), Spielerfarbe (`G.Pixel.canvas`), die 8 Schiffe aus dem Sheet (`SHIPS`); Palette `src/assets/palette.js` (`G.PIX_PAL`). Vorerst nur auf der Testseite `docs/pixel-test.html` (`src/pixel-test.html`) |
+| `06d_pixart.js` | 370 | Bilder im Pixel-Stil: `G.PixArt` (`city`, `factory`, `boat`, `stage`) |
 | `07c_neu.js` | 110 | «Änderungen» auf dem Bildschirm: `G.Neuheiten` (Liste, Leiste `#nwBar`, Bildausschnitt `frame`) |
 | `template.html` | | Seitengerüst (HTML und CSS) |
 
@@ -76,6 +78,7 @@ Weitere Ordner: `tools/` (Bauen und Kartenerzeugung, Python), `test/` (Tests, No
 | Bereich «Änderungen»: Szenen, wie man eine neue einträgt | `neuheiten.md` |
 | Wohin das Spiel geht, Reihenfolge der nächsten Schritte | `vision.md` |
 | Leistung: Messungen, Engpässe, Plan | `leistung.md` |
+| Pixel-Stil des Langen Spiels: Regeln, Spielerfarbe, Aufbau | `stil.md` |
 | Spielmodus «Langes Spiel»: Pakete, Regeln, Zahlen (`G.LANG`, `opts.lang`) | `langes-spiel.md` |
 
 ## Welcher Test
@@ -89,5 +92,6 @@ Weitere Ordner: `tools/` (Bauen und Kartenerzeugung, Python), `test/` (Tests, No
 - «Änderungen» (jede Szene baut sich, bleibt gleich, zeigt ihre Änderung): `node test/neu.js`
 - Bedienung im Browser: `node test/ui.js` (braucht Playwright und Chrome), schnelles Verdichten, Kürzel, Bauleiste: `node test/pinsel.js`
 - Spielmodus «Langes Spiel»: `node test/lang.js`, Gleichlauf `node test/det.js lang`, Inseln auf der Erde `node --max-old-space-size=6144 test/inseln.js`
+- Pixel-Stil (Palette, Grössen, gleich beim zweiten Mal): `node test/pixel.js`; Testseite `docs/pixel-test.html` (nach dem Build)
 - Leistung: `node test/phasen.js` (wohin ein Tick geht: Eroberung, Dichte, Bots, mit Spitzen), `node test/stress.js` (Simulation mit 100 bis 10 000 Schiffen), `node test/stress_view.js` (Bild, nach dem Build), `node --max-old-space-size=6144 test/skala.js` (womit was wächst: Felder, Grenze, Spieler, Einheiten, Speicher pro Feld, Nachricht Worker an Seite)
 - Worker und Spiegel: `node test/worker.js [karte] [sekunden]`, Karte auf der Grafikkarte: `node test/gl.js` (beide nach dem Build). Browser-Tests, die direkt ins Spiel greifen, öffnen die Seite mit `?worker=0`.

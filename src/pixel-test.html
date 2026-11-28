@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pixel-Stil Testseite</title>
+<style>
+  :root { --bg: #1b232c; --fg: #e8ecef; --mut: #9aa6b0; --water: #2e5775; --land: #6f7d5c; --card: #232d38; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.4 system-ui, sans-serif; }
+  header { padding: 12px 16px; position: sticky; top: 0; background: var(--bg); z-index: 2; border-bottom: 1px solid #33404c; display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; }
+  header h1 { font-size: 16px; margin: 0 12px 0 0; }
+  label { color: var(--mut); }
+  select, button { background: var(--card); color: var(--fg); border: 1px solid #44525f; border-radius: 4px; padding: 3px 6px; font: inherit; }
+  section { padding: 12px 16px; }
+  h2 { font-size: 14px; margin: 10px 0 6px; color: var(--mut); font-weight: 600; }
+  .wide { overflow-x: auto; }
+  .wide img, .wide canvas { display: block; }
+  canvas { image-rendering: pixelated; }
+  .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+  .cell { background: var(--card); padding: 6px; border-radius: 4px; text-align: center; font-size: 12px; color: var(--mut); }
+  .cell canvas { display: block; margin: 0 auto 4px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Pixel-Stil · Testseite</h1>
+  <label>Zoom <select id="zoom"><option>1</option><option selected>2</option><option>3</option><option>4</option></select></label>
+  <label>Spielerfarbe <select id="col">
+    <option value="200,52,52">Rot</option><option value="52,104,214" selected>Blau</option><option value="58,160,72">Grün</option><option value="214,160,40">Gelb</option><option value="">keine (grau)</option>
+  </select></label>
+</header>
+<section>
+  <h2>1. Vorbild 2 (Hauptvorlage)</h2>
+  <div class="wide"><img src="assets/vorbild2.jpg" width="1670" height="320" alt="Vorbild 2"></div>
+  <h2>Die 8 Schiffe aus dem Sheet, gleiche Anordnung, 2.7 ×, Wasser #2e5775 (Originalfarben, ohne Flagge)</h2>
+  <div class="wide"><canvas id="same" width="1670" height="320"></canvas></div>
+  <h2>Vorbild 1 (gleicher Stil, Seitenansicht)</h2>
+  <div class="wide"><img src="assets/vorbild1.jpg" width="1230" height="145" alt="Vorbild 1"></div>
+</section>
+<section>
+  <h2>2. Die 8 Schiffe in Rot, Blau und Grün als Spielerfarbe (Kriegsschiffe: rote Teile, Handelsschiffe: Flagge und Streifen)</h2>
+  <div id="ships"></div>
+</section>
+<section>
+  <h2>3. Neu gezeichnet: Truppenboot</h2>
+  <div class="row" id="boat"></div>
+</section>
+<section>
+  <h2>4. Stadt, Bild A bis E (Stufe 1, 2–4, 5–9, 10–29, 30+)</h2>
+  <div class="row" id="city"></div>
+  <h2>5. Fabrik, Bild A bis E</h2>
+  <div class="row" id="factory"></div>
+  <h2>6. Massstab: Gebäude neben den Schiffen, alles 1 Kunstpixel = gleiche Grösse</h2>
+  <div class="wide"><canvas id="scale"></canvas></div>
+</section>
+<script>
+const G = globalThis.G = {};
+/*__JS__*/
+</script>
+<script>
+(function () {
+  const X = G.Pixel, A = G.PixArt, $ = (id) => document.getElementById(id);
+  const LET = ['A', 'B', 'C', 'D', 'E'];
+  const built = { city: [0, 1, 2, 3, 4].map(A.city), factory: [0, 1, 2, 3, 4].map(A.factory), boat: A.boat() };
+  function rgb() { const v = $('col').value; return v ? v.split(',').map(Number) : null; }
+  function cell(pix, z, label, col, bg) {
+    const d = document.createElement('div'); d.className = 'cell';
+    const c = document.createElement('canvas'), pad = 4;
+    c.width = (pix.w + pad * 2) * z; c.height = (pix.h + pad * 2) * z;
+    const cx = c.getContext('2d'); cx.imageSmoothingEnabled = false;
+    cx.fillStyle = bg; cx.fillRect(0, 0, c.width, c.height);
+    cx.drawImage(X.canvas(pix, col), pad * z, pad * z, pix.w * z, pix.h * z);
+    d.appendChild(c); d.appendChild(document.createTextNode(label + ' · ' + pix.w + ' × ' + pix.h));
+    return d;
+  }
+  function draw(ships) {
+    const z = +$('zoom').value, col = rgb();
+    // 1: the sheet ships in the reference's arrangement
+    const s = $('same'), sx = s.getContext('2d');
+    sx.fillStyle = '#2e5775'; sx.fillRect(0, 0, s.width, s.height); sx.imageSmoothingEnabled = false;
+    const im = new Image(); im.onload = () => {
+      for (const k in X.SHIPS) { const S = X.SHIPS[k]; sx.drawImage(im, S.x, S.y, S.w, S.h, S.at[0], S.at[1], Math.round(S.w * 2.7), Math.round(S.h * 2.7)); }
+    }; im.src = G.PIX_SHEET;
+    // 2: player colours
+    const sh = $('ships'); sh.innerHTML = '';
+    for (const c of [[200, 52, 52], [52, 104, 214], [58, 160, 72]]) {
+      const r = document.createElement('div'); r.className = 'row'; r.style.marginBottom = '10px';
+      for (const k in ships) r.appendChild(cell(ships[k], z, X.SHIPS[k].name, c, '#2e5775'));
+      sh.appendChild(r);
+    }
+    $('boat').innerHTML = '';
+    for (const c of [[200, 52, 52], [52, 104, 214], [58, 160, 72]]) $('boat').appendChild(cell(built.boat, z, 'Truppenboot', c, '#2e5775'));
+    for (const k of ['city', 'factory']) {
+      $(k).innerHTML = '';
+      built[k].forEach((p, i) => $(k).appendChild(cell(p, z, 'Bild ' + LET[i], col, '#6f7d5c')));
+    }
+    // 6: scale strip
+    const list = [built.city[0], built.city[2], built.city[4], built.factory[0], built.factory[4], built.boat, ships.trade0, ships.trade2, ships.war0, ships.war3];
+    const W = list.reduce((a, p) => a + p.w + 10, 10), H = Math.max(...list.map((p) => p.h)) + 20;
+    const c = $('scale'); c.width = W * z; c.height = H * z;
+    const cx = c.getContext('2d'); cx.imageSmoothingEnabled = false;
+    cx.fillStyle = '#6f7d5c'; cx.fillRect(0, 0, c.width, c.height);
+    cx.fillStyle = '#2e5775'; cx.fillRect(list.slice(0, 5).reduce((a, p) => a + p.w + 10, 5) * z, 0, c.width, c.height);
+    let x = 10;
+    for (const p of list) { cx.drawImage(X.canvas(p, col), x * z, (H - 10 - p.h) * z, p.w * z, p.h * z); x += p.w + 10; }
+  }
+  X.loadShips((ships) => {
+    draw(ships);
+    $('zoom').onchange = $('col').onchange = () => draw(ships);
+    document.body.dataset.ready = '1';
+  });
+})();
+</script>
+</body>
+</html>
