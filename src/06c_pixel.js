@@ -44,9 +44,22 @@
     }
     return d;
   }
+  // The next lighter one: 1 pixel wear marks, glints.
+  const LIGHTER = new Map();
+  function lighter(v) {
+    let d = LIGHTER.get(v);
+    if (d === undefined) {
+      d = (v >>> 24) !== 255 ? v : nearest(Math.min(255, R(v) * 1.13 + 4), Math.min(255, Gc(v) * 1.13 + 4), Math.min(255, B(v) * 1.12 + 4), v);
+      LIGHTER.set(v, d);
+    }
+    return d;
+  }
   // Player colour: three placeholders (light, base, shade), replaced when a variant is made.
   const PC1 = pack(1, 0, 0, 254), PC2 = pack(2, 0, 0, 254), PC3 = pack(3, 0, 0, 254);
-  const SHADE = 0.35;                     // drop shadow: black at 35 %
+  const SHADE = 0.35;
+  // The flag: a light grey pole (k its knob) and the 4 × 3 cloth hanging from it in player colour.
+  // Column 0 is the pole; the last row stands on the mast top.
+  const FLAG = ['k....', 'paabb', 'pabbc', 'pbbcc', 'p....', 'p....', 'p....'];                     // drop shadow: black at 35 %
 
   // ---------------------------------------------------------------- pixel buffer
   // d: colour, id: which shape put it (for inner contact edges), k: outline class
@@ -179,6 +192,31 @@
     this.face([x, y, z + h], [a, 0, 0], [0, b, 0], false, (u, v, px, py) => {
       if (low) { const q = low.get(px); if (q === undefined || py > q) low.set(px, py); }
       return t(u * a, v * b, px, py);
+    });
+    if (low) for (const [px, py] of low) this.p.put(px, py, m.hi);
+  };
+  // A box turned to any angle (ship hulls): corner O = [x, y], long edge U and short edge V (world
+  // x, y vectors), from z, h high. Only the faces turned towards the viewer are drawn; a side is
+  // lit (m.l) when it faces the lower left, shaded (m.r) when it faces the lower right. Textures get
+  // (s, t) along the side and up, and which side: 'u+' (the end at O + U), 'u-', 'v+', 'v-'.
+  // m.t gets (along U, along V) in world units and may return 0 to leave a hole (a well deck).
+  Iso.prototype.obox = function (O, U, V, z, h, m, edge) {
+    this.p.obj(m.k, edge);
+    const lu = Math.hypot(U[0], U[1]), lv = Math.hypot(V[0], V[1]);
+    const P = (a, b) => [O[0] + a * U[0] + b * V[0], O[1] + a * U[1] + b * V[1]];
+    const sides = [[P(0, 0), U, lu, [-V[0] / lv, -V[1] / lv], 'v-'], [P(1, 0), V, lv, [U[0] / lu, U[1] / lu], 'u+'],
+      [P(0, 1), U, lu, [V[0] / lv, V[1] / lv], 'v+'], [P(0, 0), V, lv, [-U[0] / lu, -U[1] / lu], 'u-']];
+    if (h > 0) for (const [S, E, len, n, name] of sides) {
+      if (n[0] + n[1] <= 0) continue;
+      const f = fn(n[1] > n[0] ? m.l : m.r);
+      this.face([S[0], S[1], z], [E[0], E[1], 0], [0, 0, h], false, (u, v, px, py) => (m.lo && v * h < 1 ? m.lo : f(u * len, v * h, name, px, py)));
+    }
+    if (!m.t) return;
+    const t = fn(m.t), low = m.hi ? new Map() : null;
+    this.face([O[0], O[1], z + h], [U[0], U[1], 0], [V[0], V[1], 0], false, (u, v, px, py) => {
+      const c = t(u * lu, v * lv, px, py);
+      if (c && low) { const q = low.get(px); if (q === undefined || py > q) low.set(px, py); }
+      return c;
     });
     if (low) for (const [px, py] of low) this.p.put(px, py, m.hi);
   };
@@ -332,15 +370,14 @@
       // flag on the highest point
       let fx = -1, fy = -1;
       for (let y = top; y < p.h && fx < 0; y++) for (let x = 0; x < p.w; x++) if (p.d[y * p.w + x]) { fx = x; fy = y; break; }
-      const F = ['.aab', '.abb', '.bbc', 'p...', 'p...', 'p...', 'p...'], M = { a: PC1, b: PC2, c: PC3, p: C('#3d4552') };
-      for (let j = 0; j < F.length; j++) for (let i = 0; i < 4; i++) {
-        const ch = F[j][i];
-        if (ch !== '.') p.put(fx + i, fy - F.length + j, M[ch]);
+      const M = { k: C('#cbd0d3'), p: C('#a4acb1'), a: PC1, b: PC2, c: PC3 }, put = [];
+      for (let j = 0; j < FLAG.length; j++) for (let i = 0; i < 5; i++) {
+        const ch = FLAG[j][i], x = fx + i, y = fy - FLAG.length + j;
+        if (ch !== '.' && x < p.w) { p.put(x, y, M[ch]); put.push(x, y); }
       }
-      for (let j = 0; j < F.length; j++) for (let i = -1; i < 5; i++) {   // its outline
-        const x = fx + i, y = fy - F.length + j;
-        if (y < 0 || x < 0 || x >= p.w || p.get(x, y)) continue;
-        if (p.get(x - 1, y) === PC1 || p.get(x + 1, y) === PC2 || p.get(x - 1, y) === PC3 || p.get(x, y + 1) === PC2 || p.get(x, y + 1) === PC3 || p.get(x, y - 1) === PC2 || p.get(x + 1, y) === PC1 || p.get(x - 1, y) === PC2) p.put(x, y, C('#16273b'));
+      for (let n = 0; n < put.length; n += 2) for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {   // its outline
+        const x = put[n] + dx, y = put[n + 1] + dy;
+        if (y >= 0 && x >= 0 && x < p.w && y < p.h && !p.get(x, y)) p.put(x, y, C('#16273b'));
       }
     }
     p.ax = S.w / 2; p.ay = p.h - 1;
@@ -361,5 +398,5 @@
   }
 
   G.PIX_SHEET = "/*__PIX_SHEET__*/";
-  G.Pixel = { pack, C, nearest, darker, Pix, Iso, hash, PC1, PC2, PC3, PAL, colorize, canvas, SHIPS, shipPix, loadShips, isRed };
+  G.Pixel = { pack, C, nearest, darker, lighter, FLAG, Pix, Iso, hash, PC1, PC2, PC3, PAL, colorize, canvas, SHIPS, shipPix, loadShips, isRed };
 })();

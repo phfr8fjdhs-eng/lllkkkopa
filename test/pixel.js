@@ -25,7 +25,7 @@ for (const k of ['city', 'factory']) for (let s = 0; s < 5; s++) {
   check(k + ' ' + 'ABCDE'[s], p, s === 0 ? 36 : 98, s === 0 ? 32 : 82);
   if (!same(p, A[k](s))) { fail++; console.log('FEHLER ' + k + ' ' + s + ' nicht gleich beim zweiten Mal'); }
 }
-check('boat', A.boat(), 44, 34);
+check('boat', A.boat(), 54, 38);                       // hull about 42 × 30, plus foam and wake
 for (const [lv, st] of [[1, 0], [2, 1], [4, 1], [5, 2], [9, 2], [10, 3], [29, 3], [30, 4], [100, 4]]) if (A.stage(lv) !== st) { fail++; console.log('FEHLER Stufe ' + lv + ' → Bild ' + A.stage(lv)); }
 console.log(fail ? fail + ' Fehler' : 'alles in Ordnung');
 process.exit(fail ? 1 : 0);
