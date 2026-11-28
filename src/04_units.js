@@ -384,7 +384,7 @@
     if (type <= UT.CLOAK) {
       u = this.newUnit(type, p, c.tile);
       u.built = false; u.buildStart = this.ticks;
-      u.buildEnd = this.ticks + (this.opts.instantBuild ? 0 : BUILD_TICKS[type]);
+      u.buildEnd = this.ticks + (this.opts.instantBuild ? 0 : Math.round(BUILD_TICKS[type] * (this.lang && type === UT.SAM && cls !== 2 && this.has(p, 'abw1') ? 0.5 : 1)));   // «Langes Spiel»: research Flugabwehr builds air defences in half the time
       if (type === UT.PORT) u.water = this.portWater(c.tile);
       if (type === UT.SAM && this.lang) u.cls = cls;   // «Langes Spiel»: 0 air defence, 1 missile defence, 2 radar
       if (type === UT.SILO && this.lang && cls) u.cls = cls;   // «Langes Spiel»: 1 airfield

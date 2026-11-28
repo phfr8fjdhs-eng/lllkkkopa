@@ -1322,7 +1322,7 @@
   const TSHORT = {
     blitz: ['Blitzkrieg', 'sword'], tief: ['Tiefenvert.', 'defense'],
     auf1: ['Radar', 'radar'], auf2: ['Radar ×1.5', 'radar'], spy2: ['Spione', 'people'], reco: ['Aufklärer', 'recon'], auf3: ['Tarnung sehen', 'cloak'], auf4: ['Frühwarnung', 'radar'], auf5: ['Satellit', 'target'],
-    abw2: ['+1 Schuss', 'sam'], schutz: ['Schutzräume', 'defense'], abw3a: ['+1 Schuss', 'sam'], abw3b: ['Reichweite', 'target'], abm3: ['ABM: Atom', 'abm'], schutz2: ['Schutz 30 %', 'defense'],
+    abw1: ['Flugabwehr', 'sam'], abw2: ['+1 Schuss', 'sam'], schutz: ['Schutzräume', 'defense'], abw3a: ['+1 Schuss', 'sam'], abw3b: ['Reichweite', 'target'], abm3: ['ABM: Atom', 'abm'], schutz2: ['Schutz 30 %', 'defense'],
     abw4: ['Nachladen', 'sam'], abm4: ['ABM: H-Bombe', 'abm'], zivil: ['Zivilschutz', 'people'], abm5: ['ABM: MIRV', 'abm'], abw5: ['Gegen Tarn', 'stealth'],
     rak1: ['Marschflug.', 'cruise'], rak2: ['Streubombe', 'cluster'], rakR: ['Reichweite', 'target'], rak3a: ['Bunkerbr.', 'bunker'], rak3b: ['Thermobar', 'thermo'], rakA1: ['Sprengkraft', 'cruise'],
     rak4: ['Kurzstrecke', 'srbm'], rakA2: ['Sprengkr. 50 %', 'cruise'], rakS: ['Tempo', 'srbm'], hyper: ['Hyperschall', 'srbm'],

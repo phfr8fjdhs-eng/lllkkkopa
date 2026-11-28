@@ -5656,7 +5656,7 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     if (type <= UT.CLOAK) {
       u = this.newUnit(type, p, c.tile);
       u.built = false; u.buildStart = this.ticks;
-      u.buildEnd = this.ticks + (this.opts.instantBuild ? 0 : BUILD_TICKS[type]);
+      u.buildEnd = this.ticks + (this.opts.instantBuild ? 0 : Math.round(BUILD_TICKS[type] * (this.lang && type === UT.SAM && cls !== 2 && this.has(p, 'abw1') ? 0.5 : 1)));   // «Langes Spiel»: research Flugabwehr builds air defences in half the time
       if (type === UT.PORT) u.water = this.portWater(c.tile);
       if (type === UT.SAM && this.lang) u.cls = cls;   // «Langes Spiel»: 0 air defence, 1 missile defence, 2 radar
       if (type === UT.SILO && this.lang && cls) u.cls = cls;   // «Langes Spiel»: 1 airfield
@@ -7687,11 +7687,12 @@ globalThis.G = { VARIANT: 'rohstoffe' };
     T_('auf3', 'Aufklärung', 3, 'Tarnung erkennen', 'Im Kreis eigener Radare sind getarnte Gebäude sichtbar', ['auf2']),
     T_('auf4', 'Aufklärung', 4, 'Frühwarnradar', 'Bomben und Raketen siehst du im dreifachen Radarkreis', ['auf3']),
     T_('auf5', 'Aufklärung', 5, 'Satellit', 'Jeder Raketenstart auf der Welt ist zu sehen', ['auf4']),
-    T_('abw2', 'Abwehr', 2, 'Mehr Schüsse', 'Kleine Flugabwehr: 3 statt 2 Schüsse pro Stufe'),
+    T_('abw1', 'Abwehr', 1, 'Flugabwehr', 'Flugabwehr und Raketenabwehr in der halben Zeit gebaut (bauen kann man sie auch ohne)'),
+    T_('abw2', 'Abwehr', 2, 'Mehr Schüsse', 'Kleine Flugabwehr: 3 statt 2 Schüsse pro Stufe', ['abw1']),
     T_('schutz', 'Abwehr', 2, 'Schutzräume', 'Ausbau der Stadt: halber Schaden durch Bomben'),
     T_('abw3a', 'Abwehr', 3, 'Noch mehr Schüsse', 'Kleine Flugabwehr: ein Schuss mehr pro Stufe', ['abw2'], 'abw3'),
     T_('abw3b', 'Abwehr', 3, 'Mehr Reichweite', 'Flugabwehr reicht 1.3-mal so weit', ['abw2'], 'abw3'),
-    T_('abm3', 'Abwehr', 3, 'Raketenabwehr gegen Atombomben', 'Die Raketenabwehr fängt Atombomben ab'),
+    T_('abm3', 'Abwehr', 3, 'Raketenabwehr gegen Atombomben', 'Die Raketenabwehr fängt Atombomben ab', ['abw1']),
     T_('schutz2', 'Abwehr', 3, 'Stärkere Schutzräume', 'Schutzräume lassen nur noch 30 % des Schadens durch', ['schutz']),
     T_('abw4', 'Abwehr', 4, 'Schneller nachladen', 'Flugabwehr lädt 30 % schneller nach', ['abw2']),
     T_('abm4', 'Abwehr', 4, 'Raketenabwehr gegen Wasserstoffbomben', 'Die Raketenabwehr fängt auch Wasserstoffbomben ab', ['abm3']),
@@ -14756,7 +14757,7 @@ void main() {
   const TSHORT = {
     blitz: ['Blitzkrieg', 'sword'], tief: ['Tiefenvert.', 'defense'],
     auf1: ['Radar', 'radar'], auf2: ['Radar ×1.5', 'radar'], spy2: ['Spione', 'people'], reco: ['Aufklärer', 'recon'], auf3: ['Tarnung sehen', 'cloak'], auf4: ['Frühwarnung', 'radar'], auf5: ['Satellit', 'target'],
-    abw2: ['+1 Schuss', 'sam'], schutz: ['Schutzräume', 'defense'], abw3a: ['+1 Schuss', 'sam'], abw3b: ['Reichweite', 'target'], abm3: ['ABM: Atom', 'abm'], schutz2: ['Schutz 30 %', 'defense'],
+    abw1: ['Flugabwehr', 'sam'], abw2: ['+1 Schuss', 'sam'], schutz: ['Schutzräume', 'defense'], abw3a: ['+1 Schuss', 'sam'], abw3b: ['Reichweite', 'target'], abm3: ['ABM: Atom', 'abm'], schutz2: ['Schutz 30 %', 'defense'],
     abw4: ['Nachladen', 'sam'], abm4: ['ABM: H-Bombe', 'abm'], zivil: ['Zivilschutz', 'people'], abm5: ['ABM: MIRV', 'abm'], abw5: ['Gegen Tarn', 'stealth'],
     rak1: ['Marschflug.', 'cruise'], rak2: ['Streubombe', 'cluster'], rakR: ['Reichweite', 'target'], rak3a: ['Bunkerbr.', 'bunker'], rak3b: ['Thermobar', 'thermo'], rakA1: ['Sprengkraft', 'cruise'],
     rak4: ['Kurzstrecke', 'srbm'], rakA2: ['Sprengkr. 50 %', 'cruise'], rakS: ['Tempo', 'srbm'], hyper: ['Hyperschall', 'srbm'],
