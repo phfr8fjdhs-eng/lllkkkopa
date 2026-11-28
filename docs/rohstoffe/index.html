@@ -10726,6 +10726,7 @@ void main() {
     }
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     const z = c.z, ox = cw / 2 - c.x * z, oy = ch / 2 - c.y * z;
+    shipLook(this.game && this.game.lang);   // ?grafik=neu: the new ship pictures only in «Langes Spiel»
     if (this.glm) {
       ctx.clearRect(0, 0, this.cv.width, this.cv.height);
       if (this.map) { if (this.game) this.glm.render(); this.glm.draw(z, ox, oy, dpr, SEA_RGB); }
@@ -11519,6 +11520,7 @@ void main() {
   // (destroyer one gun and a bridge, battleship three turrets, submarine a low dark hull with its
   // tower, carrier a grey flight deck with its markings, defence ship red launch cells, radar ship a
   // white dish). Rows are given from the top to the middle and mirrored.
+  const LOOK_ART = {}, LOOK_SCALE = {};
   if (NEWLOOK) {
     const half = function (rows) { const all = rows.concat(rows.slice(0, -1).reverse()), n = Math.max.apply(null, all.map(function (r) { return r.length; })); return all.map(function (r) { while (r.length < n) r += '.'; return r; }); };
     const NEWART = {
@@ -11533,9 +11535,21 @@ void main() {
       war4: half(['..kkkkkkkkkkkkkk', '.koooooooooooooookk', 'koorrorrorrGGoooooook', 'kodrrorrorrGGwwdddooookk']),
       war5: half(['..kkkkkkkkkkkkkk', '.kooooooowwoooookk', 'koooooowwwwGGoooooook', 'koddddowwwwwGGdddooookk'])
     };
-    for (const k in NEWART) { ART[k] = NEWART[k]; SCALE[k] = 0.6; }
+    for (const k in NEWART) { LOOK_ART[k] = NEWART[k]; LOOK_SCALE[k] = 0.6; }
   }
   for (const k in ART) HULLS[k] = [ART[k][0].length * SCALE[k], ART[k].length * SCALE[k]];
+  // The new pictures only in «Langes Spiel»: the tables are swapped when a game of the other kind
+  // is drawn (between games, so the pictures drawn so far are thrown away then).
+  const OLD_ART = Object.assign({}, ART), OLD_SCALE = Object.assign({}, SCALE);
+  let lookNow = false;
+  function shipLook(lang) {
+    const want = NEWLOOK && !!lang;
+    if (want === lookNow) return;
+    lookNow = want;
+    Object.assign(ART, want ? LOOK_ART : OLD_ART); Object.assign(SCALE, want ? LOOK_SCALE : OLD_SCALE);
+    for (const k in ART) HULLS[k] = [ART[k][0].length * SCALE[k], ART[k].length * SCALE[k]];
+    SPRITES.clear();
+  }
   const BOXCOL = ['#e0793a', '#3d7fc4', '#c94a3f', '#4f9a5a', '#d8b23a'];
   function hullGrid(kind) { return ART[kind]; }
   const SPRITES = new Map();
@@ -12248,7 +12262,7 @@ void main() {
       const dur = f.k === 'shipboom' ? 2000 : f.k === 'boom' ? (f.big ? 2600 : 1100) : f.k === 'text' ? 2500 : f.k === 'coin' ? 1500 : f.k === 'flag' ? 700 : f.k === 'muzzle' ? 170 : f.k === 'tracer' ? (f.slow ? 1400 : 800) : f.air ? 750 : 420, k = (now - f.t0) / dur;
       if (k >= 1 || (f.k === 'coin' && !f.mine)) { list.splice(i, 1); continue; }
       const x = (f.x + 0.5) * z + ox, y = (f.y + 0.5) * z + oy, e = k * (2 - k);
-      if (f.k === 'boom' && NEWLOOK && (f.bombs || f.t === UT.CRUISE || G.LANG_WEAPON(f.t))) { this.drawWeaponBoom(ctx, f, x, y, z, k, e); continue; }
+      if (f.k === 'boom' && NEWLOOK && g.lang && (f.bombs || f.t === UT.CRUISE || G.LANG_WEAPON(f.t))) { this.drawWeaponBoom(ctx, f, x, y, z, k, e); continue; }
       if (f.k === 'boom') {
         const r = Math.max(6, f.r * z) * (0.3 + 0.7 * e);
         if (f.big) {

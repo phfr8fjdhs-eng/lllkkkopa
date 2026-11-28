@@ -19,7 +19,7 @@ Pro Minute, gerechnet alle 5 s (`(T + id) % 50` wie die anderen Langes-Spiel-Rec
 - Optional später: Die Uni bleibt als Ausbau der Stadt und zählt deren Stufen doppelt. Das macht sie zu einer Wahl (Gold gegen etwas schnellere Forschung) statt zur einzigen Quelle.
 
 ### 2. Meilensteine (von selbst, je einmal)
-Sie kommen automatisch mit einer Meldung («+10 Forschung: erster Hafen»). Aus allen Bereichen, jeder gleich viel wert, damit jede Lage etwa gleich viel holt:
+Sie kommen automatisch mit einer Meldung (ein Meilenstein zählt nur, wenn ihn jemand ausser einem Verbündeten auslöst, damit man ihn sich nicht von einem Kollegen schenken lässt: zum Beispiel ein versenktes Schiff eines Feindes) («+10 Forschung: erster Hafen»). Aus allen Bereichen, jeder gleich viel wert, damit jede Lage etwa gleich viel holt:
 
 | Bereich | Meilenstein | Punkte |
 | --- | --- | --- |
@@ -32,13 +32,9 @@ Sie kommen automatisch mit einer Meldung («+10 Forschung: erster Hafen»). Aus 
 
 Zusammen höchstens etwa 100 Punkte; ein normales Spiel holt 50 bis 70.
 
-### 3. Aufholen
-- Wer in 5 Minuten mehr als 10 % seines Landes verliert, bekommt einmal 10 Punkte (höchstens alle 10 Minuten).
-- Wer von einer Atomwaffe getroffen wird, bekommt 10 Punkte.
-So bleibt der Schwächere im Spiel, statt dass der Starke davonzieht.
-
 ### Nicht
 - Keine Punkte pro erobertem Feld, pro Gold oder pro Sieg (Schneeball).
+- Kein Aufholen (Punkte für verlorenes Land oder Treffer): Sonst lässt man sich von einem Kollegen angreifen und holt so Punkte (verworfen am 28.11.2026).
 - Keine Punkte, die an einen Zweig gebunden sind.
 
 ## Was es kostet
