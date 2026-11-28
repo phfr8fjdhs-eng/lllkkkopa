@@ -4,7 +4,7 @@
 (function () {
   'use strict';
   const G = globalThis.G, X = G.Pixel, C = X.C, hash = X.hash;
-  const PC1 = X.PC1, PC2 = X.PC2, PC3 = X.PC3;
+  const PC1 = X.PC1, PC2 = X.PC2, PC3 = X.PC3, PC4 = X.PC4;
 
   // ---------------------------------------------------------------- materials (palette only)
   // Muted like the reference (round 1 feedback): little pure white, no bright blue.
@@ -145,6 +145,7 @@
   // Stage of a building level: A 1, B 2–4, C 5–9, D 10–29, E 30 and more.
   function stage(level) { return level >= 30 ? 4 : level >= 10 ? 3 : level >= 5 ? 2 : level >= 2 ? 1 : 0; }
   const SIZE = [8, 11, 14, 18, 24];                         // plate edge in world units, per picture
+  const MSIZE = [8, 10, 12, 15, 19];                        // military buildings: smaller plates, fuller
   function canvas(n, extra) {
     const w = 4 * n + 8, h = 2 * n + extra + 8;
     const p = new X.Pix(w, h), iso = new X.Iso(p, w / 2, extra + 4);
@@ -337,6 +338,417 @@
     return iso.p.trim();
   }
 
+  // ---------------------------------------------------------------- shared military pieces
+  const CON = { l: wear(C('#898d95'), 0.06, 101), r: wear(C('#6c707e'), 0.06, 102), t: wear(C('#a4acb1'), 0.08, 103), hi: C('#b1bdd0'), lo: C('#5b5f6c'), lo2: C('#4f515e'), k: 1 };
+  const OLIVE = [C('#787146'), C('#4f4f34'), C('#344c1b')];   // vehicles: lit, shaded, dark
+  const MISSILE = [C('#cbd0d3'), C('#a4acb1'), C('#7f8a95')];
+  // Concrete box with a 1 pixel player colour stripe under the roof edge.
+  function concrete(iso, x, y, z, a, b, h, o) {
+    o = o || {};
+    const band = (f) => (s, t, px, py) => (t >= h - 1.5 && t < h - 0.5 && o.stripe !== false ? PC2 : f(s, t, px, py));
+    const slit = (f) => (s, t, px, py) => (o.slit && t > h - 4 && t < h - 2.5 && s > a * 0.25 && s < a * 0.75 ? C('#20283a') : f(s, t, px, py));
+    iso.box(x, y, z, a, b, h, { l: slit(band(CON.l)), r: band(CON.r), t: o.top || CON.t, hi: CON.hi, lo: CON.lo, lo2: CON.lo2, k: 1 });
+  }
+  // Sandbags: a low wall of bags, 2 pixel courses, staggered, dark seams.
+  const BAG = [C('#c4a76a'), C('#aa9976'), C('#8f7b73'), C('#6f5036')];
+  function bags(iso, x, y, z, a, b, h) {
+    const tex = (c0, c1) => (s, t, px, py) => {
+      const row = Math.floor(t);
+      if ((px + (row % 2) * 2) % 4 === 0) return c1;
+      return hash(px >> 2, row, 111) < 0.2 ? X.darker(c0) : c0;
+    };
+    iso.box(x, y, z, a, b, h, { l: tex(BAG[1], BAG[2]), r: tex(BAG[2], BAG[3]), t: wear(BAG[0], 0.15, 112), hi: C('#dbc67a'), k: 2 });
+  }
+  // A machine gun on its tripod (stamp), barrel to the upper right.
+  function mg(iso, x, y, z) {
+    const [px, py] = iso.at(x, y, z);
+    iso.stamp(px, py, ['....bb', '..abb.', '.aaa..', '.c.c..', 'c...c.'], { a: C('#3d4552'), b: C('#2c303d'), c: C('#5b626e') }, 1);
+  }
+  // A missile lying at a slant (launcher rails): body light grey, tip in player colour.
+  // dx, dy: screen direction per step, n steps long.
+  function missile(iso, px, py, n, dx, dy) {
+    iso.p.obj(1);
+    for (let i = 0; i < n; i++) {
+      const x = Math.round(px + dx * i), y = Math.round(py + dy * i);
+      iso.p.put(x, y, i >= n - 2 ? (i === n - 1 ? PC1 : PC2) : MISSILE[i % 3 === 0 ? 1 : 0]);
+      iso.p.put(x, y + 1, i >= n - 2 ? PC3 : MISSILE[2]);
+    }
+  }
+  // A radar dish on its post, tilted up; frame 0–3 turns it about the post (0 open towards the
+  // viewer, 1 and 3 half turned, 2 seen from behind). r: radius in pixels. (x, y, z): foot of the post.
+  function dish(iso, x, y, z, r, frame) {
+    const [cx, cy] = iso.at(x, y, z), f = frame || 0;
+    const w = [1, 0.55, 0.85, 0.55][f], back = f === 2, sx = [0, 1, 0, -1][f];
+    iso.p.obj(1);
+    for (let i = 0; i < 3; i++) iso.p.put(cx, cy - i, i === 0 ? K.st4 : K.st3);    // post
+    const oy = cy - 2 - Math.round(r * 0.7);                                       // centre of the bowl
+    const rx = Math.max(1.2, r * w), ry = r * 0.72;
+    for (let py = -Math.ceil(ry); py <= Math.ceil(ry); py++) for (let px = -Math.ceil(rx); px <= Math.ceil(rx); px++) {
+      const e = (px * px) / (rx * rx) + (py * py) / (ry * ry);
+      if (e > 1.0) continue;
+      let c;
+      if (back) c = e > 0.55 ? K.st3 : (px + py < 0 ? K.st2 : K.st3);
+      else if (e > 0.6) c = py < 0 ? K.st0 : K.st2;                                // rim: lit on top
+      else c = (px * sx >= 0 && py > -1) ? K.wh2 : K.wh1;                           // the bowl, its far side lighter
+      iso.p.put(cx + px + sx, oy + py, c);
+    }
+    if (!back) { iso.p.put(cx + sx * 2, oy - 1, K.st4); iso.p.put(cx + sx * 2 - (sx || 1), oy, K.st5); }   // feed horn
+    else for (let i = -1; i <= 1; i++) iso.p.put(cx + i, oy + Math.round(ry) - 1, K.st4);                   // struts behind
+  }
+  // A lattice mast: two legs, cross braces, h pixels high, from the world point (x, y, z).
+  function lattice(iso, x, y, z, h, w) {
+    const [cx, cy] = iso.at(x, y, z);
+    iso.p.obj(1);
+    w = w || 2;
+    for (let i = 0; i <= h; i++) {
+      const half = Math.round(w * (1 - i / h * 0.6));
+      iso.p.put(cx - half, cy - i, K.st3); iso.p.put(cx + half, cy - i, K.st4);
+      if (i % 4 === 0) for (let k = -half; k <= half; k++) iso.p.put(cx + k, cy - i, K.st2);
+      else if (half > 0) iso.p.put(cx + ((i % 4 < 2) ? -1 : 1) * Math.min(half - 1, 1), cy - i, K.st2);
+    }
+    return [cx, cy - h];
+  }
+  // A truck (launcher, radar): cab and bed along x, olive.
+  function truck(iso, x, y, z, len) {
+    iso.box(x, y, z + 0.6, len, 2.4, 2.2, { l: OLIVE[0], r: OLIVE[1], t: OLIVE[0], hi: C('#85885d'), lo: OLIVE[2], k: 1 });
+    iso.box(x + len - 1.7, y + 0.2, z + 2.8, 1.7, 2, 2.4, { l: (s, t) => (t > 0.8 ? K.gl3 : OLIVE[0]), r: (s, t) => (t > 0.8 ? K.gl4 : OLIVE[1]), t: OLIVE[0], hi: C('#85885d'), k: 1 });
+    for (const wx of [0.6, len / 2, len - 1]) { const [px, py] = iso.at(x + wx, y + 2.4, z + 0.6); iso.stamp(px, py + 1, ['dd', 'dd'], { d: C('#20283a') }, 1); }
+  }
+
+  // ---------------------------------------------------------------- port
+  function container(iso, x, y, z, ci, along) {
+    const c = K.cnt[ci % 5], d = X.darker(c), dd = X.darker(d);
+    const rib = (c0, c1) => (s, t, px, py) => ((px & 1) ? c0 : c1);
+    if (along === 'y') iso.box(x, y, z, 1.2, 2.6, 1.6, { l: c, r: rib(d, dd), t: X.lighter(c), hi: X.lighter(X.lighter(c)), k: 1 });
+    else iso.box(x, y, z, 2.6, 1.2, 1.6, { l: rib(c, d), r: d, t: X.lighter(c), hi: X.lighter(X.lighter(c)), k: 1 });
+  }
+  // A harbour crane: four legs, the machine house on top, the boom out over the water (+x).
+  function crane(iso, x, y, z, h, boom) {
+    const leg = { l: C('#cc8738'), r: C('#934e1a'), t: C('#cc8738'), k: 2 };
+    for (const [dx, dy] of [[0, 0], [1.6, 0], [0, 1.6], [1.6, 1.6]]) iso.box(x + dx, y + dy, z, 0.4, 0.4, h, leg);
+    iso.box(x - 0.2, y - 0.2, z + h, 2.4, 2.4, 2.5, { l: (s, t) => (t > 0.8 && t < 1.8 && s > 0.6 && s < 1.6 ? K.gl3 : C('#cc8738')), r: C('#934e1a'), t: C('#c38a4e'), hi: C('#dbc67a'), k: 2 });
+    iso.box(x + 2.2, y + 0.7, z + h + 1.2, boom, 0.8, 0.8, { l: (s) => (Math.floor(s * 2) % 2 ? C('#cc8738') : C('#934e1a')), r: C('#934e1a'), t: C('#cc8738'), k: 2 });
+    iso.line([x + 1, y + 1, z + h + 2.5], [x + 1, y + 1, z + h + 5], K.st4, 1, false);
+    iso.line([x + 1, y + 1, z + h + 5], [x + 2.2 + boom, y + 1, z + h + 2], K.st3, 1, false);
+    iso.line([x + 1.6 + boom, y + 1.1, z + h + 1.2], [x + 1.6 + boom, y + 1.1, z + 1], K.st4, 1, false);   // hook rope
+  }
+  function warehouse(iso, x, y, z, a, b, h) {
+    const door = (s, t) => (s > a / 2 - 1 && s < a / 2 + 1 && t < h - 1.5 ? (Math.floor(t) % 2 ? C('#5b626e') : C('#747c89')) : null);
+    iso.box(x, y, z, a, b, h, { l: wear((s, t, px, py) => door(s, t) || (px % 3 === 0 ? C('#7d6e64') : C('#8f7b73')), 0.05, 121), r: (s, t, px) => (px % 3 === 0 ? C('#6d6b7b') : C('#6f6a6b')), t: null, lo: C('#59342f'), k: 2 });
+    iso.gable(x - 0.3, y - 0.3, z + h, a + 0.6, b + 0.6, 2.5, 'x', { f: wear((s, v, px) => (px % 2 ? C('#747c89') : C('#898d95')), 0.06, 122), g: C('#5b626e'), e: C('#6f6a6b'), ridge: C('#a4acb1'), ov: 0.3, k: 1 });
+  }
+  // The pier: planks across, posts at the corners, out over the water along +x.
+  function pier(iso, x, y, z, len, w) {
+    iso.p.obj(2);
+    iso.face([x, y, z], [len, 0, 0], [0, w, 0], false, (u, v, px, py) => (Math.floor(u * len * 2) % 2 ? K.wd0 : (hash(px, py, 131) < 0.15 ? K.wd1 : C('#875f47'))));
+    iso.face([x, y + w, z], [len, 0, 0], [0, 0, -0.8], false, () => K.wd1);
+    iso.face([x + len, y, z], [0, w, 0], [0, 0, -0.8], false, () => C('#59342f'));
+    for (let i = 1; i <= len; i += 2) { const [px, py] = iso.at(x + i, y + w, z - 0.8); iso.stamp(px, py + 2, ['d', 'd'], { d: C('#2e2118') }, 2); }
+  }
+  // Port pictures: the land part is the plate; quay, piers, cranes reach out to +x (the water).
+  function port(st) {
+    const n = SIZE[st], iso = canvas(n + 4, 56), g = new Set([plate(iso, n, st >= 2 ? 'pave' : 'grass')]);
+    const z = 2;
+    const quay = (s, t) => iso.box(n - 1, 0, 0, 1, n, 2, { l: K.st3, r: (ss, tt, px) => ((px + Math.floor(tt)) % 4 === 0 ? K.st4 : K.st3), t: K.st1, hi: K.st0, lo: K.st5, k: 1 });
+    if (st === 0) {
+      pier(iso, n - 1, 3, 1.4, 5, 2);
+      crate(iso, 2, 3, z); crate(iso, 3.7, 3.5, z, [C('#875f47'), K.wd1]);
+      flag(iso, 5, 2, z);
+    } else if (st === 1) {
+      quay();
+      warehouse(iso, 1, 1, z, 5, 4, 6);
+      pier(iso, n, 6, 1.4, 5, 2);
+      crate(iso, 2, 7, z); crate(iso, 3.7, 7.5, z); crate(iso, 6, 8, z, [K.cnt[3], C('#934e1a')]);
+      flag(iso, 3.5, 3, z + 8.5);
+    } else if (st === 2) {
+      quay();
+      warehouse(iso, 1, 1, z, 6, 4, 6);
+      crane(iso, 9, 3, z, 9, 5);
+      container(iso, 2, 7.5, z, 0); container(iso, 2, 9, z, 2); container(iso, 5, 8, z, 4, 'y');
+      pier(iso, n, 9, 1.4, 4, 2);
+      flag(iso, 4, 3, z + 8.5);
+    } else if (st === 3) {
+      quay();
+      warehouse(iso, 1, 1, z, 7, 4, 7);
+      crane(iso, 13, 2, z, 10, 5); crane(iso, 13, 9, z, 10, 5);
+      for (let i = 0; i < 3; i++) for (let j = 0; j < 2; j++) container(iso, 2 + i * 3, 8 + j * 1.4, z, i + j * 2);
+      for (let i = 0; i < 2; i++) container(iso, 2 + i * 3, 8, z + 1.6, i + 3);
+      container(iso, 3, 13, z, 1); container(iso, 6, 13, z, 3);
+      flag(iso, 5, 3, z + 10);
+    } else {
+      quay();
+      warehouse(iso, 1, 1, z, 8, 5, 7); warehouse(iso, 1, 7.5, z, 6, 4, 6);
+      crane(iso, 19, 2, z, 12, 6); crane(iso, 19, 9, z, 12, 6); crane(iso, 19, 16, z, 12, 6);
+      for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) container(iso, 9 + i * 3, 3 + j * 1.4, z, i + j);
+      for (let i = 0; i < 3; i++) for (let j = 0; j < 2; j++) container(iso, 9 + i * 3, 3 + j * 1.4, z + 1.6, i + j + 2);
+      for (let i = 0; i < 4; i++) for (let j = 0; j < 3; j++) container(iso, 3 + i * 3, 14 + j * 1.4, z, i * 2 + j);
+      for (let i = 0; i < 3; i++) container(iso, 3 + i * 3, 14, z + 1.6, i + 1);
+      flag(iso, 5, 3, z + 10);
+    }
+    iso.p.finish({ ground: g });
+    return iso.p.trim();
+  }
+
+  // ---------------------------------------------------------------- defence post
+  function wire(iso, n, z, from) {
+    iso.p.obj(1, false);
+    for (let i = 0; i <= n - from * 2; i += 0.5) {
+      for (const [x, y] of [[from + i, n - from], [n - from, from + i]]) {
+        const [px, py] = iso.at(x, y, z + 1.5);
+        iso.p.put(px, py + ((Math.round(i * 2) % 2) ? -1 : 0), (Math.round(i * 2) % 3 === 0) ? K.st0 : K.st3);
+      }
+    }
+    for (let i = 0; i <= n - from * 2; i += 3) for (const [x, y] of [[from + i, n - from], [n - from, from + i]]) iso.line([x, y, z], [x, y, z + 2], K.wd1, 2, false);
+  }
+  function defense(st) {
+    const n = MSIZE[st], iso = canvas(n, 56), g = new Set([plate(iso, n, 'grass')]);
+    const z = 2, c = n / 2;
+    if (st === 0) {
+      const r = 3;
+      bags(iso, c - r, c - r, z, 2 * r, 1, 2); bags(iso, c - r, c - r + 1, z, 1, 2 * r - 1, 2);
+      mg(iso, c, c, z + 1);
+      bags(iso, c + r - 1, c - r + 1, z, 1, 2 * r - 1, 2); bags(iso, c - r + 1, c + r - 1, z, 2 * r - 2, 1, 2);
+      iso.p.obj(1, false); const [px, py] = iso.at(c - r + 0.5, c - r + 0.5, z + 2); iso.p.put(px, py, PC2); iso.p.put(px + 1, py, PC2);
+    } else {
+      const big = st >= 4;
+      if (st >= 2) wire(iso, n, z, 0.6);
+      if (big) {                                           // fortress: wall, two towers, the bunker inside
+        concrete(iso, 2, 2, z, n - 4, 1.2, 5, { stripe: false }); concrete(iso, 2, 3.2, z, 1.2, n - 5.2, 5, { stripe: false });
+      }
+      const a = big ? 7 : st === 1 ? 5.5 : 6.5, b = big ? 6 : st === 1 ? 4.5 : 5.5, h = big ? 8 : 7, x = c - a / 2, y = c - b / 2;
+      concrete(iso, x, y, z, a, b, h, { slit: true });
+      if (st >= 3) {                                        // gun turret on the roof
+        iso.cyl(x + a / 2, y + b / 2, z + h, 1.6, 2.5, { ramp: [C('#898d95'), C('#747c89'), C('#5b626e'), C('#3d4552')], top: PC2, rim: PC1, k: 1 });
+        iso.line([x + a / 2 + 1, y + b / 2 - 0.5, z + h + 2], [x + a / 2 + 4.5, y + b / 2 - 0.5, z + h + 2.6], C('#2c303d'), 1);
+      }
+      if (st === 1) bags(iso, x - 1.6, y + b + 0.4, z, 3, 1, 2);
+      if (big) {
+        for (const [tx, ty] of [[1.2, 1.2], [n - 4.4, 1.2], [1.2, n - 4.4]]) {
+          concrete(iso, tx, ty, z, 3.2, 3.2, 11);
+          for (let i = 0; i < 3; i++) iso.box(tx + i * 1.1, ty + 2.4, z + 11, 0.8, 0.8, 1.2, { l: CON.l, r: CON.r, t: PC2, k: 1 });
+        }
+        concrete(iso, n - 2.2 - 1.2, 3.2, z, 1.2, n - 7.6, 5, { stripe: false }); concrete(iso, 3.2, n - 3.4, z, n - 7.6, 1.2, 5, { stripe: false });
+        concrete(iso, n - 4.4, n - 4.4, z, 3.2, 3.2, 11);
+      }
+    }
+    iso.p.finish({ ground: g });
+    return iso.p.trim();
+  }
+
+  // ---------------------------------------------------------------- air defence (SAM class 0)
+  // A launcher truck with its ramp raised to the upper right, 2 missiles (4 from picture B).
+  function launcher(iso, x, y, z, two) {
+    truck(iso, x, y, z, 6);
+    iso.box(x + 0.6, y + 0.5, z + 2.8, 3.2, 1.4, 1, { l: K.st3, r: K.st4, t: K.st2, k: 1 });
+    const [px, py] = iso.at(x + 0.9, y + 1, z + 3.8);
+    for (let i = 0; i < (two ? 4 : 2); i++) missile(iso, px + (i % 2) * 3 - (i > 1 ? 1 : 0), py - (i > 1 ? 2 : 0) + (i % 2), 10, 1, -0.8);
+  }
+  function sam0(st, frame) {
+    const n = MSIZE[st], iso = canvas(n, 56), g = new Set([plate(iso, n, 'grass')]);
+    const z = 2;
+    const pad = (x, y, a, b) => { iso.p.obj(1, false); iso.face([x, y, z], [a, 0, 0], [0, b, 0], false, wear(C('#797c86'), 0.1, 141)); g.add(iso.p.cur); };
+    pad(1, 1, n - 2, n - 2);
+    if (st === 0) launcher(iso, 1, 2.5, z, false);
+    else if (st === 1) launcher(iso, 1.5, 3.5, z, true);
+    else if (st === 2) { dish(iso, 2.5, 2.5, z, 4, frame); launcher(iso, 3, 6, z, true); }
+    else if (st === 3) { truck(iso, 1.5, 1.5, z, 5); dish(iso, 3.5, 2.5, z + 4.6, 5, frame); launcher(iso, 8, 2.5, z, true); launcher(iso, 2.5, 9, z, true); }
+    else { truck(iso, 1.5, 1.5, z, 5); dish(iso, 3.5, 2.5, z + 4.6, 5, frame); launcher(iso, 10.5, 2, z, true); launcher(iso, 2, 10.5, z, true); launcher(iso, 10.5, 11, z, true); }
+    iso.p.finish({ ground: g });
+    return iso.p.trim();
+  }
+
+  // ---------------------------------------------------------------- missile defence (SAM class 1)
+  // A tall rack, interceptors standing upright in it.
+  function rack(iso, x, y, z, k) {
+    concrete(iso, x - 0.5, y - 0.5, z, 3 + (k > 2 ? 2 : 0), 3, 1.5, { stripe: false });
+    for (let i = 0; i < k; i++) {
+      const [px, py] = iso.at(x + 0.6 + i * 1.1, y + 1.2, z + 1.5);
+      iso.stamp(px, py, ['b', 'a', 'm', 'm', 'n', 'm', 'm', 'n', 'm', 'm', 'q', 'q'].map((r) => r + r.replace(/[abmnq]/, (c) => ({ a: 'c', b: 'a', m: 'o', n: 'p', q: 'q' })[c])),
+        { a: PC1, b: PC2, c: PC3, m: MISSILE[0], o: MISSILE[1], n: MISSILE[1], p: MISSILE[2], q: K.st3 }, 1);
+    }
+    iso.line([x - 0.3, y + 2.4, z + 1.5], [x - 0.3, y + 2.4, z + 12], K.st3, 1, false);
+    iso.line([x + 0.8 + k * 1.1, y + 2.4, z + 1.5], [x + 0.8 + k * 1.1, y + 2.4, z + 12], K.st4, 1, false);
+  }
+  // A flat radar panel, leaning back, its frame in player colour.
+  function panel(iso, x, y, z, w, h) {
+    iso.box(x, y + 1, z, w, 1, 1.5, { l: K.st3, r: K.st4, t: K.st2, k: 1 });
+    iso.p.obj(1);
+    iso.face([x, y + 1.5, z + 1.5], [w, 0, 0], [0, -1.2, h], false, (u, v, px, py) => (u < 0.08 || u > 0.92 || v < 0.1 || v > 0.9 ? PC2 : ((px + py) % 2 ? C('#45576a') : C('#516980'))));
+  }
+  function sam1(st) {
+    const n = MSIZE[st], iso = canvas(n, 64), g = new Set([plate(iso, n, 'concrete')]);
+    const z = 2;
+    if (st === 0) rack(iso, 2.5, 3, z, 2);
+    else if (st === 1) rack(iso, 2, 3.5, z, 4);
+    else if (st === 2) { concrete(iso, 7, 1.5, z, 4, 3, 5); rack(iso, 2, 5.5, z, 4); }
+    else if (st === 3) { panel(iso, 9, 1.5, z, 5, 9); concrete(iso, 2, 1.5, z, 4, 3, 5); rack(iso, 3, 8.5, z, 4); }
+    else { panel(iso, 11, 1.5, z, 7, 13); concrete(iso, 2, 1.5, z, 5, 4, 6); rack(iso, 2.5, 9, z, 4); rack(iso, 10, 12.5, z, 4); }
+    iso.p.finish({ ground: g });
+    return iso.p.trim();
+  }
+
+  // ---------------------------------------------------------------- radar (SAM class 2)
+  const DOME = [PC1, PC2, PC3, PC4];
+  function radar(st, frame) {
+    const n = MSIZE[st], iso = canvas(n, 64), g = new Set([plate(iso, n, 'grass')]);
+    const z = 2, f = frame || 0;
+    const mast = (x, y, h, r) => { const [tx, ty] = lattice(iso, x, y, z, h, 2); dish(iso, x, y, z + h, r, f); return [tx, ty]; };
+    if (st === 0) { concrete(iso, 1.5, 4.5, z, 3, 2.5, 4, {}); mast(5.5, 3, 14, 4); }
+    else if (st === 1) { concrete(iso, 1.5, 5.5, z, 3.5, 3, 4, {}); mast(6.5, 3, 16, 6); }
+    else if (st === 2) { iso.ball(3.5, 4, z + 5, 5, DOME, PC1, 1); mast(8.5, 3, 17, 6); concrete(iso, 3, 8.5, z, 4, 2.5, 4, {}); }
+    else if (st === 3) { iso.ball(4.5, 4.5, z + 6, 6, DOME, PC1, 1); mast(11, 2.5, 18, 6); mast(11.5, 10, 13, 4); concrete(iso, 2.5, 10.5, z, 5, 3, 4, {}); }
+    else {
+      concrete(iso, 5.5, 5.5, z, 8, 8, 5, {});
+      iso.ball(9.5, 9.5, z + 5 + 7, 8, DOME, PC1, 1, true, 5.5);
+      iso.ball(3.5, 3, z + 4, 4, DOME, PC1, 1);
+      mast(15, 2.5, 20, 6); mast(3, 15, 15, 5); mast(16, 15.5, 12, 4);
+    }
+    iso.p.finish({ ground: g });
+    return iso.p.trim();
+  }
+
+  // ---------------------------------------------------------------- airfield (SILO class 1)
+  function runway(iso, x, y, z, len, w) {
+    iso.p.obj(1, false);
+    iso.face([x, y, z], [len, 0, 0], [0, w, 0], false, (u, v, px, py) => {
+      const s = u * len, t = v * w;
+      if (t < 0.4 || t > w - 0.4) return C('#5b5f6c');
+      if (Math.abs(t - w / 2) < 0.25 && Math.floor(s) % 2 === 0) return C('#cbd0d3');
+      if ((s < 1.2 || s > len - 1.2) && Math.floor(t * 2) % 2 === 0) return C('#a4acb1');   // threshold stripes
+      return hash(px, py, 151) < 0.06 ? C('#3d4552') : C('#4f515e');
+    });
+    return iso.p.cur;
+  }
+  // A hangar: arched roof (light on the left of its crest), the door at the front in steel, a
+  // player colour stripe above the door.
+  function hangar(iso, x, y, z, a, b, h) {
+    iso.box(x, y, z, a, b, h, { l: (s, t) => (t >= h - 1 ? PC2 : s > 0.4 && s < a - 0.4 && t < h - 1 ? (Math.floor(t) % 2 ? C('#5b626e') : C('#6c707e')) : C('#7f8a95')), r: C('#5b5f6c'), t: null, lo: C('#3d4552'), k: 1 });
+    iso.gable(x, y - 0.1, z + h, a, b + 0.1, 2.5, 'y', { f: (s, v, px) => (px % 2 ? C('#747c89') : C('#898d95')), g: C('#898d95'), e: C('#7f8a95'), ridge: C('#a4acb1'), k: 1 });
+  }
+  function ctower(iso2, x, y, z, h) {
+    concrete(iso2, x, y, z, 1.6, 1.6, h, { stripe: false });
+    iso2.box(x - 0.4, y - 0.4, z + h, 2.4, 2.4, 2.2, { l: (s, t) => (t > 0.5 && t < 1.8 ? K.gl2 : C('#a4acb1')), r: (s, t) => (t > 0.5 && t < 1.8 ? K.gl4 : C('#7f8a95')), t: PC2, hi: PC1, k: 1 });
+  }
+  // A small parked jet seen from above (nose to the upper right).
+  const JET = ['.....a', '....ab', 'c.aab.', 'ccbbb.', '.bbd..', '.b.d..', 'b.....'];
+  function jet(iso, x, y, z) { const [px, py] = iso.at(x, y, z); iso.stamp(px, py, JET, { a: C('#a4acb1'), b: C('#7f8a95'), c: C('#5b626e'), d: PC2 }, 1); }
+  function airfield(st) {
+    const n = SIZE[st], iso = canvas(n, 48), g = new Set([plate(iso, n, 'grass')]);
+    const z = 2, len = st >= 3 ? n - 1 : n - 2;
+    g.add(runway(iso, 0.5, n - 4, z, len, 3));
+    if (st === 0) hangar(iso, 2, 1.5, z, 3, 4, 3);
+    else if (st === 1) { hangar(iso, 2, 1.5, z, 3, 4, 3); ctower(iso, 7, 2, z, 6); }
+    else if (st === 2) { hangar(iso, 1.5, 1.5, z, 3, 4, 3); hangar(iso, 5.5, 1.5, z, 3, 4, 3); ctower(iso, 10.5, 2, z, 7); jet(iso, 4, 7.5, z); }
+    else if (st === 3) { hangar(iso, 1.5, 1.5, z, 3.5, 5, 3.5); hangar(iso, 6, 1.5, z, 3.5, 5, 3.5); ctower(iso, 13, 3, z, 8); jet(iso, 3.5, 9, z); jet(iso, 8, 9, z); }
+    else { for (let i = 0; i < 3; i++) hangar(iso, 1.5 + i * 5, 1.5, z, 4, 6, 4); ctower(iso, 18, 3, z, 9); jet(iso, 4, 11, z); jet(iso, 9, 11, z); jet(iso, 14, 11, z); }
+    iso.p.finish({ ground: g });
+    return iso.p.trim();
+  }
+
+  // ---------------------------------------------------------------- cloaking tower (A, B only)
+  function cloak(st) {
+    st = Math.min(st, 1);
+    const n = MSIZE[st], iso = canvas(n, 64), g = new Set([plate(iso, n, 'grass')]);
+    const z = 2, c = n / 2, h = st ? 24 : 16;
+    concrete(iso, c - 1.5, c - 1.5, z, 3, 3, 2, { stripe: false });
+    const [tx, ty] = lattice(iso, c, c, z + 2, h, 3);
+    iso.ball(c, c, z + 2 + h + 1, 2, [PC1, PC2, PC3, PC4], PC1, 1);
+    // the net: green speckled cloth hanging from the top in a tent shape
+    iso.p.obj(2);
+    const NET = [K.gr1, K.gr2, K.gr3, K.gr0, C('#4f4f34')];
+    for (let j = 0; j < h; j++) {
+      const w = 2 + Math.round(j * 0.55), yy = ty + 3 + j;
+      for (let i = -w; i <= w; i++) {
+        if (hash(i, j, 161) < 0.18 && Math.abs(i) > 1) continue;                    // holes in the net
+        const edge = Math.abs(i) >= w - 0;
+        const r = hash(i >> 1, j >> 1, 162);
+        iso.p.put(tx + i, yy, edge ? K.gr3 : (i > w * 0.3 ? (r < 0.5 ? K.gr3 : NET[4]) : NET[Math.floor(r * 4)]));
+      }
+    }
+    iso.p.finish({ ground: g });
+    return iso.p.trim();
+  }
+
+  // ---------------------------------------------------------------- states
+  // Under construction: picture A cut to half its height, wooden scaffold and a small crane.
+  function building(kind, st, o) {
+    o = o || {};
+    const F = { city, factory, port, defense, sam0, sam1, radar, airfield, cloak }[kind];
+    const p = F(o.build ? 0 : st, o.frame || 0);
+    if (o.build) return underConstruction(p);
+    if (o.damage) return damaged(p, o.damage);
+    return p;
+  }
+  // The rows of the plate are the bottom 2 n + 4 rows of A's picture; above them the building.
+  function underConstruction(p) {
+    const w = p.w, h = p.h, d = p.d;
+    let top = h;
+    for (let y = 0; y < h && top === h; y++) for (let x = 0; x < w; x++) if (d[y * w + x]) { top = y; break; }
+    const cut = Math.round(top + (h - 20 - top) * 0.55);
+    const q = new X.Pix(w, h); q.ax = p.ax; q.ay = p.ay;
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const i = y * w + x;
+      if (y < cut) continue;
+      q.d[i] = d[i]; q.id[i] = p.id[i]; q.k[i] = p.k[i];
+    }
+    // cut edge: one dark row (the unfinished top), then the scaffold
+    q.obj(2, false);
+    for (let x = 0; x < w; x++) if (q.d[cut * w + x] && q.k[cut * w + x] && y0ok(q, x, cut)) q.put(x, cut, X.darker(q.d[cut * w + x]));
+    let x0 = w, x1 = 0;
+    for (let x = 0; x < w; x++) if (q.d[(cut + 1) * w + x]) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); }
+    const P = K.wd1, PL = K.wd0;
+    for (let x = x0 + 2; x <= x1 - 2; x += 5) for (let y = cut - 4; y < cut + 9; y++) q.put(x, y, P);
+    for (const y of [cut - 4, cut + 2]) for (let x = x0 + 2; x <= x1 - 2; x++) q.put(x, y, PL);
+    // small crane: mast and jib
+    const cx = x1 - 3;
+    for (let y = cut - 14; y < cut + 2; y++) q.put(cx, y, C('#cc8738'));
+    for (let x = cx - 9; x <= cx + 3; x++) q.put(x, cut - 14, C('#cc8738'));
+    for (let y = cut - 13; y < cut - 9; y++) q.put(cx - 7, y, K.st4);
+    // outline for what was added
+    const add = [];
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (!q.d[y * w + x] && ((x > 0 && q.d[y * w + x - 1] && q.k[y * w + x - 1]) || (x + 1 < w && q.d[y * w + x + 1] && q.k[y * w + x + 1]) || (y > 0 && q.d[(y - 1) * w + x] && q.k[(y - 1) * w + x]) || (y + 1 < h && q.d[(y + 1) * w + x] && q.k[(y + 1) * w + x]))) add.push(x, y);
+    q.obj(0, false);
+    for (let i = 0; i < add.length; i += 2) q.put(add[i], add[i + 1], K.inkW);
+    return q.trim();
+  }
+  function y0ok() { return true; }
+  // Damaged: burnt patches on the building (not the plate), 1–2 smoke columns (see-through grey).
+  function damaged(p, n) {
+    const w = p.w, h = p.h, q = new X.Pix(w, h + 14);
+    q.ax = p.ax; q.ay = p.ay + 14;
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const i = y * w + x, j = (y + 14) * w + x; q.d[j] = p.d[i]; q.id[j] = p.id[i]; q.k[j] = p.k[i]; }
+    const plateBottom = h - 1, char = C('#271e1f');
+    let top = h;
+    for (let y = 0; y < h && top === h; y++) for (let x = 0; x < w; x++) if (p.d[y * w + x]) { top = y; break; }
+    const bodyBottom = h - Math.round(w / 2) + 2;
+    for (let y = top; y < bodyBottom; y++) for (let x = 0; x < w; x++) {
+      const j = (y + 14) * w + x, v = q.d[j];
+      if (!v || !q.k[j] || (v >>> 24) !== 255) continue;
+      const r = hash(x >> 1, y >> 1, 171);
+      if (r < 0.14) q.d[j] = X.darker(X.darker(v));
+      else if (r < 0.19) q.d[j] = char;
+    }
+    // smoke: puffs rising from the highest points
+    const SM = [X.pack(116, 124, 137, 200), X.pack(91, 98, 110, 170), X.pack(137, 141, 149, 130)];
+    const seeds = n > 1 ? [0.35, 0.68] : [0.5];
+    for (const f of seeds) {
+      const sx = Math.round(w * f);
+      let sy = h; for (let y = 0; y < h; y++) if (p.d[y * w + sx]) { sy = y; break; }
+      sy += 14;
+      q.obj(0, false);
+      for (let k = 0; k < 5; k++) {
+        const r = 1.5 + k * 0.6, cx = sx + Math.round(Math.sin(k * 1.3) * 1.5) + k, cy = sy - 2 - k * 3.2;
+        for (let yy = Math.floor(cy - r); yy <= cy + r; yy++) for (let xx = Math.floor(cx - r); xx <= cx + r; xx++) {
+          const dx = xx + 0.5 - cx, dy = yy + 0.5 - cy;
+          if (dx * dx + dy * dy > r * r || yy < 0) continue;
+          if (!q.get(xx, yy) || (q.get(xx, yy) >>> 24) < 255) q.put(xx, yy, SM[dx + dy < -0.5 ? 2 : dx + dy > 1 ? 1 : 0]);
+        }
+      }
+    }
+    void plateBottom;
+    return q.trim();
+  }
+
   // ---------------------------------------------------------------- ships drawn here
   // Foam as on the ships of the sheet: muted light blue pixels hugging the hull where it meets the
   // water (the lower part of the outline, round both ends), a little spray at the bow, a short
@@ -419,5 +831,5 @@
     return q;
   }
 
-  G.PixArt = { city, factory, boat, foam, wear, stage, block, tower, hall, chimney, tank, crate, lamp, road, K, flag, house, tree, windows, bricks, tiles };
+  G.PixArt = { city, factory, port, defense, sam0, sam1, radar, airfield, cloak, building, boat, foam, wear, concrete, missile, dish, lattice, jet, JET, MISSILE, stage, block, tower, hall, chimney, tank, crate, lamp, road, K, flag, house, tree, windows, bricks, tiles };
 })();

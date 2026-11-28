@@ -28,6 +28,8 @@
   <label>Spielerfarbe <select id="col">
     <option value="200,52,52">Rot</option><option value="52,104,214" selected>Blau</option><option value="58,160,72">Grün</option><option value="214,160,40">Gelb</option><option value="">keine (grau)</option>
   </select></label>
+  <label><input type="checkbox" id="anim" checked> Animation</label>
+  <label><input type="checkbox" id="mark"> Zielmarke</label>
 </header>
 <section>
   <h2>1. Vorbild 2 (Hauptvorlage)</h2>
@@ -37,20 +39,38 @@
   <h2>Vorbild 1 (gleicher Stil, Seitenansicht)</h2>
   <div class="wide"><img src="assets/vorbild1.jpg" width="1230" height="145" alt="Vorbild 1"></div>
 </section>
-<section>
-  <h2>2. Die 8 Schiffe in Rot, Blau und Grün als Spielerfarbe (Kriegsschiffe: rote Teile, Handelsschiffe: Flagge und Streifen)</h2>
+<section id="s-ships">
+  <h2>2. Alle Schiffe in Rot, Blau und Grün (Kriegsschiffe: rote Teile, Handelsschiffe: Flagge und Streifen; neu: Truppenboot, Abwehrschiff, Seemine)</h2>
   <div id="ships"></div>
 </section>
-<section>
-  <h2>3. Neu gezeichnet: Truppenboot</h2>
-  <div class="row" id="boat"></div>
+<section id="s-drive">
+  <h2>3. Schiffe fahrend: hin und her, gespiegelt nach Bugrichtung, schaukeln ±1 Pixel</h2>
+  <div class="wide"><canvas id="drive"></canvas></div>
 </section>
-<section>
-  <h2>4. Stadt, Bild A bis E (Stufe 1, 2–4, 5–9, 10–29, 30+)</h2>
-  <div class="row" id="city"></div>
-  <h2>5. Fabrik, Bild A bis E</h2>
-  <div class="row" id="factory"></div>
-  <h2>6. Massstab: Gebäude neben den Schiffen, alles 1 Kunstpixel = gleiche Grösse</h2>
+<section id="s-build">
+  <h2>4. Gebäude, Bild A bis E (Stufe 1, 2–4, 5–9, 10–29, 30+)</h2>
+  <div id="build"></div>
+  <h2>Radarschüsseln drehen sich (4 Bilder): Flugabwehr E, Radar E</h2>
+  <canvas id="turn"></canvas>
+</section>
+<section id="s-state">
+  <h2>5. Zustände: im Bau, beschädigt, unter eigenem Tarnturm (blasser), mit Bahnhof-Punkt</h2>
+  <div class="row" id="state"></div>
+</section>
+<section id="s-train">
+  <h2>6. Züge und Schienen: waagrecht (Seitenansicht, nach links gespiegelt), senkrecht (von vorne nach unten, von hinten nach oben), Kurven und Kreuzung</h2>
+  <div class="wide"><canvas id="train"></canvas></div>
+</section>
+<section id="s-plane">
+  <h2>7. Flugzeuge in 8 Richtungen (je ein eigenes Bild), Schatten 6 Pixel versetzt: Bomber, Tarnbomber, Jäger, Aufklärer</h2>
+  <div class="wide"><canvas id="plane"></canvas></div>
+</section>
+<section id="s-fx">
+  <h2>8. Effekte in Schleife: Granate, Einschlag klein und gross, Fehlschuss ins Wasser, Schiff sinkt, Gold</h2>
+  <div class="wide"><canvas id="fx"></canvas></div>
+</section>
+<section id="s-scale">
+  <h2>9. Massstab: Gebäude neben den Schiffen, alles 1 Kunstpixel = gleiche Grösse</h2>
   <div class="wide"><canvas id="scale"></canvas></div>
 </section>
 <script>
@@ -59,54 +79,157 @@ const G = globalThis.G = {};
 </script>
 <script>
 (function () {
-  const X = G.Pixel, A = G.PixArt, $ = (id) => document.getElementById(id);
-  const LET = ['A', 'B', 'C', 'D', 'E'];
-  const built = { city: [0, 1, 2, 3, 4].map(A.city), factory: [0, 1, 2, 3, 4].map(A.factory), boat: A.boat() };
+  const X = G.Pixel, A = G.PixArt, F = G.PixFx, $ = (id) => document.getElementById(id);
+  const LET = ['A', 'B', 'C', 'D', 'E'], WATER = '#2e5775', LAND = '#6f7d5c';
+  const KINDS = [['city', 'Stadt'], ['factory', 'Fabrik'], ['port', 'Hafen'], ['defense', 'Verteidigungsposten'], ['sam0', 'Flugabwehr'], ['sam1', 'Raketenabwehr'], ['radar', 'Radar'], ['airfield', 'Flugplatz'], ['cloak', 'Tarnturm']];
+  const built = {};
+  for (const [k] of KINDS) built[k] = (k === 'cloak' ? [0, 1] : [0, 1, 2, 3, 4]).map((s) => A[k](s, 0));
+  const turning = { sam0: [0, 1, 2, 3].map((f) => A.sam0(4, f)), radar: [0, 1, 2, 3].map((f) => A.radar(4, f)) };
+  const boat = A.boat(), mine = F.mine(), target = F.target();
+  const train = { loco: F.loco(), wagons: [0, 1, 2].map(F.wagon), front: F.trainEnd('loco', true), back: F.trainEnd('loco', false), ends: [0, 1, 2].map((k) => F.trainEnd(k)) };
+  const rails = {}; for (const k of ['h', 'v', 'x', 'c0', 'c1', 'c2', 'c3']) rails[k] = F.rail(k);
+  const planes = {}; for (const k of ['bomber', 'stealth', 'fighter', 'recon']) planes[k] = [0, 1, 2, 3, 4, 5, 6, 7].map((d) => F.plane(k, d));
+  const fx = { shell: F.shell(), small: F.explosion(16), big: F.explosion(40), splash: F.splash(), gold: F.gold('+25k') };
   function rgb() { const v = $('col').value; return v ? v.split(',').map(Number) : null; }
-  function cell(pix, z, label, col, bg) {
+  function blit(cx, pix, x, y, z, col, mirror, alpha) {
+    const cv = X.canvas(pix, col);
+    cx.save();
+    if (alpha !== undefined) cx.globalAlpha = alpha;
+    if (mirror) { cx.translate(Math.round(x + pix.w * z), Math.round(y)); cx.scale(-1, 1); cx.drawImage(cv, 0, 0, pix.w * z, pix.h * z); }
+    else cx.drawImage(cv, Math.round(x), Math.round(y), pix.w * z, pix.h * z);
+    cx.restore();
+  }
+  function cell(pix, z, label, col, bg, extra) {
     const d = document.createElement('div'); d.className = 'cell';
     const c = document.createElement('canvas'), pad = 4;
     c.width = (pix.w + pad * 2) * z; c.height = (pix.h + pad * 2) * z;
     const cx = c.getContext('2d'); cx.imageSmoothingEnabled = false;
     cx.fillStyle = bg; cx.fillRect(0, 0, c.width, c.height);
-    cx.drawImage(X.canvas(pix, col), pad * z, pad * z, pix.w * z, pix.h * z);
+    blit(cx, pix, pad * z, pad * z, z, col, false, extra && extra.alpha);
+    if (extra && extra.station) { cx.fillStyle = '#3fbf4f'; cx.fillRect((pad + pix.ax - 1) * z, (pad + pix.ay - 6) * z, 3 * z, 3 * z); }
     d.appendChild(c); d.appendChild(document.createTextNode(label + ' · ' + pix.w + ' × ' + pix.h));
     return d;
   }
-  function draw(ships) {
-    const z = +$('zoom').value, col = rgb();
-    // 1: the sheet ships in the reference's arrangement
+  let SHIPS = null;
+  function canvasFor(id, w, h, z, bg) {
+    const c = $(id); c.width = w * z; c.height = h * z;
+    const cx = c.getContext('2d'); cx.imageSmoothingEnabled = false;
+    cx.fillStyle = bg; cx.fillRect(0, 0, c.width, c.height);
+    return cx;
+  }
+  function drawStatic() {
+    const z = +$('zoom').value, col = rgb(), ships = SHIPS;
     const s = $('same'), sx = s.getContext('2d');
-    sx.fillStyle = '#2e5775'; sx.fillRect(0, 0, s.width, s.height); sx.imageSmoothingEnabled = false;
+    sx.fillStyle = WATER; sx.fillRect(0, 0, s.width, s.height); sx.imageSmoothingEnabled = false;
     const im = new Image(); im.onload = () => {
       for (const k in X.SHIPS) { const S = X.SHIPS[k]; sx.drawImage(im, S.x, S.y, S.w, S.h, S.at[0], S.at[1], Math.round(S.w * 2.7), Math.round(S.h * 2.7)); }
     }; im.src = G.PIX_SHEET;
-    // 2: player colours
     const sh = $('ships'); sh.innerHTML = '';
     for (const c of [[200, 52, 52], [52, 104, 214], [58, 160, 72]]) {
       const r = document.createElement('div'); r.className = 'row'; r.style.marginBottom = '10px';
-      for (const k in ships) r.appendChild(cell(ships[k], z, X.SHIPS[k].name, c, '#2e5775'));
+      for (const k in ships) r.appendChild(cell(ships[k], z, X.SHIPS[k] ? X.SHIPS[k].name : 'Abwehrschiff', c, WATER));
+      r.appendChild(cell(boat, z, 'Truppenboot', c, WATER)); r.appendChild(cell(mine, z, 'Seemine', c, WATER));
       sh.appendChild(r);
     }
-    $('boat').innerHTML = '';
-    for (const c of [[200, 52, 52], [52, 104, 214], [58, 160, 72]]) $('boat').appendChild(cell(built.boat, z, 'Truppenboot', c, '#2e5775'));
-    for (const k of ['city', 'factory']) {
-      $(k).innerHTML = '';
-      built[k].forEach((p, i) => $(k).appendChild(cell(p, z, 'Bild ' + LET[i], col, '#6f7d5c')));
+    const b = $('build'); b.innerHTML = '';
+    for (const [k, name] of KINDS) {
+      const h = document.createElement('h2'); h.textContent = name; b.appendChild(h);
+      const r = document.createElement('div'); r.className = 'row';
+      built[k].forEach((p, i) => r.appendChild(cell(p, z, 'Bild ' + LET[i], col, k === 'port' ? WATER : LAND)));
+      b.appendChild(r);
     }
-    // 6: scale strip
-    const list = [built.city[0], built.city[2], built.city[4], built.factory[0], built.factory[4], built.boat, ships.trade0, ships.trade2, ships.war0, ships.war3];
+    const st = $('state'); st.innerHTML = '';
+    for (const k of ['city', 'factory', 'defense', 'radar']) {
+      st.appendChild(cell(A.building(k, 0, { build: true }), z, KINDS.find((q) => q[0] === k)[1] + ' im Bau', col, LAND));
+      st.appendChild(cell(A.building(k, 2, { damage: 2 }), z, 'beschädigt', col, LAND));
+    }
+    st.appendChild(cell(built.city[1], z, 'unter Tarnturm', col, LAND, { alpha: 0.55 }));
+    st.appendChild(cell(built.factory[1], z, 'mit Bahnhof', col, LAND, { station: true }));
+    st.appendChild(cell(built.city[1], z, 'fremd im Nebel', null, LAND));
+    // scale strip
+    const list = [built.city[0], built.city[2], built.city[4], built.factory[0], built.factory[4], built.defense[2], built.radar[4], boat, ships.trade0, ships.trade2, ships.war0, ships.war3];
     const W = list.reduce((a, p) => a + p.w + 10, 10), H = Math.max(...list.map((p) => p.h)) + 20;
-    const c = $('scale'); c.width = W * z; c.height = H * z;
-    const cx = c.getContext('2d'); cx.imageSmoothingEnabled = false;
-    cx.fillStyle = '#6f7d5c'; cx.fillRect(0, 0, c.width, c.height);
-    cx.fillStyle = '#2e5775'; cx.fillRect(list.slice(0, 5).reduce((a, p) => a + p.w + 10, 5) * z, 0, c.width, c.height);
+    const cx = canvasFor('scale', W, H, z, LAND);
+    cx.fillStyle = WATER; cx.fillRect(list.slice(0, 7).reduce((a, p) => a + p.w + 10, 5) * z, 0, W * z, H * z);
     let x = 10;
-    for (const p of list) { cx.drawImage(X.canvas(p, col), x * z, (H - 10 - p.h) * z, p.w * z, p.h * z); x += p.w + 10; }
+    for (const p of list) { blit(cx, p, x * z, (H - 10 - p.h) * z, z, col); x += p.w + 10; }
   }
+  // ---------------- animated parts: one clock for everything
+  let T = 0, last = 0;
+  const drive = [];
+  function frame(now) {
+    const z = +$('zoom').value, col = rgb(), on = $('anim').checked, mark = $('mark').checked;
+    if (on) T += Math.min(100, now - (last || now)) / 1000;
+    last = now;
+    const ships = SHIPS;
+    // 3. driving ships
+    const list = [...Object.keys(ships).map((k) => [ships[k], (X.SHIPS[k] || { bow: 'l' }).bow]), [boat, 'r']];
+    const W = 760, rows = [];
+    for (let i = 0; i < list.length; i += 2) rows.push(Math.max(list[i][0].h, list[i + 1] ? list[i + 1][0].h : 0) + 6);
+    const H = rows.reduce((a, b) => a + b, 10);
+    let cx = canvasFor('drive', W, H, z, WATER);
+    list.forEach(([p, bow], i) => {
+      const col0 = i % 2, row = Math.floor(i / 2), lane = rows[row], top = rows.slice(0, row).reduce((a, b) => a + b, 0), span = W / 2 - p.w - 20, ph = (T * 0.12 + i * 0.17) % 2;
+      const dir = ph < 1 ? 1 : -1, f = ph < 1 ? ph : 2 - ph;
+      const x = 10 + col0 * W / 2 + Math.round(f * span), bob = Math.floor(T / 0.8 + i) % 2;
+      const y = 5 + top + lane - p.h - 4 + bob;
+      const mirror = (dir < 0) === (bow === 'r');            // the bow must point where it goes
+      blit(cx, p, x * z, y * z, z, col, mirror);
+      if (mark && i % 3 === 0) blit(cx, target, (x + p.w / 2 - 7) * z, (y + p.h / 2 - 7) * z, z, null);
+    });
+    // 4b. turning dishes: picture E of air defence and radar, 4 frames
+    const tf4 = Math.floor(T * 4) % 4, ta = turning.sam0[tf4], tb = turning.radar[tf4];
+    cx = canvasFor('turn', ta.w + tb.w + 30, Math.max(ta.h, tb.h) + 10, z, LAND);
+    blit(cx, ta, 10 * z, (5 + Math.max(ta.h, tb.h) - ta.h) * z, z, col); blit(cx, tb, (20 + ta.w) * z, (5 + Math.max(ta.h, tb.h) - tb.h) * z, z, col);
+    // 6. trains
+    const TW = 560, TH = 150;
+    cx = canvasFor('train', TW, TH, z, LAND);
+    for (let x = 0; x < TW; x += 12) blit(cx, rails.h, x * z, 30 * z, z);
+    for (let y = 0; y < TH; y += 12) blit(cx, rails.v, 420 * z, y * z, z);
+    blit(cx, rails.x, 420 * z, 30 * z, z);
+    let rx = 470;
+    for (const k of ['c0', 'c1', 'c2', 'c3']) { blit(cx, rails[k], rx * z, 100 * z, z); rx += 16; }
+    blit(cx, rails.c1, 470 * z, 120 * z, z); blit(cx, rails.h, 482 * z, 120 * z, z); blit(cx, rails.c0, 494 * z, 120 * z, z);
+    const tph = (T * 0.08) % 2, tdir = tph < 1 ? 1 : -1, tf = tph < 1 ? tph : 2 - tph;
+    const cars = [train.loco, ...train.wagons], len = cars.reduce((a, p) => a + p.w + 1, 0);
+    let tx = Math.round(10 + tf * (380 - len));
+    const order = tdir > 0 ? [...cars].reverse() : cars;      // loco at the front
+    for (const p of order) { blit(cx, p, tx * z, (36 - p.h + 4) * z, z, col, tdir < 0); tx += p.w + 1; }
+    const vph = (T * 0.1) % 2, vdir = vph < 1 ? 1 : -1, vf = vph < 1 ? vph : 2 - vph;
+    const vcars = vdir > 0 ? [...train.ends, train.front] : [train.back, ...train.ends];   // top to bottom; the loco leads
+    let vy = Math.round(5 + vf * (TH - 90));
+    for (const p of vcars) { blit(cx, p, (426 - p.w / 2 + 4) * z, vy * z, z, col); vy += p.h - 2; }
+    // 7. planes
+    const PW = 8 * 56 + 20, PH = 4 * 56 + 20;
+    cx = canvasFor('plane', PW, PH, z, LAND);
+    Object.keys(planes).forEach((k, r) => planes[k].forEach((pl, d) => {
+      const x = 10 + d * 56 + 28, y = 10 + r * 56 + 26;
+      blit(cx, pl.shadow, (x - pl.shadow.ax + 6) * z, (y - pl.shadow.ay + 6) * z, z);
+      blit(cx, pl.pix, (x - pl.pix.ax) * z, (y - pl.pix.ay) * z, z, col);
+    }));
+    // 8. effects
+    const EW = 600, EH = 90;
+    cx = canvasFor('fx', EW, EH, z, WATER);
+    cx.fillStyle = LAND; cx.fillRect(0, 0, 300 * z, EH * z);
+    const k6 = Math.floor(T * 8) % 9;
+    const sx2 = 10 + ((T * 60) % 120);
+    blit(cx, fx.shell, sx2 * z, 20 * z, z);
+    if (k6 < 6) { blit(cx, fx.small[k6], (150 - 8) * z, (30 - 8) * z, z); blit(cx, fx.big[k6], (220 - 20) * z, (40 - 20) * z, z); }
+    const k3 = Math.floor(T * 6) % 5;
+    if (k3 < 3) blit(cx, fx.splash[k3], 330 * z, (40 - fx.splash[k3].h) * z, z);
+    const sk = sinkFrames(), k7 = Math.floor(T * 3) % 8;
+    blit(cx, sk[Math.min(5, k7)], 380 * z, (70 - sk[0].h) * z, z, col);
+    const gy = (T * 12) % 30, ga = 1 - gy / 30;
+    blit(cx, fx.gold, 520 * z, (60 - gy) * z, z, null, false, ga);
+    requestAnimationFrame(frame);
+  }
+  let SINK = null;
+  function sinkFrames() { return SINK || (SINK = F.sink(SHIPS.war0)); }
   X.loadShips((ships) => {
-    draw(ships);
-    $('zoom').onchange = $('col').onchange = () => draw(ships);
+    SHIPS = Object.assign({}, ships, { war4: F.war4(ships.war0) });
+    drawStatic();
+    $('zoom').onchange = $('col').onchange = drawStatic;
+    requestAnimationFrame(frame);
     document.body.dataset.ready = '1';
   });
 })();

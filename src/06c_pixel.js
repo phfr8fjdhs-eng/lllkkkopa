@@ -55,7 +55,7 @@
     return d;
   }
   // Player colour: three placeholders (light, base, shade), replaced when a variant is made.
-  const PC1 = pack(1, 0, 0, 254), PC2 = pack(2, 0, 0, 254), PC3 = pack(3, 0, 0, 254);
+  const PC1 = pack(1, 0, 0, 254), PC2 = pack(2, 0, 0, 254), PC3 = pack(3, 0, 0, 254), PC4 = pack(4, 0, 0, 254);   // PC4: dark (× 0.4)
   const SHADE = 0.35;
   // The flag: a light grey pole (k its knob) and the 4 × 3 cloth hanging from it in player colour.
   // Column 0 is the pole; the last row stands on the mast top.
@@ -275,6 +275,26 @@
       this.p.put(x0 + i, y0 + j, map[ch]);
     }
   };
+  // A ball (dome, mine, radar sphere) of radius r pixels whose centre is at world (x, y, z), lit
+  // from the upper left: ramp [light, mid, shade, dark]; a 1 pixel glint above left of the middle.
+  Iso.prototype.ball = function (x, y, z, r, ramp, glint, k, edge, cut) {
+    this.p.obj(k === undefined ? 1 : k, edge);
+    const cx = this.sx(x, y), cy = this.sy(x, y, z);
+    for (let py = Math.floor(cy - r); py <= Math.ceil(cy + r); py++) for (let px = Math.floor(cx - r); px <= Math.ceil(cx + r); px++) {
+      const dx = px + 0.5 - cx, dy = py + 0.5 - cy;
+      if (dx * dx + dy * dy > r * r || (cut !== undefined && dy > cut)) continue;
+      const l = (-dx * 0.7 - dy * 0.75) / r;
+      this.p.put(px, py, l > 0.45 ? ramp[0] : l > -0.05 ? ramp[1] : l > -0.5 ? ramp[2] : ramp[3]);
+    }
+    if (glint) this.p.put(Math.round(cx - r * 0.45), Math.round(cy - r * 0.5), glint);
+  };
+  // A line of pixels from world point a to b (masts, rails, struts).
+  Iso.prototype.line = function (a, b, c, k, edge) {
+    this.p.obj(k === undefined ? 1 : k, edge);
+    const [x0, y0] = this.at(a[0], a[1], a[2]), [x1, y1] = this.at(b[0], b[1], b[2]);
+    const n = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0), 1);
+    for (let i = 0; i <= n; i++) this.p.put(Math.round(x0 + (x1 - x0) * i / n), Math.round(y0 + (y1 - y0) * i / n), typeof c === 'function' ? c(i, n) : c);
+  };
   Iso.prototype.pt = function (x, y, z, c) { const [a, b] = this.at(x, y, z); this.p.put(a, b, c); };
   // Small deterministic noise for speckles (grass, stains, lit windows).
   function hash(a, b, s) { let h = (a * 374761393 + b * 668265263 + (s || 0) * 2147483647) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; }
@@ -290,7 +310,7 @@
       const c = (v) => Math.max(0, Math.min(255, Math.round(y + (v * k - y) * (s === undefined ? 1 : s))));
       return pack(c(rgb[0]), c(rgb[1]), c(rgb[2]));
     };
-    const t = [0, f(1.2), f(1), f(0.6)];
+    const t = [0, f(1.2), f(1), f(0.6), f(0.4)];
     for (let i = 0; i < TONE.length; i++) t[10 + i] = f(TONE[i][0], TONE[i][1]);
     return t;
   }
@@ -398,5 +418,5 @@
   }
 
   G.PIX_SHEET = "/*__PIX_SHEET__*/";
-  G.Pixel = { pack, C, nearest, darker, lighter, FLAG, Pix, Iso, hash, PC1, PC2, PC3, PAL, colorize, canvas, SHIPS, shipPix, loadShips, isRed };
+  G.Pixel = { pack, C, nearest, darker, lighter, FLAG, Pix, Iso, hash, PC1, PC2, PC3, PC4, PAL, colorize, canvas, SHIPS, shipPix, loadShips, isRed };
 })();

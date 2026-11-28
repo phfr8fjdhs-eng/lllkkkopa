@@ -17,7 +17,7 @@ PAGE = ["06a_audio.js", "06b_gl.js", "06_view.js", "08_net.js", "08b_host.js", "
 FILES = SIM + PAGE
 # The pixel style of «Langes Spiel» (doku/stil.md): palette, shapes, pictures. The ship sheet goes
 # in as a data URL.
-PIXEL = ["assets/palette.js", "06c_pixel.js", "06d_pixart.js"]
+PIXEL = ["assets/palette.js", "06c_pixel.js", "06d_pixart.js", "06e_pixfx.js"]
 def pixel_js():
     js = "\n".join((root / "src" / f).read_text() for f in PIXEL)
     sheet = "data:image/png;base64," + base64.b64encode((root / "src" / "assets" / "schiffe-sheet.png").read_bytes()).decode()

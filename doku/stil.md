@@ -2,7 +2,7 @@
 
 Im Modus «Langes Spiel» soll alles auf der Karte aussehen wie im Vorbild 2 (`docs/assets/vorbild2.jpg`, obere Reihe; Vorbild 1 zeigt denselben Stil von der Seite). Klassisches Spiel, «Rohstoffe» und Feldzug bleiben, wie sie sind. Im Code: `PIXEL = !!game.lang` (kommt mit Runde 3).
 
-Stand: Runde 1 mit Nachbesserung (Testseite `docs/pixel-test.html`: Vorbilder, die 8 Schiffe, Truppenboot, Stadt und Fabrik A bis E). Noch nicht im Spiel.
+Stand: Runde 2 (Testseite `docs/pixel-test.html`: Vorbilder, alle Schiffe, alle Gebäude in Bild A bis E und ihren Zuständen, Züge und Schienen, Flugzeuge in 8 Richtungen, Effekte). Noch nicht im Spiel; Raketen, Bomben und das Raketen-Silo folgen später.
 
 ## Regeln für jede Grafik
 - **Pixelgrösse:** 1 Kunstpixel = 1 Pixel im Sprite (im Vorbild 2 sind es 2.7 Bildpixel).
@@ -31,8 +31,18 @@ Stand: Runde 1 mit Nachbesserung (Testseite `docs/pixel-test.html`: Vorbilder, d
 ## Aufbau im Code
 - `src/assets/palette.js`: die Palette. `src/assets/schiffe-sheet.png`: die 8 Schiffe, kommt beim Bauen als Data-URL in `G.PIX_SHEET`.
 - `src/06c_pixel.js`: Pixelpuffer `Pix` (ohne DOM), isometrische Formen (`Iso.box`, `obox`, `gable`, `cyl`, `face`, `stamp`), Flagge `FLAG`, Abschluss (`finish`: Kontaktkanten, Schatten, Umriss), Spielerfarbe, die Schiffe des Sheets (`SHIPS`, `loadShips`).
-- `src/06d_pixart.js`: die Bilder (`city`, `factory`, `boat`, Teile wie `house`, `block`, `tower`, `hall`, `chimney`, `tank`).
+- `src/06d_pixart.js`: Gebäude und Truppenboot (`city`, `factory`, `port`, `defense`, `sam0`, `sam1`, `radar`, `airfield`, `cloak`, `building`, `boat`; Teile wie `house`, `block`, `tower`, `hall`, `chimney`, `tank`, `crane`, `dish`, `lattice`).
+- `src/06e_pixfx.js`: Abwehrschiff, Seemine, Zielmarke, Züge, Schienen, Flugzeuge, Effekte (`G.PixFx`).
 - `tools/build.py` baut daraus `build/pixel-test.html`, das nach `docs/pixel-test.html` kopiert wird.
+
+## Was es gibt (Runde 2)
+- **Gebäude** (`G.PixArt`, je Bild A bis E): `city`, `factory`, `port` (Steg, Lagerhaus, Hafenkran, Container; Platte ist das Land, Steg und Kräne ragen nach rechts unten ins Wasser), `defense` (Sandsäcke mit MG, Bunker mit Schiessscharte, Stacheldraht, Geschützturm, Festung), `sam0` (Flugabwehr: Fahrzeuge mit Rampe und Raketen, Radarschüssel), `sam1` (Raketenabwehr: Gestell mit stehenden Abfangraketen, Kontrollhaus, Radar-Panel), `radar` (Gittermast mit Schüssel, Kuppeln in Spielerfarbe), `airfield` (Piste, Hangars, Tower, Jets), `cloak` (nur A und B: Turm unter Tarnnetz). Militärische Gebäude haben kleinere, vollere Platten (`MSIZE`).
+- **Zustände:** `G.PixArt.building(kind, st, { build: true })` (Bild A halb, Holzgerüst, kleiner Kran), `{ damage: 1 | 2 }` (Brandflecken, 1–2 Rauchsäulen). Unter eigenem Tarnturm zeichnet die Anzeige blasser (Alpha), der Bahnhof-Punkt bleibt eine Anzeige darüber.
+- **Drehende Schüsseln:** `sam0(st, frame)` und `radar(st, frame)` mit `frame` 0–3.
+- **Schiffe** (`G.PixFx`): `war4` (Abwehrschiff: der Zerstörer des Sheets, Geschütze ersetzt durch 2 Startkästen mit Deckeln in Spielerfarbe und eine weisse Radarkuppel), `mine` (Seemine 12 × 12), `target` (Zielmarke, rot-weiss, keine Spielerfarbe).
+- **Züge:** `loco`, `wagon(0 | 1 | 2)` (Container, Kessel, offen mit Kisten) für waagrechte Strecken (nach links gespiegelt); `trainEnd('loco', true | false)` und `trainEnd(k)` von vorne bzw. hinten für senkrechte Strecken; `rail('h' | 'v' | 'x' | 'c0'–'c3')` als Kacheln von 12 Pixeln, gerade von oben wie die Karte.
+- **Flugzeuge:** `plane(kind, dir)` mit `kind` bomber, stealth, fighter, recon und `dir` 0–7 (Osten, Südosten, … im Uhrzeigersinn). Jede Richtung ist aus den Teilen neu gezeichnet, nicht gedreht. Dazu ein Schatten (Schwarz 35 %), gezeichnet 6 Pixel nach rechts unten.
+- **Effekte:** `shell`, `explosion(16 | 40)` (6 Bilder), `splash` (3), `sink(pix)` (6), `gold(text)` (Münze und Zahl).
 
 ## Bug-Richtung
 Im Vorbild zeigt der Bug nicht bei allen Schiffen nach rechts oben: bei Containerschiff, Zerstörer und U-Boot nach links unten (`bow: 'l'`), bei Kutter, Frachter, Schlachtschiff, Träger und Radarschiff nach rechts (`bow: 'r'`), ebenso beim Truppenboot. `SHIPS[k].bow` hält das pro Schiff fest; beim Fahren wird ein Schiff gespiegelt, wenn sein Bug sonst gegen die Fahrtrichtung zeigt (Runde 3).
