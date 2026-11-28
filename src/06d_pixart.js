@@ -92,8 +92,8 @@
   // ---------------------------------------------------------------- base plates
   function grass(s, t, px, py) {
     const h = hash(px, py, 7);
-    if (hash(px >> 1, py, 17) < 0.025) return K.dt0;            // bare earth
-    return h < 0.1 ? K.gr2 : h > 0.94 ? K.gr0 : K.gr1;
+    if (hash(px >> 1, py, 17) < 0.008) return K.dt0;            // bare earth, rare (before 2.5 %: read as noise)
+    return h < 0.12 ? K.gr2 : h > 0.97 ? K.gr0 : K.gr1;
   }
   function plate(iso, n, m, edgeOnly) {
     const mat = m === 'grass' ? { t: grass, l: wear(K.dt0, 0.08), r: wear(K.dt1, 0.08), lo: K.dt2, hi: K.gr0, k: 2 }
@@ -376,24 +376,56 @@
   }
   // A radar dish on its post, tilted up; frame 0–3 turns it about the post (0 open towards the
   // viewer, 1 and 3 half turned, 2 seen from behind). r: radius in pixels. (x, y, z): foot of the post.
+  // A real bowl, as on the radar ship of the sheet: in the player colour, a thick rim lit along
+  // its upper edge, the hollow inside dark at the top and lit at the bottom (light from the upper
+  // left falls into a hollow from the other side), the lip's thickness below, a feed horn held by
+  // two struts in front of it, a yoke under it. Seen from behind: the round back, lit on the upper
+  // left, with ribs and a hub. (28.11.2026; before a flat grey disc on a stick, which read as a
+  // lollipop or a street lamp.)
   function dish(iso, x, y, z, r, frame) {
     const [cx, cy] = iso.at(x, y, z), f = frame || 0;
-    const w = [1, 0.55, 0.85, 0.55][f], back = f === 2, sx = [0, 1, 0, -1][f];
-    iso.p.obj(1);
-    for (let i = 0; i < 3; i++) iso.p.put(cx, cy - i, i === 0 ? K.st4 : K.st3);    // post
-    const oy = cy - 2 - Math.round(r * 0.7);                                       // centre of the bowl
-    const rx = Math.max(1.2, r * w), ry = r * 0.72;
+    const w = [1, 0.5, 0.85, 0.5][f], back = f === 2, sx = [0, 1, 0, -1][f];
+    const p = iso.p;
+    p.obj(1);
+    const oy = cy - 2 - Math.round(r * 0.75);                                      // centre of the bowl
+    // the post, 2 pixels, and the yoke the bowl hangs in
+    for (let i = 0; i < cy - oy; i++) { p.put(cx, cy - i, K.st3); p.put(cx + 1, cy - i, K.st4); }
+    for (let i = -1; i <= 2; i++) p.put(cx + i, oy + Math.round(r * 0.45), i < 1 ? K.st2 : K.st4);
+    p.obj(1);
+    const rx = Math.max(1.6, r * w * 1.1), ry = back ? r * 0.72 : r * 0.5, ox = cx + sx + 0.5;   // open side tilted up to the sky: a flat oval
+    const lip = [];
     for (let py = -Math.ceil(ry); py <= Math.ceil(ry); py++) for (let px = -Math.ceil(rx); px <= Math.ceil(rx); px++) {
       const e = (px * px) / (rx * rx) + (py * py) / (ry * ry);
       if (e > 1.0) continue;
       let c;
-      if (back) c = e > 0.55 ? K.st3 : (px + py < 0 ? K.st2 : K.st3);
-      else if (e > 0.6) c = py < 0 ? K.st0 : K.st2;                                // rim: lit on top
-      else c = (px * sx >= 0 && py > -1) ? K.wh2 : K.wh1;                           // the bowl, its far side lighter
-      iso.p.put(cx + px + sx, oy + py, c);
+      if (back) {
+        const l = (-px / rx - py / ry);                                          // convex: lit on the upper left
+        c = e > 0.72 ? (py < 0 ? PC2 : PC3) : l > 0.5 ? PC1 : l > -0.3 ? PC2 : PC3;
+        if ((px === 0 || py === 0) && e < 0.72 && e > 0.08) c = PC4;             // ribs
+        if (e <= 0.08) c = K.st3;                                                 // hub
+      } else if (e > 0.55) {
+        c = py < 0 ? PC1 : (py > ry * 0.5 ? PC3 : PC2);                          // the rim
+        if (sx && px * sx < 0) c = PC3;                                           // the far edge when turned
+      } else {
+        const l = (px * 0.3 + py) / ry;                                           // hollow: lit low, dark high
+        c = l > 0.35 ? PC2 : l > -0.15 ? PC3 : PC4;
+      }
+      p.put(Math.floor(ox + px), Math.floor(oy + py), c);
+      if (py > 0 && e > 0.55) lip.push(Math.floor(ox + px), Math.floor(oy + py) + 1, Math.floor(ox + px), Math.floor(oy + py) + 2);
     }
-    if (!back) { iso.p.put(cx + sx * 2, oy - 1, K.st4); iso.p.put(cx + sx * 2 - (sx || 1), oy, K.st5); }   // feed horn
-    else for (let i = -1; i <= 1; i++) iso.p.put(cx + i, oy + Math.round(ry) - 1, K.st4);                   // struts behind
+    // the lip: the underside of the bowl below its front edge, 2 pixels, darkest at the bottom
+    for (let i = 0; i < lip.length; i += 2) if (!p.get(lip[i], lip[i + 1]) || p.idAt(lip[i], lip[i + 1]) !== p.cur) p.put(lip[i], lip[i + 1], i % 4 ? PC4 : PC3);
+    if (!back) {
+      // feed horn in front of the hollow, two struts from the lower rim
+      p.obj(1, false);
+      const hx = Math.floor(ox + sx * 1.5), hy = oy;
+      for (const side of [-1, 1]) {
+        const fx = Math.floor(ox + side * rx * 0.7), fy = Math.floor(oy + ry * 0.6);
+        const n = Math.max(Math.abs(fx - hx), Math.abs(fy - hy), 1);
+        for (let i = 1; i < n; i++) p.put(Math.round(fx + (hx - fx) * i / n), Math.round(fy + (hy - fy) * i / n), K.st1);
+      }
+      p.put(hx, hy, K.st5); p.put(hx, hy - 1, K.st2);
+    }
   }
   // A lattice mast: two legs, cross braces, h pixels high, from the world point (x, y, z).
   function lattice(iso, x, y, z, h, w) {
@@ -558,22 +590,32 @@
   }
 
   // ---------------------------------------------------------------- missile defence (SAM class 1)
-  // A tall rack, interceptors standing upright in it.
+  // A launcher: a block of upright canisters (round tubes, 3 pixels wide, a gap between) on a
+  // concrete base, the caps in the player colour, a dark steel frame round the block.
+  // (28.11.2026; before thin white sticks in a row between two lines, which read as a garden fence.)
   function rack(iso, x, y, z, k) {
-    concrete(iso, x - 0.5, y - 0.5, z, 3 + (k > 2 ? 2 : 0), 3, 1.5, { stripe: false });
-    for (let i = 0; i < k; i++) {
-      const [px, py] = iso.at(x + 0.6 + i * 1.1, y + 1.2, z + 1.5);
-      iso.stamp(px, py, ['b', 'a', 'm', 'm', 'n', 'm', 'm', 'n', 'm', 'm', 'q', 'q'].map((r) => r + r.replace(/[abmnq]/, (c) => ({ a: 'c', b: 'a', m: 'o', n: 'p', q: 'q' })[c])),
-        { a: PC1, b: PC2, c: PC3, m: MISSILE[0], o: MISSILE[1], n: MISSILE[1], p: MISSILE[2], q: K.st3 }, 1);
+    concrete(iso, x - 0.5, y - 0.5, z, 2 + k * 1.6, 3.2, 1.5, { stripe: false });
+    const TUBE = ['aabc', 'aabc', 'abbc', 'abbc', 'abbc', 'abbc', 'abbc', 'abbc', 'abcc', 'dddd'];
+    const cap = ['.ef.', 'efgg'];
+    for (let i = k - 1; i >= 0; i--) {                     // back to front along x: later ones in front
+      const [px, py] = iso.at(x + 0.5 + i * 1.6, y + 1.4, z + 1.5);
+      iso.stamp(px - 1, py, cap.concat(TUBE), { a: MISSILE[0], b: MISSILE[1], c: MISSILE[2], d: K.st4, e: PC1, f: PC2, g: PC3 }, 1);
     }
-    iso.line([x - 0.3, y + 2.4, z + 1.5], [x - 0.3, y + 2.4, z + 12], K.st3, 1, false);
-    iso.line([x + 0.8 + k * 1.1, y + 2.4, z + 1.5], [x + 0.8 + k * 1.1, y + 2.4, z + 12], K.st4, 1, false);
+    // the frame: two posts and a beam over the caps
+    const top = z + 1.5 + TUBE.length + 2;
+    iso.line([x - 0.2, y + 1.4, z + 1.5], [x - 0.2, y + 1.4, top], K.st4, 1, false);
+    iso.line([x + 0.8 + k * 1.6, y + 1.4, z + 1.5], [x + 0.8 + k * 1.6, y + 1.4, top], K.st5, 1, false);
+    iso.line([x - 0.2, y + 1.4, top], [x + 0.8 + k * 1.6, y + 1.4, top], K.st3, 1, false);
   }
-  // A flat radar panel, leaning back, its frame in player colour.
+  // The fire-control radar: a flat panel leaning back on a trailer, held by two struts from
+  // behind, its frame in the player colour. (Before the panel hung in the air over a thin sill.)
   function panel(iso, x, y, z, w, h) {
-    iso.box(x, y + 1, z, w, 1, 1.5, { l: K.st3, r: K.st4, t: K.st2, k: 1 });
+    truck(iso, x - 0.3, y + 0.2, z, w + 0.6);
+    const base = z + 2.8;
+    iso.line([x + 0.6, y + 0.3, base], [x + 0.6, y + 0.3, base + h * 0.7], K.st4, 1);
+    iso.line([x + w - 0.6, y + 0.3, base], [x + w - 0.6, y + 0.3, base + h * 0.7], K.st5, 1);
     iso.p.obj(1);
-    iso.face([x, y + 1.5, z + 1.5], [w, 0, 0], [0, -1.2, h], false, (u, v, px, py) => (u < 0.08 || u > 0.92 || v < 0.1 || v > 0.9 ? PC2 : ((px + py) % 2 ? C('#45576a') : C('#516980'))));
+    iso.face([x, y + 2, base], [w, 0, 0], [0, -1.4, h], false, (u, v, px, py) => (u < 0.08 || u > 0.92 || v < 0.08 || v > 0.92 ? (v > 0.5 ? PC1 : PC2) : (v > 0.66 ? ((px + py) % 2 ? C('#516980') : C('#607e93')) : (px + py) % 2 ? C('#45576a') : C('#516980'))));
   }
   function sam1(st) {
     const n = MSIZE[st], iso = canvas(n, 64), g = new Set([plate(iso, n, 'concrete')]);
@@ -596,12 +638,15 @@
     if (st === 0) { concrete(iso, 1.5, 4.5, z, 3, 2.5, 4, {}); mast(5.5, 3, 14, 4); }
     else if (st === 1) { concrete(iso, 1.5, 5.5, z, 3.5, 3, 4, {}); mast(6.5, 3, 16, 6); }
     else if (st === 2) { iso.ball(3.5, 4, z + 5, 5, DOME, PC1, 1); mast(8.5, 3, 17, 6); concrete(iso, 3, 8.5, z, 4, 2.5, 4, {}); }
-    else if (st === 3) { iso.ball(4.5, 4.5, z + 6, 6, DOME, PC1, 1); mast(11, 2.5, 18, 6); mast(11.5, 10, 13, 4); concrete(iso, 2.5, 10.5, z, 5, 3, 4, {}); }
+    // D and E: masts on the left and right corners, never in front of the dome or the hall
+    // (before, a mast stood on the front edge and ran straight through the building)
+    else if (st === 3) { iso.ball(4.5, 4.5, z + 6, 6, DOME, PC1, 1); mast(11.5, 2.5, 18, 6); concrete(iso, 2.5, 10.5, z, 5, 3, 4, {}); }
     else {
+      iso.ball(3.5, 3, z + 4, 4, DOME, PC1, 1);
+      mast(16, 2.5, 20, 6);
       concrete(iso, 5.5, 5.5, z, 8, 8, 5, {});
       iso.ball(9.5, 9.5, z + 5 + 7, 8, DOME, PC1, 1, true, 5.5);
-      iso.ball(3.5, 3, z + 4, 4, DOME, PC1, 1);
-      mast(15, 2.5, 20, 6); mast(3, 15, 15, 5); mast(16, 15.5, 12, 4);
+      mast(2.5, 16, 15, 5);
     }
     iso.p.finish({ ground: g });
     return iso.p.trim();
@@ -629,18 +674,70 @@
     concrete(iso2, x, y, z, 1.6, 1.6, h, { stripe: false });
     iso2.box(x - 0.4, y - 0.4, z + h, 2.4, 2.4, 2.2, { l: (s, t) => (t > 0.5 && t < 1.8 ? K.gl2 : C('#a4acb1')), r: (s, t) => (t > 0.5 && t < 1.8 ? K.gl4 : C('#7f8a95')), t: PC2, hi: PC1, k: 1 });
   }
-  // A small parked jet seen from above (nose to the upper right).
-  const JET = ['.....a', '....ab', 'c.aab.', 'ccbbb.', '.bbd..', '.b.d..', 'b.....'];
-  function jet(iso, x, y, z) { const [px, py] = iso.at(x, y, z); iso.stamp(px, py, JET, { a: C('#a4acb1'), b: C('#7f8a95'), c: C('#5b626e'), d: PC2 }, 1); }
+  // A parked jet seen from above at the slant, nose to the upper right along the apron: drawn
+  // from a few flat parts (fuselage, swept wings, tailplanes), light grey with a darker lower right
+  // edge, dark canopy, the fin standing up in the player colour. About 13 × 9 pixels.
+  // (28.11.2026; before a 6 × 7 stamp that read as a grey smudge.)
+  const JETP = [
+    { c: C('#a4acb1'), poly: [[7, 0], [5, -0.9], [-6, -0.9], [-6, 0.9], [5, 0.9]] },
+    { c: C('#a4acb1'), poly: [[2, -0.8], [-3, -5], [-4.2, -5], [-3, -0.8]] },
+    { c: C('#a4acb1'), poly: [[2, 0.8], [-3, 5], [-4.2, 5], [-3, 0.8]] },
+    { c: C('#a4acb1'), poly: [[-4.5, -0.8], [-6.2, -2.6], [-7, -2.6], [-6.5, -0.8]] },
+    { c: C('#a4acb1'), poly: [[-4.5, 0.8], [-6.2, 2.6], [-7, 2.6], [-6.5, 0.8]] },
+    { c: K.gl3, poly: [[5, 0], [4, -0.6], [2.4, -0.6], [2.4, 0.6], [4, 0.6]] }
+  ];
+  function inPoly(x, y, P) {
+    let c = false;
+    for (let i = 0, j = P.length - 1; i < P.length; j = i++) {
+      const [xi, yi] = P[i], [xj, yj] = P[j];
+      if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) c = !c;
+    }
+    return c;
+  }
+  function jet(iso, x, y, z) {
+    const [cx, cy] = iso.at(x, y, z), p = iso.p;
+    const ang = Math.atan2(-1, 2), ca = Math.cos(ang), sa = Math.sin(ang);
+    p.obj(1);
+    const hit = (px, py) => {
+      const X0 = px + 0.5 - cx, Y0 = (py + 0.5 - cy) / 0.8;
+      const lx = X0 * ca + Y0 * sa, ly = -X0 * sa + Y0 * ca;
+      for (let i = JETP.length - 1; i >= 0; i--) if (inPoly(lx, ly, JETP[i].poly)) return i;
+      return -1;
+    };
+    for (let py = cy - 7; py <= cy + 7; py++) for (let px = cx - 9; px <= cx + 9; px++) {
+      const i = hit(px, py);
+      if (i < 0) continue;
+      let c = JETP[i].c;
+      if (i !== 5 && hit(px + 1, py + 1) < 0) c = C('#7f8a95');                   // the edge away from the light
+      p.put(px, py, c);
+    }
+    // the fin on the tail, 3 pixels up, in the player colour
+    p.obj(1);
+    const tx = Math.round(cx - 5.5 * ca), ty = Math.round(cy - 5.5 * sa * 0.8);
+    p.put(tx, ty - 1, PC2); p.put(tx, ty - 2, PC1); p.put(tx + 1, ty - 1, PC3); p.put(tx + 1, ty - 2, PC2);
+  }
+  // The apron: grey concrete between the hangars and the runway, with painted parking marks.
+  function apron(iso, x, y, z, a, b) {
+    iso.p.obj(1, false);
+    iso.face([x, y, z], [a, 0, 0], [0, b, 0], false, wear((u, v, px, py) => {
+      const s = u * a, t = v * b;
+      if (t > b - 0.5 && Math.floor(s * 2) % 2 === 0) return C('#a49e50');           // taxi line to the runway
+      return (Math.floor(s) % 5 === 0 && (px & 1)) ? K.as1 : K.as0;            // dark, so the light jets stand out
+    }, 0.05, 152));
+    return iso.p.cur;
+  }
   function airfield(st) {
     const n = SIZE[st], iso = canvas(n, 48), g = new Set([plate(iso, n, 'grass')]);
     const z = 2, len = st >= 3 ? n - 1 : n - 2;
     g.add(runway(iso, 0.5, n - 4, z, len, 3));
-    if (st === 0) hangar(iso, 2, 1.5, z, 3, 4, 3);
-    else if (st === 1) { hangar(iso, 2, 1.5, z, 3, 4, 3); ctower(iso, 7, 2, z, 6); }
-    else if (st === 2) { hangar(iso, 1.5, 1.5, z, 3, 4, 3); hangar(iso, 5.5, 1.5, z, 3, 4, 3); ctower(iso, 10.5, 2, z, 7); jet(iso, 4, 7.5, z); }
-    else if (st === 3) { hangar(iso, 1.5, 1.5, z, 3.5, 5, 3.5); hangar(iso, 6, 1.5, z, 3.5, 5, 3.5); ctower(iso, 13, 3, z, 8); jet(iso, 3.5, 9, z); jet(iso, 8, 9, z); }
-    else { for (let i = 0; i < 3; i++) hangar(iso, 1.5 + i * 5, 1.5, z, 4, 6, 4); ctower(iso, 18, 3, z, 9); jet(iso, 4, 11, z); jet(iso, 9, 11, z); jet(iso, 14, 11, z); }
+    // the apron reaches under the hangars, so they stand on it and cast their shadow there
+    // (before they stood on bare grass far from the runway, and the plate looked empty)
+    g.add(apron(iso, 1, 1, z, len - 0.5, n - 5.6));
+    if (st === 0) { hangar(iso, 2, 1.5, z, 3, 4, 3); jet(iso, 5.5, 6.2, z); }
+    else if (st === 1) { hangar(iso, 2, 1.5, z, 3, 4, 3); ctower(iso, 7, 2, z, 6); jet(iso, 4.5, 7.6, z); }
+    else if (st === 2) { hangar(iso, 1.5, 1.5, z, 3, 4, 3); hangar(iso, 5.5, 1.5, z, 3, 4, 3); ctower(iso, 10.5, 2, z, 7); jet(iso, 4, 8.6, z); jet(iso, 9, 8.6, z); }
+    else if (st === 3) { hangar(iso, 1.5, 1.5, z, 3.5, 5, 3.5); hangar(iso, 6, 1.5, z, 3.5, 5, 3.5); ctower(iso, 13, 3, z, 8); jet(iso, 3.5, 10.4, z); jet(iso, 8.5, 10.4, z); jet(iso, 13.5, 10.4, z); }
+    else { for (let i = 0; i < 3; i++) hangar(iso, 1.5 + i * 5, 1.5, z, 4, 6, 4); ctower(iso, 18, 3, z, 9); for (let i = 0; i < 4; i++) jet(iso, 3.5 + i * 5, 14, z); }
     iso.p.finish({ ground: g });
     return iso.p.trim();
   }
@@ -728,22 +825,32 @@
       if (r < 0.14) q.d[j] = X.darker(X.darker(v));
       else if (r < 0.19) q.d[j] = char;
     }
-    // smoke: puffs rising from the highest points
-    const SM = [X.pack(116, 124, 137, 200), X.pack(91, 98, 110, 170), X.pack(137, 141, 149, 130)];
+    // smoke: a column of puffs rising out of the roof, joined (each overlaps the one below),
+    // dark and dense at the bottom, lighter and thinner going up, drifting a little to the right;
+    // a few pixels of fire where it leaves the roof. (28.11.2026; before the puffs started above
+    // the roof with gaps between them and looked like grey ghosts floating over the building.)
+    const SM = [X.pack(61, 69, 82, 225), X.pack(91, 98, 110, 200), X.pack(116, 124, 137, 170), X.pack(137, 141, 149, 130)];
+    const FIRE = [C('#d1be6d'), C('#cc8738'), C('#9d303c')];
     const seeds = n > 1 ? [0.35, 0.68] : [0.5];
     for (const f of seeds) {
       const sx = Math.round(w * f);
-      let sy = h; for (let y = 0; y < h; y++) if (p.d[y * w + sx]) { sy = y; break; }
-      sy += 14;
+      let sy = h; for (let y = 0; y < h; y++) if (p.d[y * w + sx] && p.k[y * w + sx]) { sy = y; break; }
+      sy += 14 + 1;                                         // into the roof by a pixel
       q.obj(0, false);
-      for (let k = 0; k < 5; k++) {
-        const r = 1.5 + k * 0.6, cx = sx + Math.round(Math.sin(k * 1.3) * 1.5) + k, cy = sy - 2 - k * 3.2;
+      for (let k = 6; k >= 0; k--) {                        // top first, so the denser lower puffs lie over it
+        const r = 1.3 + k * 0.42, cx = sx + 0.5 + k * 0.55 + Math.sin(k * 1.7) * 0.6, cy = sy - k * 2.1;
+        const tone = Math.min(3, Math.floor(k / 2));
         for (let yy = Math.floor(cy - r); yy <= cy + r; yy++) for (let xx = Math.floor(cx - r); xx <= cx + r; xx++) {
           const dx = xx + 0.5 - cx, dy = yy + 0.5 - cy;
           if (dx * dx + dy * dy > r * r || yy < 0) continue;
-          if (!q.get(xx, yy) || (q.get(xx, yy) >>> 24) < 255) q.put(xx, yy, SM[dx + dy < -0.5 ? 2 : dx + dy > 1 ? 1 : 0]);
+          const cur = q.get(xx, yy);
+          if (cur && (cur >>> 24) === 255) continue;          // never over the building
+          q.put(xx, yy, SM[Math.max(0, Math.min(3, tone + (dx + dy < -0.8 ? 1 : 0)))]);
         }
       }
+      q.obj(0, false);
+      q.put(sx, sy, FIRE[1]); q.put(sx + 1, sy, FIRE[2]); q.put(sx, sy - 1, FIRE[0]);
+      if (n > 1) { q.put(sx - 1, sy, FIRE[1]); q.put(sx + 1, sy - 1, FIRE[1]); }
     }
     void plateBottom;
     return q.trim();
@@ -831,5 +938,5 @@
     return q;
   }
 
-  G.PixArt = { city, factory, port, defense, sam0, sam1, radar, airfield, cloak, building, boat, foam, wear, concrete, missile, dish, lattice, jet, JET, MISSILE, stage, block, tower, hall, chimney, tank, crate, lamp, road, K, flag, house, tree, windows, bricks, tiles };
+  G.PixArt = { city, factory, port, defense, sam0, sam1, radar, airfield, cloak, building, boat, foam, wear, concrete, missile, dish, lattice, jet, JETP, MISSILE, stage, block, tower, hall, chimney, tank, crate, lamp, road, K, flag, house, tree, windows, bricks, tiles };
 })();

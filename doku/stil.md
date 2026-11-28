@@ -49,3 +49,12 @@ Im Vorbild zeigt der Bug nicht bei allen Schiffen nach rechts oben: bei Containe
 
 ## Schräge Rümpfe
 Schiffe liegen steiler als das Gebäuderaster (etwa 0.7 statt 0.5, wie Zerstörer und Containerschiff). Dafür gibt es `Iso.obox`: ein Kasten in beliebigem Winkel, gezeichnet werden nur die Seiten zum Betrachter, nach links unten hell, nach rechts unten dunkel.
+
+## Nachbesserung 28.11.2026 (nach Durchsicht der ganzen Testseite)
+- **Radarschüsseln** (`dish`): eine echte Schüssel in Spielerfarbe wie beim Radarschiff: dicker Rand, oben hell; die Höhlung oben dunkel, unten hell; darunter die Lippe 2 Pixel; davor das Speisehorn an zwei Streben; ein Joch auf dem Mast. Die offene Seite zeigt schräg nach oben (flaches Oval). Vorher eine flache graue Scheibe auf einem Stiel, sie sah aus wie ein Lolli oder eine Strassenlampe.
+- **Radar D und E:** Masten nur an den Ecken links und rechts, nie vor Kuppel oder Halle (vorher stach ein Mast mitten durchs Gebäude).
+- **Raketenabwehr:** Startgestell aus runden Röhren mit Lücken, Deckel in Spielerfarbe, Stahlrahmen (vorher dünne weisse Stäbe, wie ein Gartenzaun). Das Radar-Panel steht auf einem Anhänger und wird hinten von zwei Streben gehalten (vorher schwebte es).
+- **Flugplatz:** dunkles Vorfeld zwischen Hangars und Piste, gelbe Rollmarkierung; Jets 13 × 9 aus Teilen gezeichnet, Seitenleitwerk in Spielerfarbe (vorher ein grauer Fleck von 6 × 7 auf leerem Rasen).
+- **Rauch bei «beschädigt»:** eine zusammenhängende Säule, die aus dem Dach steigt, unten dunkel und dicht, oben hell und dünn, mit ein paar Pixeln Feuer (vorher schwebende Wölkchen mit Lücken).
+- **Rasen:** ruhiger, nackte Erde nur noch selten (0.8 % statt 2.5 %).
+- **Flugzeuge:** jedes Teil oben hell, nur der Rand weg vom Licht dunkel (vorher war das ganze Bild an einer Diagonale geteilt, schräg sah der Bomber aus wie ein verdrehtes X). Hoheitszeichen auf beiden Flügeln und grösser, Seitenleitwerk in Spielerfarbe.

@@ -289,7 +289,7 @@
         { c: [C('#3d4552'), C('#2c303d')], poly: [[5, -7], [5, -5], [0, -5], [0, -7]] }, { c: [C('#3d4552'), C('#2c303d')], poly: [[5, 5], [5, 7], [0, 7], [0, 5]] },
         { c: [C('#3d4552'), C('#2c303d')], poly: [[4, -13], [4, -11], [-1, -11], [-1, -13]] }, { c: [C('#3d4552'), C('#2c303d')], poly: [[4, 11], [4, 13], [-1, 13], [-1, 11]] },
         { c: [K.gl1, K.gl3], poly: [[17, 0], [14, -1.5], [12, -1.5], [12, 1.5], [14, 1.5]] }
-      ], fin: [[-15, 0], [-19, 0], 5, C('#747c89')], badge: [-1, -9]
+      ], fin: [[-15, 0], [-19, 0], 5, PC2], badge: [-1, -9]
     },
     stealth: {
       parts: [
@@ -303,7 +303,7 @@
         { c: [C('#7393aa'), C('#607e93')], poly: [[6, 1.5], [-8, 10], [-10, 10], [-9, 1.5]] },
         { c: [C('#8cafc8'), C('#7393aa')], poly: [[12, 0], [8, -1.6], [-11, -1.6], [-11, 1.6], [8, 1.6]], spine: C('#a1bdd7') },
         { c: [K.gl3, K.gl4], poly: [[9, 0], [7, -1], [4, -1], [4, 1], [7, 1]] }
-      ], fin: [[-7, 0], [-11, 0], 4, C('#607e93')], badge: [-5, -5]
+      ], fin: [[-7, 0], [-11, 0], 4, PC2], badge: [-5, -5]
     },
     recon: {
       parts: [
@@ -313,7 +313,7 @@
         { c: [C('#b1bdd0'), C('#a4acb1')], poly: [[-10, 1], [-11, 6], [-13, 6], [-13, 1]] },
         { c: [C('#cbd0d3'), C('#a4acb1')], poly: [[13, 0], [10, -1.4], [-13, -1], [-13, 1], [10, 1.4]], spine: C('#edeef4') },
         { c: [K.gl3, K.gl4], poly: [[11, 0], [9, -1], [7, -1], [7, 1], [9, 1]] }
-      ], fin: [[-10, 0], [-13, 0], 4, C('#a4acb1')], badge: [-1, -10]
+      ], fin: [[-10, 0], [-13, 0], 4, PC2], badge: [-1, -10]
     }
   };
   const SQ = 0.8;                                             // the slant: depth shows at 0.8
@@ -329,29 +329,40 @@
   function plane(kind, dir) {
     const P = PLANES[kind], ang = dir * Math.PI / 4, ca = Math.cos(ang), sa = Math.sin(ang);
     const S = 48, p = new X.Pix(S, S), sh = new X.Pix(S, S), c0 = S / 2;
-    // light: from the upper left of the screen; a part's lit half is the one towards it
+    // Shading: each part's top in its light colour, its edge away from the light (lower right of
+    // the screen) one pixel in the shade colour. (28.11.2026; before the whole picture was split
+    // along one screen diagonal, so in the slanted directions one wing came out light and the
+    // other dark and the plane read as a twisted X.)
+    const partAt = new Int8Array(S * S).fill(-1);
     for (let py = 0; py < S; py++) for (let px = 0; px < S; px++) {
       const X0 = px + 0.5 - c0, Y0 = (py + 0.5 - c0) / SQ;
       const lx = X0 * ca + Y0 * sa, ly = -X0 * sa + Y0 * ca;   // back into the plane's own frame
-      for (let i = P.parts.length - 1; i >= 0; i--) {
-        const part = P.parts[i];
-        if (!inPoly(lx, ly, part.poly)) continue;
-        p.cur = i + 1; p.curK = 1;
-        const lit = (X0 + Y0 * SQ) < 0;
-        let c = lit ? part.c[0] : part.c[1];
-        if (part.spine && Math.abs(ly) < 0.6) c = part.spine;
-        if (P.badge && Math.hypot(lx - P.badge[0], ly - P.badge[1]) < 1.6) c = Math.hypot(lx - P.badge[0], ly - P.badge[1]) < 0.8 ? PC1 : PC2;
-        p.put(px, py, c);
-        sh.put(px, py, X.pack(0, 0, 0, 89));
-        break;
+      for (let i = P.parts.length - 1; i >= 0; i--) if (inPoly(lx, ly, P.parts[i].poly)) { partAt[py * S + px] = i; break; }
+    }
+    const at = (x, y) => (x < 0 || y < 0 || x >= S || y >= S ? -1 : partAt[y * S + x]);
+    for (let py = 0; py < S; py++) for (let px = 0; px < S; px++) {
+      const i = at(px, py);
+      if (i < 0) continue;
+      const part = P.parts[i], X0 = px + 0.5 - c0, Y0 = (py + 0.5 - c0) / SQ;
+      const lx = X0 * ca + Y0 * sa, ly = -X0 * sa + Y0 * ca;
+      p.cur = i + 1; p.curK = 1;
+      const edge = at(px + 1, py + 1) < 0 || at(px + 1, py) < 0 && at(px, py + 1) < 0;
+      let c = edge ? part.c[1] : part.c[0];
+      if (part.spine && Math.abs(ly) < 0.6) c = part.spine;
+      // the roundel in the player colour, larger than before (a single pixel was lost)
+      if (P.badge) for (const sgn of [1, -1]) {
+        const d = Math.hypot(lx - P.badge[0], ly - sgn * P.badge[1]);
+        if (d < 2.3) c = d < 1.1 ? PC1 : d < 1.8 ? PC2 : PC3;
       }
+      p.put(px, py, c);
+      sh.put(px, py, X.pack(0, 0, 0, 89));
     }
     if (P.fin) {                                              // the fin stands up from the tail
       const [[x0, y0], [x1], hgt, col] = P.fin;
       p.obj(1);
       for (let x = x0; x >= x1; x -= 0.5) {
         const f = (x0 - x) / (x0 - x1), sx = c0 + x * ca, sy = c0 + x * sa * SQ;
-        for (let k = 0; k < hgt * f + 1; k++) p.put(Math.round(sx - 0.5), Math.round(sy - 0.5 - k), k > hgt * f - 0.5 ? X.lighter(col) : col);
+        for (let k = 0; k < hgt * f + 1; k++) p.put(Math.round(sx - 0.5), Math.round(sy - 0.5 - k), k > hgt * f - 0.5 ? (col === PC2 ? PC1 : X.lighter(col)) : col);
       }
       void y0;
     }
