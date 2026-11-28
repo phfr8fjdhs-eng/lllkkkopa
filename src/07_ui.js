@@ -989,6 +989,7 @@
     }
     if (modalKind === 'info' && T % 5 === 0) renderInfo();
     if (modalKind === 'fleet' && T % 10 === 0) showFleet();
+    if (modalKind === 'tech' && T % 3 === 0 && !techPress) showTech();   // live: percentages, a step just started or done (only redrawn when something changed)
     if (modalKind === 'res' && T % 3 === 0) renderRes();
     if (aim && T % 3 === 0) refreshAim();
     if (game.lv) G.Feldzug.hud();
@@ -1118,9 +1119,9 @@
     if (what === 'renew') { act({ k: 'renew', p: p.id }); dropAsk('r' + p.id); return; }
     if (what === 'tech') { showTech(); return; }
     if (what.indexOf('fly:') === 0) { const u = game.human.units.find(function (v) { return v.id === +what.slice(4); }); closeModal(); if (u) view.flyTo(u.x, u.y, Math.max(view.cam.z, 4)); return; }
-    if (what.indexOf('tsel:') === 0) { techSel = techSel === what.slice(5) ? '' : what.slice(5); const top = $('modalCard').scrollTop; showTech(); $('modalCard').scrollTop = top; return; }
-    if (what.indexOf('tech:') === 0) { act({ k: 'research', id: what.slice(5), say: 'Forschung gestartet' }); setTimeout(function () { if (modalKind === 'tech') showTech(); }, 150); return; }
-    if (what.indexOf('take:') === 0) { const pr = what.split(':'); act({ k: 'techtake', p: +pr[2], id: pr[1], say: 'Gekauft' }); setTimeout(function () { if (modalKind === 'tech') showTech(); }, 150); return; }
+    if (what.indexOf('tsel:') === 0) { techSel = techSel === what.slice(5) ? '' : what.slice(5); showTech(); return; }
+    if (what.indexOf('tech:') === 0) { act({ k: 'research', id: what.slice(5), say: 'Forschung gestartet' }); return; }   // the window follows by itself (hudTick)
+    if (what.indexOf('take:') === 0) { const pr = what.split(':'); act({ k: 'techtake', p: +pr[2], id: pr[1], say: 'Gekauft' }); return; }
     if (what === 'give') { const sel = $('giveTech'), pr = $('givePrice'); if (sel && sel.value) act({ k: 'techoffer', p: p.id, id: sel.value, price: +pr.value, say: +pr.value ? 'Angebot an ' + p.name + ' geschickt' : 'An ' + p.name + ' geschenkt' }); return; }
     if (what === 'peace') { act({ k: 'peace', p: p.id }); dropAsk('f' + p.id); return; }
     if (what === 'spy') { if (!game.spying(h, p)) act({ k: 'spy', p: p.id }); return; }
@@ -1321,7 +1322,7 @@
   const TSHORT = {
     blitz: ['Blitzkrieg', 'sword'], tief: ['Tiefenvert.', 'defense'],
     auf1: ['Radar', 'radar'], auf2: ['Radar ×1.5', 'radar'], spy2: ['Spione', 'people'], reco: ['Aufklärer', 'recon'], auf3: ['Tarnung sehen', 'cloak'], auf4: ['Frühwarnung', 'radar'], auf5: ['Satellit', 'target'],
-    abw1: ['Flugabwehr', 'sam'], abw2: ['+1 Schuss', 'sam'], schutz: ['Schutzräume', 'defense'], abw3a: ['+1 Schuss', 'sam'], abw3b: ['Reichweite', 'target'], abm3: ['ABM: Atom', 'abm'], schutz2: ['Schutz 30 %', 'defense'],
+    abw2: ['+1 Schuss', 'sam'], schutz: ['Schutzräume', 'defense'], abw3a: ['+1 Schuss', 'sam'], abw3b: ['Reichweite', 'target'], abm3: ['ABM: Atom', 'abm'], schutz2: ['Schutz 30 %', 'defense'],
     abw4: ['Nachladen', 'sam'], abm4: ['ABM: H-Bombe', 'abm'], zivil: ['Zivilschutz', 'people'], abm5: ['ABM: MIRV', 'abm'], abw5: ['Gegen Tarn', 'stealth'],
     rak1: ['Marschflug.', 'cruise'], rak2: ['Streubombe', 'cluster'], rakR: ['Reichweite', 'target'], rak3a: ['Bunkerbr.', 'bunker'], rak3b: ['Thermobar', 'thermo'], rakA1: ['Sprengkraft', 'cruise'],
     rak4: ['Kurzstrecke', 'srbm'], rakA2: ['Sprengkr. 50 %', 'cruise'], rakS: ['Tempo', 'srbm'], hyper: ['Hyperschall', 'srbm'],
@@ -1333,7 +1334,7 @@
     sonar: ['Sonar', 'warship'], bs3: ['Geschütze', 'battleship'], ub2: ['Leise U-Boote', 'sub'], abws: ['Abwehrschiff', 'abm'], marinf: ['Marineinf.', 'troops'],
     mar4: ['Flak an Bord', 'warship'], bs4: ['Granaten', 'battleship'], ub4: ['Torpedos', 'sub'], traeger: ['Träger', 'carrier'], ub3: ['Raketen-U-Boot', 'sub'], geleit: ['Geleitschutz', 'carrier']
   };
-  let techSel = '';
+  let techSel = '', techHtml = '', techPress = false;   // techPress: a finger or button is down, so a click is not lost to a redraw
   function techState(h, t, run, free) {
     const done = game.has(h, t.id), gone = h.tech && h.tech[t.id] === -1, why = game.techWhy(h, t.id), pts = run[t.id];
     if (done) return { cls: 'done', line: 'Erforscht' };
@@ -1385,6 +1386,9 @@
     }
     s += '</div><div class="tlegend"><span class="tk done">erforscht</span><span class="tk can">möglich</span><span class="tk run">läuft</span><span class="tk time">ab Minute</span><span class="tk need">braucht zuerst</span><span class="tk gone">ausgeschlossen</span></div>' +
       '<button class="btn ghost" data-act="close" type="button">Schliessen</button></div>';
+    // already open: write only what changed, keep where it was scrolled (no flicker, no jump)
+    if (modalKind === 'tech') { if (s !== techHtml) { const card = $('modalCard'), top = card.scrollTop; card.innerHTML = s; card.scrollTop = top; techHtml = s; } return; }
+    techHtml = s;
     openModal(s, 'tech');
     $('modalCard').classList.add('techWide');
   }
@@ -2500,6 +2504,8 @@
     $('rS').addEventListener('click', function () { radialAct('S'); });
     $('rW').addEventListener('click', function () { radialAct('W'); });
     $('sheetBody').addEventListener('click', onBuild);
+    $('modalCard').addEventListener('pointerdown', function () { techPress = true; });
+    document.addEventListener('pointerup', function () { setTimeout(function () { techPress = false; }, 0); });
     $('bTech').innerHTML = svg('flask', 20); $('bTech').addEventListener('click', function () { if (game && game.lang) showTech(); });
     $('evac').addEventListener('click', function (e) { const b = e.target.closest('[data-evac]'); if (b && !b.disabled) act({ k: 'evac', t: +b.dataset.evac, say: 'Stadt wird evakuiert' }); });
     // Closing the card of an air defence or factory with the cross keeps the rings of all of that

@@ -42,6 +42,17 @@
 
   G.NEUES = [
     {
+      n: 147, date: '28.11.2026', title: 'Langes Spiel: Flugabwehr ohne Forschung', lang: true, research: true,
+      text: 'Kleine Flugabwehr und Raketenabwehr baust du jetzt von Anfang an, ohne Forschung; die Forschung macht sie nur besser. Das Forschungsfenster zeigt den Fortschritt laufend, ohne Ruckeln.',
+      map: { w: 300, h: 200, seed: 947, shapes: [circ(90, 100, 70), circ(230, 100, 60)] },
+      me: { x: 90, y: 100, r: 72, troops: 60000, gold: 3000000, build: [[UT.CITY, 80, 100, 6]] },
+      foes: [{ name: 'Varnholm', x: 230, y: 100, r: 62, troops: 80000, build: [[UT.SILO, 240, 100, 2]] }],
+      allow: ALL, quest: none,
+      events: [[2, function (Q) { const g = Q.g; g.build(Q.me, UT.SAM, g.levelTile(115, 70)); g.build(Q.me, UT.SAM, g.levelTile(115, 130), 1); }]],
+      loop: [8, 12, function (Q) { Q.fire(Q.foe[0], UT.CRUISE, 80, 100); }],
+      tips: [{ text: 'Beide Flugabwehren, ohne Forschung gebaut.', pins: function (Q) { return Q.units(Q.me, UT.SAM, 2); } }]
+    },
+    {
       n: 146, date: '27.11.2026', title: 'Langes Spiel: Liste der Flotte', lang: true,
       text: 'In den Gruppen «Schiffe» und «Flugzeuge» der Bauleiste (und in der Karte des Hafens) öffnet «Liste» alle eigenen Schiffe und Flugzeuge in der Luft: Art, Leben, wo und was es gerade tut. Antippen springt auf der Karte hin.',
       map: STRAIT,
@@ -61,7 +72,7 @@
       events: [[2, function (Q) {
         const g = Q.g, cs = Q.me.units.filter(function (u) { return u.type === UT.CITY && u.level >= 5; });
         for (const c of cs) g.buildUni(Q.me, c.tile);
-        Q.me.tech = Q.me.tech || {}; g.techDone(Q.me, 'abw1');
+        Q.me.tech = Q.me.tech || {}; g.techDone(Q.me, 'heer1');
         g.research(Q.me, 'rak1', cs[0] ? cs[0].tile : -1);
       }]],
       tips: [{ text: 'Hier ist das Forschungsfenster.', el: '#bTech' }]

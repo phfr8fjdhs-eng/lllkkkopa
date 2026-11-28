@@ -9,8 +9,9 @@ const G = globalThis.G, UT = G.UT;
 const count = (g, type, p) => g.units.filter((u) => u.active && u.type === type && (!p || u.owner === p)).length;
 // what has to be seen in each scene, asked every second; seen once is enough
 const SEEN = {
+  147: (g) => count(g, UT.SAM, g.human) === 2 && !g.has(g.human, 'abw2'),
   146: (g) => count(g, UT.WARSHIP, g.human) >= 3,
-  145: (g) => g.human.units.some((u) => u.res && u.res.id === 'rak1') && g.has(g.human, 'abw1'),
+  145: (g) => g.human.units.some((u) => u.res && u.res.id === 'rak1') && g.has(g.human, 'heer1'),
   144: (g) => g.human.tiles > 0,
   143: (g, s) => { for (const f of g.fx) if (f.k === 'tracer') s.n = (s.n || 0) + 1; return s.n >= 2; },
   142: (g) => g.human.units.some((u) => u.active && G.isPlane(u.type) && u.x > 200),

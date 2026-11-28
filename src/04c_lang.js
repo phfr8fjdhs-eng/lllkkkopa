@@ -616,12 +616,11 @@
     T_('auf3', 'Aufklärung', 3, 'Tarnung erkennen', 'Im Kreis eigener Radare sind getarnte Gebäude sichtbar', ['auf2']),
     T_('auf4', 'Aufklärung', 4, 'Frühwarnradar', 'Bomben und Raketen siehst du im dreifachen Radarkreis', ['auf3']),
     T_('auf5', 'Aufklärung', 5, 'Satellit', 'Jeder Raketenstart auf der Welt ist zu sehen', ['auf4']),
-    T_('abw1', 'Abwehr', 1, 'Flugabwehr', 'Kleine Flugabwehr (gegen Marschflugkörper) und Raketenabwehr (gegen Atomwaffen, ab Stufe 3 auch Flugzeuge) bauen'),
-    T_('abw2', 'Abwehr', 2, 'Mehr Schüsse', 'Kleine Flugabwehr: 3 statt 2 Schüsse pro Stufe', ['abw1']),
+    T_('abw2', 'Abwehr', 2, 'Mehr Schüsse', 'Kleine Flugabwehr: 3 statt 2 Schüsse pro Stufe'),
     T_('schutz', 'Abwehr', 2, 'Schutzräume', 'Ausbau der Stadt: halber Schaden durch Bomben'),
     T_('abw3a', 'Abwehr', 3, 'Noch mehr Schüsse', 'Kleine Flugabwehr: ein Schuss mehr pro Stufe', ['abw2'], 'abw3'),
     T_('abw3b', 'Abwehr', 3, 'Mehr Reichweite', 'Flugabwehr reicht 1.3-mal so weit', ['abw2'], 'abw3'),
-    T_('abm3', 'Abwehr', 3, 'Raketenabwehr gegen Atombomben', 'Die Raketenabwehr fängt Atombomben ab', ['abw1']),
+    T_('abm3', 'Abwehr', 3, 'Raketenabwehr gegen Atombomben', 'Die Raketenabwehr fängt Atombomben ab'),
     T_('schutz2', 'Abwehr', 3, 'Stärkere Schutzräume', 'Schutzräume lassen nur noch 30 % des Schadens durch', ['schutz']),
     T_('abw4', 'Abwehr', 4, 'Schneller nachladen', 'Flugabwehr lädt 30 % schneller nach', ['abw2']),
     T_('abm4', 'Abwehr', 4, 'Raketenabwehr gegen Wasserstoffbomben', 'Die Raketenabwehr fängt auch Wasserstoffbomben ab', ['abm3']),
@@ -781,7 +780,7 @@
     switch (type) {
       case UT.CRUISE: return 'rak1'; case UT.CLUSTER: return 'rak2'; case UT.BUNKER: return 'rak3a'; case UT.THERMO: return 'rak3b';
       case UT.SRBM: return 'rak4'; case UT.ATOM: return 'atom'; case UT.HYDRO: return 'hydro'; case UT.MIRV: return 'mirv';
-      case UT.SAM: return cls === 2 ? 'auf1' : 'abw1';
+      case UT.SAM: return cls === 2 ? 'auf1' : null;   // both air defences are built without research (28.11.2026)
       case UT.BOMBER: return 'luft4'; case UT.STEALTH: return 'luft5'; case UT.RECON: return 'reco'; case UT.MINE: return 'mine';
     }
     return '';

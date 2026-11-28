@@ -184,13 +184,13 @@ Code: `G.TECH`, `research`, `langResearch`, `techWhy`, `techOffer` in `src/04c_l
 - In den Szenen von «Änderungen» ist alles erforscht, ausser in der Szene zur Forschung (`research: true`).
 
 ### Was die Forschung freischaltet oder verbessert
-Ohne Forschung baut man im Modus weder Flugabwehr noch Radar, feuert keinen Marschflugkörper und keine Atomwaffe und hat keine Schutzräume.
+Ohne Forschung baut man im Modus kein Radar (die Flugabwehr seit 28.11.2026 schon), feuert keinen Marschflugkörper und keine Atomwaffe und hat keine Schutzräume.
 
 | Zweig | 1 | 2 | 3 | 4 | 5 |
 | --- | --- | --- | --- | --- | --- |
 | Doktrin | Blitzkrieg ODER Tiefenverteidigung | | | | |
 | Aufklärung | Radarstation | Grösserer Radarkreis (×1.5); Bessere Spione (doppelt so lange, halber Preis) | Tarnung erkennen (wirkt ab Paket 5, Tarnbomber) | Frühwarnradar (Bomben im dreifachen Radarkreis sichtbar) | Satellit (jeder Start sichtbar) |
-| Abwehr | Flugabwehr und Raketenabwehr | Mehr Schüsse (3 pro Stufe); Schutzräume | Noch mehr Schüsse ODER Mehr Reichweite (×1.3); Raketenabwehr gegen Atombomben; Stärkere Schutzräume (30 % statt 50 %) | Schneller nachladen (×0.7); Raketenabwehr gegen Wasserstoffbomben; Zivilschutz (Städte evakuieren selbst) | Raketenabwehr gegen MIRV-Sprengköpfe |
+| Abwehr | (bis 28.11.2026: Flugabwehr und Raketenabwehr; seither ohne Forschung) | Mehr Schüsse (3 pro Stufe); Schutzräume | Noch mehr Schüsse ODER Mehr Reichweite (×1.3); Raketenabwehr gegen Atombomben; Stärkere Schutzräume (30 % statt 50 %) | Schneller nachladen (×0.7); Raketenabwehr gegen Wasserstoffbomben; Zivilschutz (Städte evakuieren selbst) | Raketenabwehr gegen MIRV-Sprengköpfe |
 | Raketen | Marschflugkörper | Streubombe; Reichweite (×1.25) | Bunkerbrecher ODER Thermobare Bombe; Sprengkraft (35 % der Stufen) | Kurzstreckenrakete; Mehr Sprengkraft (50 %); Tempo (×1.3) | Hyperschall (×1.5 schneller, Flugabwehr erfasst nur in halber Weite) |
 | Atomwaffen | | | | Atombombe | Wasserstoffbombe, MIRV |
 | Heer | Eingraben (Angreifer bis × 4 Verluste) | Infrastruktur (Städte versorgen im doppelten Umkreis); Schienen (Marsch auf Schienen × 0.7) | Warthog (Keile 15 % billiger) ODER Apache (Feind hinter der Front × 1.3 langsamer); Stärkere Posten (× 1.3) | Panzerkeil (Schwung sinkt 30 % langsamer, braucht Blitzkrieg) | Stärkstes Eingraben (bis × 5, braucht Tiefenverteidigung); Pioniere (Gelände bremst den eigenen Angriff weniger) |
@@ -398,3 +398,7 @@ Alles in `src/06_view.js`, nur Anzeige, vorerst **nur mit `?grafik=neu`** (`NEWL
 - **C2 Schiffe:** alle in einem Stil, 7 Bildpunkte hoch: dunkler Rand, Rumpf in der Farbe des Besitzers, spitzer Bug, ein Zeichen pro Art an Deck (Zerstörer ein Geschütz und Brücke, Schlachtschiff drei Türme, U-Boot dunkler flacher Rumpf mit Turm, Träger graues Flugdeck mit Markierung, Abwehrschiff rote Startzellen, Radarschiff weisse Schüssel; Handelsschiffe und Boote passend). Weiter einmal pro Besitzer und Art vorgezeichnet (`shipSprite`). **Gebäude:** Raketenabwehr als grosses Quadrat mit zweitem Rand wie die Flugabwehr (vorher ein Sechseck wie die Fabrik), Flugplatz als Landebahn (Rechteck mit runden Ecken).
 - **C3 Flugzeuge:** Draufsicht, nach Flugrichtung gedreht, mit Schatten, einmal pro Besitzer und Art vorgezeichnet (`planeSprite`): Bomber gerade Flügel und vier Triebwerke, Tarnbomber Nurflügler mit Sägezahn-Hinterkante, Jäger kleines Delta, Aufklärer lange schmale Flügel.
 - **C4 Waffen:** eigenes Bild im Flug (`weaponHead`): Kurzstreckenrakete schlank mit roter Spitze, Streubombe Behälter mit kreisenden Bomblets, Bunkerbrecher langer dunkler Pfeil, thermobare Bombe runder glühender Körper. Einschläge (`drawWeaponBoom`, die Simulation gibt dem Effekt `t` = Waffe mit): Marschflugkörper und Kurzstrecke kleiner scharfer Blitz mit Funken, Streubombe viele kleine Blitze über das Gebiet, Bunkerbrecher Staubsäule, thermobare Bombe orange Welle, Sprengbomben eine Reihe Blitze. Kein weisser Blitz und kein grosser Feuerball wie bei der Atombombe.
+
+## Nachträge (28.11.2026)
+- **Flugabwehr ohne Forschung:** Kleine Flugabwehr und Raketenabwehr baut man im Modus ab dem Start (`techFor` gibt für sie nichts mehr zurück). Die Forschung «Flugabwehr» (Abwehr 1) ist weg; «Mehr Schüsse» und «Raketenabwehr gegen Atombomben» brauchen sie nicht mehr. Das Radar braucht weiter «Radarstation». Szene 147.
+- **Forschungsfenster ohne Ruckeln:** Es rechnete sich nur einmal 150 ms nach einem Klick neu; im Worker war die Änderung dann oft noch nicht auf der Seite, danach blieb es stehen. Jetzt rechnet es sich alle 0.3 s neu, schreibt aber nur, was sich geändert hat, behält die Stelle beim Scrollen und wartet, solange ein Finger oder eine Maustaste unten ist (sonst ginge der Klick verloren).

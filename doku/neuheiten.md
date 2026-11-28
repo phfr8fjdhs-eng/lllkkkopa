@@ -11,6 +11,7 @@ Ein eigener Bereich neben dem normalen Spiel und den Levels. Auf dem Startbildsc
 ## Die Szenen (Stand 26.11.2026)
 | Nr. | Datum | Name | Was passiert |
 | --- | --- | --- | --- |
+| 147 | 28.11. | Langes Spiel: Flugabwehr ohne Forschung | Ohne Forschung: eigene Flugabwehr und Raketenabwehr entstehen nach 2 s, Varnholm schiesst alle 12 s Marschflugkörper |
 | 146 | 27.11. | Langes Spiel: Liste der Flotte | Drei eigene Schiffe, alle 15 s ein Aufklärer; Tipp zeigt auf die Reiter (Schiffe, dann Liste) |
 | 145 | 27.11. | Langes Spiel: neues Forschungsfenster | Zwei Unis, Flugabwehr erforscht, Marschflugkörper läuft; Tipp zeigt auf den Kolben |
 | 144 | 27.11. | Langes Spiel: Bauleiste in vier Gruppen | Küste mit Hafen, Silo und Flugplatz; Tipp zeigt auf die Reiter der Bauleiste |

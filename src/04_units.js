@@ -319,7 +319,8 @@
       // «Langes Spiel»: a base in an ally's land (src/04c_lang.js, baseHost)
       const host = this.owner[tile] !== p.id && this.lang ? this.baseHost(p, tile, type) : null;
       if (this.lang && p.type === PT.HUMAN && type === UT.SILO && cls && !this.has(p, 'luft1')) { res.why = 'Braucht Forschung: Flugplatz'; return res; }
-      if (this.lang && p.type === PT.HUMAN && type === UT.SAM && !this.has(p, this.techFor(UT.SAM, cls))) { res.why = 'Braucht Forschung: ' + G.TECH_BY[this.techFor(UT.SAM, cls)].name; return res; }
+      if (this.lang && p.type === PT.HUMAN && type === UT.SAM && this.techFor(UT.SAM, cls) && !this.has(p, this.techFor(UT.SAM, cls))) {   // air defences need none (28.11.2026), the radar does
+ res.why = 'Braucht Forschung: ' + G.TECH_BY[this.techFor(UT.SAM, cls)].name; return res; }
       if (this.owner[tile] !== p.id && !host) { res.why = this.lang && this.owner[tile] && p.allies.has(this.owner[tile]) ? this.baseWhy(p, tile, type) : 'Nur auf eigenem Gebiet'; return res; }
       res.base = host;
       if (type === UT.PORT) {
