@@ -41,8 +41,12 @@ for (const k of ['city', 'factory', 'defense', 'radar']) { check(k + ' im Bau', 
 for (const f of [0, 1, 2, 3]) { check('sam0 E/' + f, A.sam0(4, f)); check('radar E/' + f, A.radar(4, f)); }
 const F = G.PixFx;
 check('mine', F.mine(), 14, 14);
-check('loco', F.loco(), 34, 22); for (const k of [0, 1, 2]) check('wagon ' + k, F.wagon(k), 28, 18);
-check('loco vorn', F.trainEnd('loco', true), 16, 18); check('loco hinten', F.trainEnd('loco', false), 16, 18); for (const k of [0, 1, 2]) check('wagon end ' + k, F.trainEnd(k), 16, 18);
+// trains: roof and near wall, across (h), down (d) and up (u) the screen; outline and shadow included
+for (const k of ['loco', 0, 1, 2]) for (const d of ['h', 'l', 'd', 'u']) {
+  const q = F.car(k, d), L = F.CAR[k].L;
+  check('car ' + k + ' ' + d, q, d === 'h' || d === 'l' ? L + 6 : 11, d === 'h' || d === 'l' ? 18 : L + 10);
+  if (q.ax < 0 || q.ay < 0 || q.ax >= q.w || q.ay >= q.h) { fail++; console.log('FEHLER car ' + k + ' ' + d + ': Anker ausserhalb'); }
+}
 for (const k of ['h', 'v', 'x', 'c0', 'c1', 'c2', 'c3']) check('rail ' + k, F.rail(k), 12, 12);
 for (const k of ['bomber', 'stealth', 'fighter', 'recon']) for (let d = 0; d < 8; d++) { const q = F.plane(k, d); check(k + ' ' + d, q.pix, 46, 46); check(k + ' Schatten ' + d, q.shadow); }
 check('shell', F.shell()); F.explosion(16).forEach((p, i) => check('boom16 ' + i, p, 22, 22)); F.explosion(40).forEach((p, i) => check('boom40 ' + i, p, 50, 50));

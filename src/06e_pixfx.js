@@ -69,104 +69,171 @@
   }
 
   // ---------------------------------------------------------------- trains
-  // Horizontal track: seen from the side (and from above), the front to the right; drawn mirrored
-  // when the train runs left. Vertical track: the end of the car, from the front (running down)
-  // or from behind (running up).
-  // Body as a box along the screen: world U = (a, -a) is 4a pixels across, V = (b, b) 2b down.
-  const LOCO = [C('#934d39'), C('#732a12'), C('#59342f')], ROOF = [C('#cbd0d3'), C('#a4acb1'), C('#7f8a95')];
-  function bogies(iso, len, b, z) {
-    iso.p.obj(1);
-    for (let x = 1; x < len * 4 - 1; x++) {
-      const [px, py] = iso.at(0, 0, 0);
-      const wheel = (x % 6 === 1 || x % 6 === 2);
-      iso.p.put(px + x, py + 2 * b, wheel ? C('#20283a') : C('#2c303d'));
-      iso.p.put(px + x, py + 2 * b + 1, wheel ? C('#3d4552') : 0);
-    }
-  }
-  function sideBox(iso, len, b, h, z, m) {
-    iso.obox([0, 0], [len, -len], [b, b], z, h, m);
-  }
-  function loco() {
-    const p = new X.Pix(40, 30), iso = new X.Iso(p, 4, 18);
-    const L = 7, b = 2.5, h = 8;
-    bogies(iso, L, b, 0);
-    const side = (s, t, which, px, py) => {
-      const u = s / (L * Math.SQRT2);                       // 0 at the back, 1 at the front
-      if (t >= h - 1) return LOCO[0];
-      if (u > 0.82 && t > h - 4 && t < h - 1.5) return u > 0.95 ? K.gl1 : K.gl3;   // cab windows, front
-      if (u > 0.97 && t < 2.5 && t > 1.2) return C('#d1be6d');                         // lamp
-      if (t >= 2 && t < 3) return C('#c4a76a');                                      // a stripe
-      if (u > 0.3 && u < 0.7 && t > h - 3.5 && t < h - 1.5 && (px % 2)) return LOCO[2]; // grille
-      if (t < 1) return LOCO[2];
-      return hash(px, py, 201) < 0.05 ? X.darker(LOCO[1]) : LOCO[1];
-    };
-    sideBox(iso, L, b, h, 0.8, { l: side, r: side, k: 2, hi: ROOF[0],
-      t: (s, t, px) => (s > L * 1.414 * 0.25 && s < L * 1.414 * 0.6 && t > 1 && t < b * 1.414 - 1 ? (px % 2 ? C('#5b626e') : ROOF[2]) : ROOF[1]) });
-    const [hx, hy] = iso.at(L * 0.85, -L * 0.85 + b * 0.7, h + 0.8);
-    iso.stamp(hx, hy, ['a', 'b'], { a: C('#d1be6d'), b: K.st4 }, 1, false);       // horn light on the roof
-    p.finish();
-    const q = p.trim(); q.ax = Math.round(q.w / 2); q.ay = q.h - 1;
-    return q;
-  }
-  // Wagons: 0 container, 1 tank, 2 open with crates.
-  function wagon(kind) {
-    const p = new X.Pix(34, 24), iso = new X.Iso(p, 4, 12);
-    const L = 6, b = 2.5;
-    bogies(iso, L, b, 0);
-    sideBox(iso, L, b, 1.2, 0.8, { l: C('#3d4552'), r: C('#3d4552'), t: C('#5b626e'), k: 1 });   // flat car
-    const sl = L * Math.SQRT2, bl = b * Math.SQRT2;
-    if (kind === 0) {
-      const c = K.cnt[0], d = X.darker(c);
-      iso.obox([0.3, -0.3], [L - 0.6, -(L - 0.6)], [b - 0.2, b - 0.2], 2, 4.5, {
-        l: (s, t, w, px) => (px % 2 ? c : d), r: (s, t, w, px) => (px % 2 ? c : d), t: X.lighter(c), hi: X.lighter(X.lighter(c)), lo: X.darker(d), k: 1
-      });
-    } else if (kind === 1) {
-      const T = [C('#a4acb1'), C('#898d95'), C('#747c89'), C('#5b626e')];
-      iso.obox([0.2, -0.2], [L - 0.4, -(L - 0.4)], [b - 0.1, b - 0.1], 2, 4, {
-        l: (s, t) => (s < 0.8 || s > sl - 1.1 ? T[3] : t > 3 ? T[1] : t > 1.5 ? T[2] : T[3]), r: T[2], hi: T[0], k: 1,
-        t: (s, t) => (t < bl * 0.35 ? T[0] : T[1])
-      });
-      const [dx, dy] = iso.at(L / 2, -L / 2 + b / 2, 6);
-      iso.stamp(dx, dy, ['aa', 'bb'], { a: T[0], b: T[3] }, 1);                    // dome on top
-    } else {
-      const W = [C('#a27544'), C('#774f31'), C('#2e2118')];
-      iso.obox([0.2, -0.2], [L - 0.4, -(L - 0.4)], [b - 0.1, b - 0.1], 2, 3.5, {
-        l: (s, t, w, px) => (px % 4 === 0 ? W[1] : t > 2.5 ? W[0] : W[1]), r: W[1], hi: W[0], k: 2,
-        t: (s, t, px, py) => (s < 0.5 || s > sl - 0.5 || t < 0.4 || t > bl - 0.4 ? W[0] : W[2])
-      });
-      for (const f of [0.3, 0.62]) A.crate(iso, L * f, -L * f + 0.5, 2.6, f > 0.5 ? [K.cnt[3], C('#934e1a')] : null);
-    }
-    p.finish();
-    const q = p.trim(); q.ax = Math.round(q.w / 2); q.ay = q.h - 1;
-    return q;
-  }
-  // Vertical track: the end of a car, 14 × 16. front: true for the front of the loco.
-  function trainEnd(kind, front) {
-    const p = new X.Pix(20, 24), iso = new X.Iso(p, 3, 6);
-    const a = 3, b = 3.5;                                     // U along the track (down), V across
-    const isLoco = kind === 'loco';
-    const body = isLoco ? LOCO : kind === 1 ? [C('#898d95'), C('#747c89'), C('#5b626e')] : kind === 2 ? [C('#a27544'), C('#774f31'), C('#2e2118')] : [K.cnt[0], X.darker(K.cnt[0]), X.darker(X.darker(K.cnt[0]))];
-    const h = isLoco ? 8 : 6;
-    const end = (s, t, which, px, py) => {
-      const u = s / (b * Math.SQRT2);
-      if (which !== 'u+') return body[1];
-      if (isLoco && front) {
-        if (t > h - 4 && t < h - 1.5 && u > 0.12 && u < 0.88) return (u < 0.5 ? K.gl1 : K.gl3);   // windscreen
-        if (t > 1 && t < 2.2 && (u < 0.2 || u > 0.8)) return C('#d1be6d');                      // lamps
+  // Seen like everything else: from above at a slant. The track runs on the map's grid (only
+  // across or down the screen), so a car shows its roof, seen from above, and the one wall that
+  // faces the viewer below it: the long side on a track across the screen, the end on a track
+  // down the screen. Light from the top left. (28.11.2026; before: a flat side view on a track
+  // seen from above, and on a track down the screen only the ends of the cars, stacked like boxes.)
+  //   car(kind, dir): kind 'loco' or 0 (two containers), 1 (tank), 2 (open, with crates);
+  //   dir 'h' (front to the right), 'l' (front to the left), 'd' (running down,
+  //   the front end shows), 'u' (running up, the back end shows).
+  // Anchor (ax, ay): the middle of the car's footprint on the track centre line.
+  // The loco carries the owner's colour; wagons keep their load's colours.
+  const CAR = { loco: { L: 24, H: 5 }, 0: { L: 21, H: 5 }, 1: { L: 19, H: 4 }, 2: { L: 19, H: 3 } };
+  const CB = 7;                                              // width across the track
+  const ROOF = [C('#cbd0d3'), C('#a4acb1'), C('#7f8a95')];
+  const TK = [C('#a4acb1'), C('#898d95'), C('#747c89'), C('#5b626e')];
+  const WD = [C('#a27544'), C('#774f31'), C('#2e2118')];
+  const DARK = C('#20283a'), FRAME = C('#2c303d'), HUB = C('#5b626e');
+  const GLASS = [K.gl1, K.gl3], LAMP = C('#d1be6d'), CREAM = C('#c4a76a');
+  // roof(u, v): u along the car (0 back .. L-1 front), v across (0 the far side .. CB-1 the near
+  // side). side(u, t) the near long side, t from the top (0) down; end(v, t, front) an end, v
+  // from left to right as seen.
+  const ART = {
+    loco: {
+      roof(u, v, L) {
+        if ((u === 0 || u === L - 1) && (v === 0 || v === CB - 1)) return 0;     // rounded corners
+        if (u >= L - 7) {                                                          // cab roof in the owner's colour
+          if (u === L - 7) return PC3;
+          return v === 0 || u === L - 1 ? PC1 : v === CB - 1 ? PC3 : PC2;
+        }
+        if (v === 0) return K.st1;                                                 // hood: grey, lit edge
+        if (v === CB - 1) return K.st3;
+        for (const f of [5, 11]) {                                                 // two round fans
+          const du = u - f, dv = v - 3;
+          if (Math.abs(du) <= 1 && Math.abs(dv) <= 1) return du === 0 && dv === 0 ? K.st3 : Math.abs(du) + Math.abs(dv) === 2 ? K.st2 : K.st5;
+        }
+        if (u === 15 && v >= 2 && v <= 3) return v === 2 ? K.st5 : K.st4;          // exhaust
+        if (u === 0) return K.st3;
+        return hash(u, v, 301) < 0.06 ? K.st3 : K.st2;
+      },
+      side(u, t, L, H) {
+        if (t === 0) return u === 0 || u === L - 1 ? PC2 : PC1;
+        if (t === H - 1) return PC3;
+        if (u >= L - 6 && u <= L - 3 && t >= 1 && t <= 2) return u === L - 6 ? GLASS[1] : GLASS[0];   // cab window
+        if (u === L - 7 && t >= 1) return PC3;                                     // cab door line
+        if (u === L - 1 && t === H - 2) return LAMP;                               // headlamp
+        if (t === H - 2) return CREAM;                                             // stripe
+        if (u >= 3 && u <= 15 && t === 1 && u % 2) return PC3;                     // engine louvres
+        if (u === 0) return PC3;
+        return PC2;
+      },
+      end(v, t, front, H) {
+        if (t === 0) return PC1;
+        if (t === H - 1) return PC3;
+        if (front && t >= 1 && t <= 2 && v >= 1 && v <= CB - 2) return v < CB / 2 ? GLASS[0] : GLASS[1];   // windscreen
+        if (!front && t === 1 && v >= 2 && v <= CB - 3) return K.gl4;              // back window
+        if (t === H - 2) return v === 0 || v === CB - 1 ? (front ? LAMP : PC3) : CREAM;
+        return PC2;
       }
-      if (isLoco && !front && t > h - 3.5 && t < h - 1.5 && u > 0.35 && u < 0.65) return K.gl4; // rear window
-      if (t >= 2 && t < 3 && isLoco) return C('#c4a76a');
-      if (t < 1) return body[2];
-      return (px % 4 === 0 && !isLoco) ? body[2] : body[0];
-    };
-    iso.obox([0, 0], [a, a], [b, -b], 0.8, h, { l: end, r: end, t: isLoco ? ROOF[1] : body[0], hi: isLoco ? ROOF[0] : X.lighter(body[0]), k: isLoco || kind === 2 ? 2 : 1 });
-    iso.p.obj(1);
-    const [bx, by] = iso.at(a, a, 0);
-    for (let x = -6; x <= 6; x++) { iso.p.put(bx + Math.round(b * 2) + x, by + 1, (x + 6) % 4 < 2 ? C('#20283a') : C('#2c303d')); }
-    p.finish();
-    const q = p.trim(); q.ax = Math.round(q.w / 2); q.ay = q.h - 1;
-    return q;
+    },
+    0: {                                                     // flat car with two containers
+      box(u, L) { return u >= 1 && u <= 9 ? K.cnt[0] : u >= 11 && u <= L - 2 ? K.cnt[3] : 0; },
+      roof(u, v, L) {
+        const c = this.box(u, L);
+        if (!c) return v >= 1 && v <= CB - 2 ? FRAME : 0;                       // the deck between
+        if (v === 0) return X.lighter(c);
+        if (v === CB - 1) return X.darker(c);
+        return (u === 1 || u === 11 || u === 9 || u === L - 2) ? X.darker(c) : u % 3 === 0 ? X.lighter(c) : c;
+      },
+      side(u, t, L, H) {
+        if (t === H - 1) return u === 0 || u === L - 1 ? K.st4 : K.st3;           // deck of the flat car
+        const c = this.box(u, L);
+        if (!c) return t >= H - 2 ? K.st4 : 0;
+        if (t === 0) return X.lighter(c);
+        if (u === 1 || u === 11 || u === 9 || u === L - 2) return X.darker(c);      // corner posts
+        return u % 2 ? c : X.darker(c);                                            // ribs
+      },
+      end(v, t, front, H) {
+        if (t === H - 1) return K.st3;
+        const c = front ? K.cnt[3] : K.cnt[0];
+        if (t === 0) return X.lighter(c);
+        if (v === 0 || v === CB - 1) return X.darker(c);
+        return v === 2 || v === 4 ? X.darker(c) : c;                               // door bars
+      }
+    },
+    1: {                                                     // tank car
+      roof(u, v, L) {
+        if ((u === 0 || u === L - 1) && (v === 0 || v === CB - 1)) return 0;
+        const du = u - Math.floor(L / 2), dv = v - 3;                             // round dome with its hatch
+        if (Math.abs(du) <= 1 && Math.abs(dv) <= 1 && Math.abs(du) + Math.abs(dv) < 2) return du === 0 && dv === 0 ? TK[2] : du + dv < 0 ? K.st0 : TK[3];
+        if (Math.abs(du) + Math.abs(dv) === 2 && Math.abs(du) <= 1 && Math.abs(dv) <= 1) return TK[1];
+        if (u === 2 || u === L - 3) return v === 0 ? TK[1] : TK[2];               // bands
+        return [TK[1], TK[0], TK[0], TK[1], TK[1], TK[2], TK[3]][v];               // round from above
+      },
+      side(u, t, L, H) {
+        if (u === 0 || u === L - 1) return t === H - 1 ? K.st4 : TK[3];
+        if (t === H - 1) return K.st4;
+        if (u === 2 || u === L - 3) return TK[3];
+        return t === 0 ? TK[2] : TK[3];
+      },
+      end(v, t, front, H) {
+        if (t === H - 1) return v === 0 || v === CB - 1 ? 0 : K.st4;
+        if (t === 0 && (v === 0 || v === CB - 1)) return 0;
+        return v <= 1 ? TK[1] : v >= CB - 2 ? TK[3] : TK[2];
+      }
+    },
+    2: {                                                     // open wagon with crates
+      roof(u, v, L) {
+        if (u === 0 || u === L - 1 || v === 0 || v === CB - 1) return v === 0 || u === 0 ? WD[0] : WD[1];   // rim
+        for (const [a, b, c] of [[2, 6, K.cnt[3]], [8, 11, C('#934e1a')], [13, 16, K.cnt[1]]]) {
+          if (u >= a && u <= b && v >= 1 && v <= 4) return v === 4 ? X.darker(c) : v === 1 ? X.lighter(c) : c;
+        }
+        return v === 5 ? WD[2] : (u % 4 ? WD[2] : WD[1]);                         // floor, in shadow
+      },
+      side(u, t, L, H) {
+        if (u % 5 === 0 || u === L - 1) return WD[1];                             // stanchions
+        if (t === H - 1) return WD[1];
+        return t === 0 ? WD[0] : (hash(u, t, 302) < 0.15 ? WD[1] : WD[0]);
+      },
+      end(v, t, front, H) { return t === H - 1 || v === 0 || v === CB - 1 ? WD[1] : WD[0]; }
+    }
+  };
+  // A drop shadow, black at 35 %, one pixel to the lower right of the outlined picture.
+  const SHADOW = X.pack(0, 0, 0, 89);
+  function dropShadow(p) {
+    const add = [];
+    for (let y = p.h - 1; y > 0; y--) for (let x = p.w - 1; x > 0; x--) if (!p.get(x, y) && p.get(x - 1, y - 1)) add.push(x, y);
+    p.obj(0, false);
+    for (let i = 0; i < add.length; i += 2) p.put(add[i], add[i + 1], SHADOW);
   }
+  function car(kind, dir) {
+    const a = ART[kind], L = CAR[kind].L, H = CAR[kind].H, m = 3, k = kind === 2 ? 2 : 1;
+    let p;
+    if (dir === 'h' || dir === 'l') {
+      // 'l': the same car running left, drawn anew (not mirrored) so light and shadow stay put
+      const at = dir === 'l' ? (x) => m + L - 1 - x : (x) => m + x;
+      p = new X.Pix(L + 2 * m, CB + H + 2 + 2 * m);
+      p.obj(k);
+      for (let v = 0; v < CB; v++) for (let u = 0; u < L; u++) p.put(at(u), m + v, a.roof(u, v, L));
+      for (let t = 0; t < H; t++) for (let u = 0; u < L; u++) p.put(at(u), m + CB + t, a.side(u, t, L, H));
+      // under the body: the frame, two bogies with two wheels each, couplers at both ends
+      const y = m + CB + H;
+      for (let u = 1; u < L - 1; u++) p.put(m + u, y, FRAME);
+      for (const b of [3, L - 7]) for (const w of [0, 3]) { p.put(m + b + w, y, DARK); p.put(m + b + w + 1, y, DARK); p.put(m + b + w, y + 1, HUB); p.put(m + b + w + 1, y + 1, DARK); }
+      p.put(m - 1, y - 1, K.st4); p.put(m + L, y - 1, K.st4);
+      p.ax = m + Math.floor(L / 2); p.ay = m + H + Math.floor(CB / 2);
+    } else {
+      const front = dir === 'd';                              // running down: the front is at the bottom
+      p = new X.Pix(CB + 2 * m, L + H + 1 + 2 * m);
+      p.obj(k);
+      for (let y = 0; y < L; y++) for (let v = 0; v < CB; v++) {
+        const u = front ? y : L - 1 - y;                       // the roof, its far end at the top
+        p.put(m + v, m + y, a.roof(u, front ? v : CB - 1 - v, L));
+      }
+      for (let t = 0; t < H; t++) for (let v = 0; v < CB; v++) p.put(m + v, m + L + t, a.end(v, t, front, H));
+      const y = m + L + H;
+      for (let v = 1; v < CB - 1; v++) p.put(m + v, y, v === 1 || v === CB - 2 ? DARK : FRAME);
+      p.ax = m + Math.floor(CB / 2); p.ay = m + H + Math.floor(L / 2);
+    }
+    p.finish();
+    dropShadow(p);
+    return p.trim();
+  }
+  // the older names, kept for callers
+  function loco() { return car('loco', 'h'); }
+  function wagon(kind) { return car(kind, 'h'); }
+  function trainEnd(kind, front) { return car(kind, front === false ? 'u' : 'd'); }
   // Rail tiles, seen straight from above (the map's grid): ballast, sleepers every 3 pixels, two
   // rails. kind: 'h', 'v', 'x' (crossing), 'c0'–'c3' (curves: 0 left–down, 1 down–right,
   // 2 right–up, 3 up–left).
@@ -193,10 +260,14 @@
       const [ox, oy] = [[0, RT], [RT, RT], [RT, 0], [0, 0]][+kind[1]];
       for (let y = 0; y < RT; y++) for (let x = 0; x < RT; x++) {
         const dx = x + 0.5 - ox, dy = y + 0.5 - oy, r = Math.hypot(dx, dy), a = Math.atan2(Math.abs(dy), Math.abs(dx));
-        if (r < 2.6 || r > 9.4) continue;
-        let c = hash(x, y, 212) < 0.2 ? BAL[1] : BAL[0];
-        if (r > 3.4 && r < 8.6 && Math.round(a / (Math.PI / 2) * 5) % 1 === 0 && Math.abs(a / (Math.PI / 2) * 5 - Math.round(a / (Math.PI / 2) * 5)) < 0.18) c = SL;
-        if (Math.abs(r - 4.5) < 0.6 || Math.abs(r - 7.5) < 0.6) c = RL;
+        if (r < 3 || r > 9) continue;                          // the ballast, as wide as on the straight
+        const h = hash(x, y, 212);
+        let c = h < 0.2 ? BAL[1] : h > 0.9 ? BAL[2] : BAL[0];
+        // sleepers across the bend, 3 along the middle line (r 6) as on the straight
+        if (r > 3.5 && r < 8.5) for (const sk of [1.5, 4.7, 7.9]) if (Math.abs(r * a - r * sk / 6) < 0.6) c = SL;
+        // two rails, the outer one with the same light dashes as the straight
+        if (Math.abs(r - 4.5) < 0.55) c = RL;
+        if (Math.abs(r - 7.5) < 0.55) c = (x + y) % 2 ? RL : RH;
         p.put(x, y, c);
       }
     }
@@ -412,5 +483,5 @@
     return p;
   }
 
-  G.PixFx = { target, war4, mine, loco, wagon, trainEnd, rail, plane, PLANES, shell, explosion, splash, sink, gold };
+  G.PixFx = { target, war4, mine, car, CAR, loco, wagon, trainEnd, rail, plane, PLANES, shell, explosion, splash, sink, gold };
 })();

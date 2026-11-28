@@ -55,7 +55,7 @@ Ziel: grosse Karten, viele Spieler und Einheiten, später Mehrspieler über eine
 | `07b_level.js` | 210 | Feldzug auf dem Bildschirm: `G.Feldzug` (Levelseite, Quest-Leiste `#lvBar`, Tipps `#lvTip`, Endfenster); nutzt `G.ui` aus `07_ui.js` |
 | `06c_pixel.js` | 430 | Pixel-Stil fürs Lange Spiel (`doku/stil.md`): Pixelpuffer `Pix`, isometrische Formen (`Iso`), Spielerfarbe (`G.Pixel.canvas`), die 8 Schiffe aus dem Sheet (`SHIPS`); Palette `src/assets/palette.js` (`G.PIX_PAL`). Vorerst nur auf der Testseite `docs/pixel-test.html` (`src/pixel-test.html`) |
 | `06d_pixart.js` | 830 | Bilder im Pixel-Stil: Gebäude A bis E und Zustände, Truppenboot: `G.PixArt` (`city`, `factory`, `port`, `defense`, `sam0`, `sam1`, `radar`, `airfield`, `cloak`, `building`, `boat`, `stage`) |
-| `06e_pixfx.js` | 400 | Pixel-Stil, Teil 2: `G.PixFx` (Abwehrschiff `war4`, `mine`, `target`, Züge `loco`, `wagon`, `trainEnd`, `rail`, Flugzeuge `plane` in 8 Richtungen, Effekte `explosion`, `splash`, `sink`, `gold`) |
+| `06e_pixfx.js` | 400 | Pixel-Stil, Teil 2: `G.PixFx` (Abwehrschiff `war4`, `mine`, `target`, Züge `car` (Dach und Wand zum Betrachter, 4 Richtungen), `rail`, Flugzeuge `plane` in 8 Richtungen, Effekte `explosion`, `splash`, `sink`, `gold`) |
 | `07c_neu.js` | 110 | «Änderungen» auf dem Bildschirm: `G.Neuheiten` (Liste, Leiste `#nwBar`, Bildausschnitt `frame`) |
 | `template.html` | | Seitengerüst (HTML und CSS) |
 

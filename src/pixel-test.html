@@ -58,7 +58,7 @@
   <div class="row" id="state"></div>
 </section>
 <section id="s-train">
-  <h2>6. Züge und Schienen: waagrecht (Seitenansicht, nach links gespiegelt), senkrecht (von vorne nach unten, von hinten nach oben), Kurven und Kreuzung</h2>
+  <h2>6. Züge und Schienen: schräg von oben wie alles andere (Dach und die Wand zum Betrachter), Rundstrecke mit Kurven, rechts die Kacheln und die Wagen einzeln</h2>
   <div class="wide"><canvas id="train"></canvas></div>
 </section>
 <section id="s-plane">
@@ -86,7 +86,8 @@ const G = globalThis.G = {};
   for (const [k] of KINDS) built[k] = (k === 'cloak' ? [0, 1] : [0, 1, 2, 3, 4]).map((s) => A[k](s, 0));
   const turning = { sam0: [0, 1, 2, 3].map((f) => A.sam0(4, f)), radar: [0, 1, 2, 3].map((f) => A.radar(4, f)) };
   const boat = A.boat(), mine = F.mine(), target = F.target();
-  const train = { loco: F.loco(), wagons: [0, 1, 2].map(F.wagon), front: F.trainEnd('loco', true), back: F.trainEnd('loco', false), ends: [0, 1, 2].map((k) => F.trainEnd(k)) };
+  const CARS = ['loco', 0, 1, 2], train = {};
+  for (const k of CARS) train[k] = { h: F.car(k, 'h'), l: F.car(k, 'l'), d: F.car(k, 'd'), u: F.car(k, 'u') };
   const rails = {}; for (const k of ['h', 'v', 'x', 'c0', 'c1', 'c2', 'c3']) rails[k] = F.rail(k);
   const planes = {}; for (const k of ['bomber', 'stealth', 'fighter', 'recon']) planes[k] = [0, 1, 2, 3, 4, 5, 6, 7].map((d) => F.plane(k, d));
   const fx = { shell: F.shell(), small: F.explosion(16), big: F.explosion(40), splash: F.splash(), gold: F.gold('+25k') };
@@ -181,24 +182,55 @@ const G = globalThis.G = {};
     const tf4 = Math.floor(T * 4) % 4, ta = turning.sam0[tf4], tb = turning.radar[tf4];
     cx = canvasFor('turn', ta.w + tb.w + 30, Math.max(ta.h, tb.h) + 10, z, LAND);
     blit(cx, ta, 10 * z, (5 + Math.max(ta.h, tb.h) - ta.h) * z, z, col); blit(cx, tb, (20 + ta.w) * z, (5 + Math.max(ta.h, tb.h) - tb.h) * z, z, col);
-    // 6. trains
-    const TW = 560, TH = 150;
+    // 6. trains: a loop of track (tiles of 12, curves in the corners), the train runs round it
+    //    clockwise; each car takes the picture for the stretch it is on, the nearer ones drawn last
+    const TW = 560, TH = 190, R = 12, tx0 = 1, ty0 = 1, tx1 = 26, ty1 = 13;
     cx = canvasFor('train', TW, TH, z, LAND);
-    for (let x = 0; x < TW; x += 12) blit(cx, rails.h, x * z, 30 * z, z);
-    for (let y = 0; y < TH; y += 12) blit(cx, rails.v, 420 * z, y * z, z);
-    blit(cx, rails.x, 420 * z, 30 * z, z);
-    let rx = 470;
-    for (const k of ['c0', 'c1', 'c2', 'c3']) { blit(cx, rails[k], rx * z, 100 * z, z); rx += 16; }
-    blit(cx, rails.c1, 470 * z, 120 * z, z); blit(cx, rails.h, 482 * z, 120 * z, z); blit(cx, rails.c0, 494 * z, 120 * z, z);
-    const tph = (T * 0.08) % 2, tdir = tph < 1 ? 1 : -1, tf = tph < 1 ? tph : 2 - tph;
-    const cars = [train.loco, ...train.wagons], len = cars.reduce((a, p) => a + p.w + 1, 0);
-    let tx = Math.round(10 + tf * (380 - len));
-    const order = tdir > 0 ? [...cars].reverse() : cars;      // loco at the front
-    for (const p of order) { blit(cx, p, tx * z, (36 - p.h + 4) * z, z, col, tdir < 0); tx += p.w + 1; }
-    const vph = (T * 0.1) % 2, vdir = vph < 1 ? 1 : -1, vf = vph < 1 ? vph : 2 - vph;
-    const vcars = vdir > 0 ? [...train.ends, train.front] : [train.back, ...train.ends];   // top to bottom; the loco leads
-    let vy = Math.round(5 + vf * (TH - 90));
-    for (const p of vcars) { blit(cx, p, (426 - p.w / 2 + 4) * z, vy * z, z, col); vy += p.h - 2; }
+    for (let i = tx0; i <= tx1; i++) for (let j = ty0; j <= ty1; j++) {
+      const top = j === ty0, bot = j === ty1, lef = i === tx0, rig = i === tx1;
+      if (!(top || bot || lef || rig)) continue;
+      const k = top && lef ? 'c1' : top && rig ? 'c0' : bot && rig ? 'c3' : bot && lef ? 'c2' : top || bot ? 'h' : 'v';
+      blit(cx, rails[k], i * R * z, j * R * z, z);
+    }
+    const X0 = tx0 * R + 6, X1 = tx1 * R + 6, Y0 = ty0 * R + 6, Y1 = ty1 * R + 6, cr = 6, sw = X1 - X0 - 2 * cr, sh = Y1 - Y0 - 2 * cr, arc = Math.PI * cr / 2;
+    const per = 2 * sw + 2 * sh + 4 * arc;
+    // a point on the centre line, s along it from the start of the top straight, and the way it runs
+    function onLoop(s) {
+      s = ((s % per) + per) % per;
+      const seg = [[sw, 'h'], [arc], [sh, 'd'], [arc], [sw, 'h'], [arc], [sh, 'u'], [arc]];
+      const corner = [[X1 - cr, Y0 + cr, -Math.PI / 2], [X1 - cr, Y1 - cr, 0], [X0 + cr, Y1 - cr, Math.PI / 2], [X0 + cr, Y0 + cr, Math.PI]];
+      for (let i = 0; i < 8; i++) {
+        const [len, d] = seg[i];
+        if (s > len) { s -= len; continue; }
+        if (i === 0) return { x: X0 + cr + s, y: Y0, dir: 'h', left: false };
+        if (i === 2) return { x: X1, y: Y0 + cr + s, dir: 'd' };
+        if (i === 4) return { x: X1 - cr - s, y: Y1, dir: 'h', left: true };
+        if (i === 6) return { x: X0, y: Y1 - cr - s, dir: 'u' };
+        const [ox, oy, a0] = corner[(i - 1) / 2], a = a0 + s / cr;
+        const tx = -Math.sin(a), ty = Math.cos(a);              // the way it runs, clockwise
+        return { x: ox + Math.cos(a) * cr, y: oy + Math.sin(a) * cr, dir: Math.abs(tx) >= Math.abs(ty) ? 'h' : ty > 0 ? 'd' : 'u', left: tx < 0 };
+      }
+      return { x: X0, y: Y0, dir: 'h', left: false };
+    }
+    const order = ['loco', 0, 1, 2, 0], gap = 2;
+    let back = (T * 26) % per;                                  // the front of the loco
+    const placed = [];
+    for (const k of order) {
+      const L = F.CAR[k].L, at = onLoop(back - L / 2);
+      placed.push([k, at]); back -= L + gap;
+    }
+    placed.sort((a, b) => a[1].y - b[1].y);
+    for (const [k, at] of placed) {
+      const p = train[k][at.dir === 'h' && at.left ? 'l' : at.dir];
+      blit(cx, p, Math.round(at.x - p.ax) * z, Math.round(at.y - p.ay) * z, z, col);
+    }
+    // on the right: the tiles (straight, crossing, 4 curves) and every car in its three pictures
+    let rx = 362;
+    for (const k of ['h', 'v', 'x', 'c0', 'c1', 'c2', 'c3']) { blit(cx, rails[k], rx * z, 30 * z, z); rx += 16; }
+    let cxp = 362, cyp = 52;
+    for (const k of CARS) { blit(cx, train[k].h, cxp * z, cyp * z, z, col); cyp += train[k].h.h + 2; }
+    cxp = 400; cyp = 52;
+    for (const k of CARS) for (const d of ['d', 'u']) { const p = train[k][d]; blit(cx, p, cxp * z, (cyp + 4) * z, z, col); cxp += p.w + 3; }
     // 7. planes
     const PW = 8 * 56 + 20, PH = 4 * 56 + 20;
     cx = canvasFor('plane', PW, PH, z, LAND);
