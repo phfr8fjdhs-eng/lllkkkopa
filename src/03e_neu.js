@@ -48,7 +48,7 @@
       me: { x: 90, y: 100, r: 72, troops: 60000, gold: 3000000, build: [[UT.CITY, 80, 100, 6]] },
       foes: [{ name: 'Varnholm', x: 230, y: 100, r: 62, troops: 80000, build: [[UT.SILO, 240, 100, 2]] }],
       allow: ALL, quest: none,
-      events: [[2, function (Q) { const g = Q.g; g.build(Q.me, UT.SAM, g.levelTile(115, 70)); g.build(Q.me, UT.SAM, g.levelTile(115, 130), 1); }]],
+      events: [[2, function (Q) { const g = Q.g; Q.me.gold += 6e6; g.build(Q.me, UT.SAM, g.levelTile(115, 70)); g.build(Q.me, UT.SAM, g.levelTile(115, 130), 1); }]],
       loop: [8, 12, function (Q) { Q.fire(Q.foe[0], UT.CRUISE, 80, 100); }],
       tips: [{ text: 'Beide Flugabwehren, ohne Forschung gebaut.', pins: function (Q) { return Q.units(Q.me, UT.SAM, 2); } }]
     },
